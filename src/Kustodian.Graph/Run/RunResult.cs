@@ -16,6 +16,7 @@ public enum RunOutcome
     EngineTimeout,
     EngineMemory,
     SignInNeeded,
+    ConsentNeeded,
     Failed,
 }
 

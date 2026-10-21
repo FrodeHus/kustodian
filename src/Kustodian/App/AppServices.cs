@@ -19,7 +19,7 @@ namespace Kustodian.App;
 /// <summary>
 /// The host's services, built once from the settings the app started with: the fetch budget, the object cache, the reader, the
 /// runner and the engine pool all take their limits from <c>startup</c>, and keep them until the app restarts. Disposing stops
-/// the engine workers.
+/// the engine workers and closes the Graph and ARM HTTP clients (<see cref="ArmHttp"/>).
 /// </summary>
 public sealed class AppServices : IAsyncDisposable
 {
@@ -29,6 +29,7 @@ public sealed class AppServices : IAsyncDisposable
     private readonly AccountService _accounts;
     private readonly TokenCacheStatus _tokenCache;
     private readonly HttpClient _http;
+    private readonly HttpClient _arm;
     private readonly LibraryService _library;
     private readonly RecentService _recent;
     private readonly SessionService _session;
@@ -55,6 +56,7 @@ public sealed class AppServices : IAsyncDisposable
         SettingsService.Apply(startup.Limits, options);
         Pool = new GraphEnginePool(options, new StderrLogger<GraphEnginePool>(), time);
         _http = GraphHttp.CreateClient(accounts, new StderrLogger<GraphAuthHandler>());
+        _arm = ArmHttp.CreateClient(accounts, new StderrLogger<ArmAuthHandler>());
         Budget = new GraphFetchBudget(Limits.FetchBudgetBytes);
         Objects = new MemoryGraphObjectCache(time, Limits);
         Runner = new GraphRunner(_schema, new GraphCollectionReader(_http, Budget, Objects, Limits), Budget, Pool, Limits, time,
@@ -106,6 +108,7 @@ public sealed class AppServices : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         _http.Dispose();
+        _arm.Dispose();
         await Pool.DisposeAsync();
     }
 

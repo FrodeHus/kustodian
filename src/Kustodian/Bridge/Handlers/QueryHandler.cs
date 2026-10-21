@@ -21,7 +21,8 @@ namespace Kustodian.Messaging.Handlers;
 /// run's optional <c>runId</c> names it (progress events and the answer carry it) when it is a GUID in <c>D</c> format;
 /// otherwise the host names it. <c>query.explain</c> describes what a Graph run would send, within <paramref name="limits"/>
 /// (<see cref="GraphExplain"/>): it needs no account and sends nothing. Explain and completion are Graph's only: for another
-/// source they are a <c>bad_request</c>.</summary>
+/// source they are a <c>bad_request</c>. A run whose source meets a <see cref="ConsentRequiredException"/> (an ARM token that needs
+/// the user) answers <see cref="RunOutcome.ConsentNeeded"/> with its message; the account stays signed in.</summary>
 public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeAccount, IReadOnlyDictionary<string, IQuerySource> sources,
     RecentService? recent = null, TimeProvider? time = null, ILogger<QueryHandler>? logger = null, GraphLimits? limits = null)
 {
@@ -128,7 +129,20 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
             var progress = new TabProgress(bridge, tabId);
             var started = _time.GetUtcNow();
             var request = new QueryRunRequest(account, p.Kql, p.Parameters ?? [], p.Refresh, p.RunId, p.Options);
-            var result = await source.RunAsync(request, progress, cts.Token);
+            RunResult result;
+            try
+            {
+                result = await source.RunAsync(request, progress, cts.Token);
+            }
+            catch (Exception ex) when (ConsentRequiredException.FindIn(ex) is { } consent)
+            {
+                // The account is still signed in: the UI offers to grant access (account.consent) and runs again.
+                result = new RunResult(RunOutcome.ConsentNeeded, consent.Message, null, [], [], 0, [], _time.GetUtcNow() - started)
+                {
+                    RunId = new RunDiagnostics(_time, p.RunId).RunId,
+                };
+            }
+
             await RecordAsync(p, started, result);
             return result;
         }

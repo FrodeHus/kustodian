@@ -9,6 +9,8 @@ public interface ITokenSource
 {
     /// <summary>A token for the account <paramref name="accountKey"/>, whether or not it is the active one.</summary>
     /// <exception cref="SignInRequiredException">That account is not signed in (or was signed out), or has to sign in again.</exception>
+    /// <exception cref="ConsentRequiredException">An ARM token needs the user (consent or a policy); the sign-in itself is
+    /// still good.</exception>
     Task<string> GetTokenAsync(string accountKey, Audience audience, CancellationToken ct);
 }
 
@@ -33,7 +35,7 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
     public string? ActiveAccountKey => _activeKey;
 
     public async Task<AccountInfo> SignInInteractiveAsync(ClientConfig config, CancellationToken ct) =>
-        await SignInAsync(config, ct, (client, scope) => client.AcquireInteractiveAsync(scope, ct));
+        await SignInAsync(config, ct, (client, scope) => client.AcquireInteractiveAsync(scope, null, ct));
 
     public async Task<AccountInfo> SignInDeviceCodeAsync(ClientConfig config, Action<string> showCode, CancellationToken ct) =>
         await SignInAsync(config, ct, (client, scope) => client.AcquireDeviceCodeAsync(scope, showCode, ct));
@@ -132,6 +134,16 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
                 token = await ClientFor(new ClientConfig(stored.Info.ClientId, stored.Tenant))
                     .AcquireSilentAsync(stored.HomeAccountId, audience.ScopeFor(), ct);
             }
+            catch (MsalUiRequiredException ex) when (audience == Audience.Arm && ex.ErrorCode != MsalError.UserNullError)
+            {
+                // The Graph sign-in is untouched: ARM needs consent (or a policy's interaction), granted with ConsentAsync.
+                throw new ConsentRequiredException("arm", ex);
+            }
+            catch (MsalUiRequiredException ex) when (audience == Audience.Arm)
+            {
+                // The account is gone from MSAL's cache; ListAccountsAsync already shows it expired.
+                throw new SignInRequiredException("The sign-in has expired. Sign in again.", ex);
+            }
             catch (MsalUiRequiredException ex)
             {
                 _expired.Add(stored.Info.Key);
@@ -156,6 +168,51 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
             _gate.Release();
         }
     }
+
+    /// <summary>Asks the user, in the system browser, for a token for <paramref name="audience"/> on the account
+    /// <paramref name="accountKey"/>: the browser starts at that account (its username is the login hint), so the user consents
+    /// or completes what the policy asks. When no browser can be opened and <paramref name="showCode"/> is given, a device-code
+    /// flow is used instead and its message goes to <paramref name="showCode"/>. The account list, the active account and the
+    /// Graph sign-in are left as they are; the token lands in MSAL's cache, where <see cref="GetTokenAsync"/> finds it.</summary>
+    /// <exception cref="SignInRequiredException">That account is not signed in.</exception>
+    public async Task ConsentAsync(string accountKey, Audience audience, CancellationToken ct, Action<string>? showCode = null)
+    {
+        IMsalClient client;
+        string username;
+        await _gate.WaitAsync(ct);
+        try
+        {
+            var state = await LoadAsync(ct);
+            var stored = state.Accounts.FirstOrDefault(a => a.Info.Key == accountKey)
+                ?? throw new SignInRequiredException("That account is not signed in.");
+            client = ClientFor(new ClientConfig(stored.Info.ClientId, stored.Tenant));
+            username = stored.Info.Username;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        // As with sign-in, the browser or device-code wait happens outside the gate.
+        var scope = audience.ScopeFor();
+        try
+        {
+            await client.AcquireInteractiveAsync(scope, username, ct);
+        }
+        catch (Exception ex) when (showCode is not null && NoBrowser(ex))
+        {
+            await client.AcquireDeviceCodeAsync(scope, showCode, ct);
+        }
+    }
+
+    /// <summary>Whether an interactive acquire failed because no browser could be opened here (as opposed to the user cancelling
+    /// or the service refusing).</summary>
+    private static bool NoBrowser(Exception ex) => ex switch
+    {
+        MsalClientException client => client.ErrorCode is MsalError.LinuxXdgOpen or MsalError.WebviewUnavailable,
+        PlatformNotSupportedException => true,
+        _ => false,
+    };
 
     /// <summary>The <c>scp</c> claim of a JWT access token, or empty when the token is not a readable JWT.</summary>
     public static IReadOnlyList<string> ScopesOf(string accessToken)

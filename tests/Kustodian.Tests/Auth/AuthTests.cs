@@ -386,7 +386,7 @@ public class AuthTests : IDisposable
 
         public string LastJwt { get; private set; } = "";
 
-        public async Task<MsalSignIn> AcquireInteractiveAsync(string scope, CancellationToken ct)
+        public async Task<MsalSignIn> AcquireInteractiveAsync(string scope, string? loginHint, CancellationToken ct)
         {
             if (Block is not null)
             {

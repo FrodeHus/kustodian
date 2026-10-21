@@ -14,6 +14,7 @@ const OUTCOMES: Record<string, string> = {
   engineTimeout: 'Timed out',
   engineMemory: 'Out of memory',
   signInNeeded: 'Sign-in needed',
+  consentNeeded: 'Azure access needed',
   failed: 'Failed',
 };
 

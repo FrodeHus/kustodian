@@ -1,12 +1,15 @@
 using System.Text.Json.Serialization;
 using Kustodian.Auth;
 using Kustodian.Graph.Fetch;
+using Kustodian.Graph.Run;
 
 namespace Kustodian.Messaging.Handlers;
 
-/// <summary><c>account.list</c>, <c>account.signIn</c>, <c>account.use</c> and <c>account.signOut</c>. A device-code sign-in
-/// sends the code to the UI as an <c>account.deviceCode</c> event. Signing out also drops the account's cached Graph
-/// objects.</summary>
+/// <summary><c>account.list</c>, <c>account.signIn</c>, <c>account.use</c>, <c>account.signOut</c> and <c>account.consent</c>.
+/// A device-code sign-in sends the code to the UI as an <c>account.deviceCode</c> event. Signing out also drops the account's
+/// cached Graph objects. <c>account.consent {key, audience: "arm"}</c> asks the user to grant Azure access to that account
+/// (<see cref="AccountService.ConsentAsync"/>; a device code, when no browser opens, goes out as the same event) and answers
+/// <c>{}</c>.</summary>
 public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cache, IGraphObjectCache objects)
 {
     public void Register(Bridge bridge)
@@ -23,6 +26,27 @@ public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cac
             catch (ArgumentException)
             {
                 throw new BridgeException(BridgeErrorCodes.BadRequest, "Unknown account.");
+            }
+
+            return null;
+        });
+        bridge.Register("account.consent", async (p, ct) =>
+        {
+            var request = BridgeJson.Params<ConsentParams>(p);
+            var key = RequireKey(new KeyParams(request.Key));
+            if (request.Audience != "arm")
+            {
+                throw new BridgeException(BridgeErrorCodes.BadRequest, "Consent is only asked for Azure (audience arm).");
+            }
+
+            try
+            {
+                await accounts.ConsentAsync(key, Audience.Arm, ct,
+                    message => bridge.Emit("account.deviceCode", new DeviceCodeData(message)));
+            }
+            catch (SignInRequiredException ex)
+            {
+                throw new BridgeException(BridgeErrorCodes.SignInNeeded, ex.Message);
             }
 
             return null;
@@ -67,4 +91,6 @@ public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cac
     private sealed record SignInParams(string? ClientId, string? Tenant, bool DeviceCode);
 
     private sealed record KeyParams(string? Key);
+
+    private sealed record ConsentParams(string? Key, string? Audience);
 }

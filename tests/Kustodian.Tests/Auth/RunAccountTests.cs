@@ -130,7 +130,7 @@ public sealed class RunAccountTests : IAsyncDisposable
 
         public (string Home, string User, string Tenant) Next { get; set; } = ("home-1", "ada@contoso.com", "tenant-1");
 
-        public Task<MsalSignIn> AcquireInteractiveAsync(string scope, CancellationToken ct) => Task.FromResult(SignIn());
+        public Task<MsalSignIn> AcquireInteractiveAsync(string scope, string? loginHint, CancellationToken ct) => Task.FromResult(SignIn());
 
         public Task<MsalSignIn> AcquireDeviceCodeAsync(string scope, Action<string> showCode, CancellationToken ct) =>
             Task.FromResult(SignIn());

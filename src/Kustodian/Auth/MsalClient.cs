@@ -13,7 +13,9 @@ public sealed record MsalSignIn(MsalAccount Account, MsalToken Token);
 /// needs to sign in again.</summary>
 public interface IMsalClient
 {
-    Task<MsalSignIn> AcquireInteractiveAsync(string scope, CancellationToken ct);
+    /// <summary>Signs in through the system browser for <paramref name="scope"/>. With a <paramref name="loginHint"/> (a
+    /// username) the browser starts at that account; without one the user picks.</summary>
+    Task<MsalSignIn> AcquireInteractiveAsync(string scope, string? loginHint, CancellationToken ct);
 
     Task<MsalSignIn> AcquireDeviceCodeAsync(string scope, Action<string> showCode, CancellationToken ct);
 
@@ -43,12 +45,11 @@ public sealed class MsalClient : IMsalClient
         }
     }
 
-    public async Task<MsalSignIn> AcquireInteractiveAsync(string scope, CancellationToken ct)
+    public async Task<MsalSignIn> AcquireInteractiveAsync(string scope, string? loginHint, CancellationToken ct)
     {
-        var result = await _app.AcquireTokenInteractive([scope])
-            .WithUseEmbeddedWebView(false)
-            .WithPrompt(Prompt.SelectAccount)
-            .ExecuteAsync(ct);
+        var builder = _app.AcquireTokenInteractive([scope]).WithUseEmbeddedWebView(false);
+        builder = loginHint is null ? builder.WithPrompt(Prompt.SelectAccount) : builder.WithLoginHint(loginHint);
+        var result = await builder.ExecuteAsync(ct);
         return Map(result);
     }
 

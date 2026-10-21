@@ -303,6 +303,9 @@ export function createMockTransport(): Transport {
       case 'account.signOut':
         reply(id, null);
         break;
+      case 'account.consent':
+        reply(id, {});
+        break;
       case 'query.cancel':
         cancelRun(params?.tabId ?? '');
         reply(id, null);

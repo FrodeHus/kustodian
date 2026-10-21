@@ -114,7 +114,7 @@ public class AccountHandlerTests : IDisposable
 
         private readonly List<MsalAccount> _accounts = [];
 
-        public Task<MsalSignIn> AcquireInteractiveAsync(string scope, CancellationToken ct) => Task.FromResult(SignIn());
+        public Task<MsalSignIn> AcquireInteractiveAsync(string scope, string? loginHint, CancellationToken ct) => Task.FromResult(SignIn());
 
         public Task<MsalSignIn> AcquireDeviceCodeAsync(string scope, Action<string> showCode, CancellationToken ct)
         {

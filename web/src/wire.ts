@@ -49,6 +49,8 @@ export type RunOutcome =
   | 'engineTimeout'
   | 'engineMemory'
   | 'signInNeeded'
+  /** An ARM token needs the user: `account.consent {key, audience: "arm"}` grants it; the account stays signed in. */
+  | 'consentNeeded'
   | 'failed';
 
 export interface TableFetch {
