@@ -13,6 +13,12 @@ namespace Kustodian.Graph.Engine;
 public sealed record GraphEngineSnapshot(
     int Alive, int Busy, int KillsLastMinute, int CrashesLastMinute, bool Paused, IReadOnlyList<int> WorkerIds);
 
+/// <summary>A worker event of one run, for the run's diagnostics: <paramref name="Event"/> is <c>start</c> (the run went to
+/// worker <paramref name="WorkerPid"/>), <c>done</c> (it answered; <paramref name="PeakBytes"/> is the highest working set seen
+/// during the run) or <c>killed</c>, with <paramref name="Reason"/> one of <c>timeout</c>, <c>memory</c>, <c>cancel</c>,
+/// <c>frame</c> (an oversized or malformed answer) or <c>crash</c>.</summary>
+public sealed record EngineRunInfo(string Event, int WorkerPid, long? PeakBytes, string? Reason);
+
 /// <summary>Engine worker processes the app can kill (spec 9). KustoLoco has no cancellation
 /// and a join can multiply rows until memory runs out, so a query runs in a worker: killed with its process tree when it
 /// takes longer than <see cref="GraphEngineOptions.Timeout"/>, its working set goes over
@@ -56,11 +62,16 @@ public sealed class GraphEnginePool : IAsyncDisposable
     /// refusal). Throws <see cref="GraphEngineException"/> when there is no answer, and
     /// <see cref="OperationCanceledException"/> when <paramref name="ct"/> is cancelled, which kills the worker.
     /// <paramref name="runTag"/> names the run in the log.</summary>
-    public async Task<EngineResponse> RunAsync(EngineRequest request, string runTag, CancellationToken ct)
+    public Task<EngineResponse> RunAsync(EngineRequest request, string runTag, CancellationToken ct)
+        => RunAsync(request, runTag, null, ct);
+
+    /// <summary>As <see cref="RunAsync(EngineRequest, string, CancellationToken)"/>, reporting the run's worker events to
+    /// <paramref name="progress"/> as they happen, on the run's own thread.</summary>
+    public async Task<EngineResponse> RunAsync(EngineRequest request, string runTag, IProgress<EngineRunInfo>? progress, CancellationToken ct)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         var worker = await AcquireAsync(ct);
-        return await ExecuteAsync(worker, request, runTag, _options.Timeout, ct);
+        return await ExecuteAsync(worker, request, runTag, _options.Timeout, progress, ct);
     }
 
     /// <summary>The limits the pool runs with.</summary>
@@ -251,17 +262,20 @@ public sealed class GraphEnginePool : IAsyncDisposable
     }
 
     private async Task<EngineResponse> ExecuteAsync(
-        Worker worker, EngineRequest request, string runTag, TimeSpan limit, CancellationToken ct)
+        Worker worker, EngineRequest request, string runTag, TimeSpan limit, IProgress<EngineRunInfo>? progress, CancellationToken ct)
     {
+        progress?.Report(new EngineRunInfo("start", worker.Id, null, null));
+        var peak = new Peak();
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var timeout = Task.Delay(limit, _time, stop.Token);
-        var memory = WatchMemoryAsync(worker, stop.Token);
+        var memory = WatchMemoryAsync(worker, peak, stop.Token);
         var exchange = ExchangeAsync(worker, request, stop.Token);
         var first = await Task.WhenAny(exchange, memory, timeout);
 
         if (first == exchange && exchange.IsCompletedSuccessfully && exchange.Result is { } response && !ct.IsCancellationRequested)
         {
             await stop.CancelAsync();
+            peak.Sample(worker);
             lock (_gate)
             {
                 worker.Busy = false;
@@ -269,29 +283,33 @@ public sealed class GraphEnginePool : IAsyncDisposable
                     _idle.Push(worker);
             }
             ReleaseSlot();
+            progress?.Report(new EngineRunInfo("done", worker.Id, peak.Bytes, null));
             return response;
         }
 
         GraphEngineFailure? failure;
         string reason;
+        string kind;
         if (ct.IsCancellationRequested)
-            (failure, reason) = (null, "the run was cancelled");
+            (failure, reason, kind) = (null, "the run was cancelled", "cancel");
         else if (first == memory && memory.IsCompletedSuccessfully)
-            (failure, reason) = (GraphEngineFailure.OutOfMemory, $"working set over {_options.MemoryLimitBytes} bytes");
+            (failure, reason, kind) = (GraphEngineFailure.OutOfMemory, $"working set over {_options.MemoryLimitBytes} bytes", "memory");
         else if (first == timeout && timeout.IsCompletedSuccessfully)
-            (failure, reason) = (GraphEngineFailure.TimedOut, $"no answer within {limit}");
+            (failure, reason, kind) = (GraphEngineFailure.TimedOut, $"no answer within {limit}", "timeout");
         else if (first == exchange && exchange.Exception?.GetBaseException() is EngineFrameTooLargeException)
             // A well-formed answer, just larger than allowed: the query asked for too much.
-            (failure, reason) = (GraphEngineFailure.TooLarge, $"its answer was over {_options.MaxAnswerBytes} bytes");
+            (failure, reason, kind) = (GraphEngineFailure.TooLarge, $"its answer was over {_options.MaxAnswerBytes} bytes", "frame");
         else if (first == memory)
             // The watcher itself failed: nothing says the query was at fault.
-            (failure, reason) = (GraphEngineFailure.Crashed, $"the memory watch failed: {memory.Exception?.GetBaseException().Message}");
+            (failure, reason, kind) = (GraphEngineFailure.Crashed, $"the memory watch failed: {memory.Exception?.GetBaseException().Message}", "crash");
         else if (first == exchange && exchange.IsCompletedSuccessfully && await RanOutOfHeapAsync(worker))
-            (failure, reason) = (GraphEngineFailure.OutOfMemory, $"its GC heap went over {_options.MemoryLimitBytes} bytes");
+            (failure, reason, kind) = (GraphEngineFailure.OutOfMemory, $"its GC heap went over {_options.MemoryLimitBytes} bytes", "memory");
         else
-            (failure, reason) = (GraphEngineFailure.Crashed, exchange.Exception?.GetBaseException().Message ?? "it closed its output");
+            (failure, reason, kind) = (GraphEngineFailure.Crashed, exchange.Exception?.GetBaseException().Message ?? "it closed its output",
+                exchange.Exception?.GetBaseException() is InvalidDataException ? "frame" : "crash");
 
         await stop.CancelAsync();
+        progress?.Report(new EngineRunInfo("killed", worker.Id, peak.Bytes, kind));
         bool retired;
         // Time, memory, answer size and cancellation are the query's doing and don't feed the crash guard; only unexplained
         // deaths do.
@@ -339,8 +357,9 @@ public sealed class GraphEnginePool : IAsyncDisposable
         return await EngineFrames.ReadAsync<EngineResponse>(worker.Output, _options.MaxAnswerBytes, ct);
     }
 
-    /// <summary>Completes when the worker's working set goes over the limit; never when it exits (the exchange sees that).</summary>
-    private async Task WatchMemoryAsync(Worker worker, CancellationToken ct)
+    /// <summary>Completes when the worker's working set goes over the limit; never when it exits (the exchange sees that). Each
+    /// sample goes to <paramref name="peak"/>.</summary>
+    private async Task WatchMemoryAsync(Worker worker, Peak peak, CancellationToken ct)
     {
         using var timer = new PeriodicTimer(_options.MemoryPoll, _time);
         while (await timer.WaitForNextTickAsync(ct))
@@ -352,6 +371,7 @@ public sealed class GraphEnginePool : IAsyncDisposable
                 if (worker.Process.HasExited)
                     break;
                 workingSet = worker.Process.WorkingSet64;
+                peak.Add(workingSet);
             }
             catch (InvalidOperationException)
             {
@@ -478,6 +498,41 @@ public sealed class GraphEnginePool : IAsyncDisposable
         var root = Path.GetFullPath(Path.Combine(RuntimeEnvironment.GetRuntimeDirectory(), "..", "..", ".."));
         var host = Path.Combine(root, OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
         return File.Exists(host) ? host : null;
+    }
+
+    /// <summary>The highest working set seen during one run; null until one was seen.</summary>
+    private sealed class Peak
+    {
+        private long _bytes;
+
+        public long? Bytes => Interlocked.Read(ref _bytes) is > 0 and var bytes ? bytes : null;
+
+        public void Add(long bytes)
+        {
+            var seen = Interlocked.Read(ref _bytes);
+            while (bytes > seen)
+            {
+                var was = Interlocked.CompareExchange(ref _bytes, bytes, seen);
+                if (was == seen)
+                    return;
+                seen = was;
+            }
+        }
+
+        /// <summary>Adds the worker's working set now, if it is still running.</summary>
+        public void Sample(Worker worker)
+        {
+            try
+            {
+                worker.Process.Refresh();
+                if (!worker.Process.HasExited)
+                    Add(worker.Process.WorkingSet64);
+            }
+            catch (InvalidOperationException)
+            {
+                // It exited between the checks.
+            }
+        }
     }
 
     private sealed class Worker(Process process, int id)

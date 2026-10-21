@@ -76,11 +76,27 @@ export interface RunResult {
   tables: TableFetch[];
   durationMs: number;
   droppedValues: number;
+  /** The run's id; its `query.progress` events carry it too. */
+  runId: string;
+  /** The run's log, in time order. */
+  diagnostics: DiagnosticEntry[];
+}
+
+/** One line of a run's diagnostics log. A request's `detail` is its method and URL relative to the Graph version. */
+export interface DiagnosticEntry {
+  /** Milliseconds since the run started. */
+  atMs: number;
+  kind: 'request' | 'retry' | 'throttled' | 'probe' | 'per-object' | 'cache' | 'engine';
+  detail: string;
+  status: number | null;
+  durationMs: number | null;
+  bytes: number | null;
 }
 
 /** A `query.progress` event. */
 export interface RunProgress {
   tabId: string;
+  runId: string;
   stage: string;
   detail: string;
 }

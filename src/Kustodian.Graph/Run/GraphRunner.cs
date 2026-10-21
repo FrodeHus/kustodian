@@ -13,7 +13,9 @@ namespace Kustodian.Graph.Run;
 /// One run from KQL to rows: plan the query, read every fetch of the plan in parallel under one lease on the fetch budget, then
 /// run the KQL unchanged on an engine worker over those tables only. The lease is held until the engine has answered, as the
 /// fetched objects stay in memory until then. Every way a run can fail is an outcome of the <see cref="RunResult"/>, never an
-/// exception, except that the caller cancelling throws <see cref="OperationCanceledException"/>.
+/// exception, except that the caller cancelling throws <see cref="OperationCanceledException"/>. Each run has an id and a
+/// diagnostics log (<see cref="RunDiagnostics"/>): every request it sends carries the log, the readers add their steps, the
+/// engine its worker events, and the result and every progress event carry the id.
 /// </summary>
 public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader, GraphFetchBudget budget, GraphEnginePool engine,
     GraphLimits limits, TimeProvider time, ILogger<GraphRunner>? logger = null)
@@ -42,18 +44,21 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
     public async Task<RunResult> RunAsync(string accountKey, string kql, IReadOnlyList<ParameterValue> parameters, bool refresh,
         IProgress<RunEvent>? progress, CancellationToken ct)
     {
+        var diagnostics = new RunDiagnostics(time);
         var substitution = ParameterSubstitution.Apply(kql, parameters);
         if (substitution.Missing is { } missing)
-            return new RunResult(RunOutcome.QueryError, $"Fill in {missing} before running.", null, [], [], 0, [], TimeSpan.Zero);
+            return new RunResult(RunOutcome.QueryError, $"Fill in {missing} before running.", null, [], [], 0, [], TimeSpan.Zero)
+                { RunId = diagnostics.RunId };
         if (substitution.Error is { } invalid)
-            return new RunResult(RunOutcome.QueryError, invalid.Message, null, [], [], 0, [], TimeSpan.Zero);
-        return await RunSubstitutedAsync(accountKey, substitution.Text!, substitution.MapBack, refresh, progress, ct);
+            return new RunResult(RunOutcome.QueryError, invalid.Message, null, [], [], 0, [], TimeSpan.Zero) { RunId = diagnostics.RunId };
+        return await RunSubstitutedAsync(accountKey, substitution.Text!, substitution.MapBack, refresh,
+            progress is null ? null : new StampedProgress(progress, diagnostics.RunId), diagnostics, ct);
     }
 
     /// <summary>The run of a query whose parameters are substituted; <paramref name="mapBack"/> maps a position in it to the
     /// query as written.</summary>
     private async Task<RunResult> RunSubstitutedAsync(string accountKey, string kql, Func<int, int, (int Line, int Column)> mapBack,
-        bool refresh, IProgress<RunEvent>? progress, CancellationToken ct)
+        bool refresh, IProgress<RunEvent>? progress, RunDiagnostics diagnostics, CancellationToken ct)
     {
         var started = time.GetTimestamp();
         var now = time.GetUtcNow();
@@ -69,7 +74,11 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
             if (failed is not null)
                 tables.Add(new TableFetch(failed.Table.Name, failedRequests, false, [], [], [], 0, false, 0));
             return new RunResult(outcome, message, error, answer?.Columns ?? [], answer?.Rows ?? [], answer?.Total ?? 0, tables,
-                time.GetElapsedTime(started), answer?.DroppedValues ?? 0);
+                time.GetElapsedTime(started), answer?.DroppedValues ?? 0)
+            {
+                RunId = diagnostics.RunId,
+                Diagnostics = diagnostics.Entries,
+            };
         }
 
         try
@@ -88,12 +97,13 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
 
             // One lease for the whole run, held until the engine has answered.
             using var lease = budget.Lease();
-            await FetchAsync(accountKey, fetches, lease, collections, refresh, progress, ct);
+            await FetchAsync(accountKey, fetches, lease, collections, refresh, progress, diagnostics, ct);
             ReportReads(fetches, collections, progress);
 
             progress?.Report(new RunEvent("engine", "Running the query"));
             var tables = fetches.Select((f, i) => Table(f.Table, collections[i]!.Objects)).ToList();
-            var answer = await engine.RunAsync(new EngineRequest(kql, now, tables, limits.RowsPerRun), Guid.NewGuid().ToString("N"), ct);
+            var answer = await engine.RunAsync(new EngineRequest(kql, now, tables, limits.RowsPerRun), diagnostics.RunId,
+                new EngineLog(diagnostics), ct);
             if (answer.Error is { } engineError)
                 return End(RunOutcome.Failed, engineError);
             if (answer.Refusal is { } engineRefusal)
@@ -179,7 +189,7 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
     /// <summary>Reads the plan's collections in parallel under the run's lease. The first read that fails stops the others and
     /// is thrown as a <see cref="FetchFailedException"/>.</summary>
     private async Task FetchAsync(string accountKey, IReadOnlyList<GraphFetch> fetches, GraphFetchLease lease, GraphCollection?[] collections,
-        bool refresh, IProgress<RunEvent>? progress, CancellationToken ct)
+        bool refresh, IProgress<RunEvent>? progress, RunDiagnostics diagnostics, CancellationToken ct)
     {
         using var siblings = CancellationTokenSource.CreateLinkedTokenSource(ct);
         FetchFailedException? first = null;
@@ -188,7 +198,7 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
             progress?.Report(new RunEvent("fetching", fetch.Table.Name));
             try
             {
-                collections[i] = await reader.ReadAsync(accountKey, fetch, lease, refresh, siblings.Token);
+                collections[i] = await reader.ReadAsync(accountKey, fetch, lease, refresh, diagnostics, siblings.Token);
             }
             catch (Exception ex) when (!(ex is OperationCanceledException && siblings.IsCancellationRequested))
             {
@@ -225,6 +235,36 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
         {
             if (collections[i]!.PerObject.Count > 0)
                 progress.Report(new RunEvent("per-object", $"{fetches[i].Table.Name}: {string.Join(", ", collections[i]!.PerObject)}"));
+        }
+    }
+
+    /// <summary>Progress events with the run's id.</summary>
+    private sealed class StampedProgress(IProgress<RunEvent> inner, string runId) : IProgress<RunEvent>
+    {
+        public void Report(RunEvent value) => inner.Report(value with { RunId = runId });
+    }
+
+    /// <summary>The engine's worker events as <see cref="DiagnosticKinds.Engine"/> entries; the answer or kill carries the time
+    /// since the start.</summary>
+    private sealed class EngineLog(RunDiagnostics diagnostics) : IProgress<EngineRunInfo>
+    {
+        private long? _startedMs;
+
+        public void Report(EngineRunInfo value)
+        {
+            var now = diagnostics.NowMs;
+            if (value.Event == "start")
+                _startedMs = now;
+            var worker = value.WorkerPid.ToString(CultureInfo.InvariantCulture);
+            var detail = value.Event switch
+            {
+                "start" => $"worker {worker} started",
+                "done" when value.PeakBytes is { } peak
+                    => $"worker {worker} answered, peak {(peak / BytesPerMegabyte).ToString(CultureInfo.InvariantCulture)} MB",
+                "done" => $"worker {worker} answered",
+                _ => $"worker {worker} killed: {value.Reason}",
+            };
+            diagnostics.Add(new DiagnosticEntry(now, DiagnosticKinds.Engine, detail, null, value.Event == "start" ? null : now - _startedMs, null));
         }
     }
 

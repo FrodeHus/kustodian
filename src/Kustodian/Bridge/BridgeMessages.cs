@@ -76,7 +76,8 @@ public static class BridgeJson
 }
 
 /// <summary>Writes a <see cref="RunResult"/> as the UI reads it: its duration as <c>durationMs</c>, a number of milliseconds,
-/// rather than a TimeSpan string. Results only go out, so reading is not supported.</summary>
+/// rather than a TimeSpan string, then its <c>runId</c> and <c>diagnostics</c>. Results only go out, so reading is not
+/// supported.</summary>
 public sealed class RunResultConverter : JsonConverter<RunResult>
 {
     public override RunResult Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
@@ -84,9 +85,10 @@ public sealed class RunResultConverter : JsonConverter<RunResult>
 
     public override void Write(Utf8JsonWriter writer, RunResult value, JsonSerializerOptions options) =>
         JsonSerializer.Serialize(writer, new RunResultWire(value.Outcome, value.Message, value.Error, value.Columns, value.Rows,
-            value.Total, value.Tables, (long)Math.Round(value.Duration.TotalMilliseconds), value.DroppedValues), options);
+            value.Total, value.Tables, (long)Math.Round(value.Duration.TotalMilliseconds), value.DroppedValues, value.RunId,
+            value.Diagnostics), options);
 
     private sealed record RunResultWire(RunOutcome Outcome, string? Message, GraphQueryError? Error,
         IReadOnlyList<EngineColumn> Columns, IReadOnlyList<JsonElement[]> Rows, int Total, IReadOnlyList<TableFetch> Tables,
-        long DurationMs, int DroppedValues);
+        long DurationMs, int DroppedValues, string RunId, IReadOnlyList<DiagnosticEntry> Diagnostics);
 }

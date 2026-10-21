@@ -29,6 +29,8 @@ const ok: RunResult = {
   tables: [],
   durationMs: 12,
   droppedValues: 0,
+  runId: 'run-1',
+  diagnostics: [],
 };
 
 beforeEach(() => {
@@ -58,7 +60,7 @@ describe('tab store', () => {
 
     const done = useTabs.getState().run(id, 'block');
     expect(useTabs.getState().tabs[0]?.run?.state).toBe('running');
-    bridge.progress.forEach((h) => h({ tabId: id, stage: 'fetching', detail: 'users' }));
+    bridge.progress.forEach((h) => h({ tabId: id, runId: 'run-1', stage: 'fetching', detail: 'users' }));
     expect(useTabs.getState().tabs[0]?.run).toMatchObject({ stage: 'fetching', detail: 'users' });
     await done;
 

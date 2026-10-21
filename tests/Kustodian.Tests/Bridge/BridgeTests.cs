@@ -116,12 +116,13 @@ public class BridgeTests
     }
 
     [Fact]
-    public async Task Progress_events_carry_tab_id()
+    public async Task Progress_events_carry_tab_id_and_run_id()
     {
+        const string RunId = "6f1c0a52-8d1e-4f57-9a43-0b8f6a1f2c11";
         var bridge = NewBridge((_, _, _, _, progress, _) =>
         {
-            progress?.Report(new RunEvent("planning", "Planning the query"));
-            progress?.Report(new RunEvent("fetching", "users"));
+            progress?.Report(new RunEvent("planning", "Planning the query", RunId));
+            progress?.Report(new RunEvent("fetching", "users", RunId));
             return Task.FromResult(Ok());
         });
 
@@ -133,6 +134,8 @@ public class BridgeTests
         Assert.Equal("tab-42", data.GetProperty("tabId").GetString());
         Assert.Equal("planning", data.GetProperty("stage").GetString());
         Assert.Equal("Planning the query", data.GetProperty("detail").GetString());
+        Assert.Equal(RunId, data.GetProperty("runId").GetString());
+        Assert.Equal(["tabId", "runId", "stage", "detail"], data.EnumerateObject().Select(p => p.Name));
         Assert.Equal("tab-42", events[1].GetProperty("data").GetProperty("tabId").GetString());
         Assert.Equal("fetching", events[1].GetProperty("data").GetProperty("stage").GetString());
     }
@@ -430,8 +433,50 @@ public class BridgeTests
         Assert.Equal(1234, result.GetProperty("durationMs").GetInt64());
         Assert.False(result.TryGetProperty("duration", out _));
         Assert.Equal(
-            ["outcome", "message", "error", "columns", "rows", "total", "tables", "durationMs", "droppedValues"],
+            ["outcome", "message", "error", "columns", "rows", "total", "tables", "durationMs", "droppedValues", "runId", "diagnostics"],
             result.EnumerateObject().Select(p => p.Name));
+    }
+
+    [Fact]
+    public async Task Run_result_wire_has_run_id_and_diagnostics()
+    {
+        const string RunId = "0b9f4c1e-2a7d-4e36-8f15-7c2d9e4a6b80";
+        var bridge = NewBridge((_, _, _, _, _, _) => Task.FromResult(Ok() with
+        {
+            RunId = RunId,
+            Diagnostics =
+            [
+                new DiagnosticEntry(3, "request", "GET applications?$select=id&$top=999", 200, 120, 2048),
+                new DiagnosticEntry(130, "engine", "worker 4242 started", null, null, null),
+            ],
+        }));
+
+        var result = Parse(await bridge.HandleAsync(Run("r1", "t1", "users"))).GetProperty("result");
+
+        Assert.Equal(RunId, result.GetProperty("runId").GetString());
+        var entries = result.GetProperty("diagnostics").EnumerateArray().ToList();
+        Assert.Equal(2, entries.Count);
+        Assert.Equal(["atMs", "kind", "detail", "status", "durationMs", "bytes"], entries[0].EnumerateObject().Select(p => p.Name));
+        Assert.Equal(3, entries[0].GetProperty("atMs").GetInt64());
+        Assert.Equal("request", entries[0].GetProperty("kind").GetString());
+        Assert.Equal("GET applications?$select=id&$top=999", entries[0].GetProperty("detail").GetString());
+        Assert.Equal(200, entries[0].GetProperty("status").GetInt32());
+        Assert.Equal(120, entries[0].GetProperty("durationMs").GetInt64());
+        Assert.Equal(2048, entries[0].GetProperty("bytes").GetInt64());
+        Assert.Equal(JsonValueKind.Null, entries[1].GetProperty("status").ValueKind);
+        Assert.Equal("engine", entries[1].GetProperty("kind").GetString());
+    }
+
+    [Fact]
+    public async Task A_run_without_an_account_still_has_a_run_id()
+    {
+        var bridge = NewBridge((_, _, _, _, _, _) => Task.FromResult(Ok()), account: null);
+
+        var result = Parse(await bridge.HandleAsync(Run("r1", "t1", "users"))).GetProperty("result");
+
+        Assert.Equal("signInNeeded", result.GetProperty("outcome").GetString());
+        Assert.True(Guid.TryParse(result.GetProperty("runId").GetString(), out _));
+        Assert.Empty(result.GetProperty("diagnostics").EnumerateArray());
     }
 
     [Fact]

@@ -104,7 +104,11 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
         {
             if (await activeAccount() is not { } account)
             {
-                return new RunResult(RunOutcome.SignInNeeded, GraphRunner.SignInMessage, null, [], [], 0, [], TimeSpan.Zero);
+                // No run starts, but the answer still names one, as every run's does.
+                return new RunResult(RunOutcome.SignInNeeded, GraphRunner.SignInMessage, null, [], [], 0, [], TimeSpan.Zero)
+                {
+                    RunId = Guid.NewGuid().ToString("D"),
+                };
             }
 
             cts.Token.ThrowIfCancellationRequested();
@@ -211,15 +215,15 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
         }
     }
 
-    /// <summary>Sends each stage as a <c>query.progress</c> event as it happens, on the run's own thread, so events keep their
-    /// order and all go out before the run's answer.</summary>
+    /// <summary>Sends each stage as a <c>query.progress</c> event (<c>{tabId, runId, stage, detail}</c>) as it happens, on the
+    /// run's own thread, so events keep their order and all go out before the run's answer.</summary>
     private sealed class TabProgress(Bridge bridge, string tabId) : IProgress<RunEvent>
     {
         public void Report(RunEvent value) =>
-            bridge.Emit("query.progress", new ProgressData(tabId, value.Stage, value.Detail));
+            bridge.Emit("query.progress", new ProgressData(tabId, value.RunId, value.Stage, value.Detail));
     }
 
-    private sealed record ProgressData(string TabId, string Stage, string Detail);
+    private sealed record ProgressData(string TabId, string RunId, string Stage, string Detail);
 
     private sealed record CompleteParams(string? Source, string? Kql, int Position);
 

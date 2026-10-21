@@ -28,6 +28,12 @@ public sealed record TableFetch(string Table, IReadOnlyList<string> Requests, bo
     IReadOnlyList<string> Denied, IReadOnlyList<string> PerObject, int PerObjectFailed, bool PerObjectCapped, int PerObjectCached);
 
 /// <summary>A run's answer. <see cref="Message"/> is the text to show when the outcome isn't <see cref="RunOutcome.Ok"/>;
-/// <see cref="Error"/> carries the position of a <see cref="RunOutcome.QueryError"/>.</summary>
+/// <see cref="Error"/> carries the position of a <see cref="RunOutcome.QueryError"/>. <see cref="RunId"/> names the run (its
+/// progress events carry it too), and <see cref="Diagnostics"/> is its log (<see cref="RunDiagnostics"/>).</summary>
 public sealed record RunResult(RunOutcome Outcome, string? Message, GraphQueryError? Error, IReadOnlyList<EngineColumn> Columns,
-    IReadOnlyList<JsonElement[]> Rows, int Total, IReadOnlyList<TableFetch> Tables, TimeSpan Duration, int DroppedValues = 0);
+    IReadOnlyList<JsonElement[]> Rows, int Total, IReadOnlyList<TableFetch> Tables, TimeSpan Duration, int DroppedValues = 0)
+{
+    public string RunId { get; init; } = "";
+
+    public IReadOnlyList<DiagnosticEntry> Diagnostics { get; init; } = [];
+}

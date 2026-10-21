@@ -46,6 +46,8 @@ const rows: RunResult = {
   tables: [],
   durationMs: 40,
   droppedValues: 0,
+  runId: 'run-1',
+  diagnostics: [],
 };
 
 function host(list: AccountList, run: RunResult = rows) {

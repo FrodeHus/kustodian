@@ -72,7 +72,7 @@ let unsubscribeProgress: (() => void) | undefined;
 let counter = 0;
 
 function failed(message: string): RunResult {
-  return { outcome: 'failed', message, error: null, columns: [], rows: [], total: 0, tables: [], durationMs: 0, droppedValues: 0 };
+  return { outcome: 'failed', message, error: null, columns: [], rows: [], total: 0, tables: [], durationMs: 0, droppedValues: 0, runId: '', diagnostics: [] };
 }
 
 export const useTabs = create<TabsState>()((set, get) => {

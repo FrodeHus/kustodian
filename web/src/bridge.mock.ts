@@ -47,6 +47,17 @@ const runResult = {
   ],
   durationMs: 420,
   droppedValues: 0,
+  runId: 'mock-run',
+  diagnostics: [
+    {
+      atMs: 10,
+      kind: 'request',
+      detail: 'GET applications?$select=displayName,appId,createdDateTime&$top=999',
+      status: 200,
+      durationMs: 300,
+      bytes: 2048,
+    },
+  ],
 };
 
 const explainView = {
@@ -267,7 +278,7 @@ export function createMockTransport(): Transport {
           reply(id, runResult);
         }, RUN_DELAY_MS);
         runs.set(tabId, { id, timer });
-        receive(JSON.stringify({ event: 'query.progress', data: { tabId, stage: 'fetch', detail: 'applications' } }));
+        receive(JSON.stringify({ event: 'query.progress', data: { tabId, runId: runResult.runId, stage: 'fetch', detail: 'applications' } }));
         break;
       }
       default:

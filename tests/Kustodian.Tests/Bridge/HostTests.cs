@@ -82,7 +82,9 @@ public class HostTests
         using var client = GraphHttp.CreateClient(tokens);
 
         var auth = Assert.IsType<GraphAuthHandler>(handler);
-        var sockets = Assert.IsType<SocketsHttpHandler>(auth.InnerHandler);
+        // The request log sits inside the token handler: it sees the final status, never the token's header.
+        var diagnostics = Assert.IsType<DiagnosticsHandler>(auth.InnerHandler);
+        var sockets = Assert.IsType<SocketsHttpHandler>(diagnostics.InnerHandler);
         Assert.False(sockets.AllowAutoRedirect);
         Assert.Equal(new Uri("https://graph.microsoft.com/beta/"), client.BaseAddress);
         handler.Dispose();

@@ -35,9 +35,10 @@ public sealed class GraphBatchReader(HttpClient http, GraphLimits limits)
 
     /// <summary>Reads <paramref name="columns"/> of every object in <paramref name="objects"/> (by its <c>id</c>) and sets them
     /// on the object. Returns how many objects couldn't be read, and the objects that were. The answers count against
-    /// <paramref name="lease"/>.</summary>
+    /// <paramref name="lease"/>. Each <c>$batch</c> carries <paramref name="diagnostics"/> as a
+    /// <see cref="DiagnosticKinds.PerObject"/> request, and throttled items are logged, then their second try.</summary>
     public async Task<GraphBatchRead> ReadAsync(string accountKey, string path, IReadOnlyList<JsonObject> objects, IReadOnlyList<string> columns,
-        GraphFetchLease lease, CancellationToken ct)
+        GraphFetchLease lease, RunDiagnostics? diagnostics, CancellationToken ct)
     {
         var targets = objects.Where(o => o["id"] is JsonValue v && v.TryGetValue<string>(out _)).ToList();
         var failed = objects.Count - targets.Count;
@@ -46,11 +47,16 @@ public sealed class GraphBatchReader(HttpClient http, GraphLimits limits)
         var options = new ParallelOptions { MaxDegreeOfParallelism = BatchesInFlight, CancellationToken = ct };
         await Parallel.ForEachAsync(targets.Chunk(BatchSize), options, async (chunk, token) =>
         {
-            var left = await SendAsync(accountKey, path, select, chunk, columns, lease, read, token);
+            var left = await SendAsync(accountKey, path, select, chunk, columns, lease, read, diagnostics, token);
             if (left.Throttled.Count > 0)
             {
-                await Task.Delay(TimeSpan.FromSeconds(Math.Clamp(left.RetryAfterSeconds, 0, MaxRetryAfterSeconds)), token);
-                var again = await SendAsync(accountKey, path, select, [.. left.Throttled], columns, lease, read, token);
+                var wait = Math.Clamp(left.RetryAfterSeconds, 0, MaxRetryAfterSeconds);
+                diagnostics?.Add(new DiagnosticEntry(diagnostics.NowMs, DiagnosticKinds.Throttled, string.Create(CultureInfo.InvariantCulture,
+                    $"{path}: Graph throttled {Reads(left.Throttled.Count)}; Retry-After {left.RetryAfterSeconds} s"), (int)HttpStatusCode.TooManyRequests, null, null));
+                await Task.Delay(TimeSpan.FromSeconds(wait), token);
+                diagnostics?.Add(new DiagnosticEntry(diagnostics.NowMs, DiagnosticKinds.Retry, string.Create(CultureInfo.InvariantCulture,
+                    $"{path}: sent {Reads(left.Throttled.Count)} again after {wait} s"), null, null, null));
+                var again = await SendAsync(accountKey, path, select, [.. left.Throttled], columns, lease, read, diagnostics, token);
                 Interlocked.Add(ref failed, again.Failed + again.Throttled.Count);
             }
             Interlocked.Add(ref failed, left.Failed);
@@ -58,12 +64,14 @@ public sealed class GraphBatchReader(HttpClient http, GraphLimits limits)
         return new GraphBatchRead(failed, [.. read]);
     }
 
+    private static string Reads(int count) => count.ToString("N0", CultureInfo.InvariantCulture) + (count == 1 ? " read" : " reads");
+
     private sealed record Sent(int Failed, List<JsonObject> Throttled, int RetryAfterSeconds);
 
     /// <summary>One <c>$batch</c> of reads; the objects read are added to <paramref name="read"/>. A batch Graph doesn't answer
     /// counts every item as failed.</summary>
     private async Task<Sent> SendAsync(string accountKey, string path, string select, JsonObject[] chunk, IReadOnlyList<string> columns,
-        GraphFetchLease lease, ConcurrentBag<JsonObject> read, CancellationToken ct)
+        GraphFetchLease lease, ConcurrentBag<JsonObject> read, RunDiagnostics? diagnostics, CancellationToken ct)
     {
         var batch = new JsonObject
         {
@@ -78,9 +86,10 @@ public sealed class GraphBatchReader(HttpClient http, GraphLimits limits)
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, new Uri("$batch", UriKind.Relative)) { Content = JsonContent.Create(batch) }
-                .ForAccount(accountKey);
+                .ForAccount(accountKey).ForRun(diagnostics, DiagnosticKinds.PerObject);
             using var response = await http.SendAsync(request, ct);
             body = await response.Content.ReadAsByteArrayAsync(ct);
+            request.RecordBytes(body.Length);
             if (GraphErrorText.IsTokenRejected(response, body))
                 throw new GraphReadException(GraphReadFailure.SignInNeeded, GraphErrorText.SignInMessage);
             if (!response.IsSuccessStatusCode)

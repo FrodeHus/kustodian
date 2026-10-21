@@ -34,6 +34,8 @@ function result(overrides: Partial<RunResult>): RunResult {
     tables: [fetch],
     durationMs: 1800,
     droppedValues: 0,
+    runId: 'run-1',
+    diagnostics: [],
     ...overrides,
   };
 }
