@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Kustodian.Engine.Tests;
 
-/// <summary>The pool against the real worker, built into graph-engine/ under the test output the way the API ships it.
+/// <summary>The pool against the real worker, Kustodian.EngineWorker, copied into engine-worker/ under the test output.
 /// Every test disposes its pool, which kills its workers.</summary>
 public sealed class GraphEnginePoolTests
 {
@@ -492,7 +492,7 @@ internal sealed class StandInWorker : IDisposable
     public static StandInWorker Create(string body)
     {
         Assert.SkipWhen(OperatingSystem.IsWindows(), "The stand-in worker is a shell script.");
-        var directory = Directory.CreateTempSubdirectory("graph-engine-test-");
+        var directory = Directory.CreateTempSubdirectory("kustodian-engine-test-");
         var path = System.IO.Path.Combine(directory.FullName, "stand-in-worker.sh");
         File.WriteAllText(path, $"#!/bin/sh\n{body}\n");
         if (!OperatingSystem.IsWindows())

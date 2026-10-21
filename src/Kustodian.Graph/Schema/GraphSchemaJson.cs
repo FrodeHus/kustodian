@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace Kustodian.Graph.Schema;
 
-/// <summary>The committed file format (spec §4.3). Written by hand with a fixed property order so a regeneration without
+/// <summary>The committed file format. Written by hand with a fixed property order so a regeneration without
 /// upstream changes produces no diff: tables sorted by name, columns and fields in CSDL order, <c>\n</c> line ends,
 /// 2-space indent, a table's <c>directoryObject</c> omitted when false, <c>permissions</c> and a column's <c>knownPermission</c> omitted when empty, <c>filter</c> omitted when empty, a column's
 /// <c>listable</c> omitted when true, <c>collection</c> omitted when false and <c>complexType</c> omitted when null.</summary>

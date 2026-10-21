@@ -6,7 +6,7 @@ using Kustodian.Graph.Schema;
 
 namespace Kustodian.Engine.Tests;
 
-/// <summary>The pushdown property (spec §3.3): a pushed <c>$filter</c> only narrows the fetch, so the query's answer over the
+/// <summary>The pushdown property: a pushed <c>$filter</c> only narrows the fetch, so the query's answer over the
 /// objects Graph keeps for the filter is the answer over every object. Graph is played by <see cref="ODataMatcher"/>, which
 /// implements exactly the operators the translator emits, with Graph's case-insensitive string matching on directory
 /// objects.</summary>

@@ -7,7 +7,7 @@ using Kusto.Language.Syntax;
 
 namespace Kustodian.Graph.Query;
 
-/// <summary>Turns the <c>where</c> predicates directly after a table reference into a Graph <c>$filter</c> (spec §3.3).
+/// <summary>Turns the <c>where</c> predicates directly after a table reference into a Graph <c>$filter</c>.
 /// Pushdown only narrows the fetch: the engine still runs the whole query, so a pushed filter has to keep at least the
 /// rows the KQL keeps. Anything that might keep fewer is left out. Pure.</summary>
 public static partial class GraphFilterTranslator

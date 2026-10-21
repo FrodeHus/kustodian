@@ -10,7 +10,7 @@ namespace Kustodian.Graph.Query;
 public sealed record GraphCompletionItem(string Label, string Kind, string Type, string Description);
 
 /// <summary>
-/// Completion inside complex values (spec §6.2), which the browser's editor can't do: the query is bound against the schema
+/// Completion inside complex values, which the browser's editor can't do: the query is bound against the schema
 /// with complex types as typed bags (<see cref="GraphGlobals.Typed"/>, three levels deep), so the real binder resolves the
 /// value before the dot, aliases included (<c>mv-expand c = passwordCredentials | where c.</c>). Only the fields of that
 /// value are offered, with their type and description; after a dot on anything else (a plain value, or a value below the

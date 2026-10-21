@@ -431,7 +431,7 @@ public sealed class GraphCollectionReaderTests
     private static HttpResponseMessage Unauthorized() =>
         Json(HttpStatusCode.Unauthorized, Error("Authorization_RequestDenied", "Unauthorized Access."));
 
-    // onPremisesPublishing needs a permission the Collector app doesn't have: the rest of the table still reads, and the column
+    // onPremisesPublishing needs a permission the signed-in app may not have: the rest of the table still reads, and the column
     // is reported as denied (not as one Graph won't list), and it isn't read one object at a time either.
     [Fact]
     public async Task A_column_graph_refuses_for_permission_is_left_out_and_reported_as_denied()
