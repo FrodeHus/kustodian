@@ -122,6 +122,8 @@ public sealed class RawRequestServiceTests : IDisposable
     [InlineData("host")]
     [InlineData("Cookie")]
     [InlineData("COOKIE")]
+    [InlineData("Accept-Encoding")]
+    [InlineData("accept-encoding")]
     public async Task Authorization_header_is_refused(string name)
     {
         var error = await SendErrorAsync(new

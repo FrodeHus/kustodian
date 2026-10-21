@@ -20,7 +20,8 @@ public sealed class RawRequestRefusedException(string message) : Exception(messa
 /// under <c>beta</c> or <c>v1.0</c>: a path is refused if it is absolute, starts with a slash or backslash, contains a
 /// backslash, <c>#</c>, <c>://</c>, a control character, or (after percent-decoding, repeated until nothing changes) <c>..</c>;
 /// and the URL built from it must still be https on that host with the version as its first segment. A next link must be such a
-/// URL too. The page's headers are refused if they name <c>Authorization</c>, <c>Host</c> or <c>Cookie</c>, hold anything but
+/// URL too. The page's headers are refused if they name <c>Authorization</c>, <c>Host</c>, <c>Cookie</c> or
+/// <c>Accept-Encoding</c> (the body would come back compressed, and unreadable), hold anything but
 /// printable ASCII (so no CR or LF), or number more than <see cref="MaxHeaders"/> or <see cref="MaxHeaderBytes"/> in total.
 /// Nothing here logs a request header. Refusals throw <see cref="RawRequestRefusedException"/>.
 /// </summary>
@@ -32,7 +33,8 @@ public sealed class RawRequestService(HttpClient graph, TimeProvider? time = nul
 
     private const string GraphHost = "graph.microsoft.com";
     private static readonly string[] Versions = ["beta", "v1.0"];
-    private static readonly HashSet<string> RefusedHeaders = new(["Authorization", "Host", "Cookie"], StringComparer.OrdinalIgnoreCase);
+    private static readonly HashSet<string> RefusedHeaders =
+        new(["Authorization", "Host", "Cookie", "Accept-Encoding"], StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> HiddenResponseHeaders =
         new(["Set-Cookie", "Set-Cookie2", "Authorization", "Proxy-Authorization"], StringComparer.OrdinalIgnoreCase);
 
@@ -219,7 +221,7 @@ public sealed class RawRequestService(HttpClient graph, TimeProvider? time = nul
 
             if (RefusedHeaders.Contains(name))
             {
-                throw new RawRequestRefusedException($"The {name} header can't be set; Kustodian sends it.");
+                throw new RawRequestRefusedException($"The {name} header can't be set from the raw tab.");
             }
 
             if (value is null || !value.All(c => c is '\t' or (>= ' ' and <= '~')))
