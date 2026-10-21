@@ -7,9 +7,10 @@ using Kustodian.Storage;
 namespace Kustodian.Sessions;
 
 /// <summary>A tab as the session keeps it. <see cref="SavedId"/> is the library query it was opened from, if any;
-/// <see cref="Dirty"/> says its text differs from the saved one.</summary>
+/// <see cref="Dirty"/> says its text differs from the saved one.
+/// <see cref="FilePath"/> is the <c>.kql</c> file it was opened from or saved to, if any.</summary>
 public sealed record SessionTab(string Id, string Source, string Title, string Text, bool Dirty, string? SavedId,
-    IReadOnlyList<ParameterDef> Parameters);
+    IReadOnlyList<ParameterDef> Parameters, string? FilePath = null);
 
 /// <summary>The open tabs, which one is active, so the next start can restore them.</summary>
 public sealed record Session(int Version, string? ActiveId, IReadOnlyList<SessionTab> Tabs)

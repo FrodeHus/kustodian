@@ -2,6 +2,8 @@ using System.Text;
 using System.Text.Json;
 using Kustodian.Files;
 using Kustodian.Messaging.Handlers;
+using Kustodian.Sessions;
+using Kustodian.Storage;
 
 namespace Kustodian.Tests.Files;
 
@@ -9,12 +11,13 @@ public sealed class FileHandlerTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "kustodian-tests-" + Guid.NewGuid().ToString("N"));
     private readonly FakeDialogs _dialogs = new();
+    private readonly AllowedFilePaths _allowed = new();
     private readonly Messaging.Bridge _bridge = new(_ => { });
 
     public FileHandlerTests()
     {
         Directory.CreateDirectory(_dir);
-        new FileHandler(_dialogs).Register(_bridge);
+        new FileHandler(_dialogs, _allowed).Register(_bridge);
     }
 
     public void Dispose() => Directory.Delete(_dir, recursive: true);
@@ -84,12 +87,113 @@ public sealed class FileHandlerTests : IDisposable
     {
         var path = Path.Combine(_dir, "q.kql");
         await File.WriteAllTextAsync(path, "old", TestContext.Current.CancellationToken);
+        _allowed.Add(path);
 
         var reply = await CallAsync("file.saveAs", $$"""{"suggestedName":"x.kql","content":"new","path":{{JsonSerializer.Serialize(path)}}}""");
 
         Assert.Equal(0, _dialogs.SaveCalls);
         Assert.Equal("new", await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken));
         Assert.Equal("q.kql", reply.GetProperty("result").GetProperty("name").GetString());
+    }
+
+    [Fact]
+    public async Task Save_with_a_path_outside_the_allowed_set_shows_the_dialog_and_leaves_the_file()
+    {
+        var outside = Path.Combine(_dir, "outside.txt");
+        await File.WriteAllTextAsync(outside, "precious", TestContext.Current.CancellationToken);
+
+        var reply = await CallAsync("file.saveAs",
+            $$"""{"suggestedName":"x.kql","content":"new","path":{{JsonSerializer.Serialize(outside)}}}""");
+
+        Assert.Equal(1, _dialogs.SaveCalls);
+        Assert.Equal("precious", await File.ReadAllTextAsync(outside, TestContext.Current.CancellationToken));
+        Assert.Equal(JsonValueKind.Null, reply.GetProperty("result").ValueKind);
+    }
+
+    [Fact]
+    public async Task A_path_the_dialog_returned_is_then_saved_to_without_a_dialog()
+    {
+        var path = Path.Combine(_dir, "chosen.kql");
+        _dialogs.Save = path;
+        await CallAsync("file.saveAs", """{"suggestedName":"chosen.kql","content":"one"}""");
+
+        await CallAsync("file.saveAs", $$"""{"suggestedName":"chosen.kql","content":"two","path":{{JsonSerializer.Serialize(path)}}}""");
+
+        Assert.Equal(1, _dialogs.SaveCalls);
+        Assert.Equal("two", await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task A_path_from_a_file_open_is_allowed()
+    {
+        var path = Path.Combine(_dir, "opened.kql");
+        await File.WriteAllTextAsync(path, "old", TestContext.Current.CancellationToken);
+        _dialogs.Open = path;
+        await CallAsync("file.open", "{}");
+
+        await CallAsync("file.saveAs", $$"""{"suggestedName":"x.kql","content":"new","path":{{JsonSerializer.Serialize(path)}}}""");
+
+        Assert.Equal(0, _dialogs.SaveCalls);
+        Assert.Equal("new", await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task A_path_from_the_saved_session_is_allowed()
+    {
+        var path = Path.Combine(_dir, "tabfile.kql");
+        await File.WriteAllTextAsync(path, "old", TestContext.Current.CancellationToken);
+        var sessions = new SessionService(new JsonFileStore(_dir));
+        await sessions.SaveAsync(new Session(1, "a", [new SessionTab("a", "graph", "t", "x", false, null, [], path)]),
+            TestContext.Current.CancellationToken);
+        var bridge = new Messaging.Bridge(_ => { });
+        new FileHandler(_dialogs, new AllowedFilePaths(sessions)).Register(bridge);
+
+        await bridge.HandleAsync($$$"""{"id":"x","method":"file.saveAs","params":{"suggestedName":"x.kql","content":"new","path":{{{JsonSerializer.Serialize(path)}}}}}""");
+
+        Assert.Equal(0, _dialogs.SaveCalls);
+        Assert.Equal("new", await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Save_adds_the_first_filter_extension_when_the_chosen_name_has_none()
+    {
+        _dialogs.Save = Path.Combine(_dir, "foo");
+
+        var reply = await CallAsync("file.saveAs",
+            """{"suggestedName":"foo","content":"hi","filters":[{"name":"KQL","extensions":["*.kql","txt"]}]}""");
+
+        var expected = Path.Combine(_dir, "foo.kql");
+        Assert.Equal("hi", await File.ReadAllTextAsync(expected, TestContext.Current.CancellationToken));
+        Assert.Equal(expected, reply.GetProperty("result").GetProperty("path").GetString());
+        Assert.Equal("foo.kql", reply.GetProperty("result").GetProperty("name").GetString());
+    }
+
+    [Theory]
+    [InlineData("""[{"name":"All","extensions":["*"]}]""")]
+    [InlineData("""[{"name":"None","extensions":[]}]""")]
+    [InlineData("[]")]
+    public async Task Save_adds_no_extension_without_a_usable_filter(string filters)
+    {
+        _dialogs.Save = Path.Combine(_dir, "foo");
+
+        var reply = await CallAsync("file.saveAs", $$"""{"suggestedName":"foo","content":"hi","filters":{{filters}}}""");
+
+        Assert.Equal("foo", reply.GetProperty("result").GetProperty("name").GetString());
+    }
+
+    [Fact]
+    public async Task Save_that_cannot_replace_the_target_fails_and_leaves_it_and_no_temp_file()
+    {
+        var target = Path.Combine(_dir, "q.kql");
+        Directory.CreateDirectory(target);
+        await File.WriteAllTextAsync(Path.Combine(target, "inner.txt"), "keep", TestContext.Current.CancellationToken);
+        _dialogs.Save = target;
+
+        var reply = await CallAsync("file.saveAs", """{"suggestedName":"q.kql","content":"new"}""");
+
+        Assert.Equal("failed", reply.GetProperty("error").GetProperty("code").GetString());
+        Assert.Equal("keep", await File.ReadAllTextAsync(Path.Combine(target, "inner.txt"), TestContext.Current.CancellationToken));
+        Assert.Equal([target], Directory.GetFileSystemEntries(_dir));
     }
 
     [Fact]

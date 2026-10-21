@@ -31,6 +31,7 @@ public sealed class AppServices : IAsyncDisposable
     private readonly RecentService _recent;
     private readonly SessionService _session;
     private readonly SnippetService _snippets;
+    private readonly AllowedFilePaths _allowedFiles;
     private readonly GraphSchema _schema = GraphSchemaCatalog.Beta;
 
     private AppServices(AppSettings startup, SettingsService settings, AccountService accounts, TokenCacheStatus tokenCache,
@@ -45,6 +46,7 @@ public sealed class AppServices : IAsyncDisposable
         _recent = new RecentService(store, new StderrLogger<RecentService>());
         _session = new SessionService(store);
         _snippets = new SnippetService(store, new StderrLogger<SnippetService>());
+        _allowedFiles = new AllowedFilePaths(_session);
         Limits = SettingsService.ToGraphLimits(startup.Limits);
 
         var options = new GraphEngineOptions { WorkerPath = engine.WorkerPath, WorkerArgs = engine.WorkerArgs };
@@ -86,7 +88,7 @@ public sealed class AppServices : IAsyncDisposable
         new LibraryHandler(_library, _recent).Register(bridge);
         new SessionHandler(_session).Register(bridge);
         new SnippetHandler(_snippets).Register(bridge);
-        new FileHandler(new PhotinoFileDialogs(Window)).Register(bridge);
+        new FileHandler(new PhotinoFileDialogs(Window), _allowedFiles).Register(bridge);
         new AccountHandler(_accounts, _tokenCache, Objects).Register(bridge);
     }
 
