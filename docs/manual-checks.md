@@ -163,6 +163,41 @@ Earlier reviews parked these: the fixtures follow Microsoft Learn, but no real r
 | The real ARG 400 position fields: `line` and `characterPositionInLine`; is the second 0-based (the client assumes it is)? | owner | owner | owner |
 | The ARG 429 body and the `x-ms-user-quota-resets-after` header format | owner | owner | owner |
 
+## Create Entra ID application (2026-10-22)
+
+Spec: `docs/superpowers/specs/2026-10-22-create-entra-app-design.md` (section 10 lists the checks). The builder ran only the
+automated gate below, with no sign-in and no tenant. Every feature row is the owner's to run, against a **test tenant** (never a
+production tenant), because creating an app, adding an owner and granting admin consent change real directory objects.
+
+### Automated gate
+
+| Check | Result |
+| --- | --- |
+| `dotnet build -warnaserror` | ok, 0 warnings, 0 errors |
+| `dotnet test` | ok, 1366 passed, 0 failed, 0 skipped |
+| `npm --prefix web run lint` | ok, 1 warning, the known `react(incompatible-library)` on TanStack Table in `result-grid.tsx` |
+| `npm --prefix web run typecheck` | ok, clean |
+| `npm --prefix web test` | ok, 378 tests in 48 files |
+| `npm --prefix web run build` | ok, only Vite's chunk-size note for the Monaco chunk (`kql-editor`, 3,647 kB) |
+
+### Features (owner, test tenant)
+
+| Check | Owner |
+| --- | --- |
+| Create the app as a non-admin user: the app is created and the signed-in user is added as its owner | owner |
+| Create the app as an admin: the app is created and the owner is added | owner |
+| A tenant with "Users can register applications" off: the refusal message is shown and nothing is created | owner |
+| Admin consent from the system browser, then "Check again" shows the permissions as granted | owner |
+| Switch to the new app and sign in with it | owner |
+| A hunting query runs with the new app | owner |
+| An ARG query runs with the new app | owner |
+| The create button is hidden when the account uses an own client ID | owner |
+| The create button is hidden for an expired account | owner |
+| The create button is disabled, with the reason shown, when the token lacks `Application.ReadWrite.All` | owner |
+| The "No permission" run-status button | owner |
+| "Just show me the client ID" leaves the client ID note | owner |
+| The copied admin-consent link opens Microsoft's consent page for the right tenant and app | owner |
+
 ## Notes
 
 - macOS launch check: the window title was "Kustodian". It showed a signed-in account because of an earlier owner sign-in cached
