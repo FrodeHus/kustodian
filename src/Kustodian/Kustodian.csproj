@@ -5,6 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Photino.NET" />
     <PackageReference Include="Microsoft.Identity.Client" />
     <PackageReference Include="Microsoft.Identity.Client.Extensions.Msal" />
   </ItemGroup>
@@ -13,5 +14,38 @@
     <ProjectReference Include="..\Kustodian.Graph\Kustodian.Graph.csproj" />
     <ProjectReference Include="..\Kustodian.Engine\Kustodian.Engine.csproj" />
   </ItemGroup>
+
+  <!-- The web UI is embedded under wwwroot/ and served on app://. With a web project (web/package.json), web/dist is built by
+       npm when it is missing or older than its sources, then embedded. Without one, a built-in placeholder page is embedded,
+       so the host builds without Node. -->
+  <PropertyGroup>
+    <KustodianWebDir>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..\..\web'))</KustodianWebDir>
+    <KustodianWebDist>$(KustodianWebDir)dist\</KustodianWebDist>
+    <KustodianHasWeb Condition="Exists('$(KustodianWebDir)package.json')">true</KustodianHasWeb>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(KustodianHasWeb)' != 'true'">
+    <None Remove="App\placeholder.html" />
+    <EmbeddedResource Include="App\placeholder.html" LogicalName="wwwroot/index.html" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(KustodianHasWeb)' == 'true'">
+    <KustodianWebInput Include="$(KustodianWebDir)src\**\*" />
+    <KustodianWebInput Include="$(KustodianWebDir)index.html;$(KustodianWebDir)package.json;$(KustodianWebDir)package-lock.json;$(KustodianWebDir)vite.config.ts" />
+  </ItemGroup>
+
+  <Target Name="KustodianBuildWeb" Condition="'$(KustodianHasWeb)' == 'true' And '$(DesignTimeBuild)' != 'true'"
+          Inputs="@(KustodianWebInput)" Outputs="$(KustodianWebDist)index.html">
+    <Exec Command="npm ci" WorkingDirectory="$(KustodianWebDir)" />
+    <Exec Command="npm run build" WorkingDirectory="$(KustodianWebDir)" />
+    <Touch Files="$(KustodianWebDist)index.html" />
+  </Target>
+
+  <Target Name="KustodianEmbedWeb" Condition="'$(KustodianHasWeb)' == 'true'" DependsOnTargets="KustodianBuildWeb"
+          BeforeTargets="AssignTargetPaths">
+    <ItemGroup>
+      <EmbeddedResource Include="$(KustodianWebDist)**\*" LogicalName="wwwroot/%(RecursiveDir)%(Filename)%(Extension)" />
+    </ItemGroup>
+  </Target>
 
 </Project>
