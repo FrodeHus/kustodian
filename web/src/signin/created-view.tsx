@@ -27,6 +27,8 @@ export function CreatedView({ name, initial, listed, onClose, onSwitched, onSwit
   const [busy, setBusy] = useState(false);
   const [switchProblem, setSwitchProblem] = useState<string | null>(null);
   const [consentProblem, setConsentProblem] = useState<string | null>(null);
+  /** Why "Open in Entra" in the missing-service-principal block failed; shown next to that button. */
+  const [portalProblem, setPortalProblem] = useState<string | null>(null);
   const grantButton = useRef<HTMLButtonElement>(null);
 
   const { appId, objectId, tenantId, adminScopes } = result;
@@ -89,6 +91,18 @@ export function CreatedView({ name, initial, listed, onClose, onSwitched, onSwit
       // The retry answers only step 4: the earlier result keeps everything else.
       setResult((r) => ({ ...r, servicePrincipalId: again.servicePrincipalId, servicePrincipalMessage: again.servicePrincipalMessage }));
     });
+
+  async function openPortal() {
+    setBusy(true);
+    setPortalProblem(null);
+    try {
+      await call('entraApp.openPortal', { appId });
+    } catch (e) {
+      setPortalProblem(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function switchToApp() {
     setBusy(true);
@@ -162,10 +176,15 @@ export function CreatedView({ name, initial, listed, onClose, onSwitched, onSwit
             <button type="button" className="btn primary" disabled={busy} onClick={() => void retry()}>
               Try again
             </button>
-            <button type="button" className="btn" onClick={() => void call('entraApp.openPortal', { appId }).catch((e: unknown) => setProblem(errorText(e)))}>
+            <button type="button" className="btn" disabled={busy} onClick={() => void openPortal()}>
               Open in Entra
             </button>
           </div>
+          {portalProblem && (
+            <span className="text-[12px] text-bad" role="alert">
+              {portalProblem}
+            </span>
+          )}
         </div>
       )}
 

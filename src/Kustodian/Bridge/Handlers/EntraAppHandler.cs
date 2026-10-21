@@ -48,11 +48,13 @@ public sealed class EntraAppHandler(
             var (_, tenant) = await RequireTenantAsync(ct);
             return new UrlAnswer(EntraAppClient.ConsentUrl(tenant.Id, appId, null).AbsoluteUri);
         }));
-        bridge.Register("entraApp.openPortal", (p, _) => GuardAsync(() =>
+        bridge.Register("entraApp.openPortal", async (p, ct) => await GuardAsync(async () =>
         {
             var appId = AppIdOf(p);
-            Open(new Uri($"https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Overview/appId/{appId}"));
-            return Task.FromResult<object?>(new { });
+            var (_, tenant) = await RequireTenantAsync(ct);
+            Open(new Uri($"https://entra.microsoft.com/{Uri.EscapeDataString(tenant.Id)}"
+                + $"/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Overview/appId/{appId}"));
+            return new { };
         }));
     }
 
@@ -100,9 +102,22 @@ public sealed class EntraAppHandler(
             }
         }
 
+        var current = await activeAccount() ?? throw SignInNeeded();
+        if (CannotCreate(current))
+        {
+            throw new BridgeException(BridgeErrorCodes.BadRequest, CannotCreateReason);
+        }
+
         var (account, tenant) = await RequireTenantAsync(ct);
-        return await client.CreateAsync(account.Key, tenant, new CreateRequest(name, chosen),
-            step => bridge.Emit("entraApp.step", new StepData(step)), ct);
+        try
+        {
+            return await client.CreateAsync(account.Key, tenant, new CreateRequest(name, chosen),
+                step => bridge.Emit("entraApp.step", new StepData(step)), ct);
+        }
+        catch (EntraAppException ex) when (!ex.NothingCreated)
+        {
+            throw new BridgeException(BridgeErrorCodes.MayHaveCreated, ex.Message);
+        }
     }
 
     private async Task<object?> RetryAsync(JsonElement p, CancellationToken ct)

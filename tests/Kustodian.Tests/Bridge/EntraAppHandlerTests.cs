@@ -216,6 +216,49 @@ public class EntraAppHandlerTests
     }
 
     [Fact]
+    public async Task Create_is_bad_request_when_the_sign_in_cannot_create()
+    {
+        var own = new Harness(Account(clientId: "00000000-0000-0000-0000-00000000c1ie"));
+        var expired = new Harness(Account(expired: true));
+        var noScope = new Harness(Account(scopes: "User.Read"));
+
+        foreach (var h in new[] { own, expired, noScope })
+        {
+            var reply = await h.Call("entraApp.create", $$"""{"name":"App","permissions":[{{OfferedRef}}]}""");
+
+            Assert.Equal("bad_request", ErrorCode(reply));
+            Assert.Equal(EntraAppHandler.CannotCreateReason, reply.GetProperty("error").GetProperty("message").GetString());
+            Assert.Empty(h.Graph);
+            Assert.Empty(h.Events);
+        }
+    }
+
+    [Fact]
+    public async Task Create_server_error_answers_may_have_created()
+    {
+        var h = new Harness(Account())
+        {
+            Answer = request =>
+            {
+                var path = request.RequestUri!.AbsolutePath;
+                return path switch
+                {
+                    _ when path.EndsWith("/organization", StringComparison.Ordinal) =>
+                        Json(HttpStatusCode.OK, $$"""{"value":[{"id":"{{Tenant}}","displayName":"Contoso"}]}"""),
+                    _ when path.StartsWith("/v1.0/servicePrincipals(appId=", StringComparison.Ordinal) =>
+                        Json(HttpStatusCode.OK, $$"""{"id":"sp","oauth2PermissionScopes":[{"value":"{{Offered}}","id":"u1","type":"Admin"}]}"""),
+                    _ when path.EndsWith("/applications", StringComparison.Ordinal) => Json(HttpStatusCode.BadGateway, "{}"),
+                    _ => Json(HttpStatusCode.NotFound, "{}"),
+                };
+            },
+        };
+
+        var reply = await h.Call("entraApp.create", $$"""{"name":"App","permissions":[{{OfferedRef}}]}""");
+
+        Assert.Equal("mayHaveCreated", ErrorCode(reply));
+    }
+
+    [Fact]
     public async Task Create_failure_before_the_app_exists_is_failed_with_the_message()
     {
         var h = new Harness(Account())
@@ -267,8 +310,10 @@ public class EntraAppHandlerTests
         await h.Call("entraApp.openPortal", $$"""{"appId":"{{AppId}}"}""");
 
         Assert.Equal(
-            $"https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Overview/appId/{AppId}",
+            $"https://entra.microsoft.com/{Tenant}/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Overview/appId/{AppId}",
             Assert.Single(h.Browser.Opened).AbsoluteUri);
+        Assert.True(SystemBrowser.IsAllowed(h.Browser.Opened[0]));
+        Assert.DoesNotContain("home-tenant", h.Browser.Opened[0].AbsoluteUri, StringComparison.Ordinal);
     }
 
     [Theory]

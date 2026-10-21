@@ -34,7 +34,8 @@ public sealed record CreateResult(
 /// <summary>The scopes granted tenant-wide to an app, and the admin scopes still missing.</summary>
 public sealed record ConsentStatus(IReadOnlyList<string> Granted, IReadOnlyList<string> Missing);
 
-/// <summary>A create failed. <see cref="NothingCreated"/> says whether the tenant is untouched.</summary>
+/// <summary>A create failed. <see cref="NothingCreated"/> says whether the tenant is known to be untouched; false when the
+/// application may have been created (the request failed on the way or Graph answered with a server error).</summary>
 public sealed class EntraAppException(string message, bool nothingCreated) : Exception(message)
 {
     public bool NothingCreated { get; } = nothingCreated;
@@ -73,6 +74,8 @@ public sealed class EntraAppClient(HttpClient graph, TimeProvider time)
         public bool Ok => (int)Status is >= 200 and < 300;
 
         public string? ErrorMessage => (string?)Body?["error"]?["message"];
+
+        public string? ErrorCode => (string?)Body?["error"]?["code"];
     }
 
     /// <summary>The tenant the Graph token is for, which is not always the account's home tenant.</summary>
@@ -134,7 +137,7 @@ public sealed class EntraAppClient(HttpClient graph, TimeProvider time)
             throw new EntraAppException(Join("Kustodian couldn't read the application's enterprise application.", sp.ErrorMessage), false);
         }
 
-        var granted = new SortedSet<string>(StringComparer.Ordinal);
+        var granted = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
         string? next = V1 + $"oauth2PermissionGrants?$filter=clientId eq '{spId}' and consentType eq 'AllPrincipals'";
         while (next is not null)
         {
@@ -258,7 +261,17 @@ public sealed class EntraAppClient(HttpClient graph, TimeProvider time)
             ["publicClient"] = new JsonObject { ["redirectUris"] = new JsonArray(RedirectUris.Select(u => (JsonNode)JsonValue.Create(u)!).ToArray()) },
             ["requiredResourceAccess"] = access,
         };
-        var reply = await SendAsync(accountKey, HttpMethod.Post, V1 + "applications", body, ct);
+        Reply reply;
+        try
+        {
+            reply = await SendAsync(accountKey, HttpMethod.Post, V1 + "applications", body, ct);
+        }
+        catch (Exception ex) when (IsTransportFailure(ex, ct))
+        {
+            // The request may have reached Graph before the connection failed, so the app may exist.
+            throw new EntraAppException("Kustodian couldn't reach Microsoft Graph to create the application.", false);
+        }
+
         if (reply.Status == HttpStatusCode.Forbidden)
         {
             throw new EntraAppException(AppCreateDenied, true);
@@ -268,7 +281,10 @@ public sealed class EntraAppClient(HttpClient graph, TimeProvider time)
         var objectId = reply.Ok ? (string?)reply.Body?["id"] : null;
         if (appId is null || objectId is null)
         {
-            throw new EntraAppException(Join("Kustodian couldn't create the application.", reply.ErrorMessage), true);
+            // A refusal (4xx other than a timeout or throttle) means nothing was made; a 5xx, a timeout or an answer
+            // without the new app's IDs leaves it unknown.
+            var refused = (int)reply.Status is >= 400 and < 500 && reply.Status is not (HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests);
+            throw new EntraAppException(Join("Kustodian couldn't create the application.", reply.ErrorMessage), refused);
         }
 
         return (appId, objectId);
@@ -322,8 +338,9 @@ public sealed class EntraAppClient(HttpClient graph, TimeProvider time)
                 return (id, null);
             }
 
-            if (reply.Status == HttpStatusCode.BadRequest
-                && reply.ErrorMessage?.Contains("already exist", StringComparison.OrdinalIgnoreCase) == true)
+            if (reply.Status == HttpStatusCode.Conflict
+                || (reply.Status == HttpStatusCode.BadRequest
+                    && string.Equals(reply.ErrorCode, "Request_MultipleObjectsWithSameKeyValue", StringComparison.OrdinalIgnoreCase)))
             {
                 // An earlier POST went through but its answer was lost: the principal is there, so use it.
                 try

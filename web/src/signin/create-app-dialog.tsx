@@ -39,6 +39,8 @@ export function CreateAppDialog({
   const [problem, setProblem] = useState<string | null>(null);
   /** The sign-in is gone: the problem can't be fixed from the permissions, so the dialog only offers Close. */
   const [signInGone, setSignInGone] = useState(false);
+  /** The failure came after the create request was sent (a lost answer, a timeout, a server error): the app may exist. */
+  const [mayExist, setMayExist] = useState(false);
   const [result, setResult] = useState<EntraAppCreateResult | null>(null);
 
   const name = (typedName ?? plan?.defaultName ?? '').trim();
@@ -158,14 +160,17 @@ export function CreateAppDialog({
     setStep(null);
     setProblem(null);
     setSignInGone(false);
+    setMayExist(false);
     call<EntraAppCreateResult>('entraApp.create', { name, permissions: chosen.map((p) => ({ resource: p.resource, name: p.name })) }).then(
       (r) => {
         setResult(r);
         setPhase('created');
       },
       (e: unknown) => {
-        // An error means nothing was created (a partial creation comes back as a result), so the ticks stay.
+        // An error means nothing was created (a partial creation comes back as a result), except `mayHaveCreated`, which the
+        // host answers when the create request itself failed in a way that leaves it unknown. The ticks stay either way.
         setSignInGone(isSignInNeeded(e));
+        setMayExist(e instanceof BridgeError && e.code === 'mayHaveCreated');
         setProblem(e instanceof BridgeError && e.code === 'cancelled' ? 'The request was cancelled.' : errorText(e));
         setPhase('failed');
       },
@@ -220,7 +225,9 @@ export function CreateAppDialog({
                 <span className="text-[13px] text-bad" role="alert">
                   {problem}
                 </span>
-                <span className="muted">Nothing was created.</span>
+                <span className="muted">
+                  {mayExist ? 'The app may have been created. Check App registrations in Entra before trying again.' : 'Nothing was created.'}
+                </span>
                 {signInGone ? (
                   <button type="button" className="btn primary" data-autofocus="" onClick={onClose}>
                     Close

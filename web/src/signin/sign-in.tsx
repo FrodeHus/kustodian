@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { call, on } from '../bridge';
-import { AZURE_CLI_CLIENT_ID, type AccountInfo, type AccountList, type EntraAppPlan } from '../wire';
+import { AZURE_CLI_CLIENT_ID, type AccountInfo, type AccountList } from '../wire';
 import { CreateAppDialog } from './create-app-dialog';
-import { canOfferCreateApp } from './permission-plan';
+import { CANNOT_CREATE_REASON, canCreateApp, canOfferCreateApp } from './permission-plan';
 
 function clientLabel(clientId: string): string {
   return clientId === AZURE_CLI_CLIENT_ID ? 'Azure CLI client' : `client ${clientId.slice(0, 4)}…${clientId.slice(-4)}`;
@@ -60,24 +60,8 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
   const active = accounts.find((a) => a.active);
   const memoryOnly = list?.cache === 'memoryOnly';
   const offerCreate = canOfferCreateApp(active);
-  const activeKey = active?.key;
-  /** What `entraApp.plan` says about creating from the active account: whether it can, and why not. */
-  const [createPlan, setCreatePlan] = useState<{ key: string; canCreate: boolean; reason: string | null } | null>(null);
-
-  useEffect(() => {
-    if (!offerCreate || activeKey === undefined) {
-      return;
-    }
-    let live = true;
-    call<EntraAppPlan>('entraApp.plan').then(
-      (p) => live && setCreatePlan({ key: activeKey, canCreate: p?.canCreate === true, reason: p?.reason ?? null }),
-      (e: unknown) => live && setCreatePlan({ key: activeKey, canCreate: false, reason: e instanceof Error ? e.message : String(e) }),
-    );
-    return () => {
-      live = false;
-    };
-  }, [offerCreate, activeKey]);
-  const planned = createPlan?.key === activeKey ? createPlan : null;
+  /** Whether the active sign-in can also create app registrations (spec 6.1): decided here from its scopes, no host call. */
+  const createAllowed = canCreateApp(active);
 
   async function act(work: () => Promise<unknown>, done: boolean) {
     setBusy(true);
@@ -319,10 +303,10 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
             )}
             {offerCreate && (
               <div className="flex flex-col items-start gap-1.5 border-t border-line pt-2.5">
-                <button type="button" className="btn" disabled={planned === null || !planned.canCreate} onClick={() => setCreateOpen(true)}>
+                <button type="button" className="btn" disabled={!createAllowed} onClick={() => setCreateOpen(true)}>
                   Create Entra ID application…
                 </button>
-                {planned && !planned.canCreate && planned.reason && <span className="muted text-[12px]">{planned.reason}</span>}
+                {!createAllowed && <span className="muted text-[12px]">{CANNOT_CREATE_REASON}</span>}
               </div>
             )}
           </div>

@@ -311,8 +311,10 @@ public sealed class EntraAppClientTests
         Assert.Equal("app-1", (string?)JsonNode.Parse(only.Body!)!["appId"]);
     }
 
-    [Fact]
-    public async Task Service_principal_400_already_exists_reads_the_existing_principal_without_retry()
+    [Theory]
+    [InlineData(HttpStatusCode.Conflict)]
+    [InlineData(HttpStatusCode.BadRequest)]
+    public async Task Service_principal_that_already_exists_is_read_back_without_retry(HttpStatusCode status)
     {
         var spPosts = 0;
         var (client, handler, _) = New(s =>
@@ -320,7 +322,8 @@ public sealed class EntraAppClientTests
             if (s.Method == HttpMethod.Post && s.Uri.EndsWith("/servicePrincipals"))
             {
                 spPosts++;
-                return (HttpStatusCode.BadRequest, Error("Request_MultipleObjectsWithSameKeyValue", "A service principal with that appId already exists."));
+                return (status, Error("Request_MultipleObjectsWithSameKeyValue",
+                    "The service principal cannot be created, updated, or restored because the service principal name app-1 is already in use."));
             }
 
             return s.Uri.Contains("servicePrincipals(appId='app-1')") ? (HttpStatusCode.OK, """{"id":"sp-there"}""") : Happy(s);
@@ -401,6 +404,34 @@ public sealed class EntraAppClientTests
             + "give you the Application Developer role, or create the app for you.", ex.Message);
     }
 
+    [Theory]
+    [InlineData("http")]
+    [InlineData("timeout")]
+    public async Task Create_transport_failure_may_have_created_the_app(string kind)
+    {
+        var (client, _, _) = New(s => s.Uri.EndsWith("/applications") ? throw Failure(kind) : Happy(s));
+
+        var ex = await Assert.ThrowsAsync<EntraAppException>(() =>
+            client.CreateAsync(Account, Tenant, Request(Perm("User.Read.All")), _ => { }, TestContext.Current.CancellationToken));
+
+        Assert.False(ex.NothingCreated);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.InternalServerError, false)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, false)]
+    [InlineData(HttpStatusCode.TooManyRequests, false)]
+    [InlineData(HttpStatusCode.BadRequest, true)]
+    public async Task Create_non_403_failure_is_nothing_created_only_for_a_refusal(HttpStatusCode status, bool nothingCreated)
+    {
+        var (client, _, _) = New(s => s.Uri.EndsWith("/applications") ? (status, Error("x", "no")) : Happy(s));
+
+        var ex = await Assert.ThrowsAsync<EntraAppException>(() =>
+            client.CreateAsync(Account, Tenant, Request(Perm("User.Read.All")), _ => { }, TestContext.Current.CancellationToken));
+
+        Assert.Equal(nothingCreated, ex.NothingCreated);
+    }
+
     [Fact]
     public async Task Lookup_failure_means_nothing_created()
     {
@@ -464,6 +495,21 @@ public sealed class EntraAppClientTests
     }
 
     [Fact]
+    public async Task ConsentStatus_compares_scopes_ignoring_case()
+    {
+        var (client, _, _) = New(s => s.Uri switch
+        {
+            var u when u.Contains("servicePrincipals(appId='app-1')") => (HttpStatusCode.OK, """{"id":"sp-7"}"""),
+            _ => (HttpStatusCode.OK, """{"value":[{"scope":"user.read.all MAIL.READ"}]}"""),
+        });
+
+        var status = await client.ConsentStatusAsync(Account, "app-1", ["User.Read.All", "Mail.Read", "Policy.Read.All"],
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(["Policy.Read.All"], status.Missing);
+    }
+
+    [Fact]
     public async Task ConsentStatus_with_no_principal_means_everything_is_missing()
     {
         var (client, handler, _) = New(_ => (HttpStatusCode.NotFound, Error("Request_ResourceNotFound", "none")));
@@ -506,6 +552,11 @@ public sealed class EntraAppClientTests
             + $"&scope={E("https://graph.microsoft.com/.default")}"
             + $"&redirect_uri={E("https://login.microsoftonline.com/common/oauth2/nativeclient")}";
 
+        Assert.Equal(
+            "https://login.microsoftonline.com/t-1/v2.0/adminconsent?client_id=a-1"
+            + "&scope=https%3A%2F%2Fgraph.microsoft.com%2F.default"
+            + "&redirect_uri=https%3A%2F%2Flogin.microsoftonline.com%2Fcommon%2Foauth2%2Fnativeclient",
+            EntraAppClient.ConsentUrl("t-1", "a-1", null).AbsoluteUri);
         Assert.Equal(baseUrl, EntraAppClient.ConsentUrl("t-1", "a-1", null).AbsoluteUri);
         Assert.Equal(baseUrl + "&state=s%201", EntraAppClient.ConsentUrl("t-1", "a-1", "s 1").AbsoluteUri);
 

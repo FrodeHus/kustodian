@@ -397,8 +397,8 @@ interface SavedQuery extends SavedQueryInput {
 
 const graphId = '00000003-0000-0000-c000-000000000000';
 const armId = '797f4846-ba00-4fd7-ba43-dac1f8f63013';
-function plannedPermission(name: string, tables: string[], ticked: boolean, adminConsent = true, description = '') {
-  return { resource: 'Microsoft Graph', resourceAppId: graphId, name, adminConsent, description, tables, unlocks: null, ticked };
+function plannedPermission(name: string, tables: string[], ticked: boolean, adminConsent = true, description = '', unlocks: string | null = null) {
+  return { resource: 'Microsoft Graph', resourceAppId: graphId, name, adminConsent, description, tables, unlocks, ticked };
 }
 
 /** `entraApp.plan`'s answer: a small plan with the three groups, Mail unticked, and tables that overlap between permissions. */
@@ -432,7 +432,7 @@ const entraAppPlan = {
       subgroups: [
         {
           title: 'Advanced hunting',
-          permissions: [plannedPermission('ThreatHunting.Read.All', ['DeviceInfo', 'EmailEvents'], true, true, 'Run advanced hunting queries')],
+          permissions: [plannedPermission('ThreatHunting.Read.All', [], true, true, 'Run advanced hunting queries', 'Defender advanced hunting tabs')],
         },
       ],
     },

@@ -197,6 +197,8 @@ production tenant), because creating an app, adding an owner and granting admin 
 | The "No permission" run-status button | owner |
 | "Just show me the client ID" leaves the client ID note | owner |
 | The copied admin-consent link opens Microsoft's consent page for the right tenant and app | owner |
+| Force the service principal step to fail (for example, a user without the right to create it), grant admin consent, then click **Try again**: it succeeds | owner |
+| As a guest, or a sign-in pinned to another tenant, "Open in Entra" opens the app in that tenant | owner |
 
 ## Notes
 

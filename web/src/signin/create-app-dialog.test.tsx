@@ -159,9 +159,20 @@ describe('CreateAppDialog', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /^User.Read.All/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
     expect((await screen.findByRole('alert')).textContent).toMatch(/Graph said no\./);
+    expect(screen.getByText('Nothing was created.')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Back to permissions' }));
     expect(screen.getByRole<HTMLInputElement>('checkbox', { name: /^User.Read.All/ }).checked).toBe(false);
     expect(screen.getByRole<HTMLInputElement>('checkbox', { name: /^Directory.Read.All/ }).checked).toBe(true);
+  });
+
+  it('a_failure_after_the_create_request_says_the_app_may_exist', async () => {
+    answer(() => Promise.reject(new BridgeError('mayHaveCreated', "Kustodian couldn't reach Microsoft Graph to create the application.")));
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/couldn't reach Microsoft Graph/);
+    expect(screen.getByText('The app may have been created. Check App registrations in Entra before trying again.')).toBeTruthy();
+    expect(screen.queryByText('Nothing was created.')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Back to permissions' })).toBeTruthy();
   });
 
   it('esc_and_click_outside_close_when_idle', async () => {
@@ -349,6 +360,21 @@ describe('CreateAppDialog created view', () => {
     // The earlier result's other fields are kept.
     expect(screen.getByRole('button', { name: 'Open admin consent page' })).toBeTruthy();
     expect(screen.queryByText(/Could not add you/)).toBeNull();
+  });
+
+  it('open_in_entra_in_the_missing_principal_block_is_disabled_while_busy_and_shows_its_own_error', async () => {
+    const partial = { ...adminCreated, servicePrincipalId: null, servicePrincipalMessage: 'Graph said 403 Forbidden.' };
+    let reject: (e: unknown) => void = () => undefined;
+    route({ 'entraApp.openPortal': () => new Promise((_, r) => (reject = r)) }, partial);
+    await toCreated();
+    const open = screen.getByRole<HTMLButtonElement>('button', { name: 'Open in Entra' });
+    fireEvent.click(open);
+    await waitFor(() => expect(open.disabled).toBe(true));
+    reject(new BridgeError('failed', "Kustodian couldn't open your browser."));
+    const message = await screen.findByText("Kustodian couldn't open your browser.");
+    expect(screen.getByText(/1\. Grant for the whole tenant/).closest('.card')?.contains(message)).toBe(false);
+    expect(message.parentElement?.textContent).toMatch(/Try again/);
+    expect(open.disabled).toBe(false);
   });
 
   it('clipboard_missing_shows_a_note', async () => {

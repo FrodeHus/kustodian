@@ -27,6 +27,9 @@ export function allPermissions(groups: PlannedGroup[]): PlannedPermission[] {
 /** The scopes that let a token create app registrations and their service principals (spec 6.1). */
 const CREATE_SCOPES = ['application.readwrite.all', 'directory.accessasuser.all'];
 
+/** Why the button is disabled when the sign-in lacks a create scope (spec 6.1); the host's `entraApp.plan` says the same. */
+export const CANNOT_CREATE_REASON = "This sign-in can't create app registrations (it needs Application.ReadWrite.All).";
+
 /** The command and the run status offer the dialog only when the sign-in can also create: Azure CLI, not expired, and a token
  * with one of the create scopes. */
 export const canCreateApp = (account: AccountInfo | undefined): boolean =>

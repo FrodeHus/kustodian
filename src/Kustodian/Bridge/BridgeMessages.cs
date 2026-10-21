@@ -39,6 +39,9 @@ public static class BridgeErrorCodes
     public const string Failed = "failed";
     public const string SignInNeeded = "signInNeeded";
 
+    /// <summary>A create failed in a way that may still have created the application (a lost answer, a timeout, a server error).</summary>
+    public const string MayHaveCreated = "mayHaveCreated";
+
     /// <summary>An ARM token needs the user (<c>account.consent {key, audience: "arm"}</c>); the account stays signed in.</summary>
     public const string ConsentNeeded = "consentNeeded";
 }
