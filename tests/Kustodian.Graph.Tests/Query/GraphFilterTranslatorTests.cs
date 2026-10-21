@@ -177,6 +177,8 @@ public sealed class GraphFilterTranslatorTests
     [InlineData("security_incidents | where weight < 2")]
     [InlineData("security_incidents | where isnotnull(weight)")]
     [InlineData("security_incidents | where id != 'x'")]
+    [InlineData("applications | where weight in (1, 2)")]
+    [InlineData("security_incidents | where weight in (1, 2)")]
     [InlineData("security_incidents | where displayName != 'x'")]
     public void Disallowed_operators_are_not_pushed(string kql) =>
         Assert.Null(Translate(kql.StartsWith("applications", StringComparison.Ordinal) ? Applications : Incidents, kql));
