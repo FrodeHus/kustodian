@@ -160,6 +160,16 @@ describe('RunStatus', () => {
     expect(screen.getByText('2 pages · contoso-platform')).toBeTruthy();
   });
 
+  it('run_status_shows_an_ok_runs_note', () => {
+    const truncated = result({ tables: [], total: 3, rows: [['a'], ['b'], ['c']], message: 'Resource Graph cut this result short; include the id column to page through all rows.' });
+
+    render(<RunStatus run={{ ...done(truncated), source: 'arg' }} onSignIn={() => undefined} />);
+
+    const note = screen.getByText('Resource Graph cut this result short; include the id column to page through all rows.');
+    expect(note.className).toContain('warn');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('consent_button_grants_and_reruns', async () => {
     const message = 'Azure Resource Graph needs your consent to read Azure for this account.';
     call.mockImplementation((method: string) =>

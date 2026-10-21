@@ -121,6 +121,43 @@ describe('useSchemas', () => {
     expect(useSchemas.getState().loading.hunting).toBe(false);
   });
 
+  it('resource_types_problem_says_what_fixes_it_and_a_reload_reads_them_again', async () => {
+    let types: () => Promise<unknown> = () =>
+      Promise.reject(new BridgeError('consentNeeded', 'Kustodian needs your permission to read Azure resources for this account.'));
+    bridge.call.mockImplementation((method: string, params?: { source?: string }) =>
+      method === 'arm.resourceTypes' ? types() : Promise.resolve(view(params?.source ?? 'graph')),
+    );
+    act(() => {
+      useTabs.getState().open('arg');
+    });
+
+    await useSchemas.getState().load('arg');
+    expect(useSchemas.getState().resourceTypesError).toBe('Kustodian needs your permission to read Azure resources for this account.');
+    expect(useSchemas.getState().resourceTypesFix).toBe('consent');
+
+    types = () => Promise.reject(new BridgeError('signInNeeded', 'Sign in again to list your Azure subscriptions and resources.'));
+    await useSchemas.getState().reloadResourceTypes();
+    expect(useSchemas.getState().resourceTypesFix).toBe('signIn');
+
+    // Granted, or signed in again: the types are read again, without reading the tables again.
+    types = () => Promise.resolve({ types: ['microsoft.keyvault/vaults'] });
+    await useSchemas.getState().reloadResourceTypes();
+    expect(useSchemas.getState().resourceTypes).toEqual(['microsoft.keyvault/vaults']);
+    expect(useSchemas.getState().resourceTypesError).toBeNull();
+    expect(useSchemas.getState().resourceTypesFix).toBeNull();
+    expect(schemaCalls()).toEqual(['arg']);
+  });
+
+  it('reload_resource_types_asks_arm_nothing_without_a_resource_graph_tab', async () => {
+    act(() => {
+      useTabs.getState().open('graph');
+    });
+
+    await useSchemas.getState().reloadResourceTypes();
+
+    expect(bridge.call.mock.calls.some(([m]) => m === 'arm.resourceTypes')).toBe(false);
+  });
+
   it('refresh_reads_the_source_again_and_a_failure_is_kept', async () => {
     await useSchemas.getState().load('hunting');
     await useSchemas.getState().load('hunting', { refresh: true });

@@ -1,10 +1,25 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import schema from '../fixtures/graph-schema.json';
+import { useTabs } from '../tabs/tab-store';
 import type { SchemaView } from '../wire';
 import { SchemaPanel } from './schema-panel';
+import { useSchemas } from './schema-store';
+
+const bridge = vi.hoisted(() => ({ call: vi.fn() }));
+vi.mock('../bridge', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../bridge')>()),
+  call: bridge.call,
+  on: () => () => undefined,
+}));
 
 const view = schema as SchemaView;
+
+beforeEach(() => {
+  bridge.call.mockReset();
+  useSchemas.getState().reset();
+  useTabs.setState({ tabs: [], activeId: null, cursors: {} });
+});
 
 describe('SchemaPanel', () => {
   it('schema_panel_shows_tables_in_the_query_with_column_tags_and_descriptions', () => {
@@ -123,6 +138,28 @@ describe('SchemaPanel', () => {
     expect(rows(screen.getByRole('list', { name: 'deviceManagement' }))).toEqual([expect.stringMatching(/^▸deviceManagement_managedDevices/)]);
   });
 
+  it('schema_panel_search_matches_graph_paths', () => {
+    render(<SchemaPanel schema={graph} text="" onInsert={() => undefined} />);
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find a table or column' }), { target: { value: 'auditLogs/' } });
+
+    expect(rows(screen.getByRole('list', { name: 'Matches' }))).toEqual(['▾Sign-in and audit logs1']);
+    expect(rows(screen.getByRole('list', { name: 'Sign-in and audit logs' }))).toEqual([expect.stringMatching(/^▸auditLogs_signIns/)]);
+  });
+
+  it('schema_panel_new_search_text_opens_matching_areas_again', () => {
+    render(<SchemaPanel schema={graph} text="" onInsert={() => undefined} />);
+    const search = screen.getByRole('searchbox', { name: 'Find a table or column' });
+    fireEvent.change(search, { target: { value: 'managedDev' } });
+    fireEvent.click(within(screen.getByRole('list', { name: 'Matches' })).getByRole('button', { name: /Devices and Intune/ }));
+    expect(rows(screen.getByRole('list', { name: 'Matches' }))).toEqual(['▸Devices and Intune1']);
+
+    fireEvent.change(search, { target: { value: 'deviceCompliance' } });
+
+    expect(rows(screen.getByRole('list', { name: 'Matches' }))).toEqual(['▾Devices and Intune1']);
+    expect(rows(screen.getByRole('list', { name: 'deviceManagement' }))).toEqual([expect.stringMatching(/^▸deviceManagement_deviceCompliancePolicies/)]);
+  });
+
   it('schema_panel_in_this_query_stays_flat', () => {
     render(<SchemaPanel schema={graph} text="users | join (auditLogs_signIns) on id" onInsert={() => undefined} />);
 
@@ -205,6 +242,50 @@ describe('SchemaPanel', () => {
     view.rerender(<SchemaPanel source="arg" schema={arg} text="" resourceTypesError="Grant Azure access to list your resource types." onInsert={onInsert} />);
     fireEvent.change(screen.getByRole('searchbox', { name: 'Find a table or column' }), { target: { value: '' } });
     expect(screen.getByText('Grant Azure access to list your resource types.')).toBeTruthy();
+  });
+
+  it('schema_panel_offers_the_fix_when_resource_types_cannot_be_listed', async () => {
+    const arg: SchemaView = { ...view, source: 'arg', origin: 'builtIn', tables: [] };
+    const onSignIn = vi.fn();
+    bridge.call.mockImplementation((method: string) =>
+      Promise.resolve(method === 'arm.resourceTypes' ? { types: ['microsoft.keyvault/vaults'] } : {}),
+    );
+    act(() => {
+      useTabs.getState().open('arg');
+    });
+    const panel = render(
+      <SchemaPanel
+        source="arg"
+        schema={arg}
+        text=""
+        resourceTypesError="Kustodian needs your permission to read Azure resources for this account."
+        resourceTypesFix="consent"
+        accountKey="k1"
+        onSignIn={onSignIn}
+        onInsert={() => undefined}
+      />,
+    );
+
+    // Granting reads the resource types again.
+    fireEvent.click(screen.getByRole('button', { name: 'Grant Azure access' }));
+    await waitFor(() => expect(useSchemas.getState().resourceTypes).toEqual(['microsoft.keyvault/vaults']));
+    expect(bridge.call).toHaveBeenCalledWith('account.consent', { key: 'k1', audience: 'arm' });
+
+    panel.rerender(
+      <SchemaPanel
+        source="arg"
+        schema={arg}
+        text=""
+        resourceTypesError="Sign in again to list your Azure subscriptions and resources."
+        resourceTypesFix="signIn"
+        accountKey="k1"
+        onSignIn={onSignIn}
+        onInsert={() => undefined}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: 'Grant Azure access' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(onSignIn).toHaveBeenCalledTimes(1);
   });
 
   it('schema_panel_says_when_the_schema_could_not_be_read', () => {

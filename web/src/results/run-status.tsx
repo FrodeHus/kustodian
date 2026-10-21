@@ -93,6 +93,10 @@ function resultChips(result: RunResult, source: Source, scope: ArgScope | null |
   if (result.droppedValues > 0) {
     chips.push({ tone: 'warn', text: `${plural(result.droppedValues, 'value')} didn't fit the column's type, left empty` });
   }
+  // A run that worked can still have a note (Resource Graph cutting the result short).
+  if (result.message) {
+    chips.push({ tone: 'warn', text: result.message });
+  }
   return [...chips, ...sourceChips(result, source, scope)];
 }
 

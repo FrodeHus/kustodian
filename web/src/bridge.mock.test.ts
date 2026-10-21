@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createBridge } from './bridge';
 import { createMockTransport } from './bridge.mock';
 import { BridgeError } from './bridge';
-import type { ArmManagementGroupsAnswer, ArmResourceTypesAnswer, ArmSubscriptionsAnswer, RecentRun, RunResult, SchemaView } from './wire';
+import type { ArmManagementGroupsAnswer, ArmResourceTypesAnswer, ArmSubscriptionsAnswer, ListedByDefault, RecentRun, RunResult, SchemaView } from './wire';
 
 describe('bridge mock', () => {
   it('mock_answers_the_arm_methods_in_the_hosts_shapes', async () => {
@@ -36,6 +36,19 @@ describe('bridge mock', () => {
     expect(arg.tables.map((t) => t.name)).toContain('Resources');
     expect(arg.tables[0]?.path).toBeNull();
     await expect(bridge.call('schema.get', { source: 'raw' })).rejects.toBeInstanceOf(BridgeError);
+  });
+
+  it('mock_listed_by_default_is_graphs_only', async () => {
+    const bridge = createBridge(createMockTransport());
+
+    const listed = await bridge.call<ListedByDefault>('schema.listedByDefault', { source: 'graph' });
+
+    expect(Object.keys(listed)).toEqual(['tables']);
+    expect(listed.tables.users).toEqual(['businessPhones', 'displayName', 'givenName', 'id', 'jobTitle', 'mail', 'mobilePhone', 'officeLocation', 'preferredLanguage', 'surname', 'userPrincipalName']);
+    await expect(bridge.call('schema.listedByDefault', { source: 'hunting' })).rejects.toMatchObject({
+      code: 'bad_request',
+      message: 'Unknown source hunting.',
+    });
   });
 
   it('mock_explain_and_completion_are_graph_only', async () => {

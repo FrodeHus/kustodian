@@ -27,15 +27,20 @@ interface SidePanelProps {
   text: string;
   /** Puts text at the editor's cursor; false when the editor isn't ready. */
   onInsert: (text: string) => boolean;
+  /** The active account, which the schema panel's "Grant Azure access" asks consent for. */
+  accountKey?: string;
+  /** Opens sign-in, when the schema panel's resource types need the account to sign in again. */
+  onSignIn?: () => void;
 }
 
 /** The side panel the rail chose, for the active tab's source. */
-export function SidePanel({ panel, source: tabSource, text, onInsert }: SidePanelProps) {
+export function SidePanel({ panel, source: tabSource, text, onInsert, accountKey, onSignIn }: SidePanelProps) {
   const source = schemaSourceOf(tabSource);
   const schema = useSchemas((s) => s.byKey[source]);
   const error = useSchemas((s) => s.errors[source]);
   const resourceTypes = useSchemas((s) => s.resourceTypes);
   const resourceTypesError = useSchemas((s) => s.resourceTypesError);
+  const resourceTypesFix = useSchemas((s) => s.resourceTypesFix);
   switch (panel) {
     case 'saved':
       return <SavedPanel source={source} />;
@@ -52,6 +57,9 @@ export function SidePanel({ panel, source: tabSource, text, onInsert }: SidePane
           error={error}
           resourceTypes={resourceTypes}
           resourceTypesError={resourceTypesError}
+          resourceTypesFix={resourceTypesFix}
+          accountKey={accountKey}
+          onSignIn={onSignIn}
           text={text}
           onInsert={onInsert}
         />

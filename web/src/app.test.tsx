@@ -520,6 +520,56 @@ describe('App', () => {
     expect(within(form).getByRole('group', { name: 'second' })).toBeTruthy();
   });
 
+  it('parameters_take_the_editors_place_and_give_it_back', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    render(<App />);
+    const editor = await screen.findByRole('textbox', { name: 'KQL query' });
+    fireEvent.change(editor, { target: { value: 'users | where displayName == {name}' } });
+    const button = screen.getByRole('button', { name: 'Parameters · 1' });
+    const editorHidden = () => screen.getByRole('textbox', { name: 'KQL query', hidden: true }).closest('[hidden]') !== null;
+
+    // The parameters view replaces the editor, which stays mounted (its state and undo survive); the results stay below.
+    fireEvent.click(button);
+    expect(editorHidden()).toBe(true);
+    const form = screen.getByRole('region', { name: 'Parameters' });
+    expect(screen.getByText('No run yet')).toBeTruthy();
+    expect(form.compareDocumentPosition(screen.getByText('No run yet')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // Pressing the button again brings the editor back.
+    fireEvent.click(button);
+    expect(button.getAttribute('aria-pressed')).toBe('false');
+    expect(editorHidden()).toBe(false);
+    expect(screen.queryByRole('region', { name: 'Parameters' })).toBeNull();
+
+    // So does Esc, and the command toggles it too.
+    act(() => void runCommand('params.toggle'));
+    expect(editorHidden()).toBe(true);
+    fireEvent.keyDown(within(screen.getByRole('region', { name: 'Parameters' })).getAllByRole('textbox')[0]!, { key: 'Escape' });
+    expect(editorHidden()).toBe(false);
+    expect(screen.queryByRole('region', { name: 'Parameters' })).toBeNull();
+
+    // "Run with these values" still runs, with the editor out of sight.
+    fireEvent.click(button);
+    fireEvent.click(screen.getByRole('button', { name: 'Run with these values' }));
+    await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('query.run', expect.objectContaining({ kql: 'users | where displayName == {name}' }), expect.anything()));
+  });
+
+  it('parameters_close_when_another_tab_comes_forward', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    render(<App />);
+    fireEvent.change(await screen.findByRole('textbox', { name: 'KQL query' }), { target: { value: 'users | where id == {id}' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Parameters · 1' }));
+    expect(screen.getByRole('region', { name: 'Parameters' })).toBeTruthy();
+
+    act(() => {
+      runCommand('tab.new');
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: 'KQL query', hidden: true }), { target: { value: 'groups | where id == {id}' } });
+
+    expect(screen.queryByRole('region', { name: 'Parameters' })).toBeNull();
+    expect(screen.getByRole('textbox', { name: 'KQL query' }).closest('[hidden]')).toBeNull();
+  });
+
   it('app_explain_shows_what_the_query_would_send_on_graph_tabs_only', async () => {
     host({ accounts: [kari], cache: 'persistent' });
     answers['query.explain'] = () => ({
@@ -674,6 +724,52 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /kari@contoso.com/ }));
     fireEvent.click(await screen.findByRole('button', { name: 'Sign in with your browser' }));
     await waitFor(() => expect(footer()).toContain('Schema from your tenant (getHuntingSchema)'));
+    expect(bridge.call).toHaveBeenCalledWith('schema.get', { source: 'hunting', refresh: true });
+  });
+
+  it('app_reads_resource_types_again_after_signing_in_again_as_the_same_account', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    let signedIn = false;
+    answers['arm.resourceTypes'] = () =>
+      signedIn ? { types: ['microsoft.keyvault/vaults'] } : Promise.reject(new BridgeError('signInNeeded', 'Sign in again to list your Azure subscriptions and resources.'));
+    answers['account.signIn'] = () => kari;
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+    act(() => {
+      runCommand('tab.newArg');
+    });
+    const panel = await screen.findByRole('complementary', { name: 'Resource Graph tables' });
+    await waitFor(() => expect(within(panel).getByText('Sign in again to list your Azure subscriptions and resources.')).toBeTruthy());
+
+    // The panel's own "Sign in" opens sign-in; signing in as the same account lists the types.
+    fireEvent.click(within(panel).getByRole('button', { name: 'Sign in' }));
+    signedIn = true;
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign in with your browser' }));
+    const footer = () => document.querySelector('footer.statusbar')?.textContent ?? '';
+    await waitFor(() => expect(footer()).toContain('Resource Graph tables · 1 resource types'));
+    expect(within(screen.getByRole('list', { name: 'Resource types' })).getByText('microsoft.keyvault/vaults')).toBeTruthy();
+  });
+
+  it('app_hunting_footer_says_when_a_refresh_failed_and_signing_in_again_reads_it', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    let reason: string | null = 'Sign in again to refresh the tenant’s schema. The schema read earlier is shown.';
+    answers['schema.get'] = (p) =>
+      (p as { source: string }).source === 'hunting' ? { ...(schema as SchemaView), source: 'hunting', origin: 'tenant', fallbackReason: reason } : schema;
+    answers['account.signIn'] = () => kari;
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+    act(() => {
+      runCommand('tab.newHunting');
+    });
+    const footer = () => document.querySelector('footer.statusbar')?.textContent ?? '';
+    await waitFor(() => expect(footer()).toContain('Schema from your tenant (getHuntingSchema) · '));
+    expect(footer()).toContain('Sign in again to refresh the tenant’s schema');
+    expect(footer()).not.toContain('The schema read earlier is shown');
+
+    reason = null;
+    fireEvent.click(screen.getByRole('button', { name: /kari@contoso.com/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign in with your browser' }));
+    await waitFor(() => expect(footer()).not.toContain('Sign in again'));
     expect(bridge.call).toHaveBeenCalledWith('schema.get', { source: 'hunting', refresh: true });
   });
 

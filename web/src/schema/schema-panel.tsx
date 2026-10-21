@@ -1,5 +1,7 @@
 import { type ReactNode, useMemo, useState } from 'react';
+import { ConsentButton } from '../signin/consent-button';
 import type { SchemaColumn, SchemaFunction, SchemaTable, SchemaView, Source } from '../wire';
+import type { ResourceTypesFix } from './schema-store';
 
 interface Listed {
   table: SchemaTable;
@@ -8,11 +10,12 @@ interface Listed {
   open: boolean;
 }
 
-/** Tables whose name matches the search with all their columns, and tables with matching columns opened on just those. */
+/** Tables whose name or Graph path (`auditLogs/` finds the audit tables) matches the search with all their columns, and tables
+ * with matching columns opened on just those. */
 function search(tables: SchemaTable[], text: string): Listed[] {
   const needle = text.trim().toLowerCase();
   return tables.flatMap((table): Listed[] => {
-    if (table.name.toLowerCase().includes(needle)) {
+    if (table.name.toLowerCase().includes(needle) || (table.path?.toLowerCase().includes(needle) ?? false)) {
       return [{ table, columns: table.columns, open: false }];
     }
     const columns = table.columns.filter((c) => c.name.toLowerCase().includes(needle));
@@ -21,7 +24,8 @@ function search(tables: SchemaTable[], text: string): Listed[] {
 }
 
 /** Graph's data areas in display order (owner-approved). The host decides each table's area (`graph-areas.json`); an area this
- * list doesn't know (a newer host) shows just before Other, which is always last. */
+ * list doesn't know (a newer host) shows just before Other, which is always last. The host's `GraphAreas.Names` is the same
+ * list: change them together. */
 const AREAS = [
   'Users, groups and directory',
   'Apps and permissions',
@@ -113,9 +117,14 @@ interface SchemaPanelProps {
   schema: SchemaView | null | undefined;
   /** Why the schema couldn't be read. */
   error?: string;
-  /** The account's Resource Graph resource types (`arm.resourceTypes`), and why they couldn't be listed. */
+  /** The account's Resource Graph resource types (`arm.resourceTypes`), why they couldn't be listed, and what helps. */
   resourceTypes?: string[];
   resourceTypesError?: string | null;
+  resourceTypesFix?: ResourceTypesFix;
+  /** The active account, which "Grant Azure access" asks consent for. */
+  accountKey?: string;
+  /** Opens sign-in, when listing the resource types needs the account to sign in again. */
+  onSignIn?: () => void;
   /** The active tab's query, for "In this query". */
   text: string;
   onInsert: (name: string) => void;
@@ -123,9 +132,15 @@ interface SchemaPanelProps {
 
 /** The left panel for the active tab's source (spec 6.1): the schema tree with search; descriptions show on hover. Advanced
  * hunting adds its functions and Resource Graph the account's resource types, which the search finds too. */
-export function SchemaPanel({ source = 'graph', schema, error, resourceTypes, resourceTypesError, text, onInsert }: SchemaPanelProps) {
+export function SchemaPanel(props: SchemaPanelProps) {
+  const { source = 'graph', schema, error, resourceTypes, resourceTypesError, resourceTypesFix, accountKey, onSignIn, text, onInsert } = props;
   const [query, setQuery] = useState('');
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
+  /** A new search opens every matching area again: the areas opened or closed for the last one are forgotten. */
+  const changeQuery = (next: string) => {
+    setQuery(next);
+    setToggled((t) => Object.fromEntries(Object.entries(t).filter(([key]) => !key.startsWith('find-area:'))));
+  };
   const tables = useMemo(() => schema?.tables ?? [], [schema]);
   const inQuery = useMemo(() => tablesIn(tables, text), [tables, text]);
   const found = useMemo(() => (query.trim() ? search(tables, query) : null), [tables, query]);
@@ -234,7 +249,7 @@ export function SchemaPanel({ source = 'graph', schema, error, resourceTypes, re
         aria-label="Find a table or column"
         placeholder={schema ? `Find among ${tables.length.toLocaleString('en-US')} tables` : error ? 'No schema' : 'Loading the schema…'}
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={(e) => changeQuery(e.target.value)}
         disabled={!schema}
       />
       <div className="min-h-0 flex-1 overflow-y-auto pb-3">
@@ -291,7 +306,15 @@ export function SchemaPanel({ source = 'graph', schema, error, resourceTypes, re
           <>
             <h2>Resource types</h2>
             {resourceTypesError && !resourceTypes ? (
-              <p className="faint m-0 px-[14px] text-[12px]">{resourceTypesError}</p>
+              <div className="flex flex-wrap items-center gap-2 px-[14px] text-[12px]">
+                <p className="faint m-0 min-w-0">{resourceTypesError}</p>
+                {resourceTypesFix === 'consent' && <ConsentButton accountKey={accountKey} />}
+                {resourceTypesFix === 'signIn' && onSignIn && (
+                  <button type="button" className="btn primary shrink-0" onClick={onSignIn}>
+                    Sign in
+                  </button>
+                )}
+              </div>
             ) : !resourceTypes ? (
               <p className="faint m-0 px-[14px] text-[12px]">Listing your resource types…</p>
             ) : types.length === 0 ? (

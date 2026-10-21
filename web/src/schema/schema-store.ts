@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { call } from '../bridge';
+import { BridgeError, call } from '../bridge';
 import { errorText } from '../shell/errors';
 import { useTabs } from '../tabs/tab-store';
 import type { ArmResourceTypesAnswer, SchemaView, Source } from '../wire';
@@ -21,19 +21,30 @@ interface SchemasState {
   resourceTypes: string[] | undefined;
   /** Why the resource types couldn't be read (an Azure consent, for one). */
   resourceTypesError: string | null;
+  /** What helps when they couldn't be read: granting Azure access, signing in again, or nothing the panel can offer. */
+  resourceTypesFix: ResourceTypesFix;
   /** Reads `source`'s schema (`schema.get`); `refresh` skips the host's cache. Resolves once it is read or has failed. */
   load(source: SchemaSource, opts?: { refresh?: boolean }): Promise<void>;
+  /** Reads the resource types again (Azure access was granted, or the account signed in again), when a Resource Graph tab is
+   * open; else does nothing, so no ARM token is asked for before one is needed (spec 6.7). */
+  reloadResourceTypes(): Promise<void>;
   /** Forgets every schema (the active account changed): the open tabs' sources are read again. */
   reset(): void;
 }
 
-const empty = (): Pick<SchemasState, 'byKey' | 'errors' | 'loading' | 'resourceTypes' | 'resourceTypesError'> => ({
+export type ResourceTypesFix = 'consent' | 'signIn' | null;
+
+const empty = (): Pick<SchemasState, 'byKey' | 'errors' | 'loading' | 'resourceTypes' | 'resourceTypesError' | 'resourceTypesFix'> => ({
   byKey: { graph: undefined, hunting: undefined, arg: undefined, raw: undefined },
   errors: {},
   loading: {},
   resourceTypes: undefined,
   resourceTypesError: null,
+  resourceTypesFix: null,
 });
+
+const fixOf = (e: unknown): ResourceTypesFix =>
+  e instanceof BridgeError && e.code === 'consentNeeded' ? 'consent' : e instanceof BridgeError && e.code === 'signInNeeded' ? 'signIn' : null;
 
 /** Counts resets: an answer to a read started before the last one belongs to another account and is dropped. */
 let generation = 0;
@@ -49,21 +60,22 @@ const requests: Record<SchemaSource | 'types', number> = { graph: 0, hunting: 0,
 export const useSchemas = create<SchemasState>()((set) => ({
   ...empty(),
 
+  async reloadResourceTypes() {
+    if (!useTabs.getState().tabs.some((t) => t.source === 'arg')) {
+      return;
+    }
+    // While they are read again, the panel says so rather than the problem just fixed.
+    set((s) => (s.resourceTypesError ? { resourceTypesError: null, resourceTypesFix: null } : s));
+    await readTypes();
+  },
+
   async load(source, opts) {
     const refresh = opts?.refresh ?? false;
     const at = generation;
     const request = ++requests[source];
     const latest = () => at === generation && request === requests[source];
     set((s) => ({ loading: { ...s.loading, [source]: true } }));
-    let types: Promise<unknown> = Promise.resolve();
-    if (source === 'arg') {
-      const typesRequest = ++requests.types;
-      const latestTypes = () => at === generation && typesRequest === requests.types;
-      types = call<ArmResourceTypesAnswer>('arm.resourceTypes').then(
-        (answer) => latestTypes() && set({ resourceTypes: answer.types, resourceTypesError: null }),
-        (e: unknown) => latestTypes() && set({ resourceTypesError: errorText(e) }),
-      );
-    }
+    const types = source === 'arg' ? readTypes() : Promise.resolve();
     try {
       const view = await call<SchemaView>('schema.get', { source, refresh });
       if (latest()) {
@@ -90,6 +102,23 @@ export const useSchemas = create<SchemasState>()((set) => ({
     set(empty());
   },
 }));
+
+/** Reads the resource types (`arm.resourceTypes`); only the latest read's answer is kept. */
+async function readTypes() {
+  const at = generation;
+  const request = ++requests.types;
+  const latest = () => at === generation && request === requests.types;
+  try {
+    const answer = await call<ArmResourceTypesAnswer>('arm.resourceTypes');
+    if (latest()) {
+      useSchemas.setState({ resourceTypes: answer.types, resourceTypesError: null, resourceTypesFix: null });
+    }
+  } catch (e) {
+    if (latest()) {
+      useSchemas.setState({ resourceTypesError: errorText(e), resourceTypesFix: fixOf(e) });
+    }
+  }
+}
 
 /** Reads the schema of every source an open tab has that isn't read, being read, or failed. */
 function loadMissing() {

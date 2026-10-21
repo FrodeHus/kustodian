@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { BridgeError, call } from '../bridge';
+import { useSchemas } from '../schema/schema-store';
 import { errorText } from '../shell/errors';
 
 /**
  * "Grant Azure access": asks the host to have the user grant Azure access to the account (`account.consent {key, audience:
- * "arm"}`), then `onGranted` runs the query again or reads the list again. The user cancelling says nothing; any other failure
- * (granting as another account, for one) is shown next to the button.
+ * "arm"}`). Once granted, the Resource Graph resource types are read again (the schema panel may have been refused them), and
+ * `onGranted` runs the query again or reads the list again. The user cancelling says nothing; any other failure (granting as
+ * another account, for one) is shown next to the button.
  */
-export function ConsentButton({ accountKey, onGranted }: { accountKey: string | undefined; onGranted: () => void }) {
+export function ConsentButton({ accountKey, onGranted }: { accountKey: string | undefined; onGranted?: () => void }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
@@ -20,7 +22,8 @@ export function ConsentButton({ accountKey, onGranted }: { accountKey: string | 
     call('account.consent', { key: accountKey, audience: 'arm' }).then(
       () => {
         setBusy(false);
-        onGranted();
+        void useSchemas.getState().reloadResourceTypes();
+        onGranted?.();
       },
       (e: unknown) => {
         setBusy(false);

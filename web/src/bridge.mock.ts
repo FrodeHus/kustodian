@@ -111,6 +111,20 @@ const armManagementGroups = { groups: [{ name: 'contoso-platform', displayName: 
 const armResourceTypes = {
   types: ['microsoft.compute/virtualmachines', 'microsoft.keyvault/vaults', 'microsoft.storage/storageaccounts'],
 };
+/** The columns Graph lists for a user without `$select`. */
+const listedUserColumns = [
+  'businessPhones',
+  'displayName',
+  'givenName',
+  'id',
+  'jobTitle',
+  'mail',
+  'mobilePhone',
+  'officeLocation',
+  'preferredLanguage',
+  'surname',
+  'userPrincipalName',
+];
 
 /** A column as `SchemaHandler` writes it for advanced hunting and Resource Graph: Graph's own fields are null. */
 const column = (name: string, type: string) => ({ name, type, description: '', filterable: null, listable: null, complexType: null, collection: false });
@@ -511,6 +525,14 @@ export function createMockTransport(): Transport {
             break;
           default:
             fail(id, 'bad_request', `Unknown source ${params?.source ?? ''}.`);
+        }
+        break;
+      case 'schema.listedByDefault':
+        // As `SchemaHandler`: Graph only; the tables read so far, here users as Graph lists them without $select.
+        if (params?.source === 'graph') {
+          reply(id, { tables: { users: listedUserColumns } });
+        } else {
+          fail(id, 'bad_request', `Unknown source ${params?.source ?? ''}.`);
         }
         break;
       case 'account.list':

@@ -70,9 +70,13 @@ function schemaFooter(source: Source, view: SchemaView | undefined, resourceType
     return null;
   }
   if (source === 'hunting') {
-    return view.origin === 'tenant'
-      ? `Schema from your tenant (getHuntingSchema) · ${formatDate(view.generatedAt)}`
-      : `Built-in schema (${builtInReason(view.fallbackReason)})`;
+    if (view.origin !== 'tenant') {
+      return `Built-in schema (${builtInReason(view.fallbackReason)})`;
+    }
+    const tenant = `Schema from your tenant (getHuntingSchema) · ${formatDate(view.generatedAt)}`;
+    // A refresh that failed keeps the tenant's schema read before, and says why it wasn't renewed.
+    const refresh = view.fallbackReason?.replace(/\s*The schema read earlier is shown\.?$/, '').replace(/\.$/, '');
+    return refresh ? `${tenant} · ${refresh}` : tenant;
   }
   return `Schema: ${view.source} · ${formatDate(view.generatedAt)}`;
 }
@@ -207,6 +211,8 @@ export function App() {
         // A picker closes when another tab comes forward, or its tab's source changes.
         if (state.activeId !== previous.activeId) {
           setPicker(null);
+          // The parameters view belongs to the tab it was opened on: another tab comes forward with its editor.
+          setParamsOpen(false);
         } else if (state.tabs !== previous.tabs) {
           const source = state.tabs.find((t) => t.id === state.activeId)?.source;
           setPicker((open) => (open === (source === 'hunting' ? 'timespan' : source === 'arg' ? 'scope' : null) ? open : null));
@@ -318,6 +324,16 @@ export function App() {
         ),
         enabled: explainable,
       },
+      {
+        id: 'params.toggle',
+        title: 'Show or hide the parameters',
+        group: 'Editor',
+        run: () => setParamsOpen((open) => !open),
+        enabled: () => {
+          const tab = activeTab();
+          return !!tab && tab.source !== 'raw' && findParams(tab.text).length > 0;
+        },
+      },
       { id: 'toolbar.timespan', title: 'Pick timespan', group: 'Run', run: () => setPicker('timespan'), enabled: () => activeTab()?.source === 'hunting' },
       { id: 'toolbar.scope', title: 'Pick scope', group: 'Run', run: () => setPicker('scope'), enabled: () => activeTab()?.source === 'arg' },
       { id: 'settings.open', title: 'Settings', group: 'Window', shortcut: 'Mod+Comma', run: () => setSettingsOpen(true) },
@@ -418,6 +434,23 @@ export function App() {
   const cursor = active ? cursors[active.id] : undefined;
   const raw = active?.source === 'raw';
   const paramCount = active && !raw ? findParams(active.text).length : 0;
+  // "Parameters" swaps the editor for the parameters view; the editor stays mounted (hidden), so its state and undo survive.
+  const showingParams = paramsOpen && paramCount > 0;
+  // Esc gives the editor back, unless a dialog, a picker or a menu has it first.
+  useEffect(() => {
+    if (!showingParams || picker !== null) {
+      return;
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !e.defaultPrevented && shortcutsOn.current) {
+        e.preventDefault();
+        setParamsOpen(false);
+        editor.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showingParams, picker]);
   // Explain is Graph's: a tab whose source changed never shows it (and the change closed it, below).
   const explaining =
     active && active.source === 'graph' && explain?.tabId === active.id && explain.runId === active.run?.runId ? explain.request : null;
@@ -467,11 +500,16 @@ export function App() {
               if (done && read) {
                 setAccountsOpen(false);
               }
-              // A built-in hunting schema may have been shown for want of a sign-in: signed in again as the same account, the
-              // tenant's is read (past the host's cache of the fallback). Another account resets every schema anyway.
+              // A built-in hunting schema, or a tenant's one that couldn't be refreshed, may have been shown for want of a
+              // sign-in: signed in again as the same account, the tenant's is read (past the host's cache of the fallback), and so
+              // are the Resource Graph resource types. Another account resets every schema anyway.
               const sameAccount = activeKey !== undefined && activeKey === shownAccount.current;
-              if (read && sameAccount && useSchemas.getState().byKey.hunting?.origin === 'builtIn') {
+              const hunting = useSchemas.getState().byKey.hunting;
+              if (read && sameAccount && (hunting?.origin === 'builtIn' || hunting?.fallbackReason)) {
                 void useSchemas.getState().load('hunting', { refresh: true });
+              }
+              if (read && sameAccount) {
+                void useSchemas.getState().reloadResourceTypes();
               }
             });
           }}
@@ -495,7 +533,14 @@ export function App() {
         <TabStrip onDialog={setConfirming} />
         <div className="panes">
           <Rail panel={panel} onChoose={setPanel} />
-          <SidePanel panel={panel} source={active?.source ?? 'graph'} text={active?.text ?? ''} onInsert={insert} />
+          <SidePanel
+            panel={panel}
+            source={active?.source ?? 'graph'}
+            text={active?.text ?? ''}
+            onInsert={insert}
+            accountKey={accountKey}
+            onSignIn={() => setAccountsOpen(true)}
+          />
           <main className="workspace">
             {active ? (
               <>
@@ -505,8 +550,8 @@ export function App() {
                     onRun={(mode) => runActive(mode)}
                     onFormat={() => editor.current?.format()}
                     paramCount={paramCount}
-                    paramsOpen={paramsOpen}
-                    onParams={() => setParamsOpen((o) => !o)}
+                    paramsOpen={showingParams}
+                    onParams={() => runCommand('params.toggle')}
                     explaining={explaining !== null}
                     onExplain={() => runCommand('explain')}
                     picker={picker}
@@ -515,8 +560,14 @@ export function App() {
                     onSignIn={() => setAccountsOpen(true)}
                   />
                 )}
-                {/* A raw tab has no query: the editor stays mounted for the other tabs, hidden. */}
-                <div className="relative min-h-[160px] shrink-0 basis-[38%] border-b border-line" hidden={raw}>
+                {/* A raw tab has no query: the editor stays mounted for the other tabs, hidden. The parameters view takes its
+                    place, at its size, so the results below keep theirs. */}
+                {showingParams && (
+                  <div className="min-h-[160px] shrink-0 basis-[38%] overflow-y-auto border-b border-line">
+                    <ParamsForm tab={active} query={runText(active, cursor)} onRun={() => runActive('block')} />
+                  </div>
+                )}
+                <div className="relative min-h-[160px] shrink-0 basis-[38%] border-b border-line" hidden={raw || showingParams}>
                   <EditorFailed>
                     <Suspense fallback={<p className="faint m-0 p-4 text-[12px]">Loading the editor…</p>}>
                       <KqlEditor ref={editor} schemas={schemas} onRun={(mode) => void useTabs.getState().run(active.id, mode)} />
@@ -534,11 +585,6 @@ export function App() {
                   />
                 ) : (
                   <>
-                    {paramsOpen && paramCount > 0 && (
-                      <div className="max-h-[50%] shrink-0 overflow-y-auto border-b border-line">
-                        <ParamsForm tab={active} query={runText(active, cursor)} onRun={() => runActive('block')} />
-                      </div>
-                    )}
                     <RunStatus
                       run={active.run}
                       scope={active.run?.options?.scope}
