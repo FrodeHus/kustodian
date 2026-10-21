@@ -411,3 +411,62 @@ export interface RawResponse {
   truncated: boolean;
   accountKey: string;
 }
+
+/** A permission `entraApp.plan` offers. `tables` is empty for a source permission, whose `unlocks` says what it opens instead.
+ * Its identity is `resource + "|" + name`. */
+export interface PlannedPermission {
+  resource: string;
+  resourceAppId: string;
+  name: string;
+  adminConsent: boolean;
+  description: string;
+  tables: string[];
+  unlocks: string | null;
+  ticked: boolean;
+}
+
+export interface PlannedSubgroup {
+  title: string;
+  permissions: PlannedPermission[];
+}
+
+export interface PlannedGroup {
+  id: 'graph' | 'security' | 'azure';
+  title: string;
+  subgroups: PlannedSubgroup[];
+}
+
+/** `entraApp.plan`'s answer. With `canCreate` false, `reason` says why and the tenant fields are empty. */
+export interface EntraAppPlan {
+  canCreate: boolean;
+  reason?: string;
+  defaultName: string;
+  tenantId: string;
+  tenantName: string;
+  groups: PlannedGroup[];
+  tablesWithData: number;
+  tablesWithoutData: number;
+  writeOnlyTables: number;
+}
+
+/** `entraApp.create`'s and `entraApp.retryServicePrincipal`'s answer. */
+export interface EntraAppCreateResult {
+  appId: string;
+  objectId: string;
+  servicePrincipalId: string | null;
+  tenantId: string;
+  ownerAdded: boolean;
+  ownerMessage: string | null;
+  dropped: string[];
+  servicePrincipalMessage: string | null;
+  adminScopes: string[];
+}
+
+/** `entraApp.step`'s event data while `entraApp.create` runs. */
+export type EntraAppStep = 'lookUp' | 'createApp' | 'addOwner' | 'createServicePrincipal';
+
+/** `entraApp.consentStatus`' answer. */
+export interface EntraAppConsentStatus {
+  granted: string[];
+  missing: string[];
+}

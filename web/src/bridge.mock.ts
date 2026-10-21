@@ -320,6 +320,7 @@ interface MockRequest {
   params?: {
     tabId?: string;
     runId?: string;
+    adminScopes?: string[];
     settings?: typeof defaultSettings;
     query?: SavedQueryInput;
     id?: string;
@@ -393,6 +394,74 @@ interface SavedQuery extends SavedQueryInput {
   createdAt: string;
   modifiedAt: string;
 }
+
+const graphId = '00000003-0000-0000-c000-000000000000';
+const armId = '797f4846-ba00-4fd7-ba43-dac1f8f63013';
+function plannedPermission(name: string, tables: string[], ticked: boolean, adminConsent = true, description = '') {
+  return { resource: 'Microsoft Graph', resourceAppId: graphId, name, adminConsent, description, tables, unlocks: null, ticked };
+}
+
+/** `entraApp.plan`'s answer: a small plan with the three groups, Mail unticked, and tables that overlap between permissions. */
+const entraAppPlan = {
+  canCreate: true,
+  defaultName: 'Kustodian (kari@contoso.com)',
+  tenantId: '9a1c0000-0000-0000-0000-00000000d03e',
+  tenantName: 'Contoso Ltd',
+  tablesWithData: 12,
+  tablesWithoutData: 4,
+  writeOnlyTables: 1,
+  groups: [
+    {
+      id: 'graph',
+      title: 'Graph',
+      subgroups: [
+        {
+          title: 'Users, groups and directory',
+          permissions: [
+            plannedPermission('Directory.Read.All', ['users', 'groups', 'devices'], true, true, 'Read directory data'),
+            plannedPermission('User.Read.All', ['users'], true, true, 'Read all users'),
+            plannedPermission('Group.Read.All', ['groups'], true, true, ''),
+          ],
+        },
+        { title: 'Mail, Teams and files', permissions: [plannedPermission('Mail.Read', ['messages', 'attachments'], false, false, 'Read your mail')] },
+      ],
+    },
+    {
+      id: 'security',
+      title: 'Security',
+      subgroups: [
+        {
+          title: 'Advanced hunting',
+          permissions: [plannedPermission('ThreatHunting.Read.All', ['DeviceInfo', 'EmailEvents'], true, true, 'Run advanced hunting queries')],
+        },
+      ],
+    },
+    {
+      id: 'azure',
+      title: 'Azure Resources',
+      subgroups: [
+        {
+          title: 'Resource Graph',
+          permissions: [
+            { resource: 'Azure Service Management', resourceAppId: armId, name: 'user_impersonation', adminConsent: false, description: 'Access Azure Service Management as you', tables: [], unlocks: 'Resource Graph', ticked: true },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+const entraAppCreated = {
+  appId: '11111111-2222-3333-4444-555555555555',
+  objectId: '66666666-7777-8888-9999-000000000000',
+  servicePrincipalId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+  tenantId: entraAppPlan.tenantId,
+  ownerAdded: true,
+  ownerMessage: null,
+  dropped: [],
+  servicePrincipalMessage: null,
+  adminScopes: ['Directory.Read.All', 'User.Read.All', 'Group.Read.All', 'ThreatHunting.Read.All'],
+};
 
 export function createMockTransport(): Transport {
   let receive: (message: string) => void = () => undefined;
@@ -551,6 +620,31 @@ export function createMockTransport(): Transport {
         break;
       case 'account.consent':
         reply(id, {});
+        break;
+      case 'entraApp.plan':
+        reply(id, entraAppPlan);
+        break;
+      case 'entraApp.create': {
+        const steps = ['lookUp', 'createApp', 'addOwner', 'createServicePrincipal'];
+        steps.forEach((step, i) => setTimeout(() => receive(JSON.stringify({ event: 'entraApp.step', data: { step } })), i * 40));
+        setTimeout(() => reply(id, entraAppCreated), steps.length * 40);
+        break;
+      }
+      case 'entraApp.retryServicePrincipal':
+        reply(id, entraAppCreated);
+        break;
+      case 'entraApp.consentStatus':
+        reply(id, { granted: [], missing: params?.adminScopes ?? [] });
+        break;
+      case 'entraApp.canGrant':
+        reply(id, { canGrant: true });
+        break;
+      case 'entraApp.openConsent':
+      case 'entraApp.openPortal':
+        reply(id, {});
+        break;
+      case 'entraApp.consentLink':
+        reply(id, { url: `https://login.microsoftonline.com/${entraAppPlan.tenantId}/v2.0/adminconsent?client_id=${entraAppCreated.appId}` });
         break;
       case 'arm.subscriptions':
         reply(id, armSubscriptions);
