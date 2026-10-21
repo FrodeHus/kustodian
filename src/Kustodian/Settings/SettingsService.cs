@@ -32,7 +32,8 @@ public sealed class SettingsRejectedException(string message) : Exception(messag
 
 /// <summary>
 /// Owns <c>settings.json</c>: reads it (the defaults when it is missing; a corrupt or invalid file is moved aside, the defaults
-/// are used and a warning is logged) and writes it after checking every value is in range.
+/// are used and a warning is logged) and writes it after checking every value is in range. <see cref="MovedAside"/> says a read
+/// found the file corrupt; it stays true for the rest of the session, so the UI can say the defaults are in use.
 /// </summary>
 public sealed class SettingsService(JsonFileStore store, ILogger<SettingsService>? logger = null)
 {
@@ -58,12 +59,18 @@ public sealed class SettingsService(JsonFileStore store, ILogger<SettingsService
 
     private readonly UserDataFile<AppSettings> _file = new(store, FileName, () => AppSettings.Default, s => Problem(s) is null);
     private readonly ILogger<SettingsService> _log = logger ?? NullLogger<SettingsService>.Instance;
+    private volatile bool _movedAside;
+
+    /// <summary>Whether a read this session found <c>settings.json</c> corrupt and moved it aside. The app reads the settings
+    /// first at startup, so this is true from then on when the file it started with was corrupt.</summary>
+    public bool MovedAside => _movedAside;
 
     public async Task<AppSettings> GetAsync(CancellationToken ct = default)
     {
         var read = await _file.ReadAsync(ct);
         if (read.Corrupt)
         {
+            _movedAside = true;
             _log.LogWarning("{File} could not be read; it was moved aside and the default settings are used", FileName);
         }
 

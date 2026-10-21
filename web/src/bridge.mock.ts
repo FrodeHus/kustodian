@@ -82,6 +82,7 @@ export function createMockTransport(): Transport {
     settings,
     limitsAppliedAt: 'startup',
     restartNeeded: JSON.stringify(settings.limits) !== JSON.stringify(defaultSettings.limits),
+    corrupt: false,
   });
 
   const reply = (id: string, result: unknown) => receive(JSON.stringify({ id, result: result ?? null }));

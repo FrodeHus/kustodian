@@ -150,13 +150,36 @@ public sealed class SettingsServiceTests : IDisposable
             AppSettings.Default with { Limits = LimitSettings.Default with { EngineWorkers = 4 } }))).GetProperty("result");
         var got = Parse(await bridge.HandleAsync("""{"id":"c","method":"settings.get","params":{}}""")).GetProperty("result");
 
-        Assert.Equal(["settings", "limitsAppliedAt", "restartNeeded"], unchanged.EnumerateObject().Select(p => p.Name));
+        Assert.Equal(["settings", "limitsAppliedAt", "restartNeeded", "corrupt"], unchanged.EnumerateObject().Select(p => p.Name));
+        Assert.False(unchanged.GetProperty("corrupt").GetBoolean());
+        Assert.False(got.GetProperty("corrupt").GetBoolean());
         Assert.Equal("system", unchanged.GetProperty("settings").GetProperty("theme").GetString());
         Assert.Equal("startup", unchanged.GetProperty("limitsAppliedAt").GetString());
         Assert.False(unchanged.GetProperty("restartNeeded").GetBoolean());
         Assert.True(changed.GetProperty("restartNeeded").GetBoolean());
         Assert.Equal(4, got.GetProperty("settings").GetProperty("limits").GetProperty("engineWorkers").GetInt32());
         Assert.True(got.GetProperty("restartNeeded").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Settings_get_says_corrupt_for_the_session_when_the_file_was_moved_aside_at_startup()
+    {
+        Directory.CreateDirectory(_dir);
+        await File.WriteAllTextAsync(SettingsPath, "{ not json", Ct);
+        var service = NewService();
+        var startup = await service.GetAsync(Ct);
+        var bridge = new Messaging.Bridge(_ => { });
+        new SettingsHandler(service, startup.Limits).Register(bridge);
+
+        var first = Parse(await bridge.HandleAsync("""{"id":"a","method":"settings.get","params":{}}""")).GetProperty("result");
+        var set = Parse(await bridge.HandleAsync(Set("b", AppSettings.Default with { Theme = "light" }))).GetProperty("result");
+        var after = Parse(await bridge.HandleAsync("""{"id":"c","method":"settings.get","params":{}}""")).GetProperty("result");
+
+        Assert.True(first.GetProperty("corrupt").GetBoolean());
+        Assert.Equal("dark", first.GetProperty("settings").GetProperty("theme").GetString());
+        Assert.True(set.GetProperty("corrupt").GetBoolean());
+        Assert.Equal("light", after.GetProperty("settings").GetProperty("theme").GetString());
+        Assert.True(after.GetProperty("corrupt").GetBoolean());
     }
 
     [Fact]

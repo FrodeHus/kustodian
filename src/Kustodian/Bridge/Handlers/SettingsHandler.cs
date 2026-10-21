@@ -4,7 +4,8 @@ namespace Kustodian.Messaging.Handlers;
 
 /// <summary><c>settings.get</c> and <c>settings.set</c>. Both answer with the stored settings, that the limits apply at
 /// startup, and whether the stored limits differ from <paramref name="startup"/>, those the app started with (so a restart is
-/// needed for them to apply). Settings out of range are a <c>bad_request</c> whose message names the setting.</summary>
+/// needed for them to apply), and <c>corrupt</c>: whether the settings file was moved aside as corrupt this session (at
+/// startup), so the defaults are in use. Settings out of range are a <c>bad_request</c> whose message names the setting.</summary>
 public sealed class SettingsHandler(SettingsService settings, LimitSettings startup)
 {
     private const string AppliedAtStartup = "startup";
@@ -27,9 +28,9 @@ public sealed class SettingsHandler(SettingsService settings, LimitSettings star
         });
     }
 
-    private SettingsAnswer Answer(AppSettings stored) => new(stored, AppliedAtStartup, stored.Limits != startup);
+    private SettingsAnswer Answer(AppSettings stored) => new(stored, AppliedAtStartup, stored.Limits != startup, settings.MovedAside);
 
     private sealed record SetParams(AppSettings? Settings);
 
-    private sealed record SettingsAnswer(AppSettings Settings, string LimitsAppliedAt, bool RestartNeeded);
+    private sealed record SettingsAnswer(AppSettings Settings, string LimitsAppliedAt, bool RestartNeeded, bool Corrupt);
 }
