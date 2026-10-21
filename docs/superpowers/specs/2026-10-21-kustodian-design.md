@@ -327,7 +327,7 @@ Both run KQL on Microsoft's side, so the planner, reader, engine, Explain, probi
 | Per-object reads per table | 2,000 | As in the portal. |
 | Per-object cache | 30 min | As in the portal. |
 | ARG rows per run | 50,000 | **My call**. |
-| Rows shown in the grid | everything returned | The grid is virtualized. |
+| Rows returned per Graph run | 50,000 | The engine's answer cap; the status line says how many rows the query produced in all. The grid is virtualized. |
 
 ## 10. Repository layout and build
 
