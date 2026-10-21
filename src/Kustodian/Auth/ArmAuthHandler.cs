@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Run;
+using Kustodian.Sources;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -13,15 +14,13 @@ namespace Kustodian.Auth;
 /// <see cref="ConsentRequiredException"/> when the account has to grant ARM access first.</summary>
 public sealed class ArmAuthHandler(ITokenSource tokens, ILogger<ArmAuthHandler>? logger = null) : DelegatingHandler
 {
-    private const string ArmHost = "management.azure.com";
-
     private readonly ILogger<ArmAuthHandler> _log = logger ?? NullLogger<ArmAuthHandler>.Instance;
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var uri = request.RequestUri;
         if (uri is { IsAbsoluteUri: true } && uri.Scheme == Uri.UriSchemeHttps
-            && string.Equals(uri.Host, ArmHost, StringComparison.OrdinalIgnoreCase))
+            && string.Equals(uri.Host, Arm.Host, StringComparison.OrdinalIgnoreCase))
         {
             var account = GraphRequestAccount.AccountOf(request)
                 ?? throw new SignInRequiredException("The Azure request names no account.");

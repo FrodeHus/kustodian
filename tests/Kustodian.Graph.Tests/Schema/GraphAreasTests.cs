@@ -85,6 +85,31 @@ public sealed class GraphAreasTests
     }
 
     [Fact]
+    public void Owner_placements_beat_their_prefixes()
+    {
+        var areas = GraphAreas.Bundled;
+        Assert.Equal("Apps and permissions", areas.Of("copilot/agentRegistrations"));
+        Assert.Equal("Other", areas.Of("copilot/conversations"));
+        // Windows LAPS passwords are a device's.
+        Assert.Equal("Devices and Intune", areas.Of("directory/deviceLocalCredentials"));
+        Assert.Equal("Users, groups and directory", areas.Of("directory/deletedItems"));
+        // Windows 365 alerts.
+        Assert.Equal("Devices and Intune", areas.Of("monitoring/alertRecords"));
+        Assert.Equal("Devices and Intune", areas.Of("monitoring/alertRules"));
+        Assert.Equal("Reports and usage", areas.Of("monitoring/somethingElse"));
+    }
+
+    [Fact]
+    public void Read_refuses_a_repeated_key()
+    {
+        using var stream = new MemoryStream("""{"users":"Users, groups and directory","users":"Other"}"""u8.ToArray());
+
+        var error = Assert.Throws<InvalidOperationException>(() => GraphAreas.Read(stream));
+
+        Assert.Equal("graph-areas.json lists users twice.", error.Message);
+    }
+
+    [Fact]
     public void An_entry_with_an_unknown_area_is_refused()
     {
         var error = Assert.Throws<InvalidOperationException>(() => new GraphAreas(new Dictionary<string, string> { ["users"] = "People" }));

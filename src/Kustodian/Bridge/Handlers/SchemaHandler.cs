@@ -1,5 +1,6 @@
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Schema;
+using Kustodian.Sources;
 using Kustodian.Sources.Arg;
 using Kustodian.Sources.Hunting;
 
@@ -78,7 +79,7 @@ public sealed record SchemaView(
 {
     public static SchemaView From(GraphSchema schema) => new(
         schema.Source,
-        HuntingSchemaView.BuiltIn,
+        SchemaOrigin.BuiltIn,
         null,
         schema.GeneratedAt,
         [.. schema.Tables.Select(t => new SchemaTableView(t.Name, t.Path, GraphAreas.Bundled.Of(t.Path), t.Description,
@@ -104,7 +105,7 @@ public sealed record SchemaView(
     /// <summary>Resource Graph's bundled tables: the Graph-only fields are null, and there are no functions.</summary>
     public static SchemaView FromArg() => new(
         "arg",
-        HuntingSchemaView.BuiltIn,
+        SchemaOrigin.BuiltIn,
         null,
         BuiltInArgSchema.DocumentedAt,
         [.. BuiltInArgSchema.Tables.Select(t => new SchemaTableView(t.Name, null, null, t.Description, null, null,

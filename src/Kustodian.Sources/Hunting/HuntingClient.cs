@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using Kustodian.Graph.Engine;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Run;
+using static Kustodian.Sources.JsonText;
 
 namespace Kustodian.Sources.Hunting;
 
@@ -24,10 +25,13 @@ public sealed record HuntingAnswer(RunOutcome Outcome, string? Message, IReadOnl
 /// <c>ThreatHunting.Read.All</c>), over the Graph HTTP client (its token handler, run log and no redirects). Ported from the
 /// portal's <c>GraphHuntingClient</c>. Every failure is an outcome of the answer, except that a 401 rejecting the token, or the
 /// token handler finding no usable sign-in, throws <see cref="SignInRequiredException"/>, and the caller cancelling throws
-/// <see cref="OperationCanceledException"/>.
+/// <see cref="OperationCanceledException"/>. The request, its body read included, has <see cref="Timeout"/> on
+/// <paramref name="time"/>'s clock, which also dates a <c>Retry-After</c>.
 /// </summary>
-public sealed partial class HuntingClient(HttpClient graph)
+public sealed partial class HuntingClient(HttpClient graph, TimeProvider? time = null)
 {
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
+
     public static readonly Uri Endpoint = new("https://graph.microsoft.com/v1.0/security/runHuntingQuery");
 
     /// <summary>Microsoft's own cap on a result; a body over it is not read on.</summary>
@@ -57,10 +61,13 @@ public sealed partial class HuntingClient(HttpClient graph)
             // Non-ANSI characters in a query need the charset stated (runHuntingQuery's docs).
             Content = new StringContent(json, Encoding.UTF8, new MediaTypeHeaderValue("application/json") { CharSet = "utf-8" }),
         }.ForAccount(accountKey).ForRun(d);
+        // The client's own timeout stops at the headers (ResponseHeadersRead): this one covers the body too.
+        using var timeout = new CancellationTokenSource(Timeout, _time);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
         try
         {
-            using var response = await graph.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
-            var body = await BodyReader.ReadAsync(response.Content, MaxResponseBytes, ct);
+            using var response = await graph.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linked.Token);
+            var body = await BodyReader.ReadAsync(response.Content, MaxResponseBytes, linked.Token);
             if (body is null)
             {
                 return HuntingAnswer.Failure(RunOutcome.TooLarge, TooLarge);
@@ -73,7 +80,7 @@ public sealed partial class HuntingClient(HttpClient graph)
         {
             throw;
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (OperationCanceledException ex) when (timeout.IsCancellationRequested || ex.InnerException is TimeoutException)
         {
             return HuntingAnswer.Failure(RunOutcome.Failed, string.Create(CultureInfo.InvariantCulture,
                 $"Microsoft Defender didn't answer within {(long)Timeout.TotalSeconds} s. Narrow the query or the timespan and try again."));
@@ -85,7 +92,7 @@ public sealed partial class HuntingClient(HttpClient graph)
     }
 
     /// <summary>The outcome of a failed answer.</summary>
-    private static HuntingAnswer Refused(HttpResponseMessage response, byte[] body, RunDiagnostics d)
+    private HuntingAnswer Refused(HttpResponseMessage response, byte[] body, RunDiagnostics d)
     {
         if (GraphErrorText.IsTokenRejected(response, body))
         {
@@ -100,7 +107,7 @@ public sealed partial class HuntingClient(HttpClient graph)
             case HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized:
                 return HuntingAnswer.Failure(RunOutcome.NoPermission, NoPermission);
             case HttpStatusCode.TooManyRequests:
-                var wait = RetryAfterSeconds(response.Headers.RetryAfter);
+                var wait = RetryAfter.Of(response.Headers.RetryAfter, _time) is { } after ? (long)after.TotalSeconds : (long?)null;
                 d.Add(new DiagnosticEntry(d.NowMs, DiagnosticKinds.Throttled, "Advanced hunting is throttling; "
                     + (wait is { } w ? string.Create(CultureInfo.InvariantCulture, $"Retry-After {w} s") : "no Retry-After"), status, null, null));
                 return HuntingAnswer.Failure(RunOutcome.Throttled,
@@ -111,13 +118,6 @@ public sealed partial class HuntingClient(HttpClient graph)
             default:
                 return HuntingAnswer.Failure(RunOutcome.Failed, message);
         }
-    }
-
-    /// <summary>How many seconds <c>Retry-After</c> asks for (a delay, or a date from now), or null when it says nothing.</summary>
-    private static long? RetryAfterSeconds(RetryConditionHeaderValue? retryAfter)
-    {
-        var wait = retryAfter?.Delta ?? (retryAfter?.Date is { } date ? date - DateTimeOffset.UtcNow : null);
-        return wait is { } w ? Math.Max(0, (long)Math.Ceiling(w.TotalSeconds)) : null;
     }
 
     /// <summary>The position a query error names: Kusto's <c>line [L,C]</c>, or <c>line L, column C</c> (also <c>position</c>
@@ -180,9 +180,7 @@ public sealed partial class HuntingClient(HttpClient graph)
             return null;
         }
 
-        string? Text(string name) =>
-            column.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
-        return Text("name") is { Length: > 0 } name ? new EngineColumn(name, Text("type") ?? "") : null;
+        return Text(column, "name") is { Length: > 0 } name ? new EngineColumn(name, Text(column, "type") ?? "") : null;
     }
 
     /// <summary>A row keyed by the declared column names. Graph may write the keys in another case than <c>schema</c> does

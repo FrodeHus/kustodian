@@ -83,6 +83,42 @@ public class ArmDirectoryTests
     }
 
     [Fact]
+    public async Task A_web_page_error_is_azures_backend()
+    {
+        var arm = new StubGraph(_ => new HttpResponseMessage(HttpStatusCode.BadGateway)
+        {
+            Content = new StringContent("<html><head><title>502 Bad Gateway</title></head></html>"),
+        });
+        var empty = new StubGraph(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+
+        var html = await Assert.ThrowsAsync<ArmDirectoryException>(() => Directory(arm).SubscriptionsAsync(Account, Ct));
+        var bare = await Assert.ThrowsAsync<ArmDirectoryException>(() => Directory(empty).SubscriptionsAsync(Account, Ct));
+
+        Assert.Equal("502 from Azure's backend: 502 Bad Gateway", html.Message);
+        Assert.Equal("503 from Azure", bare.Message);
+    }
+
+    [Fact]
+    public async Task Removing_an_account_drops_its_cached_lists_only()
+    {
+        var arm = new StubGraph(request => StubGraph.Json(HttpStatusCode.OK, request.Method == HttpMethod.Post
+            ? """{"totalRecords":1,"data":[{"type":"microsoft.compute/disks"}]}"""
+            : StubGraph.Fixture("arm-subscriptions-2.json")));
+        var directory = Directory(arm);
+        await directory.SubscriptionsAsync(Account, Ct);
+        await directory.ResourceTypesAsync(Account, Ct);
+        await directory.SubscriptionsAsync("account-2", Ct);
+        Assert.Equal(3, arm.Seen.Count);
+
+        directory.RemoveAccount(Account);
+        await directory.SubscriptionsAsync(Account, Ct);
+        await directory.ResourceTypesAsync(Account, Ct);
+        await directory.SubscriptionsAsync("account-2", Ct);
+
+        Assert.Equal(5, arm.Seen.Count);
+    }
+
+    [Fact]
     public async Task Management_groups_are_listed_with_their_display_names()
     {
         var arm = new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK, StubGraph.Fixture("arm-managementgroups-200.json")));

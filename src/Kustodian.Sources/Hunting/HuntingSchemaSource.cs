@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Run;
+using static Kustodian.Sources.JsonText;
 
 namespace Kustodian.Sources.Hunting;
 
@@ -18,21 +19,20 @@ public sealed record HuntingParameter(string Name, string Type);
 /// <summary>A function of the advanced hunting schema (built in, or saved in the tenant), with its parameters.</summary>
 public sealed record HuntingFunction(string Name, string Description, IReadOnlyList<HuntingParameter> Parameters);
 
-/// <summary>The hunting schema the editor and the schema panel work with. <see cref="Origin"/> is <c>tenant</c> (read from Graph
-/// for the account) or <c>builtIn</c> (the bundled schema), and then <see cref="FallbackReason"/> says why.</summary>
+/// <summary>The hunting schema the editor and the schema panel work with. <see cref="Origin"/> is <see cref="SchemaOrigin.Tenant"/>
+/// (read from Graph for the account) or <see cref="SchemaOrigin.BuiltIn"/> (the bundled schema), and then
+/// <see cref="FallbackReason"/> says why. A tenant schema has a <see cref="FallbackReason"/> only when a later read of it failed
+/// and the one read before is shown.</summary>
 public sealed record HuntingSchemaView(string Origin, string? FallbackReason, DateTimeOffset RetrievedAt, IReadOnlyList<HuntingTable> Tables,
-    IReadOnlyList<HuntingFunction> Functions)
-{
-    public const string Tenant = "tenant";
-    public const string BuiltIn = "builtIn";
-}
+    IReadOnlyList<HuntingFunction> Functions);
 
 /// <summary>
 /// The advanced hunting schema an account may query, from Graph's <c>GET https://graph.microsoft.com/beta/security/getHuntingSchema</c>
 /// (its tables and columns, and its built-in and saved functions), kept per account for 24 hours. Whenever it can't be read (a
 /// refusal, a failure, a timeout, no tables) the bundled schema (<see cref="BuiltInHuntingSchema"/>) stands in, with the reason,
-/// and the read isn't tried again for 10 minutes. The caller cancelling is not a failed read: nothing is remembered. Ported from
-/// the portal's <c>HuntingSchemaSource</c>, without its tenant and demo logic.
+/// and the read isn't tried again for 10 minutes; when the account's schema was read before, that one stays instead, with why it
+/// couldn't be read again, and a refresh that fails leaves the cache as it was. The caller cancelling is not a failed read:
+/// nothing is remembered. Ported from the portal's <c>HuntingSchemaSource</c>, without its tenant and demo logic.
 /// </summary>
 public sealed class HuntingSchemaSource(HttpClient graph, TimeProvider time)
 {
@@ -46,16 +46,20 @@ public sealed class HuntingSchemaSource(HttpClient graph, TimeProvider time)
 
     private readonly ConcurrentDictionary<string, (HuntingSchemaView View, DateTimeOffset Until)> _cache = new(StringComparer.Ordinal);
 
+    /// <summary>Forgets the schema read for <paramref name="accountKey"/> (it signed out).</summary>
+    public void RemoveAccount(string accountKey) => _cache.TryRemove(accountKey, out _);
+
     /// <summary>The bundled schema, stamped now, with <paramref name="reason"/>.</summary>
     public HuntingSchemaView BuiltIn(string reason) =>
-        new(HuntingSchemaView.BuiltIn, reason, time.GetUtcNow(), BuiltInHuntingSchema.Tables, BuiltInHuntingSchema.Functions);
+        new(SchemaOrigin.BuiltIn, reason, time.GetUtcNow(), BuiltInHuntingSchema.Tables, BuiltInHuntingSchema.Functions);
 
     /// <summary>The account's schema, from the cache unless <paramref name="refresh"/>, else from Graph; the bundled schema when the
     /// read fails.</summary>
     public async Task<HuntingSchemaView> GetAsync(string accountKey, bool refresh, CancellationToken ct)
     {
         var now = time.GetUtcNow();
-        if (!refresh && _cache.TryGetValue(accountKey, out var hit) && now < hit.Until)
+        var cached = _cache.TryGetValue(accountKey, out var hit);
+        if (!refresh && cached && now < hit.Until)
         {
             return hit.View;
         }
@@ -70,16 +74,37 @@ public sealed class HuntingSchemaSource(HttpClient graph, TimeProvider time)
             var (tables, functions) = await ReadAsync(accountKey, linked.Token);
             (view, keep) = tables.Count == 0
                 ? (BuiltIn("The tenant's schema has no tables. The built-in schema is shown."), RetryAfter)
-                : (new HuntingSchemaView(HuntingSchemaView.Tenant, null, now, tables, functions ?? BuiltInHuntingSchema.Functions), CacheFor);
+                : (new HuntingSchemaView(SchemaOrigin.Tenant, null, now, tables, functions ?? BuiltInHuntingSchema.Functions), CacheFor);
         }
         catch (Exception ex) when (!ct.IsCancellationRequested && ConsentRequiredException.FindIn(ex) is null)
         {
+            if (cached && hit.View.Origin == SchemaOrigin.Tenant)
+            {
+                // A tenant's schema read before beats the bundled one: it stays, and the answer says why it wasn't renewed.
+                var kept = hit.View with { FallbackReason = RefreshReason(ex) };
+                if (now >= hit.Until)
+                {
+                    // Out of date: shown until the read is tried again, as a failed first read would be.
+                    _cache[accountKey] = (kept, now + RetryAfter);
+                }
+
+                return kept;
+            }
+
             (view, keep) = (BuiltIn(Reason(ex)), RetryAfter);
         }
 
         _cache[accountKey] = (view, now + keep);
         return view;
     }
+
+    private static string RefreshReason(Exception ex) => ex switch
+    {
+        _ when SignInRequiredException.IsIn(ex) => "Sign in again to refresh the tenant's schema. The schema read earlier is shown.",
+        SchemaReadException read => $"The tenant's schema couldn't be refreshed ({read.Message}). The schema read earlier is shown.",
+        OperationCanceledException => "Graph didn't send the tenant's schema in time. The schema read earlier is shown.",
+        _ => "The tenant's schema couldn't be refreshed. The schema read earlier is shown.",
+    };
 
     private static string Reason(Exception ex) => ex switch
     {
@@ -135,9 +160,6 @@ public sealed class HuntingSchemaSource(HttpClient graph, TimeProvider time)
         e.ValueKind == JsonValueKind.Object && e.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.Array
             ? value.EnumerateArray()
             : [];
-
-    private static string? Text(JsonElement e, string property) =>
-        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(property, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 
     private static HuntingTable? Table(JsonElement e) =>
         Text(e, "name") is { Length: > 0 } name

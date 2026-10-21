@@ -129,6 +129,100 @@ public class ArgQuerySourceTests
         Assert.Equal(4_200, result.Total);
     }
 
+    /// <summary>A page without <c>totalRecords</c>, as <see cref="Page"/> writes one otherwise.</summary>
+    private static string PageWithoutTotal(int first, int rows, string? token, string truncated = "false")
+    {
+        var page = JsonNode.Parse(Page(first, rows, token, 0))!.AsObject();
+        page.Remove("totalRecords");
+        page["resultTruncated"] = truncated;
+        return page.ToJsonString();
+    }
+
+    [Fact]
+    public async Task Arg_total_without_total_records_is_the_rows_read()
+    {
+        var arm = new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK, PageWithoutTotal(0, 3, null)));
+
+        var result = await Source(arm).RunAsync(Request("Resources"), null, Ct);
+
+        Assert.Equal((RunOutcome.Ok, 3, 3), (result.Outcome, result.Rows.Count, result.Total));
+    }
+
+    [Fact]
+    public async Task Arg_total_without_total_records_counts_every_row_sent()
+    {
+        // The cap falls inside the second page: the rows past it were sent, so there are at least that many.
+        var calls = 0;
+        var arm = new StubGraph(_ =>
+        {
+            calls++;
+            return StubGraph.Json(HttpStatusCode.OK, PageWithoutTotal((calls - 1) * 3, 3, calls == 1 ? "token-1" : null));
+        });
+
+        var result = await Source(arm, rowsPerRun: 5).RunAsync(Request("Resources"), null, Ct);
+
+        Assert.Equal((5, 6), (result.Rows.Count, result.Total));
+    }
+
+    [Fact]
+    public async Task Arg_total_without_total_records_is_more_than_the_rows_read_when_a_token_is_pending()
+    {
+        var calls = 0;
+        var arm = new StubGraph(_ =>
+        {
+            calls++;
+            return StubGraph.Json(HttpStatusCode.OK, PageWithoutTotal((calls - 1) * 3, 3, $"token-{calls}"));
+        });
+
+        var result = await Source(arm, rowsPerRun: 6).RunAsync(Request("Resources"), null, Ct);
+
+        Assert.Equal(2, arm.Seen.Count);
+        Assert.Equal((6, 7), (result.Rows.Count, result.Total));
+    }
+
+    [Fact]
+    public async Task Arg_total_keeps_an_earlier_pages_total_records()
+    {
+        var pages = new Queue<string>([Page(0, 3, "token-1", 4_200), PageWithoutTotal(3, 3, null)]);
+        var arm = new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK, pages.Dequeue()));
+
+        var result = await Source(arm).RunAsync(Request("Resources"), null, Ct);
+
+        Assert.Equal((6, 4_200), (result.Rows.Count, result.Total));
+    }
+
+    [Fact]
+    public async Task Arg_truncated_result_without_a_token_says_so()
+    {
+        var arm = new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK, PageWithoutTotal(0, 3, null, truncated: "true")));
+        var paged = new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK, PageWithoutTotal(0, 3, "token-1", truncated: "true")));
+
+        var result = await Source(arm).RunAsync(Request("Resources | project name"), null, Ct);
+        var withToken = await Source(paged, rowsPerRun: 3).RunAsync(Request("Resources"), null, Ct);
+
+        Assert.Equal(RunOutcome.Ok, result.Outcome);
+        Assert.Equal(3, result.Rows.Count);
+        Assert.Equal("Resource Graph cut this result short; include the id column to page through all rows.", result.Message);
+        // A token to follow: nothing was cut that paging can't reach.
+        Assert.Null(withToken.Message);
+    }
+
+    [Fact]
+    public async Task Arg_429_with_a_date_retry_after_counts_from_the_clock()
+    {
+        var arm = new StubGraph(_ =>
+        {
+            var response = StubGraph.Json(HttpStatusCode.TooManyRequests, StubGraph.Fixture("arg-429.json"));
+            response.Headers.RetryAfter = new RetryConditionHeaderValue(_time.GetUtcNow().AddSeconds(20));
+            return response;
+        });
+
+        var result = await Advancing(() => Source(arm).RunAsync(Request("Resources"), null, Ct));
+
+        Assert.Equal(RunOutcome.Throttled, result.Outcome);
+        Assert.Contains("Try again in 20 s.", result.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task Arg_skip_token_repeating_is_refused()
     {
@@ -314,7 +408,7 @@ public class ArgQuerySourceTests
         var html = await Source(badGateway).RunAsync(Request("Resources"), null, Ct);
         var transport = await Source(reset).RunAsync(Request("Resources"), null, Ct);
 
-        Assert.Equal((RunOutcome.Failed, "502 from Graph's backend: 502 Bad Gateway"), (html.Outcome, html.Message));
+        Assert.Equal((RunOutcome.Failed, "502 from Azure's backend: 502 Bad Gateway"), (html.Outcome, html.Message));
         Assert.Equal((RunOutcome.Failed, "Azure Resource Graph couldn't be reached. Check the connection and try again."),
             (transport.Outcome, transport.Message));
     }
@@ -365,31 +459,5 @@ public class ArgQuerySourceTests
     private sealed class SyncProgress(Action<RunEvent> report) : IProgress<RunEvent>
     {
         public void Report(RunEvent value) => report(value);
-    }
-
-    /// <summary>A body that sends nothing until its read is cancelled.</summary>
-    private sealed class StallingStream : Stream
-    {
-        public override bool CanRead => true;
-        public override bool CanSeek => false;
-        public override bool CanWrite => false;
-        public override long Length => throw new NotSupportedException();
-        public override long Position { get => 0; set => throw new NotSupportedException(); }
-
-        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
-        {
-            await Task.Delay(Timeout.Infinite, cancellationToken);
-            return 0;
-        }
-
-        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-
-        public override void Flush()
-        {
-        }
-
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-        public override void SetLength(long value) => throw new NotSupportedException();
-        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 }

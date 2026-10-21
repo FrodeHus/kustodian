@@ -110,7 +110,7 @@ public sealed class AppServices : IAsyncDisposable
         new SessionHandler(_session, _allowedFiles).Register(bridge);
         new SnippetHandler(_snippets).Register(bridge);
         new FileHandler(new PhotinoFileDialogs(Window), _allowedFiles).Register(bridge);
-        new AccountHandler(_accounts, _tokenCache, Objects, Probes).Register(bridge);
+        new AccountHandler(_accounts, _tokenCache, Objects, Probes, _huntingSchema, _armDirectory).Register(bridge);
         new RawHandler(new RawRequestService(_http, _time), ActiveAccountAsync).Register(bridge);
         new ArmHandler(_armDirectory, ActiveAccountAsync).Register(bridge);
     }
@@ -121,7 +121,7 @@ public sealed class AppServices : IAsyncDisposable
         IQuerySource[] sources =
         [
             new GraphQuerySource(Runner),
-            new HuntingQuerySource(new HuntingClient(_hunting), _time, new StderrLogger<HuntingQuerySource>()),
+            new HuntingQuerySource(new HuntingClient(_hunting, _time), _time, new StderrLogger<HuntingQuerySource>()),
             new ArgQuerySource(_arg, _startup.Limits.ArgRowsPerRun, _time, new StderrLogger<ArgQuerySource>()),
         ];
         return sources.ToDictionary(s => s.Name, StringComparer.Ordinal);

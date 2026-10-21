@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Run;
+using static Kustodian.Sources.JsonText;
 
 namespace Kustodian.Sources.Arg;
 
@@ -52,11 +53,17 @@ public sealed class ArmDirectory(HttpClient arm, TimeProvider time)
 
     private const int MaxListPages = 100;
     private const int MaxResourceTypes = 10_000;
-    private const string ArmHost = "management.azure.com";
 
     private readonly ArgClient _arg = new(arm, time);
     private readonly ConcurrentDictionary<string, (IReadOnlyList<ArmSubscription> Value, DateTimeOffset Until)> _subscriptions = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, (IReadOnlyList<string> Value, DateTimeOffset Until)> _types = new(StringComparer.Ordinal);
+
+    /// <summary>Forgets what was read for <paramref name="accountKey"/> (it signed out).</summary>
+    public void RemoveAccount(string accountKey)
+    {
+        _subscriptions.TryRemove(accountKey, out _);
+        _types.TryRemove(accountKey, out _);
+    }
 
     public async Task<IReadOnlyList<ArmSubscription>> SubscriptionsAsync(string accountKey, CancellationToken ct)
     {
@@ -145,7 +152,7 @@ public sealed class ArmDirectory(HttpClient arm, TimeProvider time)
     }
 
     private static bool IsArm(Uri uri) =>
-        uri.Scheme == Uri.UriSchemeHttps && string.Equals(uri.Host, ArmHost, StringComparison.OrdinalIgnoreCase) && uri.IsDefaultPort;
+        uri.Scheme == Uri.UriSchemeHttps && string.Equals(uri.Host, Arm.Host, StringComparison.OrdinalIgnoreCase) && uri.IsDefaultPort;
 
     private async Task<JsonDocument> ReadAsync(string accountKey, Uri uri, CancellationToken ct)
     {
@@ -164,7 +171,8 @@ public sealed class ArmDirectory(HttpClient arm, TimeProvider time)
                     throw new SignInRequiredException(GraphErrorText.SignInMessage);
                 }
 
-                throw new ArmDirectoryException(GraphErrorText.Summarize((int)response.StatusCode, Encoding.UTF8.GetString(body)),
+                throw new ArmDirectoryException(
+                    GraphErrorText.Summarize((int)response.StatusCode, Encoding.UTF8.GetString(body), GraphErrorText.Azure),
                     response.StatusCode);
             }
 
@@ -187,7 +195,4 @@ public sealed class ArmDirectory(HttpClient arm, TimeProvider time)
             throw new ArmDirectoryException("Azure couldn't be reached. Check the connection and try again.");
         }
     }
-
-    private static string? Text(JsonElement e, string property) =>
-        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(property, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 }

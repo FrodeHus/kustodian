@@ -2,6 +2,8 @@ using System.Text.Json;
 using Kustodian.Auth;
 using Kustodian.Graph.Fetch;
 using Kustodian.Messaging.Handlers;
+using Kustodian.Sources.Arg;
+using Kustodian.Sources.Hunting;
 using Kustodian.Storage;
 
 namespace Kustodian.Tests.Bridge;
@@ -91,7 +93,73 @@ public class AccountHandlerTests : IDisposable
         Assert.NotNull(await probes.GetAsync("someone-else", "auditLogs/signIns", CancellationToken.None));
     }
 
-    private Messaging.Bridge NewBridge(TokenCacheStatus cache, IGraphProbeCache? probes = null)
+    [Fact]
+    public async Task Sign_out_drops_the_accounts_hunting_schema_and_azure_lists()
+    {
+        var http = new CountingHandler();
+        using var client = new HttpClient(http, disposeHandler: false);
+        var hunting = new HuntingSchemaSource(client, TimeProvider.System);
+        var directory = new ArmDirectory(client, TimeProvider.System);
+        var bridge = NewBridge(new MemoryOnly("x"), hunting: hunting, directory: directory);
+        var key = Parse(await bridge.HandleAsync("""{"id":"s","method":"account.signIn","params":{"deviceCode":true}}"""))
+            .GetProperty("result").GetProperty("key").GetString()!;
+        var ct = TestContext.Current.CancellationToken;
+        await hunting.GetAsync(key, false, ct);
+        await directory.SubscriptionsAsync(key, ct);
+        await directory.ResourceTypesAsync(key, ct);
+        await hunting.GetAsync("someone-else", false, ct);
+        await hunting.GetAsync(key, false, ct);
+        await directory.SubscriptionsAsync(key, ct);
+        await directory.ResourceTypesAsync(key, ct);
+        Assert.Equal((2, 1, 1), (http.Schema, http.Subscriptions, http.ResourceGraph));
+
+        await bridge.HandleAsync($$$"""{"id":"o","method":"account.signOut","params":{"key":"{{{key}}}"}}""");
+        await hunting.GetAsync(key, false, ct);
+        await directory.SubscriptionsAsync(key, ct);
+        await directory.ResourceTypesAsync(key, ct);
+        await hunting.GetAsync("someone-else", false, ct);
+
+        Assert.Equal((3, 2, 2), (http.Schema, http.Subscriptions, http.ResourceGraph));
+    }
+
+    /// <summary>Answers the hunting schema, the subscription list and Resource Graph, counting each.</summary>
+    private sealed class CountingHandler : HttpMessageHandler
+    {
+        public int Schema { get; private set; }
+
+        public int Subscriptions { get; private set; }
+
+        public int ResourceGraph { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            string json;
+            if (path.EndsWith("getHuntingSchema", StringComparison.Ordinal))
+            {
+                Schema++;
+                json = """{"tables":[{"name":"DeviceEvents","columns":[]}]}""";
+            }
+            else if (path == "/subscriptions")
+            {
+                Subscriptions++;
+                json = """{"value":[{"subscriptionId":"s1","displayName":"Production"}]}""";
+            }
+            else
+            {
+                ResourceGraph++;
+                json = """{"totalRecords":1,"data":[{"type":"microsoft.compute/virtualmachines"}]}""";
+            }
+
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json"),
+            });
+        }
+    }
+
+    private Messaging.Bridge NewBridge(TokenCacheStatus cache, IGraphProbeCache? probes = null, HuntingSchemaSource? hunting = null,
+        ArmDirectory? directory = null)
     {
         var bridge = new Messaging.Bridge(message =>
         {
@@ -102,7 +170,8 @@ public class AccountHandlerTests : IDisposable
         });
         var msal = new FakeMsal();
         var accounts = new AccountService(_ => msal, new JsonFileStore(_dir));
-        new AccountHandler(accounts, cache, new MemoryGraphObjectCache(TimeProvider.System), probes ?? NoGraphProbeCache.Instance).Register(bridge);
+        new AccountHandler(accounts, cache, new MemoryGraphObjectCache(TimeProvider.System), probes ?? NoGraphProbeCache.Instance, hunting, directory)
+            .Register(bridge);
         return bridge;
     }
 

@@ -109,6 +109,75 @@ public class HuntingSchemaSourceTests
     }
 
     [Fact]
+    public async Task Hunting_schema_failed_refresh_keeps_the_tenant_schema_and_says_why()
+    {
+        var failing = false;
+        var graph = new StubGraph(_ => failing
+            ? StubGraph.Json(HttpStatusCode.ServiceUnavailable, """{"error":{"code":"ServiceUnavailable","message":"Defender is busy."}}""")
+            : StubGraph.Json(HttpStatusCode.OK, StubGraph.Fixture("hunting-schema-200.json")));
+        var source = new HuntingSchemaSource(graph.Client(), _time);
+        var ct = TestContext.Current.CancellationToken;
+        var read = await source.GetAsync("account-1", false, ct);
+        failing = true;
+        _time.Advance(TimeSpan.FromHours(1));
+
+        var refreshed = await source.GetAsync("account-1", true, ct);
+
+        Assert.Equal("tenant", refreshed.Origin);
+        Assert.Equal(read.Tables, refreshed.Tables);
+        Assert.Equal(read.RetrievedAt, refreshed.RetrievedAt);
+        Assert.Equal("The tenant's schema couldn't be refreshed (Defender is busy.). The schema read earlier is shown.", refreshed.FallbackReason);
+
+        // The tenant's schema stays cached as it was read.
+        var later = await source.GetAsync("account-1", false, ct);
+        Assert.Same(read, later);
+        Assert.Equal(2, graph.Seen.Count);
+    }
+
+    [Fact]
+    public async Task Hunting_schema_failed_reread_after_a_day_keeps_the_tenant_schema()
+    {
+        var failing = false;
+        var graph = new StubGraph(_ => failing
+            ? StubGraph.Json(HttpStatusCode.Forbidden, """{"error":{"code":"Forbidden","message":"No role."}}""")
+            : StubGraph.Json(HttpStatusCode.OK, StubGraph.Fixture("hunting-schema-200.json")));
+        var source = new HuntingSchemaSource(graph.Client(), _time);
+        var ct = TestContext.Current.CancellationToken;
+        var read = await source.GetAsync("account-1", false, ct);
+        failing = true;
+        _time.Advance(TimeSpan.FromHours(25));
+
+        var again = await source.GetAsync("account-1", false, ct);
+
+        Assert.Equal(("tenant", read.Tables.Count), (again.Origin, again.Tables.Count));
+        Assert.Equal("The tenant's schema couldn't be refreshed (No role.). The schema read earlier is shown.", again.FallbackReason);
+        // As with a failed first read, Graph isn't asked again for 10 minutes.
+        _time.Advance(TimeSpan.FromMinutes(9));
+        await source.GetAsync("account-1", false, ct);
+        Assert.Equal(2, graph.Seen.Count);
+        _time.Advance(TimeSpan.FromMinutes(1));
+        await source.GetAsync("account-1", false, ct);
+        Assert.Equal(3, graph.Seen.Count);
+    }
+
+    [Fact]
+    public async Task Hunting_schema_removing_an_account_drops_its_cache_only()
+    {
+        var graph = Tenant();
+        var source = new HuntingSchemaSource(graph.Client(), _time);
+        var ct = TestContext.Current.CancellationToken;
+        await source.GetAsync("account-1", false, ct);
+        await source.GetAsync("account-2", false, ct);
+
+        source.RemoveAccount("account-1");
+        await source.GetAsync("account-1", false, ct);
+        await source.GetAsync("account-2", false, ct);
+
+        Assert.Equal(["account-1", "account-2", "account-1"],
+            graph.Seen.Select(s => s.Options.TryGetValue(GraphRequestAccount.Key, out var account) ? account : null));
+    }
+
+    [Fact]
     public async Task Hunting_schema_cancellation_is_not_recorded_as_a_failure()
     {
         var graph = Tenant();

@@ -51,6 +51,60 @@ public sealed class ArmAuthTests : IDisposable
     }
 
     [Fact]
+    public async Task Arm_error_that_names_consent_is_consent_needed()
+    {
+        var msal = new ArmMsal { ArmNeedsUi = true };
+        var service = new AccountService(_ => msal, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.AzureCli, Ct);
+        msal.ArmUiFailure = new MsalUiRequiredException("invalid_grant",
+            "AADSTS65001: The user or administrator has not consented to use the application.");
+
+        var consent = await Assert.ThrowsAsync<ConsentRequiredException>(() => service.GetTokenAsync(account.Key, Audience.Arm, Ct));
+
+        Assert.Equal("arm", consent.Audience);
+        Assert.False(Assert.Single(await service.ListAccountsAsync()).Expired);
+    }
+
+    /// <summary>Ruling 7: an ARM ui-required that isn't consent (an expired or revoked refresh token, a policy's interaction)
+    /// is a sign-in to renew, and still leaves the Graph sign-in as it is.</summary>
+    [Theory]
+    [InlineData("invalid_grant", "AADSTS700082: The refresh token has expired due to inactivity.", UiRequiredExceptionClassification.None)]
+    [InlineData("invalid_grant", "AADSTS50173: The provided grant has expired due to it being revoked.", UiRequiredExceptionClassification.None)]
+    [InlineData("interaction_required", "AADSTS50076: You must use multi-factor authentication.", UiRequiredExceptionClassification.AdditionalAction)]
+    [InlineData("invalid_grant", "AADSTS50078: Presented multi-factor authentication has expired.", UiRequiredExceptionClassification.BasicAction)]
+    public async Task Arm_ui_required_other_than_consent_needs_sign_in_and_leaves_graph_alone(string code, string message,
+        UiRequiredExceptionClassification classification)
+    {
+        var msal = new ArmMsal { ArmNeedsUi = true };
+        var service = new AccountService(_ => msal, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.AzureCli, Ct);
+        msal.ArmUiFailure = new MsalUiRequiredException(code, message, null, classification);
+
+        await Assert.ThrowsAsync<SignInRequiredException>(() => service.GetTokenAsync(account.Key, Audience.Arm, Ct));
+
+        Assert.False(Assert.Single(await service.ListAccountsAsync()).Expired);
+        Assert.Equal("graph-token", await service.GetTokenAsync(account.Key, Audience.Graph, Ct));
+    }
+
+    [Fact]
+    public async Task Arm_ui_required_after_an_expired_graph_sign_in_leaves_it_expired()
+    {
+        var msal = new ArmMsal();
+        var service = new AccountService(_ => msal, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.AzureCli, Ct);
+        msal.GraphNeedsUi = true;
+        await Assert.ThrowsAsync<SignInRequiredException>(() => service.GetTokenAsync(account.Key, Audience.Graph, Ct));
+        msal.ArmNeedsUi = true;
+
+        msal.ArmUiFailure = new MsalUiRequiredException("invalid_grant", "AADSTS700082: The refresh token has expired.");
+        await Assert.ThrowsAsync<SignInRequiredException>(() => service.GetTokenAsync(account.Key, Audience.Arm, Ct));
+        msal.ArmUiFailure = null;
+        await Assert.ThrowsAsync<ConsentRequiredException>(() => service.GetTokenAsync(account.Key, Audience.Arm, Ct));
+
+        Assert.True(Assert.Single(await service.ListAccountsAsync()).Expired);
+    }
+
+    [Fact]
     public async Task Graph_ui_required_still_expires_the_account()
     {
         var msal = new ArmMsal();
@@ -342,6 +396,9 @@ public sealed class ArmAuthTests : IDisposable
 
         public bool ArmNeedsUi { get; set; }
 
+        /// <summary>What a silent ARM acquire throws while <see cref="ArmNeedsUi"/>; a consent-classified failure when null.</summary>
+        public MsalUiRequiredException? ArmUiFailure { get; set; }
+
         public bool ForgetAccount { get; set; }
 
         public Exception? InteractiveFails { get; set; }
@@ -384,7 +441,13 @@ public sealed class ArmAuthTests : IDisposable
             }
 
             var arm = scope == Audience.Arm.ScopeFor();
-            if (arm ? ArmNeedsUi : GraphNeedsUi)
+            if (arm && ArmNeedsUi)
+            {
+                throw ArmUiFailure ?? new MsalUiRequiredException("invalid_grant", "consent needed", null,
+                    UiRequiredExceptionClassification.ConsentRequired);
+            }
+
+            if (!arm && GraphNeedsUi)
             {
                 throw new MsalUiRequiredException("ui_required", "interaction required");
             }

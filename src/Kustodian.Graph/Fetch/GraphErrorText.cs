@@ -25,22 +25,29 @@ public static partial class GraphErrorText
     [GeneratedRegex("<[^>]*>", RegexOptions.CultureInvariant)]
     private static partial Regex Tags();
 
-    /// <summary>A message for a failed answer. A web page gives <c>"{status} from Graph's backend: {title or first heading}"</c>,
-    /// cut to 200 characters; JSON gives its <c>error.message</c>; anything else gives the status alone.</summary>
-    public static string Summarize(int status, string? body)
+    /// <summary>What answered, as <see cref="Summarize"/> names it: Graph, or Azure (Resource Manager, Resource Graph).</summary>
+    public const string Graph = "Graph";
+
+    /// <inheritdoc cref="Graph"/>
+    public const string Azure = "Azure";
+
+    /// <summary>A message for a failed answer from <paramref name="service"/>. A web page gives <c>"{status} from {service}'s
+    /// backend: {title or first heading}"</c>, cut to 200 characters; JSON gives its <c>error.message</c>; anything else gives
+    /// <c>"{status} from {service}"</c>.</summary>
+    public static string Summarize(int status, string? body, string service = Graph)
     {
         var raw = Extract(body);
-        return raw is null ? $"{status.ToString(CultureInfo.InvariantCulture)} from Graph" : Describe(status, raw);
+        return raw is null ? $"{status.ToString(CultureInfo.InvariantCulture)} from {service}" : Describe(status, raw, service);
     }
 
     /// <summary>The message for a raw one (see <see cref="Extract(string?)"/>): itself, or the short line for a web page.</summary>
-    internal static string Describe(int status, string raw)
+    internal static string Describe(int status, string raw, string service = Graph)
     {
         if (!IsHtml(raw))
             return raw;
         var code = status.ToString(CultureInfo.InvariantCulture);
         var text = Plain(Title().Match(raw)) ?? Plain(Heading().Match(raw));
-        var summary = $"{code} from Graph's backend" + (text is null ? "" : ": " + text);
+        var summary = $"{code} from {service}'s backend" + (text is null ? "" : ": " + text);
         return summary.Length <= MaxLength ? summary : summary[..MaxLength];
     }
 

@@ -56,19 +56,10 @@ public sealed class HuntingQuerySource(HuntingClient client, TimeProvider time, 
 
             return End(answer.Outcome, answer.Message, answer: answer.Outcome == RunOutcome.Ok ? answer : null);
         }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        catch (Exception ex) when (SourceFailure.Handles(ex, ct))
         {
-            throw;
-        }
-        catch (Exception ex) when (SignInRequiredException.IsIn(ex) && ConsentRequiredException.FindIn(ex) is null)
-        {
-            return End(RunOutcome.SignInNeeded, GraphRunner.SignInMessage);
-        }
-        catch (Exception ex) when (ConsentRequiredException.FindIn(ex) is null)
-        {
-            // The reason is logged, not shown.
-            _log.LogError(ex, "A hunting query failed unexpectedly");
-            return End(RunOutcome.Failed, GraphRunner.Unexpected);
+            var (outcome, message) = SourceFailure.Of(ex, _log, "hunting");
+            return End(outcome, message);
         }
     }
 }

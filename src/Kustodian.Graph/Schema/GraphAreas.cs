@@ -13,7 +13,9 @@ public sealed class GraphAreas
     /// <summary>The fallback area, always last.</summary>
     public const string Other = "Other";
 
-    /// <summary>The areas in the order the panel shows them.</summary>
+    /// <summary>The areas in the order the panel shows them. The web keeps the same list as <c>AREAS</c> in
+    /// <c>web/src/schema/schema-panel.tsx</c>, with <c>SPLIT_AREA</c> naming the one it splits by path segment: change them
+    /// together.</summary>
     public static IReadOnlyList<string> Names { get; } =
     [
         "Users, groups and directory",

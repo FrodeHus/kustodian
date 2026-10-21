@@ -16,7 +16,7 @@ public class HuntingQuerySourceTests
     private const string RunId = "6f9619ff-8b86-d011-b42d-00c04fc964ff";
     private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 21, 8, 0, 0, TimeSpan.Zero));
 
-    private HuntingQuerySource Source(StubGraph graph) => new(new HuntingClient(graph.Client()), _time);
+    private HuntingQuerySource Source(StubGraph graph) => new(new HuntingClient(graph.Client(), _time), _time);
 
     private static QueryRunRequest Request(string kql, QueryOptions? options = null, IReadOnlyList<ParameterValue>? parameters = null) =>
         new(Account, kql, parameters ?? [], false, RunId, options);
@@ -108,6 +108,40 @@ public class HuntingQuerySourceTests
         Assert.Equal("You have exceeded processing resources allocated to this tenant. You can run queries again in 00:12:00. "
             + "Try again in 720 s.", result.Message);
         Assert.Contains(result.Diagnostics, e => e.Kind == DiagnosticKinds.Throttled);
+    }
+
+    [Fact]
+    public async Task Hunting_429_with_a_date_retry_after_counts_from_the_clock()
+    {
+        var body = StubGraph.Fixture("hunting-run-429.json");
+        var graph = new StubGraph(_ =>
+        {
+            var response = StubGraph.Json(HttpStatusCode.TooManyRequests, body);
+            response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(_time.GetUtcNow().AddSeconds(90));
+            return response;
+        });
+
+        var result = await Source(graph).RunAsync(Request("DeviceProcessEvents"), null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(RunOutcome.Throttled, result.Outcome);
+        Assert.EndsWith("Try again in 90 s.", result.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Hunting_body_read_times_out()
+    {
+        var graph = new StubGraph(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new StallingStream()) });
+
+        var run = Source(graph).RunAsync(Request("DeviceProcessEvents"), null, TestContext.Current.CancellationToken);
+        for (var i = 0; i < 600 && !run.IsCompleted; i++)
+        {
+            await Task.Delay(5, TestContext.Current.CancellationToken);
+            _time.Advance(TimeSpan.FromSeconds(1));
+        }
+
+        var result = await run;
+        Assert.Equal((RunOutcome.Failed, "Microsoft Defender didn't answer within 240 s. Narrow the query or the timespan and try again."),
+            (result.Outcome, result.Message));
     }
 
     [Fact]

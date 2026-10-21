@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Net;
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -11,7 +10,9 @@ using Kustodian.Graph.Run;
 namespace Kustodian.Sources.Arg;
 
 /// <summary>What an Azure Resource Graph run answered: the outcome and, when it isn't <see cref="RunOutcome.Ok"/>, the message to
-/// show. <see cref="Total"/> is ARG's <c>totalRecords</c>, which may be more than the rows read. A
+/// show (an <see cref="RunOutcome.Ok"/> answer has one when ARG cut the result short, <see cref="ArgClient.Truncated"/>).
+/// <see cref="Total"/> is ARG's <c>totalRecords</c>, which may be more than the rows read; without it, at least the rows ARG
+/// sent, and one more than were read when a page token was left. A
 /// <see cref="RunOutcome.QueryError"/> carries the 1-based position ARG's error details name, in the query as sent, when they name
 /// one. The rows are positional, one value per column.</summary>
 public sealed record ArgAnswer(RunOutcome Outcome, string? Message, IReadOnlyList<EngineColumn> Columns,
@@ -56,6 +57,10 @@ public sealed class ArgClient(HttpClient arm, TimeProvider? time = null)
 
     public const string Unreadable = "Azure Resource Graph's answer isn't readable.";
 
+    /// <summary>An answer's message when ARG says it cut the result short and gave no token to page on with (a query without the
+    /// <c>id</c> column can't be paged).</summary>
+    public const string Truncated = "Resource Graph cut this result short; include the id column to page through all rows.";
+
     private const string QuotaRemainingHeader = "x-ms-user-quota-remaining";
     private const string QuotaResetsHeader = "x-ms-user-quota-resets-after";
 
@@ -70,7 +75,9 @@ public sealed class ArgClient(HttpClient arm, TimeProvider? time = null)
         var rows = new List<JsonElement>();
         var seenTokens = new HashSet<string>(StringComparer.Ordinal);
         string? token = null;
-        var total = 0;
+        int? reported = null;
+        long sent = 0;
+        Page? last = null;
         var retried = false;
         var pages = 0;
         while (true)
@@ -103,7 +110,9 @@ public sealed class ArgClient(HttpClient arm, TimeProvider? time = null)
             }
 
             pages++;
-            total = page.Total;
+            last = page;
+            reported = page.Total ?? reported;
+            sent += page.Rows.Count;
             foreach (var row in page.Rows)
             {
                 if (rows.Count == maxRows)
@@ -128,14 +137,24 @@ public sealed class ArgClient(HttpClient arm, TimeProvider? time = null)
             following?.Invoke(pages);
         }
 
+        // ARG's totalRecords when the last page has it; else at least every row sent, or the last total a page reported; and a
+        // token left to follow means at least one row more than were read.
+        var total = last?.Total ?? (int)Math.Min(int.MaxValue, Math.Max(sent, reported ?? 0));
+        if (last?.SkipToken is not null)
+        {
+            total = Math.Max(total, rows.Count + 1);
+        }
+
         var (columns, shaped) = ServerRows.Shape(rows, null);
-        return new ArgAnswer(RunOutcome.Ok, null, columns, shaped, total);
+        return new ArgAnswer(RunOutcome.Ok, last is { Truncated: true, SkipToken: null } ? Truncated : null, columns, shaped, total);
     }
 
-    /// <summary>One page, or the answer that ends the run, or a 429 to wait out.</summary>
-    private sealed record Page(IReadOnlyList<JsonElement> Rows, int Total, string? SkipToken, ArgAnswer? Answer = null, Throttle? Throttled = null)
+    /// <summary>One page (its <c>totalRecords</c>, null when it has none, and whether ARG says it cut the result short), or the
+    /// answer that ends the run, or a 429 to wait out.</summary>
+    private sealed record Page(IReadOnlyList<JsonElement> Rows, int? Total, string? SkipToken, bool Truncated = false, ArgAnswer? Answer = null,
+        Throttle? Throttled = null)
     {
-        public static Page Ending(ArgAnswer answer) => new([], 0, null, answer);
+        public static Page Ending(ArgAnswer answer) => new([], null, null, Answer: answer);
     }
 
     /// <summary>A 429: its <c>Retry-After</c>, when ARG's quota resets (<c>x-ms-user-quota-resets-after</c>, the wait when
@@ -224,13 +243,17 @@ public sealed class ArgClient(HttpClient arm, TimeProvider? time = null)
             List<JsonElement> rows = root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array
                 ? [.. data.EnumerateArray().Select(r => r.Clone())]
                 : [];
-            var total = root.TryGetProperty("totalRecords", out var t) && t.ValueKind == JsonValueKind.Number && t.TryGetInt64(out var n)
+            int? total = root.TryGetProperty("totalRecords", out var t) && t.ValueKind == JsonValueKind.Number && t.TryGetInt64(out var n)
                 ? (int)Math.Clamp(n, 0, int.MaxValue)
-                : rows.Count;
+                : null;
             var token = root.TryGetProperty("$skipToken", out var s) && s.ValueKind == JsonValueKind.String && s.GetString() is { Length: > 0 } text
                 ? text
                 : null;
-            return new Page(rows, total, token);
+            // resultTruncated is "true" or "false" (ResultTruncated); a boolean is taken too.
+            var truncated = root.TryGetProperty("resultTruncated", out var r)
+                && (r.ValueKind == JsonValueKind.True
+                    || (r.ValueKind == JsonValueKind.String && string.Equals(r.GetString(), "true", StringComparison.OrdinalIgnoreCase)));
+            return new Page(rows, total, token, truncated);
         }
         catch (JsonException)
         {
@@ -239,7 +262,7 @@ public sealed class ArgClient(HttpClient arm, TimeProvider? time = null)
     }
 
     /// <summary>What a refused page means for the run.</summary>
-    private static Page Refused(HttpResponseMessage response, byte[] body, RunDiagnostics d)
+    private Page Refused(HttpResponseMessage response, byte[] body, RunDiagnostics d)
     {
         if (IsTokenRejected(response, body))
         {
@@ -254,7 +277,7 @@ public sealed class ArgClient(HttpClient arm, TimeProvider? time = null)
             case HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized:
                 return Page.Ending(ArgAnswer.Failure(RunOutcome.NoPermission, NoPermission));
             case HttpStatusCode.TooManyRequests:
-                return new Page([], 0, null, Throttled: ThrottleOf(response, error.Message, d));
+                return new Page([], null, null, Throttled: ThrottleOf(response, error.Message, d));
             case HttpStatusCode.BadRequest:
                 return Page.Ending(new ArgAnswer(RunOutcome.QueryError, error.Message, [], [], 0, error.Line, error.Column));
             default:
@@ -268,9 +291,9 @@ public sealed class ArgClient(HttpClient arm, TimeProvider? time = null)
         || (response.StatusCode == HttpStatusCode.Unauthorized && ArgError.Code(body) is "ExpiredAuthenticationToken");
 
     /// <summary>A 429: logs it with ARG's quota headers, and says how long to wait and what to tell the user.</summary>
-    private static Throttle ThrottleOf(HttpResponseMessage response, string explanation, RunDiagnostics d)
+    private Throttle ThrottleOf(HttpResponseMessage response, string explanation, RunDiagnostics d)
     {
-        var wait = RetryAfter(response.Headers.RetryAfter);
+        var wait = RetryAfter.Of(response.Headers.RetryAfter, _time);
         var remaining = Header(response, QuotaRemainingHeader);
         var resets = Header(response, QuotaResetsHeader);
         var detail = "Azure Resource Graph is throttling; "
@@ -298,13 +321,6 @@ public sealed class ArgClient(HttpClient arm, TimeProvider? time = null)
         return new Throttle(wait, quotaResets, message.ToString());
     }
 
-    /// <summary>How long <c>Retry-After</c> asks to wait (a delay, or a date from now), or null when it says nothing.</summary>
-    private static TimeSpan? RetryAfter(RetryConditionHeaderValue? retryAfter)
-    {
-        var wait = retryAfter?.Delta ?? (retryAfter?.Date is { } date ? date - DateTimeOffset.UtcNow : null);
-        return wait is { } w ? TimeSpan.FromSeconds(Math.Max(0, Math.Ceiling(w.TotalSeconds))) : null;
-    }
-
     /// <summary>A short header value, or null; only the quota headers are read, never any other.</summary>
     private static string? Header(HttpResponseMessage response, string name) =>
         response.Headers.TryGetValues(name, out var values) && values.FirstOrDefault() is { Length: > 0 and <= 32 } value ? value.Trim() : null;
@@ -322,7 +338,7 @@ internal sealed record ArgError(string Message, int? Line, int? Column)
         var text = Encoding.UTF8.GetString(body);
         if (GraphErrorText.IsHtml(text))
         {
-            return new ArgError(GraphErrorText.Summarize(status, text), null, null);
+            return new ArgError(GraphErrorText.Summarize(status, text, GraphErrorText.Azure), null, null);
         }
 
         JsonNode? error;
@@ -337,7 +353,7 @@ internal sealed record ArgError(string Message, int? Line, int? Column)
 
         var details = error is JsonObject && error["details"] is JsonArray array ? array.OfType<JsonObject>().ToList() : [];
         var messages = details.Select(Describe).OfType<string>().ToList();
-        var message = messages.Count > 0 ? string.Join(" ", messages) : GraphErrorText.Summarize(status, text);
+        var message = messages.Count > 0 ? string.Join(" ", messages) : GraphErrorText.Summarize(status, text, GraphErrorText.Azure);
         var positioned = details.FirstOrDefault(d => Number(d["line"]) is > 0 && Number(d["characterPositionInLine"]) is >= 0);
         return positioned is null
             ? new ArgError(message, null, null)
