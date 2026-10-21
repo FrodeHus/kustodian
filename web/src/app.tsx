@@ -122,7 +122,7 @@ export function App() {
       {/* Hidden rather than unmounted while signing in, so the editor keeps each tab's undo history. */}
       <div className="flex min-h-0 flex-1 flex-col" hidden={signingIn}>
         <TabStrip />
-        <div className="body">
+        <div className="panes">
           <nav className="rail" aria-label="Side panels">
             <button type="button" aria-pressed="true" aria-label="Schema" title="Schema">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
@@ -133,7 +133,7 @@ export function App() {
             </button>
           </nav>
           <SchemaPanel schema={schema} text={active?.text ?? ''} onInsert={(name) => editor.current?.insert(name)} />
-          <main className="main">
+          <main className="workspace">
             {active ? (
               <>
                 <Toolbar tab={active} onRun={runActive} onFormat={() => editor.current?.format()} />
@@ -157,7 +157,7 @@ export function App() {
             )}
           </main>
         </div>
-        <footer className="status">
+        <footer className="statusbar">
           {cursor && (
             <span>
               Ln {cursor.line}, Col {cursor.column}

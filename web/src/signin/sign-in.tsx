@@ -112,7 +112,7 @@ export function SignIn({ list, onChanged, onBack, error: listError = null }: Sig
             <label htmlFor="client-id">Client ID</label>
             <input
               id="client-id"
-              className="input mono"
+              className="textbox mono"
               placeholder="00000000-0000-0000-0000-000000000000"
               disabled={!own}
               value={clientId}
@@ -123,7 +123,7 @@ export function SignIn({ list, onChanged, onBack, error: listError = null }: Sig
             <label htmlFor="tenant">Tenant</label>
             <input
               id="tenant"
-              className="input mono"
+              className="textbox mono"
               placeholder="organizations or a tenant ID"
               disabled={!own}
               value={tenant}

@@ -130,7 +130,7 @@ export function TabStrip() {
 function ConfirmClose({ tab, onKeep, onClose }: { tab: Tab; onKeep: () => void; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-10">
-      <div className="overlay" onClick={onKeep} />
+      <div className="scrim" onClick={onKeep} />
       <div
         role="alertdialog"
         aria-modal="true"

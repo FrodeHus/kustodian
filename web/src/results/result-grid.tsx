@@ -225,7 +225,7 @@ function JsonPanel({ opened, onClose }: { opened: Opened; onClose: () => void })
           Close
         </button>
       </div>
-      <pre className="code m-3 min-h-0 flex-1 overflow-auto">{JSON.stringify(opened.value, null, 2)}</pre>
+      <pre className="codeblock m-3 min-h-0 flex-1 overflow-auto">{JSON.stringify(opened.value, null, 2)}</pre>
     </div>
   );
 }

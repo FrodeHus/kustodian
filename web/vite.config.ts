@@ -8,5 +8,5 @@ export default defineConfig({
   base: './',
   plugins: [react(), tailwindcss()],
   build: { outDir: 'dist' },
-  test: { environment: 'jsdom', setupFiles: ['./src/test/setup.ts'] },
+  test: { environment: 'jsdom', setupFiles: ['./src/test/setup.ts'], css: { include: [/\.css\?raw$/] } },
 });

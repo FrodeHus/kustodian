@@ -116,7 +116,7 @@ export function SchemaPanel({ schema, text, onInsert }: SchemaPanelProps) {
             {found.length === 0 ? (
               <p className="faint m-0 px-[14px] text-[12px]">No table or column matches.</p>
             ) : (
-              <ul className="tree">{found.map((f) => renderTable(`find:${f.table.name}`, f.table, f.columns, f.open))}</ul>
+              <ul className="schema-tree">{found.map((f) => renderTable(`find:${f.table.name}`, f.table, f.columns, f.open))}</ul>
             )}
           </>
         ) : (
@@ -124,11 +124,11 @@ export function SchemaPanel({ schema, text, onInsert }: SchemaPanelProps) {
             {inQuery.length > 0 && (
               <>
                 <h2 className="pt-1">In this query</h2>
-                <ul className="tree">{inQuery.map((t) => renderTable(`query:${t.name}`, t, t.columns, true))}</ul>
+                <ul className="schema-tree">{inQuery.map((t) => renderTable(`query:${t.name}`, t, t.columns, true))}</ul>
               </>
             )}
             <h2>All tables</h2>
-            <ul className="tree">{tables.map((t) => renderTable(`all:${t.name}`, t, t.columns, false))}</ul>
+            <ul className="schema-tree">{tables.map((t) => renderTable(`all:${t.name}`, t, t.columns, false))}</ul>
           </>
         )}
       </div>
