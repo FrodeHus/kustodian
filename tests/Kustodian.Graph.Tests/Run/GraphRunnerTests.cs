@@ -87,6 +87,40 @@ public sealed class GraphRunnerTests
         Assert.Equal(0, h.Budget.Used);
     }
 
+    // Graph counts; the engine prints the count under the query's column name. No object is read.
+    [Theory]
+    [InlineData("applications | count", "Count")]
+    [InlineData("applications | where createdDateTime >= datetime(2026-01-01) | summarize ['n\\'s'] = count()", "n's")]
+    public async Task Run_of_a_count_answers_with_graphs_count(string kql, string column)
+    {
+        await using var h = NewHost();
+        h.Graph.Answer = (request, _) => Task.FromResult(request.RequestUri!.AbsolutePath.EndsWith("/$count", StringComparison.Ordinal)
+            ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("4321") }
+            : FakeGraph.Collection([App("Payroll")]));
+
+        var r = await h.RunAsync(kql, ct: Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        Assert.Equal([column], r.Columns.Select(c => c.Name));
+        Assert.Equal("long", r.Columns[0].Type);
+        Assert.Equal(["4321"], Column(r, column));
+        Assert.StartsWith("/beta/applications/$count", Assert.Single(h.Graph.Requests), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Run_of_a_count_graph_refuses_counts_the_objects()
+    {
+        await using var h = NewHost();
+        h.Graph.Answer = (request, _) => Task.FromResult(request.RequestUri!.AbsolutePath.EndsWith("/$count", StringComparison.Ordinal)
+            ? FakeGraph.Error(HttpStatusCode.BadRequest, "Request_BadRequest", "Unsupported query.")
+            : FakeGraph.Collection([App("Payroll"), App("Wiki")]));
+
+        var r = await h.RunAsync("applications | count", ct: Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        Assert.Equal(["2"], Column(r, "Count"));
+    }
+
     [Fact]
     public async Task Run_with_denied_column_returns_rows_and_names_the_column()
     {

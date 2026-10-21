@@ -9,7 +9,7 @@ using Microsoft.Extensions.Time.Testing;
 
 namespace Kustodian.Graph.Tests;
 
-public sealed class GraphCollectionReaderTests
+public sealed partial class GraphCollectionReaderTests
 {
     private const string Account = "account-1";
 

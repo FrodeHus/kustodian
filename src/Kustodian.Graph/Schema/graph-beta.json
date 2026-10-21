@@ -1,6 +1,6 @@
 {
   "source": "msgraph-metadata@8c562525694550601a232cb54014e48c6c7f6da0; permissions https://raw.githubusercontent.com/microsoftgraph/microsoft-graph-devx-content/master/permissions/new/permissions.json",
-  "generatedAt": "2026-10-21T05:38:29.905214+00:00",
+  "generatedAt": "2026-10-21T21:47:41.212771+00:00",
   "tables": [
     {
       "name": "accessReviewDecisions",
@@ -25328,7 +25328,8 @@
             "not",
             "ge",
             "le",
-            "startsWith"
+            "startsWith",
+            "endsWith"
           ],
           "selectOnly": false,
           "collection": true
@@ -38233,7 +38234,8 @@
             "ge",
             "le",
             "in",
-            "startsWith"
+            "startsWith",
+            "endsWith"
           ],
           "selectOnly": false
         },
@@ -38432,7 +38434,8 @@
             "ge",
             "le",
             "in",
-            "startsWith"
+            "startsWith",
+            "endsWith"
           ],
           "selectOnly": false,
           "collection": true
@@ -38542,7 +38545,8 @@
             "not",
             "ge",
             "le",
-            "startsWith"
+            "startsWith",
+            "endsWith"
           ],
           "selectOnly": false,
           "collection": true
@@ -38688,7 +38692,8 @@
             "ge",
             "le",
             "in",
-            "startsWith"
+            "startsWith",
+            "endsWith"
           ],
           "selectOnly": false
         },

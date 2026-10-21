@@ -11,7 +11,9 @@ namespace Kustodian.Graph.Run;
 
 /// <summary>
 /// One run from KQL to rows: plan the query, read every fetch of the plan in parallel under one lease on the fetch budget, then
-/// run the KQL unchanged on an engine worker over those tables only. The lease is held until the engine has answered, as the
+/// run the KQL unchanged on an engine worker over those tables only. A query that only counts a table's rows Graph keeps
+/// exactly, which Graph counted (<see cref="GraphCollection.Count"/>), runs as a <c>print</c> of that count under the query's
+/// column name instead. The lease is held until the engine has answered, as the
 /// fetched objects stay in memory until then. Every way a run can fail is an outcome of the <see cref="RunResult"/>, never an
 /// exception, except that the caller cancelling throws <see cref="OperationCanceledException"/>. Each run has an id and a
 /// diagnostics log (<see cref="RunDiagnostics"/>): every request it sends carries the log, the readers add their steps, the
@@ -108,9 +110,10 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
             ReportReads(fetches, collections, progress);
 
             progress?.Report(new RunEvent("engine", "Running the query"));
-            var tables = fetches.Select((f, i) => Table(f.Table, collections[i]!.Objects)).ToList();
-            var answer = await engine.RunAsync(new EngineRequest(kql, now, tables, limits.RowsPerRun), diagnostics.RunId,
-                new EngineLog(diagnostics), ct);
+            var request = fetches is [{ Count: { } countColumn }] && collections[0]!.Count is { } count
+                ? new EngineRequest(CountQuery(countColumn, count), now, [], limits.RowsPerRun)
+                : new EngineRequest(kql, now, fetches.Select((f, i) => Table(f.Table, collections[i]!.Objects)).ToList(), limits.RowsPerRun);
+            var answer = await engine.RunAsync(request, diagnostics.RunId, new EngineLog(diagnostics), ct);
             if (answer.Error is { } engineError)
                 return End(RunOutcome.Failed, engineError);
             if (answer.Refusal is { } engineRefusal)
@@ -282,6 +285,10 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
             Unlicensed = read.Unlicensed,
             UnlicensedReason = read.UnlicensedReason,
         };
+
+    /// <summary>The answer to a query that counts, given Graph's count: one row, one long column named as the query names it.</summary>
+    internal static string CountQuery(string column, long count) => string.Create(CultureInfo.InvariantCulture,
+        $"print ['{column.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("'", "\\'", StringComparison.Ordinal)}'] = tolong({count})");
 
     /// <summary>The table as the engine loads it: every column of the schema's table, so it is the table the editor shows.</summary>
     private static EngineTable Table(GraphTable table, IReadOnlyList<JsonObject> rows)

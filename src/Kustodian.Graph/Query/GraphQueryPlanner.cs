@@ -18,12 +18,30 @@ public sealed record GraphQueryPlan(IReadOnlyList<GraphFetch> Fetches, GraphQuer
 /// (not listable): left out of the <c>$select</c> and read one object at a time instead. <see cref="Named"/> are the table's
 /// columns the query names itself (not those it only passes through): only those are ever read one object at a time.
 /// <see cref="Top"/> is the most rows the query takes from the table, when nothing runs locally before its <c>take</c>: the
-/// reader asks Graph for no more and stops once it has them.</summary>
+/// reader asks Graph for no more and stops once it has them. <see cref="Clauses"/> are the <c>$filter</c>'s conjuncts (empty
+/// when it was built by hand: then <see cref="Filter"/> is one clause). <see cref="OrderBy"/> is the sort the query takes its
+/// <see cref="Top"/> rows by (<c>sort by x desc | take n</c>, <c>top n by x</c>), sent as <c>$orderby</c>. <see cref="Count"/>
+/// is the result column's name when the whole query counts the table's rows after pushed filters only, and Graph keeps exactly
+/// the rows the query keeps: the reader then asks Graph for the count instead of the rows.</summary>
 public sealed record GraphFetch(GraphTable Table, IReadOnlyList<string> Select, string? Filter)
 {
     public IReadOnlyList<string> Unreadable { get; init; } = [];
     public IReadOnlyList<string> Named { get; init; } = [];
     public int? Top { get; init; }
+    public IReadOnlyList<FilterClause> Clauses { get; init; } = [];
+    public GraphOrderBy? OrderBy { get; init; }
+    public string? Count { get; init; }
+
+    /// <summary>The <c>$filter</c>'s conjuncts: <see cref="Clauses"/>, or <see cref="Filter"/> as one.</summary>
+    public IReadOnlyList<FilterClause> FilterClauses => Clauses.Count > 0 ? Clauses : Filter is { } filter ? [new FilterClause(filter)] : [];
+}
+
+/// <summary>A sort sent as <c>$orderby</c>: a datetime or number column, descending (KQL's default, nulls last) or ascending
+/// with nulls last. Graph's order is checked on what it returns: rows out of order, or a null, mean the read starts again
+/// without it.</summary>
+public sealed record GraphOrderBy(string Column, bool Descending)
+{
+    public string OData => Column + (Descending ? " desc" : " asc");
 }
 
 /// <summary>A parse or bind error at a 1-based line and column.</summary>
@@ -119,14 +137,19 @@ public static class GraphQueryPlanner
             var unreadable = named.Where(getOnly.Contains).ToList();
             // A table read more than once (a self-join) is never filtered: one fetch has to serve every use.
             var explanation = LeadingPredicates(code, symbol) is { } predicates
-                ? GraphFilterTranslator.Explain(table, predicates, now)
+                ? GraphFilterTranslator.Explain(table, predicates, now, schema.ComplexTypes)
                 : new FilterExplanation(null, [], []);
             var later = LaterPredicates(code, symbol)
                 .Select(p => new LocalCondition(GraphFilterTranslator.Text(p), PushdownReasons.NotLeading));
             filters.Add(explanation with { Local = [.. explanation.Local, .. later] });
             // Only when every leading where went to Graph whole: a condition kept local would have to see rows past the limit.
-            var top = explanation.Local.Count == 0 ? RowLimit(code, symbol) : null;
-            fetches.Add(new GraphFetch(table, select, explanation.Filter) { Unreadable = unreadable, Named = named, Top = top });
+            var (top, orderBy) = explanation.Local.Count == 0 ? RowLimit(code, symbol, table) : (null, null);
+            // Only when Graph keeps exactly the query's rows, and the count is the query's whole answer.
+            var count = explanation.Exact && tableSymbols.Count == 1 ? CountColumn(code, symbol) : null;
+            fetches.Add(new GraphFetch(table, select, explanation.Filter)
+            {
+                Unreadable = unreadable, Named = named, Top = top, OrderBy = orderBy, Clauses = explanation.Clauses, Count = count,
+            });
         }
         return new ExplainedPlan(new GraphQueryPlan(fetches, null, null), filters);
     }
@@ -179,33 +202,117 @@ public static class GraphQueryPlanner
     }
 
     /// <summary>The <c>take</c> or <c>limit</c> of a fixed number of rows directly after <paramref name="table"/>'s reference and
-    /// its leading <c>where</c> operators, if any: the most rows the query reads from the table. Null when the table is used more
-    /// than once, any other operator comes first (<c>top</c> included: it sorts every row), or the count isn't a positive
-    /// literal. Whether those wheres all went to Graph is the caller's to check.</summary>
-    internal static int? RowLimit(KustoCode code, TableSymbol table)
+    /// its leading <c>where</c> operators, if any: the most rows the query reads from the table. Also a <c>sort</c> by one
+    /// column followed by such a <c>take</c>, or a <c>top</c>, when Graph can be asked for the same order
+    /// (<see cref="SortOf"/>): then the sort comes with it. Null when the table is used more than once, any other operator
+    /// comes first, or the count isn't a positive literal. Whether those wheres all went to Graph is the caller's to check.</summary>
+    internal static (int? Top, GraphOrderBy? OrderBy) RowLimit(KustoCode code, TableSymbol table, GraphTable? graphTable = null)
     {
         var uses = TableUses(code).Where(u => ReferenceEquals(u.Table, table)).ToList();
         if (uses.Count != 1)
-            return null;
+            return (null, null);
 
         SyntaxNode node = uses[0].Node;
+        GraphOrderBy? sorted = null;
         while (node.Parent is PipeExpression pipe && ReferenceEquals(pipe.Expression, node))
         {
             switch (pipe.Operator)
             {
-                case FilterOperator:
+                case FilterOperator when sorted is null:
                     node = pipe;
                     continue;
-                case TakeOperator { Expression: LiteralExpression { LiteralValue: long count } } when count is > 0 and <= int.MaxValue:
-                    return (int)count;
-                case TakeOperator { Expression: LiteralExpression { LiteralValue: int count } } when count > 0:
-                    return count;
+                case TakeOperator take when Count(take.Expression) is { } count:
+                    return (count, sorted);
+                case SortOperator { Expressions.Count: 1 } sort when sorted is null && graphTable is not null
+                    && SortOf(sort.Expressions[0].Element, graphTable, descendingByDefault: true) is { } order:
+                    sorted = order;
+                    node = pipe;
+                    continue;
+                case TopOperator top when sorted is null && graphTable is not null && Count(top.Expression) is { } count
+                    && SortOf(top.ByExpression, graphTable, descendingByDefault: true) is { } order:
+                    return (count, order);
                 default:
-                    return null;
+                    return (null, null);
             }
+        }
+        return (null, null);
+    }
+
+    private static int? Count(Expression expression) => expression switch
+    {
+        LiteralExpression { LiteralValue: long count } when count is > 0 and <= int.MaxValue => (int)count,
+        LiteralExpression { LiteralValue: int count } when count > 0 => count,
+        _ => null,
+    };
+
+    /// <summary>The sort Graph can be asked for: one datetime or number column of the table (text isn't, as Graph's order of
+    /// text isn't KQL's), descending with nulls last (KQL's default for both) or ascending with nulls last written out. KQL
+    /// puts nulls first when ascending, which Graph isn't known to do.</summary>
+    private static GraphOrderBy? SortOf(Expression expression, GraphTable table, bool descendingByDefault)
+    {
+        var (column, ordering) = expression is OrderedExpression ordered ? (ordered.Expression, ordered.Ordering) : (expression, null);
+        if (column is not NameReference { ReferencedSymbol: ColumnSymbol symbol }
+            || table.Columns.FirstOrDefault(c => c.Name == symbol.Name) is not { Collection: false, Type: "datetime" or "int" or "long" or "real" } graphColumn)
+            return null;
+        var direction = ordering?.AscOrDescKeyword?.Text;
+        var descending = direction switch
+        {
+            "desc" => true,
+            "asc" => false,
+            _ => descendingByDefault,
+        };
+        var nulls = ordering?.NullsClause?.FirstOrLastKeyword?.Text;
+        var nullsLast = nulls switch
+        {
+            "last" => true,
+            "first" => false,
+            _ => descending,
+        };
+        return nullsLast ? new GraphOrderBy(graphColumn.Name, descending) : null;
+    }
+
+    /// <summary>The result column's name when the whole query is <paramref name="table"/>'s reference, its leading
+    /// <c>where</c> operators, then <c>count</c> or <c>summarize count()</c> (named or not, with no <c>by</c>) and nothing
+    /// else. Null otherwise.</summary>
+    internal static string? CountColumn(KustoCode code, TableSymbol table)
+    {
+        var uses = TableUses(code).Where(u => ReferenceEquals(u.Table, table)).ToList();
+        if (uses.Count != 1)
+            return null;
+        SyntaxNode node = uses[0].Node;
+        while (node.Parent is PipeExpression pipe && ReferenceEquals(pipe.Expression, node))
+        {
+            if (pipe.Operator is FilterOperator)
+            {
+                node = pipe;
+                continue;
+            }
+            var counts = pipe.Operator switch
+            {
+                CountOperator { AsIdentifier: null } => true,
+                SummarizeOperator { ByClause: null, Aggregates.Count: 1 } summarize => IsCount(summarize.Aggregates[0].Element),
+                _ => false,
+            };
+            // Nothing may follow: the count has to be the query's answer.
+            if (!counts || !ReferenceEquals(pipe, Answer(code.Syntax))
+                || code.ResultType is not TableSymbol { Columns: [{ Type: var type } column] } || type != ScalarTypes.Long)
+                return null;
+            return column.Name;
         }
         return null;
     }
+
+    /// <summary>The expression of the query's last statement: its answer.</summary>
+    private static Expression? Answer(SyntaxNode syntax) => syntax is QueryBlock block
+        ? block.Statements.Select(s => s.Element).OfType<ExpressionStatement>().LastOrDefault()?.Expression
+        : null;
+
+    private static bool IsCount(Expression aggregate) => aggregate switch
+    {
+        SimpleNamedExpression named => IsCount(named.Expression),
+        FunctionCallExpression { ArgumentList.Expressions.Count: 0 } call => call.ReferencedSymbol == Aggregates.Count,
+        _ => false,
+    };
 
     /// <summary>Every place the query reads a table: by name (<c>applications</c>, <c>database("graph").applications</c>),
     /// by wildcard (<c>union app*</c>, one use per table it matches) or through <c>table("applications")</c>. The node is the

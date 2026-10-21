@@ -46,6 +46,10 @@ public sealed class GraphExplainTests
     [InlineData("applications | where displayName == \"O'Brien\" and createdDateTime > ago(7d) | project displayName, appId")]
     [InlineData("security_incidents | where displayName == 'a b&c' or keyCount >= 3")]
     [InlineData("applications | take 5")]
+    [InlineData("applications | where keyCount > 3 | top 5 by createdDateTime")]
+    [InlineData("security_incidents | sort by keyCount asc nulls last | take 5")]
+    [InlineData("applications | where keyCount >= 3 | count")]
+    [InlineData("security_incidents | summarize n = count()")]
     public async Task Explain_url_matches_what_reader_sends(string kql)
     {
         var graph = new FakeGraph();
@@ -59,6 +63,42 @@ public sealed class GraphExplainTests
         Assert.Equal(read.Requests[0], table.Url);
         Assert.True(graph.Requests.TryPeek(out var sent));
         Assert.Equal("/beta/" + Uri.UnescapeDataString(table.Url), sent);
+    }
+
+    [Fact]
+    public void Explain_shows_the_sort_and_the_advanced_query_header()
+    {
+        var table = Assert.Single(Explain("applications | where keyCount > 3 | top 5 by createdDateTime").Tables);
+
+        Assert.Equal("createdDateTime desc", table.OrderBy);
+        Assert.Equal(5, table.Top);
+        Assert.False(table.Count);
+        Assert.Equal(["ConsistencyLevel: eventual"], table.Headers);
+        Assert.Contains("&$orderby=createdDateTime%20desc&$count=true&$top=5", table.Url, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Explain_shows_a_count()
+    {
+        var directory = Assert.Single(Explain("applications | where keyCount >= 3 | count").Tables);
+        var other = Assert.Single(Explain("security_incidents | count").Tables);
+
+        Assert.True(directory.Count);
+        Assert.Equal("applications/$count?$filter=keyCount%20ge%203", directory.Url);
+        Assert.Equal(["ConsistencyLevel: eventual"], directory.Headers);
+        Assert.True(other.Count);
+        Assert.Equal("security/incidents?$select=id&$count=true&$top=1", other.Url);
+        Assert.Empty(other.Headers);
+    }
+
+    [Fact]
+    public void Explain_shows_no_header_for_a_plain_read()
+    {
+        var table = Assert.Single(Explain("applications | where keyCount > 3").Tables);
+
+        Assert.Empty(table.Headers);
+        Assert.Null(table.OrderBy);
+        Assert.False(table.Count);
     }
 
     [Theory]

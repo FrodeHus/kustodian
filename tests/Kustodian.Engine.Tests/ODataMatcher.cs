@@ -5,8 +5,9 @@ using System.Text.Json.Nodes;
 namespace Kustodian.Engine.Tests;
 
 /// <summary>Graph's <c>$filter</c>, for the operators <c>GraphFilterTranslator</c> emits: <c>eq ne lt le gt ge in</c>,
-/// <c>startswith(c,'x')</c>, <c>and</c>, <c>or</c>, parentheses; string, number, bool, datetime and null literals. String
-/// <c>eq</c>, <c>in</c> and <c>startswith</c> ignore case on directory objects, as Graph's do. OData null rules: <c>null eq
+/// <c>startswith(c,'x')</c>, <c>endswith(c,'x')</c>, <c>c/any(p:p eq 'x')</c>, nested paths (<c>c/f</c>), <c>and</c>, <c>or</c>,
+/// parentheses; string, number, bool, datetime and null literals. String <c>eq</c>, <c>in</c>, <c>startswith</c> and
+/// <c>endswith</c> ignore case on directory objects, as Graph's do. OData null rules: <c>null eq
 /// null</c> and <c>null ne x</c> are true, an ordering comparison with null is false.</summary>
 internal static class ODataMatcher
 {
@@ -66,16 +67,28 @@ internal static class ODataMatcher
                 Expect(")");
                 return inner;
             }
-            if (Peek == "startswith")
+            if (Peek is "startswith" or "endswith")
             {
-                Next();
+                var function = Next();
                 Expect("(");
                 var column = Next();
                 Expect(",");
-                var prefix = Literal(Next());
+                var affix = Literal(Next());
                 Expect(")");
-                return row[column] is JsonValue v && v.TryGetValue<string>(out var s) && prefix is string p
-                    && s.StartsWith(p, directoryObject ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+                var comparison = directoryObject ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+                return Value(column) is JsonValue v && v.TryGetValue<string>(out var s) && affix is string p
+                    && (function == "startswith" ? s.StartsWith(p, comparison) : s.EndsWith(p, comparison));
+            }
+            if (Peek.EndsWith("/any", StringComparison.Ordinal))
+            {
+                var array = Next()[..^"/any".Length];
+                Expect("(");
+                if (Next() != "p:p")
+                    throw new FormatException("Expected p:p");
+                var elementOp = Next();
+                var element = Literal(Next());
+                Expect(")");
+                return row[array] is JsonArray items && items.Any(i => Compare(i, elementOp, element));
             }
 
             var name = Next();
@@ -86,13 +99,22 @@ internal static class ODataMatcher
                 var any = false;
                 do
                 {
-                    any |= Compare(row[name], "eq", Literal(Next()));
+                    any |= Compare(Value(name), "eq", Literal(Next()));
                 }
                 while (Peek == "," && Next() == ",");
                 Expect(")");
                 return any;
             }
-            return Compare(row[name], op, Literal(Next()));
+            return Compare(Value(name), op, Literal(Next()));
+        }
+
+        /// <summary>A property of the row, or of one of its objects for a path (<c>signIn/lastSignInDateTime</c>).</summary>
+        private JsonNode? Value(string path)
+        {
+            JsonNode? node = row;
+            foreach (var part in path.Split('/'))
+                node = node is JsonObject o ? o[part] : null;
+            return node;
         }
 
         private bool Compare(JsonNode? node, string op, object? literal)

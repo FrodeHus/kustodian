@@ -50,8 +50,8 @@ resources. The UI follows the Graph query page and Defender advanced hunting, wi
 - **An audit log** (**My call**). It's a single-user tool; Recent runs is the history.
 - **Auto-update** in v1 (**My call**). Releases are downloads from GitHub releases.
 - **Brief widgets, dashboards and scheduled queries.** These were deferred in the portal version and stay out here.
-- **Graph's advanced query mode** (`ConsistencyLevel: eventual`, `$count`, `$search`). The portal excluded it, and the pushdown
-  rules below depend on that.
+- **`$search`**, and Graph's advanced query mode (`ConsistencyLevel: eventual` with `$count=true`) beyond the pushdown forms
+  that need it (7.4, owner's decision 2026-10-21). `$search` matches word prefixes, not KQL's `has` or `contains`.
 
 ## 4. Anti-goals
 
@@ -257,10 +257,27 @@ A pushed filter must keep at least every row the KQL keeps. KQL re-applies every
 - Never push an empty string.
 - Case-insensitive operators (`=~`, `in~`, `startswith`) only on directory-object tables. Elsewhere Graph may compare
   case-sensitively.
-- datetime `>` and `<` are pushed as `ge` and `le`.
-- No `ne` or null pushdown on directory objects, because those need advanced query mode.
+- datetime `>` and `<` are pushed as `ge` and `le`. `between` is pushed as `ge` and `le` on datetimes and numbers.
+- No `ne`, `isnull` or `isnotnull` pushdown on directory objects. `isnotempty(c)` is pushed as `c ne null` (in advanced query
+  mode on directory objects).
 - `isnotnull` on text columns is never pushed.
 - `or` is pushed only if both sides can be pushed. `not` is never pushed.
+- `endswith` only on directory objects, on the properties Microsoft documents it for (`mail`, `userPrincipalName`), in advanced
+  query mode.
+- `tolower(c)` or `toupper(c)` with `==` or `=~` is pushed as `c eq` on directory objects only.
+- A property of a complex column (`signInActivity.lastSignInDateTime`, or inside a conversion to its own type such as
+  `todatetime(...)`) is pushed as a path when the column documents `$filter`. A column documented as filterable "not with any
+  other filterable properties" is sent alone; the other conditions run locally.
+- `set_has_element(c, "x")` on an array of text is pushed as `c/any(p:p eq 'x')` on directory objects, in advanced query mode.
+  `has` and `contains` on an array match words in its JSON text, not elements, and are never pushed.
+- `sort by c [desc] | take n` and `top n by c` right after pushed filters send `$orderby=c desc&$top=n` on datetime and number
+  columns (descending, or ascending with `nulls last`). The rows Graph returns are checked for order and nulls, and read again
+  without the sort if they fail. On directory objects a sort uses advanced query mode.
+- `T | count` and `summarize count()` without `by`, over pushed filters only, ask Graph for the count (`/$count` on directory
+  objects, `$count=true` elsewhere) when every condition is exact: no case folding Graph does that KQL doesn't, no widened
+  bound.
+- When Graph refuses a sort, a count or a condition from these forms (a 400, or a count it ignores), the read goes on without it,
+  and the refusal is remembered per account and table for the probe cache's lifetime. A refresh sends it again.
 
 ### 7.5 Per-object reads
 
