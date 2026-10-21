@@ -96,6 +96,22 @@ const defaultSettings = {
   },
 };
 
+/** `raw.send`'s and `raw.next`'s answer, as the host builds it: never a `Set-Cookie` or `Authorization` header. */
+function rawResponse(url: string) {
+  const body = JSON.stringify({
+    '@odata.context': url,
+    value: [{ id: '11111111-1111-1111-1111-111111111111', displayName: 'Contoso Portal' }],
+  });
+  return {
+    status: 200,
+    headers: { 'Content-Type': 'application/json', 'request-id': 'mock-request' },
+    body,
+    durationMs: 120,
+    nextLink: null,
+    truncated: false,
+  };
+}
+
 const RUN_DELAY_MS = 400;
 
 interface MockRequest {
@@ -109,6 +125,9 @@ interface MockRequest {
     id?: string;
     session?: Record<string, unknown>;
     snippet?: { id?: string | null } & Record<string, unknown>;
+    version?: string;
+    path?: string;
+    nextLink?: string;
   };
 }
 
@@ -286,6 +305,20 @@ export function createMockTransport(): Transport {
         receive(JSON.stringify({ event: 'query.progress', data: { tabId, runId, stage: 'fetch', detail: 'applications' } }));
         break;
       }
+      case 'raw.send':
+        if (!params?.version || !params.path) {
+          fail(id, 'bad_request', 'A raw request needs a version and a path.');
+          break;
+        }
+        reply(id, rawResponse(`https://graph.microsoft.com/${params.version}/${params.path}`));
+        break;
+      case 'raw.next':
+        if (!params?.nextLink) {
+          fail(id, 'bad_request', 'A next request needs a nextLink.');
+          break;
+        }
+        reply(id, rawResponse(params.nextLink));
+        break;
       default:
         fail(id, 'unknown_method', `Unknown method ${method ?? ''}.`);
     }

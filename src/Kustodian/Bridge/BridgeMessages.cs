@@ -37,6 +37,7 @@ public static class BridgeErrorCodes
     public const string BadRequest = "bad_request";
     public const string Cancelled = "cancelled";
     public const string Failed = "failed";
+    public const string SignInNeeded = "signInNeeded";
 }
 
 /// <summary>Thrown by a handler to answer with a specific error code; its message is shown to the user.</summary>

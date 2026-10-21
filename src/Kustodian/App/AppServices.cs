@@ -7,6 +7,7 @@ using Kustodian.Graph.Schema;
 using Kustodian.Library;
 using Kustodian.Messaging;
 using Kustodian.Messaging.Handlers;
+using Kustodian.Raw;
 using Kustodian.Sessions;
 using Kustodian.Settings;
 using Kustodian.Snippets;
@@ -91,6 +92,7 @@ public sealed class AppServices : IAsyncDisposable
         new SnippetHandler(_snippets).Register(bridge);
         new FileHandler(new PhotinoFileDialogs(Window), _allowedFiles).Register(bridge);
         new AccountHandler(_accounts, _tokenCache, Objects).Register(bridge);
+        new RawHandler(new RawRequestService(_http, _time), ActiveAccountAsync).Register(bridge);
     }
 
     public async ValueTask DisposeAsync()
