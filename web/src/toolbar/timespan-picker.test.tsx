@@ -59,6 +59,18 @@ describe('TimespanPicker', () => {
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
+  it('custom_moves_focus_into_the_form_and_back_returns_it_to_custom', () => {
+    render(<Picker onChange={() => undefined} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Timespan: 30 days' }));
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: '30 days' }));
+
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Custom…' }));
+    expect(document.activeElement).toBe(screen.getByLabelText('Start'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: 'Custom…' }));
+  });
+
   it('custom_timespan_over_30_days_is_refused', () => {
     const onChange = vi.fn();
     render(<Picker onChange={onChange} />);

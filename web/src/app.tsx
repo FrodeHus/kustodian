@@ -512,6 +512,7 @@ export function App() {
                     picker={picker}
                     onPicker={setPicker}
                     accountKey={accountKey}
+                    onSignIn={() => setAccountsOpen(true)}
                   />
                 )}
                 {/* A raw tab has no query: the editor stays mounted for the other tabs, hidden. */}
@@ -614,9 +615,11 @@ interface ToolbarProps {
   onPicker: (picker: 'timespan' | 'scope' | null) => void;
   /** The active account, which the scope picker's "Grant Azure access" asks consent for. */
   accountKey: string | undefined;
+  /** Opens sign-in, when the scope picker's lists need the account to sign in again. */
+  onSignIn: () => void;
 }
 
-function Toolbar({ tab, onRun, onFormat, paramCount, paramsOpen, onParams, explaining, onExplain, picker, onPicker, accountKey }: ToolbarProps) {
+function Toolbar({ tab, onRun, onFormat, paramCount, paramsOpen, onParams, explaining, onExplain, picker, onPicker, accountKey, onSignIn }: ToolbarProps) {
   const running = tab.run?.state === 'running';
   const setOptions = (change: Partial<QueryOptions>) =>
     useTabs.getState().setOptions(tab.id, { timespan: tab.options?.timespan ?? null, scope: tab.options?.scope ?? null, ...change });
@@ -647,6 +650,7 @@ function Toolbar({ tab, onRun, onFormat, paramCount, paramsOpen, onParams, expla
           scope={tab.options?.scope}
           onChange={(scope) => setOptions({ scope })}
           accountKey={accountKey}
+          onSignIn={onSignIn}
           open={picker === 'scope'}
           onOpenChange={(open) => onPicker(open ? 'scope' : null)}
         />

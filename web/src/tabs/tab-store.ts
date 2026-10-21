@@ -161,7 +161,7 @@ interface TabsState {
    * host's cache. A raw request tab never runs. */
   run(id: string, mode: RunMode, opts?: { refresh?: boolean }): Promise<void>;
   /** Runs again what the tab's last run sent, from where it began, with the tab's options now (after granting Azure access,
-   * say); the cursor may have moved since. Does nothing when the tab has never run. */
+   * say); the cursor may have moved since. Does nothing when the tab has never run, or its source has changed since the run. */
   rerun(id: string): Promise<void>;
   cancel(id: string): void;
 }
@@ -348,7 +348,9 @@ export const useTabs = create<TabsState>()((set, get) => {
     async rerun(id) {
       const tab = get().tabs.find((t) => t.id === id);
       const last = tab?.run;
-      if (tab && tab.source !== 'raw' && last?.kql !== undefined) {
+      // Ruling 6: only to the source the run went to; a tab whose source changed since isn't run (its text was another
+      // source's query).
+      if (tab && tab.source !== 'raw' && last?.kql !== undefined && (last.source ?? 'graph') === tab.source) {
         await send(tab, last.kql, last.origin, false);
       }
     },

@@ -139,9 +139,23 @@ function TimespanMenu({ current, onChoose }: { current: string; onChoose: (times
   const [end, setEnd] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
 
+  const startField = useRef<HTMLInputElement>(null);
+  const customItem = useRef<HTMLButtonElement>(null);
+  /** The custom form has been shown: coming back from it puts focus on "Custom…", not on the checked item. */
+  const wasCustom = useRef(false);
+
+  // Focus goes where the menu now is: the checked item when it opens, the form's first field after "Custom…", and "Custom…"
+  // again after "Back".
   useEffect(() => {
-    ref.current?.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus();
-  }, []);
+    if (custom) {
+      wasCustom.current = true;
+      startField.current?.focus();
+    } else if (wasCustom.current) {
+      customItem.current?.focus();
+    } else {
+      ref.current?.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus();
+    }
+  }, [custom]);
 
   const startCustom = () => {
     // The range shown first: the tab's own, or the last 7 days.
@@ -167,7 +181,7 @@ function TimespanMenu({ current, onChoose }: { current: string; onChoose: (times
       <div className="menu" role="dialog" aria-label="Custom timespan" style={{ left: 0, top: 36, width: 300, padding: 12, gap: 8 }} onMouseDown={keepFocus}>
         <label className="flex items-center gap-2 text-[12px]">
           <span className="w-10">Start</span>
-          <input className="textbox h-[28px] flex-1" type="datetime-local" aria-label="Start" value={start} onChange={(e) => setStart(e.target.value)} />
+          <input ref={startField} className="textbox h-[28px] flex-1" type="datetime-local" aria-label="Start" value={start} onChange={(e) => setStart(e.target.value)} />
         </label>
         <label className="flex items-center gap-2 text-[12px]">
           <span className="w-10">End</span>
@@ -221,7 +235,7 @@ function TimespanMenu({ current, onChoose }: { current: string; onChoose: (times
           {p.label}
         </button>
       ))}
-      <button type="button" role="menuitemradio" aria-checked={!isPreset(current)} className={isPreset(current) ? undefined : 'on'} onClick={startCustom}>
+      <button ref={customItem} type="button" role="menuitemradio" aria-checked={!isPreset(current)} className={isPreset(current) ? undefined : 'on'} onClick={startCustom}>
         Custom…
       </button>
     </div>

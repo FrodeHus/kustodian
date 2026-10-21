@@ -37,7 +37,7 @@ beforeEach(() => {
   call.mockImplementation((method: string) => answers[method]?.() ?? Promise.resolve(null));
 });
 
-function Picker({ initial = null, onChange }: { initial?: ArgScope | null; onChange: (scope: ArgScope) => void }) {
+function Picker({ initial = null, onChange, onSignIn = () => undefined }: { initial?: ArgScope | null; onChange: (scope: ArgScope) => void; onSignIn?: () => void }) {
   const [scope, setScope] = useState<ArgScope | null>(initial);
   const [open, setOpen] = useState(false);
   return (
@@ -45,6 +45,7 @@ function Picker({ initial = null, onChange }: { initial?: ArgScope | null; onCha
       <ScopePicker
         scope={scope}
         accountKey="k1"
+        onSignIn={onSignIn}
         open={open}
         onOpenChange={setOpen}
         onChange={(s) => {
@@ -114,6 +115,57 @@ describe('ScopePicker', () => {
     await screen.findByRole('checkbox', { name: 'Contoso Dev/Test' });
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('scope_picker_stops_at_100_subscriptions', async () => {
+    const id = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
+    const many = Array.from({ length: 101 }, (_, n) => ({ id: id(n + 1), name: `Sub ${n + 1}`, tenantId: 't1', state: 'Enabled' }));
+    answers['arm.subscriptions'] = () => Promise.resolve({ subscriptions: many });
+    const onChange = vi.fn();
+    render(<Picker initial={{ kind: 'subscriptions', ids: many.slice(0, 100).map((s) => s.id) }} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Scope: 100 subscriptions' }));
+
+    const last = (await screen.findByRole('checkbox', { name: 'Sub 101' })) as HTMLInputElement;
+    expect(last.disabled).toBe(true);
+    expect((screen.getByRole('checkbox', { name: 'Sub 1' }) as HTMLInputElement).disabled).toBe(false);
+    expect(screen.getByText('A scope takes at most 100 subscriptions.')).toBeTruthy();
+
+    // Unchecking one frees a place.
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Sub 1' }));
+    expect((screen.getByRole('checkbox', { name: 'Sub 101' }) as HTMLInputElement).disabled).toBe(false);
+    expect(screen.queryByText('A scope takes at most 100 subscriptions.')).toBeNull();
+  });
+
+  it('scope_ids_not_in_this_account_are_listed_and_can_be_removed', async () => {
+    const gone = '00000000-0000-0000-0000-0000000000ff';
+    const onChange = vi.fn();
+    render(<Picker initial={{ kind: 'subscriptions', ids: [PROD, gone] }} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Scope: 2 subscriptions' }));
+
+    const unknown = (await screen.findByRole('checkbox', { name: `${gone} (not found in this account)` })) as HTMLInputElement;
+    expect(unknown.checked).toBe(true);
+    expect(screen.getByText('Not found in this account')).toBeTruthy();
+    fireEvent.click(unknown);
+
+    expect(onChange).toHaveBeenLastCalledWith({ kind: 'subscriptions', ids: [PROD] });
+    expect(screen.queryByRole('checkbox', { name: `${gone} (not found in this account)` })).toBeNull();
+  });
+
+  it('scope_picker_sign_in_needed_offers_sign_in_and_each_error_stays_in_its_view', async () => {
+    answers['arm.managementGroups'] = () => Promise.reject(new BridgeError('signInNeeded', 'Sign in again to list management groups.'));
+    const onSignIn = vi.fn();
+    render(<Picker onChange={() => undefined} onSignIn={onSignIn} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Scope: all I can see' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Subscriptions' }));
+
+    await screen.findByRole('checkbox', { name: 'Contoso Production' });
+    expect(screen.queryByText('Sign in again to list management groups.')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Management group' }));
+    expect(screen.getByText('Sign in again to list management groups.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(onSignIn).toHaveBeenCalledOnce();
   });
 
   it('scope_picker_offers_consent_and_reloads_after_it', async () => {

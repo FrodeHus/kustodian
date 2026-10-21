@@ -185,6 +185,25 @@ describe('RunStatus', () => {
     expect(call.mock.calls.filter((c) => c[0] === 'query.run')).toHaveLength(2);
   });
 
+  it('consent_does_not_rerun_a_tab_whose_source_changed', async () => {
+    call.mockImplementation((method: string) =>
+      Promise.resolve(method === 'query.run' ? result({ outcome: 'consentNeeded', message: 'Grant access.', rows: [], columns: [], total: 0, tables: [] }) : {}),
+    );
+    const id = useTabs.getState().open('arg');
+    useTabs.getState().setText(id, 'Resources | take 5');
+    await useTabs.getState().run(id, 'all');
+    // Ruling 6: the Resource Graph query must never go to Graph; access is still granted.
+    useTabs.getState().setSource(id, 'graph');
+
+    render(<RunStatus run={useTabs.getState().tabs[0]?.run} accountKey="k1" onConsented={() => void useTabs.getState().rerun(id)} onSignIn={() => undefined} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Grant Azure access' }));
+
+    await waitFor(() => expect(call).toHaveBeenCalledWith('account.consent', { key: 'k1', audience: 'arm' }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(call.mock.calls.filter((c) => c[0] === 'query.run')).toHaveLength(1);
+    expect(useTabs.getState().tabs[0]?.run?.source).toBe('arg');
+  });
+
   it('consent_cancelled_is_quiet_and_another_account_is_an_error', async () => {
     const consentNeeded = done(result({ outcome: 'consentNeeded', message: 'Grant access.', rows: [], columns: [], total: 0, tables: [] }));
     const onConsented = vi.fn();

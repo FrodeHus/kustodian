@@ -19,11 +19,23 @@ const KINDS: { kind: ArgScope['kind']; label: string }[] = [
 /** A subscription id as the list shows it: its first and last four characters. */
 const shortId = (id: string) => (id.length > 12 ? `${id.slice(0, 4)}…${id.slice(-4)}` : id);
 
+/** Why a list couldn't be read, and what helps: granting Azure access, signing in again, or nothing the picker can offer. */
+interface Problem {
+  text: string;
+  fix: 'consent' | 'signIn' | null;
+}
+
+const problemOf = (e: unknown): Problem => ({
+  text: errorText(e),
+  fix: e instanceof BridgeError && e.code === 'consentNeeded' ? 'consent' : e instanceof BridgeError && e.code === 'signInNeeded' ? 'signIn' : null,
+});
+
+/** Each list and why it couldn't be read; a list's problem shows in its own view only. */
 interface Lists {
   subscriptions?: ArmSubscription[];
+  subscriptionsProblem?: Problem;
   groups?: ArmManagementGroupsAnswer;
-  /** Why a list couldn't be read; `consent` when Azure access needs granting first. */
-  problem?: { text: string; consent: boolean };
+  groupsProblem?: Problem;
 }
 
 interface ScopePickerProps {
@@ -32,6 +44,8 @@ interface ScopePickerProps {
   onChange: (scope: ArgScope) => void;
   /** The active account, which "Grant Azure access" asks consent for. */
   accountKey: string | undefined;
+  /** Opens sign-in, when a list needs the account to sign in again. */
+  onSignIn: () => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -40,10 +54,11 @@ interface ScopePickerProps {
  * The Resource Graph tab's scope (mockup: ResourceGraph; spec 8.2): subscriptions (several, with a search), one management group,
  * or "all I can see". The trigger says which: "Scope: 3 subscriptions", "Scope: {group}" or "Scope: all I can see". The lists are
  * read from ARM each time the picker opens (never before: spec 6.7); when Azure access needs granting, it offers "Grant Azure
- * access" and reads them again after. The picker closes on a click outside it or Esc, never on blur (macOS WebKit doesn't focus
- * a clicked button), and a mousedown in it doesn't move focus, except into the search.
+ * access" and reads them again after, and when the account must sign in again, "Sign in". Subscriptions in the scope that this
+ * account's list lacks are listed too, so they can be removed. The picker closes on a click outside it or Esc, never on blur
+ * (macOS WebKit doesn't focus a clicked button), and a mousedown in it doesn't move focus, except into the search.
  */
-export function ScopePicker({ scope, onChange, accountKey, open, onOpenChange }: ScopePickerProps) {
+export function ScopePicker({ scope, onChange, accountKey, onSignIn, open, onOpenChange }: ScopePickerProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -80,13 +95,20 @@ export function ScopePicker({ scope, onChange, accountKey, open, onOpenChange }:
       >
         Scope: {scopeText(scope)} <span aria-hidden="true">▾</span>
       </button>
-      {open && <ScopeDialog scope={scope ?? ALL} onChange={onChange} accountKey={accountKey} />}
+      {open && <ScopeDialog scope={scope ?? ALL} onChange={onChange} accountKey={accountKey} onSignIn={onSignIn} />}
     </div>
   );
 }
 
+interface ScopeDialogProps {
+  scope: ArgScope;
+  onChange: (scope: ArgScope) => void;
+  accountKey: string | undefined;
+  onSignIn: () => void;
+}
+
 /** The open picker: mounted each time it opens, so it starts on the tab's kind and reads the lists afresh. */
-function ScopeDialog({ scope, onChange, accountKey }: { scope: ArgScope; onChange: (scope: ArgScope) => void; accountKey: string | undefined }) {
+function ScopeDialog({ scope, onChange, accountKey, onSignIn }: ScopeDialogProps) {
   const ref = useRef<HTMLDivElement>(null);
   /** The kind shown; choosing Subscriptions or Management group changes the scope only once one is picked. */
   const [kind, setKind] = useState<ArgScope['kind']>(scope.kind);
@@ -102,13 +124,11 @@ function ScopeDialog({ scope, onChange, accountKey }: { scope: ArgScope; onChang
         if (read !== reads.current) {
           return;
         }
-        const failure = [subscriptions, groups].flatMap((r) => (r.status === 'rejected' ? [r.reason as unknown] : []));
-        const consent = failure.find((e) => e instanceof BridgeError && e.code === 'consentNeeded');
-        const first = consent ?? failure[0];
         setLists({
           subscriptions: subscriptions.status === 'fulfilled' ? subscriptions.value.subscriptions : undefined,
+          subscriptionsProblem: subscriptions.status === 'rejected' ? problemOf(subscriptions.reason) : undefined,
           groups: groups.status === 'fulfilled' ? groups.value : undefined,
-          problem: first === undefined ? undefined : { text: errorText(first), consent: consent !== undefined },
+          groupsProblem: groups.status === 'rejected' ? problemOf(groups.reason) : undefined,
         });
       },
     );
@@ -143,7 +163,11 @@ function ScopeDialog({ scope, onChange, accountKey }: { scope: ArgScope; onChang
   const needle = search.trim().toLowerCase();
   const subscriptions = lists?.subscriptions ?? [];
   const shown = subscriptions.filter((s) => !needle || s.name.toLowerCase().includes(needle) || s.id.toLowerCase().includes(needle));
+  // Ids in the scope this account's list lacks (a restored or saved scope, another account's): they count toward the limit, so
+  // they are listed to be removed.
+  const unknown = chosen.filter((id) => !subscriptions.some((s) => s.id === id) && (!needle || id.toLowerCase().includes(needle)));
   const full = chosen.length >= MAX_SUBSCRIPTIONS;
+  const problem = kind === 'subscriptions' ? lists?.subscriptionsProblem : kind === 'managementGroup' ? lists?.groupsProblem : undefined;
 
   return (
     <div ref={ref} className="menu" role="dialog" aria-label="Query scope" style={{ left: 0, top: 36, width: 420, padding: 12, gap: 8 }} onMouseDown={keepFocus}>
@@ -161,12 +185,17 @@ function ScopeDialog({ scope, onChange, accountKey }: { scope: ArgScope; onChang
           </button>
         ))}
       </div>
-      {lists?.problem && kind !== 'all' && (
+      {problem && (
         <div className="flex flex-wrap items-center gap-2 text-[12px]">
           <span role="alert" className="min-w-0 text-bad">
-            {lists.problem.text}
+            {problem.text}
           </span>
-          {lists.problem.consent && (
+          {problem.fix === 'signIn' && (
+            <button type="button" className="btn primary shrink-0" onClick={onSignIn}>
+              Sign in
+            </button>
+          )}
+          {problem.fix === 'consent' && (
             <ConsentButton
               accountKey={accountKey}
               onGranted={() => {
@@ -202,7 +231,18 @@ function ScopeDialog({ scope, onChange, accountKey }: { scope: ArgScope; onChang
                 </label>
               );
             })}
-            {shown.length === 0 && <span className="faint text-[12px]">{needle ? 'No subscription matches.' : 'No subscriptions to pick.'}</span>}
+            {unknown.map((id) => (
+              <label key={id} className="flex h-[30px] items-center gap-2.5 px-1.5">
+                <input type="checkbox" aria-label={`${id} (not found in this account)`} checked onChange={() => toggle(id, false)} />
+                <span className="mono truncate text-[12px]" title={id}>
+                  {shortId(id)}
+                </span>
+                <span className="ml-auto shrink-0 text-[11px] text-warn">Not found in this account</span>
+              </label>
+            ))}
+            {shown.length === 0 && unknown.length === 0 && (
+              <span className="faint text-[12px]">{needle ? 'No subscription matches.' : 'No subscriptions to pick.'}</span>
+            )}
           </div>
           {full && <span className="text-[12px] text-warn">A scope takes at most {MAX_SUBSCRIPTIONS} subscriptions.</span>}
         </>
