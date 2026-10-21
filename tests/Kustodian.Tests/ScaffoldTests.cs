@@ -4,8 +4,8 @@ namespace Kustodian.Tests;
 
 public class ScaffoldTests
 {
-    [Fact(DisplayName = "Solution_has_no_reference_outside_kustodian")]
-    public void SolutionHasNoReferenceOutsideKustodian()
+    [Fact]
+    public void Solution_has_no_reference_outside_kustodian()
     {
         var root = FindSolutionRoot();
         var files = Directory.EnumerateFiles(root, "*.csproj", SearchOption.AllDirectories)
