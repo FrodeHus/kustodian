@@ -32,7 +32,28 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
         public GraphFetch Fetch { get; } = fetch;
     }
 
-    public async Task<RunResult> RunAsync(string accountKey, string kql, bool refresh, IProgress<RunEvent>? progress, CancellationToken ct)
+    public Task<RunResult> RunAsync(string accountKey, string kql, bool refresh, IProgress<RunEvent>? progress, CancellationToken ct)
+        => RunAsync(accountKey, kql, [], refresh, progress, ct);
+
+    /// <summary>A run of <paramref name="kql"/> with its <paramref name="parameters"/> substituted
+    /// (<see cref="ParameterSubstitution.Apply"/>). A required parameter without a value, or a value that isn't of its type, is
+    /// a <see cref="RunOutcome.QueryError"/> without a position; a query error's position is in <paramref name="kql"/> as
+    /// written, not in the substituted text.</summary>
+    public async Task<RunResult> RunAsync(string accountKey, string kql, IReadOnlyList<ParameterValue> parameters, bool refresh,
+        IProgress<RunEvent>? progress, CancellationToken ct)
+    {
+        var substitution = ParameterSubstitution.Apply(kql, parameters);
+        if (substitution.Missing is { } missing)
+            return new RunResult(RunOutcome.QueryError, $"Fill in {missing} before running.", null, [], [], 0, [], TimeSpan.Zero);
+        if (substitution.Error is { } invalid)
+            return new RunResult(RunOutcome.QueryError, invalid.Message, null, [], [], 0, [], TimeSpan.Zero);
+        return await RunSubstitutedAsync(accountKey, substitution.Text!, substitution.MapBack, refresh, progress, ct);
+    }
+
+    /// <summary>The run of a query whose parameters are substituted; <paramref name="mapBack"/> maps a position in it to the
+    /// query as written.</summary>
+    private async Task<RunResult> RunSubstitutedAsync(string accountKey, string kql, Func<int, int, (int Line, int Column)> mapBack,
+        bool refresh, IProgress<RunEvent>? progress, CancellationToken ct)
     {
         var started = time.GetTimestamp();
         var now = time.GetUtcNow();
@@ -56,7 +77,10 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
             progress?.Report(new RunEvent("planning", "Planning the query"));
             var plan = GraphQueryPlanner.Plan(schema, kql, now);
             if (plan.Error is { } error)
-                return End(RunOutcome.QueryError, error.Message, error);
+            {
+                var (line, column) = mapBack(error.Line, error.Column);
+                return End(RunOutcome.QueryError, error.Message, error with { Line = line, Column = column });
+            }
             if (plan.Refusal is { } refusal)
                 return End(RunOutcome.Refused, refusal);
             fetches = plan.Fetches;

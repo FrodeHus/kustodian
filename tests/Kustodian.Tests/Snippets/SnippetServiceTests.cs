@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Kustodian.Graph.Query;
 using Kustodian.Graph.Schema;
 using Kustodian.Library;
@@ -7,7 +6,7 @@ using Kustodian.Storage;
 
 namespace Kustodian.Tests.Snippets;
 
-public sealed partial class SnippetServiceTests : IDisposable
+public sealed class SnippetServiceTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "kustodian-tests-" + Guid.NewGuid().ToString("N"));
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -22,9 +21,6 @@ public sealed partial class SnippetServiceTests : IDisposable
 
     private SnippetService NewService() => new(new JsonFileStore(_dir));
 
-    [GeneratedRegex(@"\{(\w+)\}")]
-    private static partial Regex Placeholder();
-
     [Fact]
     public async Task Builtin_graph_snippets_all_plan_without_error()
     {
@@ -34,12 +30,13 @@ public sealed partial class SnippetServiceTests : IDisposable
         Assert.All(snippets, s => Assert.Equal("Identity checks", s.Group));
         foreach (var snippet in snippets)
         {
-            // Task 5 swaps this for ParameterSubstitution; until then each placeholder takes its declared default.
-            var names = Placeholder().Matches(snippet.Text).Select(m => m.Groups[1].Value).Distinct().Order().ToList();
-            Assert.Equal(names, snippet.Parameters.Select(p => p.Name).Order());
-            var kql = Placeholder().Replace(snippet.Text, m => snippet.Parameters.Single(p => p.Name == m.Groups[1].Value).Value);
+            // Each placeholder is declared, and each takes its declared default.
+            Assert.Equal(ParameterSubstitution.Find(snippet.Text).Order(), snippet.Parameters.Select(p => p.Name).Order());
+            var substituted = ParameterSubstitution.Apply(snippet.Text,
+                snippet.Parameters.Select(p => new ParameterValue(p.Name, p.Type, p.Value, p.Required)).ToList());
+            Assert.True(substituted.Text is not null, $"{snippet.Name}: {substituted.Missing}{substituted.Error?.Message}");
 
-            var plan = GraphQueryPlanner.Plan(GraphSchemaCatalog.Beta, kql, DateTimeOffset.UnixEpoch);
+            var plan = GraphQueryPlanner.Plan(GraphSchemaCatalog.Beta, substituted.Text, DateTimeOffset.UnixEpoch);
 
             Assert.True(plan.Error is null && plan.Refusal is null, $"{snippet.Name}: {plan.Error?.Message}{plan.Refusal}");
         }

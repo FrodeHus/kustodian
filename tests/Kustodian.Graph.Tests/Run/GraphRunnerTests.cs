@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using Kustodian.Graph.Engine;
 using Kustodian.Graph.Fetch;
+using Kustodian.Graph.Query;
 using Kustodian.Graph.Run;
 using Kustodian.Graph.Schema;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -29,6 +30,9 @@ public sealed class GraphRunnerTests
 
         public Task<RunResult> RunAsync(string kql = Kql, IProgress<RunEvent>? progress = null, CancellationToken ct = default)
             => runner.RunAsync(Account, kql, refresh: false, progress, ct);
+
+        public Task<RunResult> RunAsync(string kql, IReadOnlyList<ParameterValue> parameters, CancellationToken ct)
+            => runner.RunAsync(Account, kql, parameters, refresh: false, progress: null, ct);
 
         public ValueTask DisposeAsync() => engine.DisposeAsync();
     }
@@ -233,6 +237,62 @@ public sealed class GraphRunnerTests
         Assert.Equal(1, r.Error.Line);
         Assert.True(r.Error.Column > 0);
         Assert.Equal(r.Error.Message, r.Message);
+        Assert.Empty(h.Graph.Requests);
+    }
+
+    [Fact]
+    public async Task Run_substitutes_parameters_as_literals()
+    {
+        await using var h = NewHost();
+        h.Graph.Answer = (_, _) => Task.FromResult(FakeGraph.Collection([App("Pay'roll"), App("Wiki")]));
+
+        var r = await h.RunAsync("applications | where displayName == {name} | project displayName",
+            [new ParameterValue("name", "text", "Pay'roll", true)], Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        Assert.Equal(["Pay'roll"], Column(r, "displayName"));
+        Assert.Contains("$filter=displayName eq 'Pay''roll'", Assert.Single(h.Graph.Requests), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Missing_required_parameter_is_query_error_without_position()
+    {
+        await using var h = NewHost();
+
+        var r = await h.RunAsync("applications | where displayName == {name}", [new ParameterValue("name", "text", "", true)], Ct);
+
+        Assert.Equal(RunOutcome.QueryError, r.Outcome);
+        Assert.Equal("Fill in name before running.", r.Message);
+        Assert.Null(r.Error);
+        Assert.Empty(h.Graph.Requests);
+    }
+
+    [Fact]
+    public async Task Bad_parameter_value_is_query_error_with_the_rule()
+    {
+        await using var h = NewHost();
+
+        var r = await h.RunAsync("applications | where createdDateTime > ago({withinDays})",
+            [new ParameterValue("withinDays", "timespan", "7d) | take 1", true)], Ct);
+
+        Assert.Equal(RunOutcome.QueryError, r.Outcome);
+        Assert.Equal("withinDays: a timespan like 7d, 12h or 30m.", r.Message);
+        Assert.Null(r.Error);
+        Assert.Empty(h.Graph.Requests);
+    }
+
+    [Fact]
+    public async Task Query_error_after_a_parameter_maps_back_to_the_original_position()
+    {
+        await using var h = NewHost();
+        const string kql = "applications\n| where displayName == {name} | wher x";
+
+        var r = await h.RunAsync(kql, [new ParameterValue("name", "text", new string('a', 100), false)], Ct);
+
+        Assert.Equal(RunOutcome.QueryError, r.Outcome);
+        Assert.NotNull(r.Error);
+        Assert.Equal(2, r.Error.Line);
+        Assert.Equal(kql.Split('\n')[1].IndexOf("wher x", StringComparison.Ordinal) + 1, r.Error.Column);
         Assert.Empty(h.Graph.Requests);
     }
 

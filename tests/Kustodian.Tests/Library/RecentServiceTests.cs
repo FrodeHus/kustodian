@@ -104,7 +104,7 @@ public sealed class RecentServiceTests : IDisposable
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var bridge = new Messaging.Bridge(_ => { });
-        new QueryHandler(GraphSchemaCatalog.Beta, () => Task.FromResult<string?>("acct"), async (_, kql, _, _, ct) =>
+        new QueryHandler(GraphSchemaCatalog.Beta, () => Task.FromResult<string?>("acct"), async (_, kql, _, _, _, ct) =>
         {
             if (kql == "slow")
             {
@@ -139,7 +139,7 @@ public sealed class RecentServiceTests : IDisposable
         Directory.CreateDirectory(RecentPath);
         var bridge = new Messaging.Bridge(_ => { });
         new QueryHandler(GraphSchemaCatalog.Beta, () => Task.FromResult<string?>("acct"),
-            (_, _, _, _, _) => Task.FromResult(new RunResult(RunOutcome.Ok, null, null, [], [], 0, [], TimeSpan.Zero)), NewService())
+            (_, _, _, _, _, _) => Task.FromResult(new RunResult(RunOutcome.Ok, null, null, [], [], 0, [], TimeSpan.Zero)), NewService())
             .Register(bridge);
 
         var reply = await bridge.HandleAsync(RunRequest("r1", "t1", "users"));
@@ -152,6 +152,6 @@ public sealed class RecentServiceTests : IDisposable
     {
         id,
         method = "query.run",
-        @params = new { tabId, source = "graph", kql, refresh = false, parameters = new Dictionary<string, string> { ["n"] = "1" } },
+        @params = new { tabId, source = "graph", kql, refresh = false, parameters = new[] { new { name = "n", type = "number", value = "1", required = true }, new { name = "n", type = "number", value = "2", required = false } } },
     });
 }

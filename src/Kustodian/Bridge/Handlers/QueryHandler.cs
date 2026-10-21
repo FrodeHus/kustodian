@@ -1,24 +1,29 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Kustodian.Graph.Query;
 using Kustodian.Graph.Run;
 using Kustodian.Graph.Schema;
 using Kustodian.Library;
+using Kustodian.Storage;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Kustodian.Messaging.Handlers;
 
-/// <summary>One Graph run, as <see cref="GraphRunner.RunAsync"/> does it.</summary>
-public delegate Task<RunResult> GraphRun(string accountKey, string kql, bool refresh, IProgress<RunEvent>? progress, CancellationToken ct);
+/// <summary>One Graph run with its parameters, as <see cref="GraphRunner"/> does it.</summary>
+public delegate Task<RunResult> GraphRun(string accountKey, string kql, IReadOnlyList<ParameterValue> parameters, bool refresh,
+    IProgress<RunEvent>? progress, CancellationToken ct);
 
 /// <summary><c>query.complete</c>, <c>query.run</c> and <c>query.cancel</c>. Each tab has at most one run: a new run on a tab
 /// cancels the one before, and <c>query.cancel</c> cancels it. A cancelled run answers with the error code
 /// <c>cancelled</c>. Every run that finishes is added to <paramref name="recent"/> (when given); a cancelled run is not, and
-/// a failure to write Recent is logged and never fails the run.</summary>
+/// a failure to write Recent is logged and never fails the run. A run's <c>parameters</c> are a list of
+/// <see cref="ParameterValue"/>; fields missing from (or null in) one take their defaults.</summary>
 public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeAccount, GraphRun run, RecentService? recent = null,
     TimeProvider? time = null, ILogger<QueryHandler>? logger = null)
 {
     private const string GraphSource = "graph";
+    private static readonly ParameterValue DefaultParameter = new("", "text", "", false);
 
     private readonly TimeProvider _time = time ?? TimeProvider.System;
     private readonly ILogger<QueryHandler> _log = logger ?? NullLogger<QueryHandler>.Instance;
@@ -33,7 +38,7 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
             var request = BridgeJson.Params<CompleteParams>(p);
             return Task.Run<object?>(() => Complete(request));
         });
-        bridge.Register("query.run", async (p, ct) => await RunAsync(bridge, BridgeJson.Params<RunParams>(p), ct));
+        bridge.Register("query.run", async (p, ct) => await RunAsync(bridge, ReadRun(p), ct));
         bridge.Register("query.cancel", (p, _) =>
         {
             Cancel(BridgeJson.Params<CancelParams>(p));
@@ -86,7 +91,7 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
             cts.Token.ThrowIfCancellationRequested();
             var progress = new TabProgress(bridge, tabId);
             var started = _time.GetUtcNow();
-            var result = await run(account, p.Kql, p.Refresh, progress, cts.Token);
+            var result = await run(account, p.Kql, p.Parameters ?? [], p.Refresh, progress, cts.Token);
             await RecordAsync(p, started, result);
             return result;
         }
@@ -115,7 +120,14 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
 
         try
         {
-            var run = new RecentRun(Guid.NewGuid().ToString("D"), p.Source!, p.Kql!, p.Parameters ?? new Dictionary<string, string>(),
+            // Recent keeps each parameter's value by name; the first of a repeated name wins, as in the run.
+            var values = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var parameter in p.Parameters ?? [])
+            {
+                values.TryAdd(parameter.Name, parameter.Value);
+            }
+
+            var run = new RecentRun(Guid.NewGuid().ToString("D"), p.Source!, p.Kql!, values,
                 started, (long)Math.Round(result.Duration.TotalMilliseconds), result.Total,
                 JsonNamingPolicy.CamelCase.ConvertName(result.Outcome.ToString()));
             await recent.AddAsync(run, CancellationToken.None);
@@ -124,6 +136,19 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
         {
             _log.LogWarning(ex, "The run could not be added to Recent");
         }
+    }
+
+    /// <summary>A <c>query.run</c>'s params, each parameter's missing fields taken from <see cref="DefaultParameter"/>.</summary>
+    private static RunParams ReadRun(JsonElement p)
+    {
+        if (p.ValueKind != JsonValueKind.Object)
+        {
+            return BridgeJson.Params<RunParams>(p);
+        }
+
+        var defaults = JsonSerializer.SerializeToNode(DefaultParameter, BridgeJson.Options)!.AsObject();
+        var filled = JsonDefaults.FillElements(JsonObject.Create(p)!, nameof(RunParams.Parameters), defaults);
+        return BridgeJson.Params<RunParams>(JsonSerializer.SerializeToElement(filled, BridgeJson.Options));
     }
 
     private void Cancel(CancelParams p)
@@ -179,7 +204,7 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
     private sealed record CompleteParams(string? Source, string? Kql, int Position);
 
     private sealed record RunParams(string? TabId, string? Source, string? Kql, bool Refresh,
-        IReadOnlyDictionary<string, string>? Parameters = null);
+        IReadOnlyList<ParameterValue>? Parameters = null);
 
     private sealed record CancelParams(string? TabId);
 }
