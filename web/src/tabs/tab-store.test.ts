@@ -302,4 +302,71 @@ describe('tab store', () => {
     expect(bridge.call).toHaveBeenLastCalledWith('query.run', expect.objectContaining({ source: 'hunting' }), expect.anything());
     expect(useTabs.getState().tabs[0]?.run?.source).toBe('hunting');
   });
+
+  it('hunting_run_sends_timespan_default_p30d', async () => {
+    bridge.call.mockResolvedValue(ok);
+    const id = useTabs.getState().open('hunting');
+    useTabs.getState().setText(id, 'DeviceInfo | take 5');
+
+    await useTabs.getState().run(id, 'all');
+    expect(bridge.call).toHaveBeenLastCalledWith(
+      'query.run',
+      expect.objectContaining({ source: 'hunting', options: { timespan: 'P30D', scope: null } }),
+      expect.any(AbortSignal),
+    );
+
+    // A picked timespan goes instead, and the run keeps what it had.
+    useTabs.getState().setOptions(id, { timespan: 'P7D', scope: null });
+    await useTabs.getState().run(id, 'all');
+    expect(bridge.call).toHaveBeenLastCalledWith('query.run', expect.objectContaining({ options: { timespan: 'P7D', scope: null } }), expect.anything());
+    expect(useTabs.getState().tabs[0]?.run?.options).toEqual({ timespan: 'P7D', scope: null });
+  });
+
+  it('arg_run_sends_scope', async () => {
+    bridge.call.mockResolvedValue(ok);
+    const id = useTabs.getState().open('arg');
+    useTabs.getState().setText(id, 'Resources | take 5');
+
+    await useTabs.getState().run(id, 'all');
+    expect(bridge.call).toHaveBeenLastCalledWith(
+      'query.run',
+      expect.objectContaining({ source: 'arg', options: { timespan: null, scope: { kind: 'all', ids: [] } } }),
+      expect.any(AbortSignal),
+    );
+
+    const scope = { kind: 'subscriptions' as const, ids: ['00000000-0000-0000-0000-000000000011'] };
+    // The timespan a tab had as a hunting tab isn't sent to Resource Graph.
+    useTabs.getState().setOptions(id, { timespan: 'P1D', scope });
+    await useTabs.getState().run(id, 'all');
+    expect(bridge.call).toHaveBeenLastCalledWith('query.run', expect.objectContaining({ options: { timespan: null, scope } }), expect.anything());
+  });
+
+  it('setOptions_marks_a_saved_tab_changed_and_rerun_sends_the_last_text_again', async () => {
+    bridge.call.mockResolvedValue(ok);
+    const saved = useTabs.getState().openWith({ source: 'arg', title: 'Saved', text: 'Resources\n\nResourceContainers', savedId: 's1' });
+    useTabs.getState().setOptions(saved, { timespan: null, scope: { kind: 'managementGroup', ids: ['contoso-platform'] } });
+    expect(useTabs.getState().tabs[0]).toMatchObject({ dirty: true, options: { scope: { kind: 'managementGroup', ids: ['contoso-platform'] } } });
+
+    useTabs.getState().setCursor(saved, { line: 3, column: 1, selection: '', selectionLine: 3, selectionColumn: 1 });
+    await useTabs.getState().run(saved, 'block');
+    // The cursor moves on; a rerun (after granting Azure access) sends what the run sent.
+    useTabs.getState().setCursor(saved, { line: 1, column: 1, selection: '', selectionLine: 1, selectionColumn: 1 });
+    await useTabs.getState().rerun(saved);
+
+    expect(bridge.call).toHaveBeenCalledTimes(2);
+    expect(bridge.call).toHaveBeenLastCalledWith('query.run', expect.objectContaining({ kql: 'ResourceContainers', refresh: false }), expect.anything());
+    expect(useTabs.getState().tabs[0]?.run?.origin).toEqual({ line: 3, column: 1 });
+  });
+
+  it('restore_and_openWith_keep_options', () => {
+    const options = { timespan: 'P1D', scope: null };
+    useTabs.getState().restore({
+      version: 1,
+      activeId: 'a',
+      tabs: [{ id: 'a', source: 'hunting', title: 'A', text: 'DeviceInfo', dirty: false, savedId: null, parameters: [], filePath: null, options }],
+    });
+    const opened = useTabs.getState().openWith({ source: 'hunting', title: 'B', text: '', options });
+    expect(useTabs.getState().tabs.map((t) => t.options)).toEqual([options, options]);
+    expect(useTabs.getState().tabs.find((t) => t.id === opened)?.dirty).toBe(false);
+  });
 });

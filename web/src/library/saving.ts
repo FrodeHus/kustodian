@@ -37,7 +37,8 @@ export async function saveToLibrary(tabId: string, name: string, folder: string 
   }
   const text = tab.text;
   const saved = await call<SavedQuery>('library.save', {
-    query: { id: asNew ? null : (tab.savedId ?? null), name, folder, source: tab.source, text, parameters: tab.parameters },
+    // The timespan and scope are saved with the query.
+    query: { id: asNew ? null : (tab.savedId ?? null), name, folder, source: tab.source, text, parameters: tab.parameters, options: tab.options ?? null },
   });
   // The next Save goes to the library, not to a file the tab came from.
   useTabs.getState().markSaved(tabId, { savedId: saved.id, filePath: null, title: saved.name, text });

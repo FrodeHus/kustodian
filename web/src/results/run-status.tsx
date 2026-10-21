@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ConsentButton } from '../signin/consent-button';
 import { editorPosition, type TabRun } from '../tabs/tab-store';
 import type { ArgScope, RunResult, Source, TableFetch } from '../wire';
 import { plural, scopeText, serverRequests } from './source-wording';
@@ -100,11 +101,15 @@ interface RunStatusProps {
   /** The Resource Graph scope the run had; none is "all I can see". */
   scope?: ArgScope | null;
   onSignIn: () => void;
+  /** The active account, which "Grant Azure access" asks consent for. */
+  accountKey?: string;
+  /** Azure access was granted after a run answered `consentNeeded`: the run goes again. */
+  onConsented?: () => void;
 }
 
 /** The line between the editor and the results: the run's progress, then how it ended and what it sent, worded for the source
- * the run went to. */
-export function RunStatus({ run, scope, onSignIn }: RunStatusProps) {
+ * the run went to. A run that needs Azure access offers "Grant Azure access", which runs it again once granted. */
+export function RunStatus({ run, scope, onSignIn, accountKey, onConsented }: RunStatusProps) {
   let content: ReactNode;
   let meta: string | null = null;
 
@@ -140,6 +145,7 @@ export function RunStatus({ run, scope, onSignIn }: RunStatusProps) {
             Sign in
           </button>
         )}
+        {result.outcome === 'consentNeeded' && <ConsentButton accountKey={accountKey} onGranted={() => onConsented?.()} />}
         {resultChips(result, run.source ?? 'graph', scope).map((chip, i) => (
           <span key={i} className={`chip${chip.tone ? ` ${chip.tone}` : ''}`} title={chip.title}>
             {chip.text}

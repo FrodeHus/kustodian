@@ -1,5 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { BridgeError } from '../bridge';
 import { useTabs } from '../tabs/tab-store';
 import type { RunResult, TableFetch } from '../wire';
 import { RunStatus } from './run-status';
@@ -157,5 +158,48 @@ describe('RunStatus', () => {
     expect(screen.getByText('2 pages · 3 subscriptions')).toBeTruthy();
     view.rerender(<RunStatus run={{ ...done(arg), source: 'arg' }} scope={{ kind: 'managementGroup', ids: ['contoso-platform'] }} onSignIn={() => undefined} />);
     expect(screen.getByText('2 pages · contoso-platform')).toBeTruthy();
+  });
+
+  it('consent_button_grants_and_reruns', async () => {
+    const message = 'Azure Resource Graph needs your consent to read Azure for this account.';
+    call.mockImplementation((method: string) =>
+      Promise.resolve(
+        method === 'query.run'
+          ? call.mock.calls.filter((c) => c[0] === 'query.run').length === 1
+            ? result({ outcome: 'consentNeeded', message, rows: [], columns: [], total: 0, tables: [] })
+            : result({ tables: [] })
+          : {},
+      ),
+    );
+    const id = useTabs.getState().open('arg');
+    useTabs.getState().setText(id, 'Resources | take 5');
+    await useTabs.getState().run(id, 'all');
+
+    const Status = () => <RunStatus run={useTabs((s) => s.tabs[0]?.run)} accountKey="k1" onConsented={() => void useTabs.getState().rerun(id)} onSignIn={() => undefined} />;
+    render(<Status />);
+    expect(screen.getByText(message)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Grant Azure access' }));
+
+    await screen.findByText('● 1 row');
+    expect(call).toHaveBeenCalledWith('account.consent', { key: 'k1', audience: 'arm' });
+    expect(call.mock.calls.filter((c) => c[0] === 'query.run')).toHaveLength(2);
+  });
+
+  it('consent_cancelled_is_quiet_and_another_account_is_an_error', async () => {
+    const consentNeeded = done(result({ outcome: 'consentNeeded', message: 'Grant access.', rows: [], columns: [], total: 0, tables: [] }));
+    const onConsented = vi.fn();
+    call.mockRejectedValueOnce(new BridgeError('cancelled', 'The request was cancelled.'));
+    render(<RunStatus run={{ ...consentNeeded, source: 'arg' }} accountKey="k1" onConsented={onConsented} onSignIn={() => undefined} />);
+    const grant = screen.getByRole('button', { name: 'Grant Azure access' });
+
+    fireEvent.click(grant);
+    await waitFor(() => expect((grant as HTMLButtonElement).disabled).toBe(false));
+    expect(screen.queryByText('The request was cancelled.')).toBeNull();
+
+    const other = 'You granted access as ola@contoso.com; sign in as kari@contoso.com.';
+    call.mockRejectedValueOnce(new BridgeError('failed', other));
+    fireEvent.click(grant);
+    expect(await screen.findByText(other)).toBeTruthy();
+    expect(onConsented).not.toHaveBeenCalled();
   });
 });

@@ -27,7 +27,9 @@ import { PANELS, type PanelName } from './side/panels';
 import { Rail, SidePanel } from './side/side-panel';
 import { runParameters, sentText, useTabs, type RunMode, type Tab, type TabCursor } from './tabs/tab-store';
 import { TabStrip } from './tabs/tab-strip';
-import type { AccountList, SchemaView, SettingsAnswer, Source } from './wire';
+import { ScopePicker } from './toolbar/scope-picker';
+import { TimespanPicker } from './toolbar/timespan-picker';
+import type { AccountList, QueryOptions, SchemaView, SettingsAnswer, Source } from './wire';
 
 // Monaco and the Kusto language service are several megabytes: a chunk of their own, loaded after the window is up.
 const KqlEditor = lazy(() => import('./editor/kql-editor'));
@@ -166,6 +168,8 @@ export function App() {
   const paletteShown = useRef(false);
   /** The tab Explain is showing for, what it explains, and the run it was opened after: a later run shows its result instead. */
   const [explain, setExplain] = useState<{ tabId: string; request: ExplainRequest; runId: string | undefined } | null>(null);
+  /** The toolbar picker that is open: the hunting tab's timespan or the Resource Graph tab's scope. */
+  const [picker, setPicker] = useState<'timespan' | 'scope' | null>(null);
   const editor = useRef<KqlEditorHandle>(null);
   const theme = useTheme();
 
@@ -199,6 +203,13 @@ export function App() {
       useTabs.subscribe((state, previous) => {
         if (state.tabs !== previous.tabs) {
           setExplain((open) => (open && state.tabs.find((t) => t.id === open.tabId)?.source !== 'graph' ? null : open));
+        }
+        // A picker closes when another tab comes forward, or its tab's source changes.
+        if (state.activeId !== previous.activeId) {
+          setPicker(null);
+        } else if (state.tabs !== previous.tabs) {
+          const source = state.tabs.find((t) => t.id === state.activeId)?.source;
+          setPicker((open) => (open === (source === 'hunting' ? 'timespan' : source === 'arg' ? 'scope' : null) ? open : null));
         }
       }),
     [],
@@ -307,6 +318,8 @@ export function App() {
         ),
         enabled: explainable,
       },
+      { id: 'toolbar.timespan', title: 'Pick timespan', group: 'Run', run: () => setPicker('timespan'), enabled: () => activeTab()?.source === 'hunting' },
+      { id: 'toolbar.scope', title: 'Pick scope', group: 'Run', run: () => setPicker('scope'), enabled: () => activeTab()?.source === 'arg' },
       { id: 'settings.open', title: 'Settings', group: 'Window', shortcut: 'Mod+Comma', run: () => setSettingsOpen(true) },
       { id: 'editor.format', title: 'Format the query', group: 'Editor', shortcut: 'Shift+Alt+F', run: () => editor.current?.format(), enabled: runnable },
       {
@@ -496,6 +509,9 @@ export function App() {
                     onParams={() => setParamsOpen((o) => !o)}
                     explaining={explaining !== null}
                     onExplain={() => runCommand('explain')}
+                    picker={picker}
+                    onPicker={setPicker}
+                    accountKey={accountKey}
                   />
                 )}
                 {/* A raw tab has no query: the editor stays mounted for the other tabs, hidden. */}
@@ -522,7 +538,13 @@ export function App() {
                         <ParamsForm tab={active} query={runText(active, cursor)} onRun={() => runActive('block')} />
                       </div>
                     )}
-                    <RunStatus run={active.run} onSignIn={() => setAccountsOpen(true)} />
+                    <RunStatus
+                      run={active.run}
+                      scope={active.run?.options?.scope}
+                      onSignIn={() => setAccountsOpen(true)}
+                      accountKey={accountKey}
+                      onConsented={() => void useTabs.getState().rerun(active.id)}
+                    />
                     {explaining ? (
                       <ExplainView request={explaining} onOpenRaw={(url) => openRaw({ path: url, version: 'beta' })} />
                     ) : (
@@ -587,10 +609,17 @@ interface ToolbarProps {
   /** Explain is showing for the tab. The button is there on Graph tabs only. */
   explaining: boolean;
   onExplain: () => void;
+  /** The picker that is open ("Pick timespan" and "Pick scope" open them too). */
+  picker: 'timespan' | 'scope' | null;
+  onPicker: (picker: 'timespan' | 'scope' | null) => void;
+  /** The active account, which the scope picker's "Grant Azure access" asks consent for. */
+  accountKey: string | undefined;
 }
 
-function Toolbar({ tab, onRun, onFormat, paramCount, paramsOpen, onParams, explaining, onExplain }: ToolbarProps) {
+function Toolbar({ tab, onRun, onFormat, paramCount, paramsOpen, onParams, explaining, onExplain, picker, onPicker, accountKey }: ToolbarProps) {
   const running = tab.run?.state === 'running';
+  const setOptions = (change: Partial<QueryOptions>) =>
+    useTabs.getState().setOptions(tab.id, { timespan: tab.options?.timespan ?? null, scope: tab.options?.scope ?? null, ...change });
   return (
     <div className="toolbar">
       <button type="button" className="btn primary" onClick={() => onRun('block')}>
@@ -605,6 +634,23 @@ function Toolbar({ tab, onRun, onFormat, paramCount, paramsOpen, onParams, expla
         Run all <span className="kbd">Shift Enter</span>
       </button>
       <span className="sep" aria-hidden="true" />
+      {tab.source === 'hunting' && (
+        <TimespanPicker
+          timespan={tab.options?.timespan}
+          onChange={(timespan) => setOptions({ timespan })}
+          open={picker === 'timespan'}
+          onOpenChange={(open) => onPicker(open ? 'timespan' : null)}
+        />
+      )}
+      {tab.source === 'arg' && (
+        <ScopePicker
+          scope={tab.options?.scope}
+          onChange={(scope) => setOptions({ scope })}
+          accountKey={accountKey}
+          open={picker === 'scope'}
+          onOpenChange={(open) => onPicker(open ? 'scope' : null)}
+        />
+      )}
       <button type="button" className="btn" disabled={!running} onClick={() => useTabs.getState().cancel(tab.id)}>
         Cancel
       </button>

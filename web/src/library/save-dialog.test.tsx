@@ -58,6 +58,7 @@ describe('SaveDialog', () => {
         source: 'graph',
         text: 'users | take {n}',
         parameters: [{ name: 'n', type: 'number', value: '3', required: false, choices: null }],
+        options: null,
       },
     });
     expect(tab()).toMatchObject({ title: 'Few users', savedId: 'new-id', dirty: false });

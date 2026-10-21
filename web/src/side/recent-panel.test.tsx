@@ -65,6 +65,16 @@ describe('RecentPanel', () => {
     expect(tabs[0]?.savedId).toBeUndefined();
   });
 
+  it('recent_open_again_restores_the_runs_scope', async () => {
+    const scope = { kind: 'managementGroup' as const, ids: ['contoso-platform'] };
+    listed = [{ ...runs[1]!, id: 'r3', source: 'arg', text: 'Resources | count', options: { timespan: null, scope } }];
+    render(<RecentPanel source="arg" />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /^Open the run “Resources \| count”/ }));
+
+    expect(useTabs.getState().tabs[0]).toMatchObject({ source: 'arg', options: { timespan: null, scope } });
+  });
+
   it('recent_clear_empties_the_list', async () => {
     render(<RecentPanel />);
     await screen.findAllByRole('button', { name: /^Open the run/ });

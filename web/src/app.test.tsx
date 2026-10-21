@@ -404,7 +404,7 @@ describe('App', () => {
 
     await waitFor(() =>
       expect(bridge.call).toHaveBeenCalledWith('library.save', {
-        query: { id: 'q1', name: 'Apps', folder: 'Inventory', source: 'graph', text: 'applications | take 5', parameters: [] },
+        query: { id: 'q1', name: 'Apps', folder: 'Inventory', source: 'graph', text: 'applications | take 5', parameters: [], options: null },
       }),
     );
     await waitFor(() => expect(useTabs.getState().tabs[0]?.dirty).toBe(false));
@@ -578,6 +578,53 @@ describe('App', () => {
     act(() => useTabs.getState().setSource(id, 'graph'));
     expect(screen.getByRole('button', { name: 'Explain' }).getAttribute('aria-pressed')).toBe('false');
     expect(bridge.call.mock.calls.filter(([m]) => m === 'query.explain')).toHaveLength(1);
+  });
+
+  it('app_pick_timespan_and_pick_scope_follow_the_source', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    answers['arm.subscriptions'] = () => ({ subscriptions: [{ id: '00000000-0000-0000-0000-000000000011', name: 'Production', tenantId: 't1', state: 'Enabled' }] });
+    answers['arm.managementGroups'] = () => ({ groups: [] });
+    answers['arm.resourceTypes'] = () => ({ types: [] });
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+    // A Graph tab has neither picker.
+    expect(runCommand('toolbar.timespan')).toBe(false);
+    expect(runCommand('toolbar.scope')).toBe(false);
+    expect(screen.queryByRole('button', { name: /^Timespan:/ })).toBeNull();
+
+    act(() => void runCommand('tab.newHunting'));
+    expect(runCommand('toolbar.scope')).toBe(false);
+    act(() => void runCommand('toolbar.timespan'));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: '1 day' }));
+    expect(screen.getByRole('button', { name: 'Timespan: 1 day' })).toBeTruthy();
+    expect(useTabs.getState().tabs.at(-1)?.options).toEqual({ timespan: 'P1D', scope: null });
+
+    act(() => void runCommand('tab.newArg'));
+    expect(runCommand('toolbar.timespan')).toBe(false);
+    act(() => void runCommand('toolbar.scope'));
+    fireEvent.click(screen.getByRole('radio', { name: 'Subscriptions' }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Production' }));
+    expect(screen.getByRole('button', { name: 'Scope: 1 subscription' })).toBeTruthy();
+    expect(useTabs.getState().tabs.at(-1)?.options).toEqual({ timespan: null, scope: { kind: 'subscriptions', ids: ['00000000-0000-0000-0000-000000000011'] } });
+  });
+
+  it('app_consent_needed_run_grants_access_for_the_active_account_and_runs_again', async () => {
+    const consent = { ...rows, outcome: 'consentNeeded' as const, message: 'Grant Azure access to run this query.', rows: [], columns: [], total: 0 };
+    let runs = 0;
+    host({ accounts: [kari], cache: 'persistent' });
+    answers['query.run'] = () => (++runs === 1 ? consent : rows);
+    answers['account.consent'] = () => ({});
+    answers['arm.resourceTypes'] = () => ({ types: [] });
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+    act(() => void runCommand('tab.newArg'));
+    fireEvent.change(await screen.findByRole('textbox', { name: 'KQL query' }), { target: { value: 'Resources' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Run all Shift Enter' }));
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Grant Azure access' }));
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Rows · 1' })).toBeTruthy());
+    expect(bridge.call).toHaveBeenCalledWith('account.consent', { key: 'k1', audience: 'arm' });
+    expect(runs).toBe(2);
   });
 
   it('app_reads_every_open_sources_schema_again_for_another_account', async () => {

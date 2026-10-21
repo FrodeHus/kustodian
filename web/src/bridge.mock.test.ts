@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createBridge } from './bridge';
 import { createMockTransport } from './bridge.mock';
 import { BridgeError } from './bridge';
-import type { ArmManagementGroupsAnswer, ArmResourceTypesAnswer, ArmSubscriptionsAnswer, RunResult, SchemaView } from './wire';
+import type { ArmManagementGroupsAnswer, ArmResourceTypesAnswer, ArmSubscriptionsAnswer, RecentRun, RunResult, SchemaView } from './wire';
 
 describe('bridge mock', () => {
   it('mock_answers_the_arm_methods_in_the_hosts_shapes', async () => {
@@ -60,5 +60,21 @@ describe('bridge mock', () => {
     const answer = await bridge.call<{ settings: { limits: Record<string, number> } }>('settings.get');
 
     expect(answer.settings.limits.argRowsPerRun).toBe(50000);
+  });
+
+  it('mock_run_refuses_options_the_host_refuses_and_recent_keeps_them', async () => {
+    const bridge = createBridge(createMockTransport());
+
+    await expect(
+      bridge.call('query.run', { tabId: 't', source: 'hunting', kql: 'DeviceInfo', refresh: false, options: { timespan: 'P45D', scope: null } }),
+    ).rejects.toMatchObject({ code: 'bad_request', message: 'The timespan can cover at most 30 days.' });
+    await expect(
+      bridge.call('query.run', { tabId: 't', source: 'arg', kql: 'Resources', refresh: false, options: { timespan: null, scope: { kind: 'subscriptions', ids: [] } } }),
+    ).rejects.toMatchObject({ code: 'bad_request', message: 'Pick 1 to 100 subscriptions.' });
+
+    const options = { timespan: '2026-10-01T00:00:00Z/2026-10-08T00:00:00Z', scope: null };
+    await bridge.call('query.run', { tabId: 't', source: 'hunting', kql: 'DeviceInfo', refresh: false, options });
+    expect(await bridge.call<{ runs: RecentRun[] }>('recent.list')).toMatchObject({ runs: [{ source: 'hunting', text: 'DeviceInfo', options }] });
+    await expect(bridge.call('account.consent', { key: 'mock-account', audience: 'arm' })).resolves.toEqual({});
   });
 });

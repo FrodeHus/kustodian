@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { call } from '../bridge';
+import { openRecent, runTitle } from '../library/open-library';
 import { errorText } from '../shell/errors';
 import { SourceBadge } from '../tabs/source-badge';
 import { useTabs } from '../tabs/tab-store';
@@ -20,12 +21,6 @@ const OUTCOMES: Record<string, string> = {
   failed: 'Failed',
 };
 
-/** The query's first line that isn't blank, at most 40 characters: what a run is called in the list and in its tab. */
-function runTitle(text: string): string {
-  const line = text.split(/\r?\n/).find((l) => l.trim() !== '')?.trim() ?? 'Recent run';
-  return line.length > 40 ? `${line.slice(0, 39)}…` : line;
-}
-
 function when(iso: string, now = Date.now()): string {
   const at = new Date(iso);
   const minutes = Math.floor((now - at.getTime()) / 60000);
@@ -41,19 +36,9 @@ function when(iso: string, now = Date.now()): string {
   return at.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-function open(run: RecentRun) {
-  useTabs.getState().openWith({
-    source: run.source,
-    title: runTitle(run.text),
-    text: run.text,
-    // Ruling 15: the values come back typed, so the tab runs as the run did.
-    parameters: run.parameters.map(({ name, type, value, required }) => ({ name, type, value, required, choices: null })),
-  });
-}
-
 /** The Recent panel (spec 6.6): the last runs, newest first, each with its outcome, rows and when. It lists the runs of the active
- * tab's `source` (spec 6.1), or every source's with "All sources". A run opens in a new tab with its parameter values. Read again
- * whenever a run ends. */
+ * tab's `source` (spec 6.1), or every source's with "All sources". A run opens in a new tab with its parameter values and its
+ * timespan or scope ({@link openRecent}). Read again whenever a run ends. */
 export function RecentPanel({ source = 'graph' }: { source?: Source }) {
   const [runs, setRuns] = useState<RecentRun[] | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -105,7 +90,7 @@ export function RecentPanel({ source = 'graph' }: { source?: Source }) {
             const at = when(run.startedAt);
             return (
               <li key={run.id} className="side-item">
-                <button type="button" className="side-open flex-col !items-start" aria-label={`Open the run “${title}” from ${at}`} title={run.text} onClick={() => open(run)}>
+                <button type="button" className="side-open flex-col !items-start" aria-label={`Open the run “${title}” from ${at}`} title={run.text} onClick={() => openRecent(run)}>
                   <span className="flex w-full min-w-0 items-center gap-1.5">
                     {all && <SourceBadge source={run.source} titled />}
                     <span className="mono truncate">{title}</span>

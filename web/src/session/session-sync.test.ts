@@ -293,4 +293,22 @@ describe('session sync', () => {
     stop = startSessionSync();
     await vi.waitFor(() => expect(useTabs.getState().tabs.map((t) => t.source)).toEqual(['arg', 'hunting']));
   });
+
+  it('restored_arg_tab_keeps_its_scope', async () => {
+    vi.useFakeTimers();
+    const scope = { kind: 'subscriptions' as const, ids: ['00000000-0000-0000-0000-000000000011'] };
+    host({ session: { ...saved, tabs: [{ ...saved.tabs[0]!, source: 'arg', options: { timespan: null, scope } }, saved.tabs[1]!] }, corrupt: false });
+    stop = startSessionSync();
+    await vi.waitFor(() => expect(useTabs.getState().tabs).toHaveLength(2));
+
+    expect(useTabs.getState().tabs[0]?.options).toEqual({ timespan: null, scope });
+    expect(useTabs.getState().tabs[1]?.options).toBeUndefined();
+
+    // A changed timespan is written with the session; a tab without options writes none.
+    useTabs.getState().setOptions('b', { timespan: 'P1D', scope: null });
+    await vi.advanceTimersByTimeAsync(1000);
+    const written = saves().at(-1)?.tabs;
+    expect(written?.[0]?.options).toEqual({ timespan: null, scope });
+    expect(written?.[1]?.options).toEqual({ timespan: 'P1D', scope: null });
+  });
 });

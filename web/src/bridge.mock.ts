@@ -313,7 +313,47 @@ interface MockRequest {
     accountKey?: string;
     options?: QueryOptions | null;
     source?: string;
+    kql?: string;
+    parameters?: unknown[];
   };
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** How long a timespan is in milliseconds (a duration in days, weeks or hours, or an interval `start/end`), or null when the
+ * mock can't read it. */
+function timespanMs(timespan: string): number | null {
+  const [start, end, ...rest] = timespan.split('/');
+  if (end !== undefined && rest.length === 0) {
+    const ms = Date.parse(end) - Date.parse(start ?? '');
+    return Number.isNaN(ms) ? null : ms;
+  }
+  const match = /^P(?:(\d+)W|(\d+)D)?(?:T(\d+)H)?$/.exec(timespan);
+  if (!match || timespan === 'P') {
+    return null;
+  }
+  return (Number(match[1] ?? 0) * 7 + Number(match[2] ?? 0)) * DAY_MS + Number(match[3] ?? 0) * 3600000;
+}
+
+/** What the host would refuse in a run's options (`QueryOptions.Problem`, in its words), or null. */
+function optionsProblem(options: QueryOptions | null | undefined): string | null {
+  if (options?.timespan) {
+    const ms = timespanMs(options.timespan);
+    if (ms === null || ms <= 0) {
+      return 'The timespan must be an ISO 8601 duration such as P7D, or an interval start/end.';
+    }
+    if (ms > 30 * DAY_MS) {
+      return 'The timespan can cover at most 30 days.';
+    }
+  }
+  const scope = options?.scope;
+  if (scope?.kind === 'subscriptions' && (scope.ids.length === 0 || scope.ids.length > 100)) {
+    return 'Pick 1 to 100 subscriptions.';
+  }
+  if (scope?.kind === 'managementGroup' && scope.ids.length !== 1) {
+    return 'Pick one management group.';
+  }
+  return null;
 }
 
 interface SavedQueryInput {
@@ -351,6 +391,7 @@ export function createMockTransport(): Transport {
   const saved = new Map<string, SavedQuery>();
   let savedCounter = 0;
   let session: Record<string, unknown> = { version: 1, activeId: null, tabs: [] };
+  const recent: Record<string, unknown>[] = [];
   const userSnippets = new Map<string, Record<string, unknown>>();
 
   const reply = (id: string, result: unknown) => receive(JSON.stringify({ id, result: result ?? null }));
@@ -447,9 +488,10 @@ export function createMockTransport(): Transport {
         reply(id, null);
         break;
       case 'recent.list':
-        reply(id, { runs: [] });
+        reply(id, { runs: recent.slice(0, 100) });
         break;
       case 'recent.clear':
+        recent.length = 0;
         reply(id, null);
         break;
       case 'cache.clear':
@@ -512,6 +554,12 @@ export function createMockTransport(): Transport {
         reply(id, explainView);
         break;
       case 'query.run': {
+        // As `QueryOptions.Problem`: options that aren't valid are a bad_request, and nothing runs (ruling 1).
+        const problem = optionsProblem(params?.options);
+        if (problem) {
+          fail(id, 'bad_request', problem);
+          break;
+        }
         const tabId = params?.tabId ?? '';
         // As the host does: the UI's run id when it sends one, else one of the mock's own.
         const runId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params?.runId ?? '')
@@ -521,7 +569,20 @@ export function createMockTransport(): Transport {
         const timer = setTimeout(() => {
           runs.delete(tabId);
           const source = params?.source;
-          reply(id, { ...(source === 'hunting' || source === 'arg' ? serverRunResult(source) : runResult), runId });
+          const result = { ...(source === 'hunting' || source === 'arg' ? serverRunResult(source) : runResult), runId };
+          // As the host's Recent: newest first, with the run's options, so "open again" brings them back.
+          recent.unshift({
+            id: runId,
+            source: source ?? 'graph',
+            text: params?.kql ?? '',
+            parameters: params?.parameters ?? [],
+            startedAt: new Date().toISOString(),
+            durationMs: result.durationMs,
+            rows: result.total,
+            outcome: result.outcome,
+            options: params?.options ?? null,
+          });
+          reply(id, result);
         }, RUN_DELAY_MS);
         runs.set(tabId, { id, timer });
         receive(JSON.stringify({ event: 'query.progress', data: { tabId, runId, stage: 'fetch', detail: 'applications' } }));

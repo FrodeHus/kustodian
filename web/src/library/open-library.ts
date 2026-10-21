@@ -1,16 +1,34 @@
 import { useTabs } from '../tabs/tab-store';
-import type { SavedQuery, Snippet } from '../wire';
+import type { RecentRun, SavedQuery, Snippet } from '../wire';
 
-/** Opens a saved query in a new tab, or goes to the tab it is already open in. The Saved panel and the palette both open
- * saved queries this way. */
+/** Opens a saved query in a new tab, with the timespan or scope saved with it, or goes to the tab it is already open in. The
+ * Saved panel and the palette both open saved queries this way. */
 export function openSaved(q: SavedQuery) {
   const { tabs, activate, openWith } = useTabs.getState();
   const open = tabs.find((t) => t.savedId === q.id);
   if (open) {
     activate(open.id);
   } else {
-    openWith({ source: q.source, title: q.name, text: q.text, savedId: q.id, parameters: q.parameters });
+    openWith({ source: q.source, title: q.name, text: q.text, savedId: q.id, parameters: q.parameters, options: q.options ?? undefined });
   }
+}
+
+/** The query's first line that isn't blank, at most 40 characters: what a recent run is called in the list and in its tab. */
+export function runTitle(text: string): string {
+  const line = text.split(/\r?\n/).find((l) => l.trim() !== '')?.trim() ?? 'Recent run';
+  return line.length > 40 ? `${line.slice(0, 39)}…` : line;
+}
+
+/** Opens a recent run again in a new tab, with its parameter values and its timespan or scope, so the tab runs as the run did. */
+export function openRecent(run: RecentRun) {
+  useTabs.getState().openWith({
+    source: run.source,
+    title: runTitle(run.text),
+    text: run.text,
+    // Ruling 15: the values come back typed.
+    parameters: run.parameters.map(({ name, type, value, required }) => ({ name, type, value, required, choices: null })),
+    options: run.options ?? undefined,
+  });
 }
 
 /** Opens a snippet in a new tab of its own, with its parameter definitions. */

@@ -200,7 +200,7 @@ body {
   .theme-light .src.hunt { background: rgba(160, 90, 0, 0.1); color: #a05a00; }
   .theme-light .src.arg { background: rgba(30, 122, 78, 0.1); color: #1e7a4e; }
   .menu { position: absolute; z-index: 3; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
-  .menu button { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
-  .menu button:hover, .menu button:focus-visible, .menu button.on { background: var(--raise); outline: none; }
+  .menu button:not(.btn) { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+  .menu button:not(.btn):hover, .menu button:not(.btn):focus-visible, .menu button:not(.btn).on { background: var(--raise); outline: none; }
   .codeblock { font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 19px; white-space: pre; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; color: var(--text); }
 }

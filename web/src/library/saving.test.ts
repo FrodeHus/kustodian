@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTabs } from '../tabs/tab-store';
+import type { RecentRun, SavedQuery } from '../wire';
+import { openRecent, openSaved } from './open-library';
 import { MAX_OPEN_BYTES, openDroppedFile, save, saveToFile, saveToLibrary } from './saving';
 
 const bridge = vi.hoisted(() => ({ call: vi.fn() }));
@@ -58,6 +60,41 @@ describe('saving', () => {
 
     await saveToLibrary(id, 'Users', null);
     expect(useTabs.getState().tabs[0]).toMatchObject({ savedId: 'q1', filePath: undefined });
+  });
+
+  it('saved_and_recent_keep_options', async () => {
+    const options = { timespan: null, scope: { kind: 'managementGroup' as const, ids: ['contoso-platform'] } };
+    bridge.call.mockImplementation((_method: string, params: { query: SavedQuery }) =>
+      Promise.resolve({ ...params.query, id: 'q1', version: 1, createdAt: '', modifiedAt: '' }),
+    );
+    const id = useTabs.getState().openWith({ source: 'arg', title: 'Storage', text: 'Resources', options });
+
+    // Saved with the query.
+    const saved = await saveToLibrary(id, 'Storage', null);
+    expect(bridge.call).toHaveBeenCalledWith('library.save', { query: expect.objectContaining({ source: 'arg', options }) });
+
+    // Opening it again, from the library or from Recent, brings the options back.
+    useTabs.setState({ tabs: [], activeId: null, cursors: {} });
+    openSaved(saved);
+    const run: RecentRun = {
+      id: 'r1',
+      source: 'hunting',
+      text: 'DeviceInfo | take 5',
+      parameters: [],
+      startedAt: '2026-10-21T10:00:00Z',
+      durationMs: 300,
+      rows: 5,
+      outcome: 'ok',
+      options: { timespan: 'P1D', scope: null },
+    };
+    openRecent(run);
+    openRecent({ ...run, id: 'r0', options: undefined });
+
+    expect(useTabs.getState().tabs.map((t) => [t.source, t.options])).toEqual([
+      ['arg', options],
+      ['hunting', { timespan: 'P1D', scope: null }],
+      ['hunting', undefined],
+    ]);
   });
 
   it('dropped_file_over_the_size_limit_is_refused', async () => {

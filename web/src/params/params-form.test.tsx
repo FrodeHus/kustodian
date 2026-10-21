@@ -23,6 +23,7 @@ const saved: SavedQuery = {
   parameters: [],
   createdAt: '2026-10-01T00:00:00Z',
   modifiedAt: '2026-10-01T00:00:00Z',
+  options: { timespan: 'P7D', scope: null },
 };
 
 beforeEach(() => {
@@ -82,7 +83,7 @@ describe('ParamsForm', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Remember as defaults for this query' }));
 
-    // Only the parameters change: the saved text, name and folder stay.
+    // Only the parameters change: the saved text, name, folder and options stay.
     await waitFor(() =>
       expect(bridge.call).toHaveBeenCalledWith('library.save', {
         query: expect.objectContaining({
@@ -90,6 +91,7 @@ describe('ParamsForm', () => {
           name: 'Expiring',
           folder: 'Apps',
           text: 'the text as saved',
+          options: { timespan: 'P7D', scope: null },
           parameters: [{ name: 'n', type: 'number', value: '5', required: false, choices: null }],
         }),
       }),

@@ -16,7 +16,7 @@ export const UNREADABLE_MESSAGE = 'Couldn’t read your last session; changes wo
 export const GAVE_UP_MESSAGE = 'Your session couldn’t be read; changes in this window won’t be saved.';
 
 /** What `session.json` keeps of the open tabs: never runs or results, and of a raw tab's headers only those it could send (the
- * host drops the others too), so a typed `Authorization` header never reaches the file. */
+ * host drops the others too), so a typed `Authorization` header never reaches the file. A tab's timespan and scope are kept. */
 function snapshot(): Session {
   const { tabs, activeId } = useTabs.getState();
   return {
@@ -32,6 +32,7 @@ function snapshot(): Session {
       parameters: t.parameters,
       filePath: t.filePath ?? null,
       ...(t.raw ? { raw: { version: t.raw.version, headers: sendableHeaders(t.raw.headers) } } : {}),
+      ...(t.options ? { options: t.options } : {}),
     })),
   };
 }

@@ -105,9 +105,10 @@ export function ParamsForm({ tab, query, onRun }: { tab: Tab; query: string; onR
     if (!saved) {
       throw new Error('The saved query is no longer in the library.');
     }
-    const { id, name, folder, source, text } = saved;
+    const { id, name, folder, source, text, options } = saved;
     const parameters = defs.map((d) => ({ ...d, choices: cleanChoices(d.choices) }));
-    await call<SavedQuery>('library.save', { query: { id, name, folder, source, text, parameters } });
+    // Only the parameters change: the timespan or scope saved with the query stays.
+    await call<SavedQuery>('library.save', { query: { id, name, folder, source, text, parameters, options: options ?? null } });
     useRevisions.getState().bump('library');
   };
 
