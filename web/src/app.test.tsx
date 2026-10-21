@@ -207,4 +207,17 @@ describe('App', () => {
 
     expect(await screen.findByRole('tab', { name: /Query 2/, selected: true })).toBeTruthy();
   });
+
+  it('app_shortcuts_do_nothing_while_sign_in_covers_the_workspace', async () => {
+    host({ accounts: [], cache: 'persistent' });
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'Sign in to Microsoft Graph' })).toBeTruthy();
+    await waitFor(() => expect(useTabs.getState().tabs).toHaveLength(1));
+
+    fireEvent.keyDown(window, { key: 't', code: 'KeyT', ctrlKey: true });
+    fireEvent.keyDown(window, { key: 'k', code: 'KeyK', ctrlKey: true });
+
+    expect(useTabs.getState().tabs).toHaveLength(1);
+    expect(screen.queryByRole('dialog', { name: 'Command palette' })).toBeNull();
+  });
 });

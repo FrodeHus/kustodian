@@ -123,11 +123,12 @@ function isEditable(target: EventTarget | null): boolean {
 /**
  * One keydown listener for the window that runs the command whose shortcut was pressed. Keys pressed in the editor are left to
  * it (it binds the same shortcuts), and so are keys something else already handled. A shortcut without Ctrl, Cmd or Alt
- * doesn't fire while typing in a field. Returns the function that removes the listener.
+ * doesn't fire while typing in a field. While `enabled` says no (the sign-in screen covers the workspace), no shortcut fires.
+ * Returns the function that removes the listener.
  */
-export function bindGlobalKeys(): () => void {
+export function bindGlobalKeys(enabled: () => boolean = () => true): () => void {
   const onKey = (e: KeyboardEvent) => {
-    if (e.defaultPrevented || (e.target instanceof Element && e.target.closest('.monaco-editor'))) {
+    if (!enabled() || e.defaultPrevented || (e.target instanceof Element && e.target.closest('.monaco-editor'))) {
       return;
     }
     for (const cmd of registry.values()) {

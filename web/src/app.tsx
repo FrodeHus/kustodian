@@ -159,11 +159,16 @@ export function App() {
     return registerCommands(commands);
   }, []);
 
-  useEffect(() => bindGlobalKeys(), []);
-
   const account = accounts?.accounts.find((a) => a.active);
   // Unreadable accounts also mean sign-in: it shows why, and signing in reads them again.
   const signingIn = accountsError !== null || (accounts !== null && (!account || accountsOpen));
+
+  // The window's shortcuts act on the workspace, so none fires while sign-in covers it.
+  const shortcutsOn = useRef(false);
+  useEffect(() => {
+    shortcutsOn.current = !signingIn;
+  });
+  useEffect(() => bindGlobalKeys(() => shortcutsOn.current), []);
 
   const cursor = active ? cursors[active.id] : undefined;
 

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { BridgeError, call, on } from '../bridge';
 import { blockAt } from '../editor/block-at';
+import { newId } from '../shell/ids';
 import type { ParameterDef, ParameterValue, RunProgress, RunResult, Session, Source } from '../wire';
 
 export type { Source } from '../wire';
@@ -137,7 +138,7 @@ export const useTabs = create<TabsState>()((set, get) => {
     },
 
     openWith({ source, title, text, savedId, filePath, parameters }) {
-      const id = crypto.randomUUID();
+      const id = newId();
       const tab: Tab = { id, source, title, text, dirty: false, savedId, filePath, parameters: parameters ?? [], history: [] };
       set((s) => ({ tabs: [...s.tabs, tab], activeId: id }));
       return id;
@@ -238,7 +239,7 @@ export const useTabs = create<TabsState>()((set, get) => {
       controllers.set(id, controller);
       const startedAt = Date.now();
       // Ruling 19: the page names the run, so progress for an older run of this tab can be told apart from the first event.
-      const runId = crypto.randomUUID();
+      const runId = newId();
       update(id, () => ({ run: { state: 'running', runId, startedAt, origin } }));
       const parameters: ParameterValue[] = tab.parameters.map(({ name, type, value, required }) => ({ name, type, value, required }));
 

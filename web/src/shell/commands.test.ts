@@ -56,6 +56,21 @@ describe('commands', () => {
     input.remove();
   });
 
+  it('global_keys_do_nothing_while_their_guard_says_no', () => {
+    const newTab = vi.fn();
+    let active = false;
+    keep(registerCommands([{ id: 'tab.new', title: 'New Microsoft Graph query', group: 'Tabs', shortcut: 'Mod+T', run: newTab }]));
+    keep(bindGlobalKeys(() => active));
+
+    const event = key({ key: 't', code: 'KeyT', ctrlKey: true });
+    expect(newTab).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
+
+    active = true;
+    key({ key: 't', code: 'KeyT', ctrlKey: true });
+    expect(newTab).toHaveBeenCalledTimes(1);
+  });
+
   it('a_disabled_command_does_not_run', () => {
     const cancel = vi.fn();
     keep(registerCommands([{ id: 'run.cancel', title: 'Cancel the run', group: 'Run', shortcut: 'Mod+.', run: cancel, enabled: () => false }]));
