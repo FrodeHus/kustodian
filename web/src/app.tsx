@@ -1,9 +1,13 @@
 import { Component, Suspense, lazy, useEffect, useRef, useState, type ReactNode } from 'react';
 import { call } from './bridge';
+import { blockAt } from './editor/block-at';
 import type { KqlEditorHandle } from './editor/kql-editor';
+import { SaveDialog } from './library/save-dialog';
+import { openDroppedFile, openKqlFile, save, saveToFile } from './library/saving';
+import { findParams } from './params/find-params';
+import { ParamsForm } from './params/params-form';
 import { ResultGrid } from './results/result-grid';
 import { RunStatus } from './results/run-status';
-import { SchemaPanel } from './schema/schema-panel';
 import { startSessionSync } from './session/session-sync';
 import { bindGlobalKeys, registerCommands, type Command } from './shell/commands';
 import { MOD } from './shell/keys';
@@ -11,7 +15,9 @@ import { Palette } from './shell/palette';
 import { chooseTheme, useTheme, type Theme } from './shell/theme';
 import { TitleBar } from './shell/title-bar';
 import { SignIn } from './signin/sign-in';
-import { useTabs, type RunMode, type Tab } from './tabs/tab-store';
+import { PANELS, type PanelName } from './side/panels';
+import { Rail, SidePanel } from './side/side-panel';
+import { useTabs, type RunMode, type Tab, type TabCursor } from './tabs/tab-store';
 import { TabStrip } from './tabs/tab-strip';
 import type { AccountList, SchemaView } from './wire';
 
@@ -57,6 +63,11 @@ function runActive(mode: 'block' | 'all', refresh = false) {
   void useTabs.getState().run(tab.id, run, { refresh });
 }
 
+/** The text Run sends from the tab: the selection, or else the block at the cursor. */
+function runText(tab: Tab, cursor: TabCursor | undefined): string {
+  return cursor?.selection ? cursor.selection : blockAt(tab.text, cursor?.line ?? 1).text;
+}
+
 /** Activates the tab `step` places along, wrapping around. */
 function cycleTab(step: number) {
   const { tabs, activeId, activate } = useTabs.getState();
@@ -92,6 +103,10 @@ export function App() {
   const [accountsOpen, setAccountsOpen] = useState(false);
   const [accountsError, setAccountsError] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [panel, setPanel] = useState<PanelName>('schema');
+  const [paramsOpen, setParamsOpen] = useState(false);
+  /** The tab the save dialog is open for. */
+  const [saving, setSaving] = useState<string | null>(null);
   const editor = useRef<KqlEditorHandle>(null);
   const theme = useTheme();
 
@@ -118,6 +133,19 @@ export function App() {
       const tab = activeTab();
       return !!tab && tab.source !== 'raw';
     };
+    const withTab = (action: (tab: Tab) => void) => () => {
+      const tab = activeTab();
+      if (tab) {
+        action(tab);
+      }
+    };
+    const saveFailed = fail('The query couldn’t be saved');
+    const panelCommands: Command[] = PANELS.map((p) => ({
+      id: `panel.${p.name}`,
+      title: `Show ${p.label}`,
+      group: 'View',
+      run: () => setPanel(p.name),
+    }));
     const themeCommand = (t: Theme): Command => ({
       id: `theme.${t}`,
       title: `Theme: ${THEME_NAMES[t].toLowerCase()}`,
@@ -146,6 +174,18 @@ export function App() {
         enabled: () => activeTab()?.run?.state === 'running',
       },
       { id: 'editor.format', title: 'Format the query', group: 'Editor', shortcut: 'Shift+Alt+F', run: () => editor.current?.format(), enabled: runnable },
+      {
+        id: 'file.save',
+        title: 'Save',
+        group: 'File',
+        shortcut: 'Mod+S',
+        run: withTab((tab) => void save(tab.id).then((r) => r === 'dialog' && setSaving(tab.id), saveFailed)),
+        enabled: runnable,
+      },
+      { id: 'file.saveAs', title: 'Save as', group: 'File', shortcut: 'Mod+Shift+S', run: withTab((tab) => setSaving(tab.id)), enabled: runnable },
+      { id: 'file.saveToFile', title: 'Save to file', group: 'File', run: withTab((tab) => void saveToFile(tab.id).catch(saveFailed)), enabled: runnable },
+      { id: 'file.open', title: 'Open .kql', group: 'File', shortcut: 'Mod+O', run: () => void openKqlFile().catch(fail('The file couldn’t be opened')) },
+      ...panelCommands,
       themeCommand('dark'),
       themeCommand('light'),
       themeCommand('system'),
@@ -167,11 +207,42 @@ export function App() {
   // its own keys, Esc included).
   const shortcutsOn = useRef(false);
   useEffect(() => {
-    shortcutsOn.current = !signingIn && !paletteOpen;
+    shortcutsOn.current = !signingIn && !paletteOpen && saving === null;
   });
   useEffect(() => bindGlobalKeys(() => shortcutsOn.current), []);
 
+  // A .kql file dropped on the window opens in a new tab. The page never lets the webview open a dropped file itself.
+  useEffect(() => {
+    const hasFiles = (e: DragEvent) => !!e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+    const onDragOver = (e: DragEvent) => {
+      if (hasFiles(e)) {
+        e.preventDefault();
+      }
+    };
+    const onDrop = (e: DragEvent) => {
+      const files = e.dataTransfer?.files;
+      if (!files || files.length === 0) {
+        return;
+      }
+      e.preventDefault();
+      if (!shortcutsOn.current) {
+        return;
+      }
+      for (const file of files) {
+        openDroppedFile(file).catch((error: unknown) => setProblem(errorText(error)));
+      }
+    };
+    window.addEventListener('dragover', onDragOver);
+    window.addEventListener('drop', onDrop);
+    return () => {
+      window.removeEventListener('dragover', onDragOver);
+      window.removeEventListener('drop', onDrop);
+    };
+  }, []);
+
   const cursor = active ? cursors[active.id] : undefined;
+  const paramCount = active ? findParams(active.text).length : 0;
+  const savingTab = tabs.find((t) => t.id === saving);
 
   return (
     <div className="flex h-full flex-col">
@@ -204,20 +275,19 @@ export function App() {
       <div className="flex min-h-0 flex-1 flex-col" hidden={signingIn}>
         <TabStrip />
         <div className="panes">
-          <nav className="rail" aria-label="Side panels">
-            <button type="button" aria-pressed="true" aria-label="Schema" title="Schema">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
-                <ellipse cx="12" cy="5" rx="8" ry="3" />
-                <path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
-                <path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
-              </svg>
-            </button>
-          </nav>
-          <SchemaPanel schema={schema} text={active?.text ?? ''} onInsert={(name) => editor.current?.insert(name)} />
+          <Rail panel={panel} onChoose={setPanel} />
+          <SidePanel panel={panel} schema={schema} text={active?.text ?? ''} onInsert={(text) => editor.current?.insert(text)} />
           <main className="workspace">
             {active ? (
               <>
-                <Toolbar tab={active} onRun={(mode) => runActive(mode)} onFormat={() => editor.current?.format()} />
+                <Toolbar
+                  tab={active}
+                  onRun={(mode) => runActive(mode)}
+                  onFormat={() => editor.current?.format()}
+                  paramCount={paramCount}
+                  paramsOpen={paramsOpen}
+                  onParams={() => setParamsOpen((o) => !o)}
+                />
                 <div className="relative min-h-[160px] shrink-0 basis-[38%] border-b border-line">
                   <EditorFailed>
                     <Suspense fallback={<p className="faint m-0 p-4 text-[12px]">Loading the editor…</p>}>
@@ -225,6 +295,11 @@ export function App() {
                     </Suspense>
                   </EditorFailed>
                 </div>
+                {paramsOpen && paramCount > 0 && (
+                  <div className="max-h-[50%] shrink-0 overflow-y-auto border-b border-line">
+                    <ParamsForm tab={active} query={runText(active, cursor)} onRun={() => runActive('block')} />
+                  </div>
+                )}
                 <RunStatus run={active.run} onSignIn={() => setAccountsOpen(true)} />
                 <Results tab={active} />
               </>
@@ -254,6 +329,15 @@ export function App() {
           <span title="Theme">{theme.theme === 'system' ? `System (${THEME_NAMES[theme.resolved]})` : THEME_NAMES[theme.theme]}</span>
         </footer>
       </div>
+      {savingTab && (
+        <SaveDialog
+          tab={savingTab}
+          onClose={() => {
+            setSaving(null);
+            editor.current?.focus();
+          }}
+        />
+      )}
       {paletteOpen && (
         <Palette
           onClose={() => {
@@ -267,7 +351,17 @@ export function App() {
   );
 }
 
-function Toolbar({ tab, onRun, onFormat }: { tab: Tab; onRun: (mode: 'block' | 'all') => void; onFormat: () => void }) {
+interface ToolbarProps {
+  tab: Tab;
+  onRun: (mode: 'block' | 'all') => void;
+  onFormat: () => void;
+  /** How many parameters the query has: the Parameters button shows when it has any. */
+  paramCount: number;
+  paramsOpen: boolean;
+  onParams: () => void;
+}
+
+function Toolbar({ tab, onRun, onFormat, paramCount, paramsOpen, onParams }: ToolbarProps) {
   const running = tab.run?.state === 'running';
   return (
     <div className="toolbar">
@@ -289,6 +383,11 @@ function Toolbar({ tab, onRun, onFormat }: { tab: Tab; onRun: (mode: 'block' | '
       <button type="button" className="btn ghost" onClick={onFormat}>
         Format
       </button>
+      {paramCount > 0 && (
+        <button type="button" className="btn" aria-pressed={paramsOpen} onClick={onParams}>
+          Parameters · {paramCount}
+        </button>
+      )}
     </div>
   );
 }

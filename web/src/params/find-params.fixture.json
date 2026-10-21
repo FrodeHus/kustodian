@@ -1,0 +1,26 @@
+{
+  "note": "Read by web/src/params/find-params.test.ts and by Find_matches_shared_fixture in tests/Kustodian.Graph.Tests/Query: findParams (web) and ParameterSubstitution.Find (host) must both give each case's params. Placeholders inside raw literal tokens such as datetime({x}) or bool({x}) are left out on purpose: the web counts them, the host doesn't (and refuses such a value as not fitting).",
+  "cases": [
+    { "name": "plain placeholders in order of first use", "text": "users | where a == {first} and b == {second} and c == {first}", "params": ["first", "second"] },
+    { "name": "names with underscores and digits", "text": "print {a_1}, {_b}, {B2}", "params": ["a_1", "_b", "B2"] },
+    { "name": "no name, a digit first, spaces, two words", "text": "print {1c}, { d }, {e f}, {}, { a }, {a }, { a}", "params": [] },
+    { "name": "next to other text", "text": "print x{a}y, ({b}), {{c}}", "params": ["a", "b", "c"] },
+    { "name": "a dynamic object is not a placeholder", "text": "print dynamic({\"g\": 1}), {h}", "params": ["h"] },
+    { "name": "inside double-quoted strings", "text": "users | where a == \"{s1}\" or b == \"\\\"{s2}\" or c == {real}", "params": ["real"] },
+    { "name": "inside single-quoted strings", "text": "users | where a == '{s1}' or b == '\\'{s2}' or c == {real}", "params": ["real"] },
+    { "name": "inside verbatim strings", "text": "users | where a == @\"{v1}\" or b == @'x''{v2}' or c == @\"x\"\"{v3}\" or d == {real}", "params": ["real"] },
+    { "name": "a backslash ends a verbatim string", "text": "print @\"a\\\" == {after}", "params": ["after"] },
+    { "name": "inside an obfuscated string", "text": "print h\"{h1}\", H'{h2}', h@\"{h3}\", {real}", "params": ["real"] },
+    { "name": "inside line comments", "text": "users // {c1}\n| where a == {real} // {c2} \"\n// {c3}\n| where b == {second}", "params": ["real", "second"] },
+    { "name": "a comment marker inside a string", "text": "print \"// {s}\", {real}", "params": ["real"] },
+    { "name": "inside a backtick multi-line string", "text": "print ```{m1}\n{m2}```, {real}", "params": ["real"] },
+    { "name": "inside a tilde multi-line string", "text": "print ~~~{m1}\n\"{m2}~~~, {real}", "params": ["real"] },
+    { "name": "an unterminated string runs to the end", "text": "print {a}, \"{b}", "params": ["a"] },
+    { "name": "an unterminated multi-line string runs to the end", "text": "print {a}, ```{b}\n{c}", "params": ["a"] },
+    { "name": "an unterminated double-quoted string ends at the line end", "text": "print \"{b}\n{c}", "params": ["c"] },
+    { "name": "an unterminated single-quoted string ends at the line end", "text": "print '{b}\n{c}", "params": ["c"] },
+    { "name": "a carriage return ends a comment", "text": "print {a} // x\r{b}", "params": ["a", "b"] },
+    { "name": "a verbatim string also ends at the line end", "text": "print @\"{b}\n{c}\" , {d}", "params": ["c"] },
+    { "name": "the mockup's query", "text": "applications\n| where ends between (now() .. now() + {withinDays})\n| where signInAudience in ({audiences})", "params": ["withinDays", "audiences"] }
+  ]
+}

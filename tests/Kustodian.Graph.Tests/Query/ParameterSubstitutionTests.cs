@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Kustodian.Graph.Query;
 using Kustodian.Graph.Schema;
 using Kusto.Language;
@@ -29,6 +30,24 @@ public sealed class ParameterSubstitutionTests
             """;
 
         Assert.Equal(["first", "second", "third", "fourth"], ParameterSubstitution.Find(kql));
+    }
+
+    [Fact]
+    public void Find_matches_shared_fixture()
+    {
+        // web/src/params/find-params.fixture.json, linked into the output: the web's findParams reads the same cases.
+        using var stream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Query", "find-params.fixture.json"));
+        using var fixture = JsonDocument.Parse(stream);
+        var cases = fixture.RootElement.GetProperty("cases").EnumerateArray().ToList();
+
+        Assert.NotEmpty(cases);
+        foreach (var testCase in cases)
+        {
+            var expected = testCase.GetProperty("params").EnumerateArray().Select(p => p.GetString()!).ToList();
+            var found = ParameterSubstitution.Find(testCase.GetProperty("text").GetString()!);
+            Assert.True(expected.SequenceEqual(found),
+                $"{testCase.GetProperty("name").GetString()}: expected [{string.Join(", ", expected)}], found [{string.Join(", ", found)}]");
+        }
     }
 
     [Fact]

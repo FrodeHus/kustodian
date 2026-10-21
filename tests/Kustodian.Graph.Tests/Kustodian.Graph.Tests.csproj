@@ -9,6 +9,8 @@
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Fixtures\*.xml" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Schema\permissions-excerpt.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Shared with the web's findParams test: both sides must find the same placeholders. -->
+    <None Include="..\..\web\src\params\find-params.fixture.json" Link="Query\find-params.fixture.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

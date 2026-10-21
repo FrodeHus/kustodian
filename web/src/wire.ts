@@ -219,3 +219,34 @@ export interface SettingsAnswer {
   restartNeeded: boolean;
   corrupt: boolean;
 }
+
+/** One run as `recent.list` keeps it (newest first): no rows. `outcome` is a {@link RunOutcome}, or another the host added. */
+export interface RecentRun {
+  id: string;
+  source: Source;
+  text: string;
+  parameters: ParameterValue[];
+  startedAt: string;
+  durationMs: number;
+  rows: number;
+  outcome: string;
+}
+
+/** A file dialog's filter: a name and extensions without the dot. */
+export interface FileFilter {
+  name: string;
+  extensions: string[];
+}
+
+/** `file.open`'s answer; null when the dialog was cancelled. */
+export interface OpenedFile {
+  path: string;
+  name: string;
+  text: string;
+}
+
+/** `file.saveAs`'s answer; null when the dialog was cancelled. */
+export interface SavedFile {
+  path: string;
+  name: string;
+}

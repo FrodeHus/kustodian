@@ -5,7 +5,7 @@ import { BridgeError } from './bridge';
 import schema from './fixtures/graph-schema.json';
 import { applyTheme } from './shell/theme';
 import { useTabs } from './tabs/tab-store';
-import type { AccountInfo, AccountList, RunResult, Session, SettingsAnswer } from './wire';
+import type { AccountInfo, AccountList, RunResult, SavedQuery, Session, SettingsAnswer } from './wire';
 
 const bridge = vi.hoisted(() => ({ call: vi.fn(), handlers: new Map<string, Set<(data: unknown) => void>>() }));
 vi.mock('./bridge', async (importOriginal) => ({
@@ -65,8 +65,15 @@ const settings: SettingsAnswer = {
   corrupt: false,
 };
 
+/** Answers for methods a test sets up itself, consulted before {@link host}'s own. */
+let answers: Record<string, (params: unknown) => unknown> = {};
+
 function host(list: AccountList, run: RunResult | Promise<RunResult> = rows, session: Session | null = null) {
   bridge.call.mockImplementation((method: string, params?: { settings?: unknown }) => {
+    const answer = answers[method];
+    if (answer) {
+      return Promise.resolve(answer(params));
+    }
     switch (method) {
       case 'session.get':
         return Promise.resolve(session && { session, corrupt: false });
@@ -80,6 +87,12 @@ function host(list: AccountList, run: RunResult | Promise<RunResult> = rows, ses
         return Promise.resolve(schema);
       case 'query.run':
         return Promise.resolve(run);
+      case 'library.list':
+        return Promise.resolve({ queries: [], folders: [], skipped: 0 });
+      case 'recent.list':
+        return Promise.resolve({ runs: [] });
+      case 'snippets.list':
+        return Promise.resolve({ snippets: [] });
       default:
         return Promise.resolve(null);
     }
@@ -87,6 +100,7 @@ function host(list: AccountList, run: RunResult | Promise<RunResult> = rows, ses
 }
 
 beforeEach(() => {
+  answers = {};
   bridge.call.mockReset();
   useTabs.setState({ tabs: [], activeId: null, cursors: {} });
 });
@@ -236,5 +250,157 @@ describe('App', () => {
 
     fireEvent.keyDown(input, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: 'Command palette' })).toBeNull();
+  });
+  it('rail_switches_panels_and_marks_pressed', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+    const rail = screen.getByRole('navigation', { name: 'Side panels' });
+    const pressed = () => within(rail).getAllByRole('button', { pressed: true }).map((b) => b.getAttribute('aria-label'));
+    expect(within(rail).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual(['Schema', 'Saved queries', 'Recent runs', 'Snippets']);
+    expect(pressed()).toEqual(['Schema']);
+    expect(screen.getByRole('complementary', { name: 'Schema' })).toBeTruthy();
+
+    fireEvent.click(within(rail).getByRole('button', { name: 'Recent runs' }));
+    expect(pressed()).toEqual(['Recent runs']);
+    expect(await screen.findByRole('complementary', { name: 'Recent' })).toBeTruthy();
+    expect(screen.queryByRole('complementary', { name: 'Schema' })).toBeNull();
+
+    // The palette's commands show a panel too.
+    fireEvent.keyDown(window, { key: 'k', code: 'KeyK', ctrlKey: true });
+    const input = screen.getByRole('combobox', { name: 'Type a command' });
+    fireEvent.change(input, { target: { value: 'show snippets' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(pressed()).toEqual(['Snippets']);
+    expect(await screen.findByRole('complementary', { name: 'Snippets' })).toBeTruthy();
+  });
+
+  it('save_on_library_tab_updates_without_dialog', async () => {
+    const saved: SavedQuery = {
+      version: 1,
+      id: 'q1',
+      name: 'Apps',
+      folder: 'Inventory',
+      source: 'graph',
+      text: 'applications',
+      parameters: [],
+      createdAt: '2026-10-01T00:00:00Z',
+      modifiedAt: '2026-10-01T00:00:00Z',
+    };
+    answers = {
+      'library.list': () => ({ queries: [saved], folders: ['Inventory'], skipped: 0 }),
+      'library.save': (p) => ({ ...saved, ...(p as { query: SavedQuery }).query }),
+    };
+    host({ accounts: [kari], cache: 'persistent' }, rows, {
+      version: 1,
+      activeId: 'a',
+      tabs: [{ id: 'a', source: 'graph', title: 'Apps', text: 'applications | take 5', dirty: true, savedId: 'q1', parameters: [], filePath: null }],
+    });
+    render(<App />);
+    const editor = await screen.findByRole('textbox', { name: 'KQL query' });
+    await waitFor(() => expect(editor).toHaveProperty('value', 'applications | take 5'));
+
+    // Mod+S works from a text field.
+    fireEvent.keyDown(editor, { key: 's', code: 'KeyS', ctrlKey: true });
+
+    await waitFor(() =>
+      expect(bridge.call).toHaveBeenCalledWith('library.save', {
+        query: { id: 'q1', name: 'Apps', folder: 'Inventory', source: 'graph', text: 'applications | take 5', parameters: [] },
+      }),
+    );
+    await waitFor(() => expect(useTabs.getState().tabs[0]?.dirty).toBe(false));
+    expect(screen.queryByRole('dialog', { name: 'Save the query' })).toBeNull();
+  });
+
+  it('save_on_new_tab_opens_dialog', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+
+    fireEvent.keyDown(window, { key: 's', code: 'KeyS', ctrlKey: true });
+
+    expect(await screen.findByRole('dialog', { name: 'Save the query' })).toBeTruthy();
+    expect(bridge.call).not.toHaveBeenCalledWith('library.save', expect.anything());
+    expect(bridge.call).not.toHaveBeenCalledWith('file.saveAs', expect.anything());
+  });
+
+  it('save_on_file_tab_writes_the_file', async () => {
+    answers = { 'file.saveAs': (p) => ({ path: (p as { path: string }).path, name: 'apps.kql' }) };
+    host({ accounts: [kari], cache: 'persistent' }, rows, {
+      version: 1,
+      activeId: 'a',
+      tabs: [{ id: 'a', source: 'graph', title: 'apps.kql', text: 'applications', dirty: true, savedId: null, parameters: [], filePath: '/q/apps.kql' }],
+    });
+    render(<App />);
+    await screen.findByRole('tab', { name: /apps\.kql/ });
+
+    fireEvent.keyDown(window, { key: 's', code: 'KeyS', ctrlKey: true });
+
+    await waitFor(() =>
+      expect(bridge.call).toHaveBeenCalledWith('file.saveAs', {
+        suggestedName: 'apps.kql',
+        filters: [{ name: 'KQL', extensions: ['kql'] }],
+        content: 'applications',
+        path: '/q/apps.kql',
+      }),
+    );
+    await waitFor(() => expect(useTabs.getState().tabs[0]?.dirty).toBe(false));
+  });
+
+  it('open_kql_opens_tab_with_its_path', async () => {
+    answers = { 'file.open': () => ({ path: '/q/guests.kql', name: 'guests.kql', text: 'users | where userType == "Guest"' }) };
+    host({ accounts: [kari], cache: 'persistent' });
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+
+    fireEvent.keyDown(window, { key: 'o', code: 'KeyO', ctrlKey: true });
+
+    expect(await screen.findByRole('tab', { name: /guests\.kql/, selected: true })).toBeTruthy();
+    expect(bridge.call).toHaveBeenCalledWith('file.open', { filters: [{ name: 'KQL', extensions: ['kql'] }] });
+    expect(useTabs.getState().tabs[1]).toMatchObject({ filePath: '/q/guests.kql', text: 'users | where userType == "Guest"', dirty: false });
+  });
+
+  it('drop_kql_opens_tab', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+
+    const file = new File(['groups | take 3'], 'groups.kql', { type: '' });
+    fireEvent.dragOver(document.body, { dataTransfer: { files: [file], types: ['Files'] } });
+    fireEvent.drop(document.body, { dataTransfer: { files: [file], types: ['Files'] } });
+
+    expect(await screen.findByRole('tab', { name: /groups\.kql/, selected: true })).toBeTruthy();
+    const opened = useTabs.getState().tabs[1];
+    expect(opened).toMatchObject({ title: 'groups.kql', text: 'groups | take 3', dirty: false });
+    // A dropped file has no path the host approved: its first Save asks where.
+    expect(opened?.filePath).toBeUndefined();
+  });
+
+  it('drop_of_another_file_says_only_kql_opens', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+
+    fireEvent.drop(document.body, { dataTransfer: { files: [new File(['x'], 'notes.txt')], types: ['Files'] } });
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Only .kql files can be opened; notes.txt isn’t one.');
+    expect(useTabs.getState().tabs).toHaveLength(1);
+  });
+
+  it('toolbar_shows_parameter_count', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    render(<App />);
+    const editor = await screen.findByRole('textbox', { name: 'KQL query' });
+    expect(screen.queryByRole('button', { name: /^Parameters/ })).toBeNull();
+
+    fireEvent.change(editor, { target: { value: 'users | where a == {first} and b == "{inString}" and c == {second} and d == {first}' } });
+
+    const button = screen.getByRole('button', { name: 'Parameters · 2' });
+    expect(button.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(button);
+    expect(button.getAttribute('aria-pressed')).toBe('true');
+    const form = screen.getByRole('region', { name: 'Parameters' });
+    expect(within(form).getByRole('group', { name: 'first' })).toBeTruthy();
+    expect(within(form).getByRole('group', { name: 'second' })).toBeTruthy();
   });
 });
