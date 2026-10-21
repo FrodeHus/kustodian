@@ -176,6 +176,50 @@ public sealed class GraphEnginePoolTests
     }
 
     [Fact]
+    public async Task A_throwing_progress_keeps_no_slot_or_worker_and_killed_comes_after_cleanup()
+    {
+        await using var pool = Pool(o =>
+        {
+            o.Timeout = TimeSpan.FromSeconds(1);
+            o.WaitForWorker = TimeSpan.FromMilliseconds(200);
+        });
+        var progress = new ThrowingProgress(pool);
+
+        // Every event throws; each run still ends as it would have, and frees its slot (one worker, one slot: a leaked slot
+        // would fail the next run busy).
+        var first = await pool.RunAsync(Query("print x = 1"), "run-1", progress, TestContext.Current.CancellationToken);
+        var worker = Assert.Single(pool.Snapshot().WorkerIds);
+        var second = await pool.RunAsync(Query("print x = 2"), "run-2", progress, TestContext.Current.CancellationToken);
+        var failure = await FailureOf(pool.RunAsync(Query(SlowQuery), "run-slow", progress, TestContext.Current.CancellationToken));
+        var third = await pool.RunAsync(Query("print x = 3"), "run-3", progress, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, first.Rows![0][0].GetInt64());
+        Assert.Equal(2, second.Rows![0][0].GetInt64());
+        Assert.Equal(GraphEngineFailure.TimedOut, failure);
+        Assert.Equal(3, third.Rows![0][0].GetInt64());
+        Assert.True(IsGone(worker));
+        Assert.Equal(0, pool.Snapshot().Busy);
+        Assert.Equal(["start", "done", "start", "done", "start", "killed", "start", "done"], progress.Events.Select(e => e.Info.Event));
+        // When killed is reported the worker is out of the pool and its slot is free.
+        var killed = Assert.Single(progress.Events, e => e.Info.Event == "killed");
+        Assert.Equal("timeout", killed.Info.Reason);
+        Assert.DoesNotContain(worker, killed.Snapshot.WorkerIds);
+        Assert.Equal(0, killed.Snapshot.Busy);
+    }
+
+    /// <summary>Records each event with the pool's state at that moment, then throws.</summary>
+    private sealed class ThrowingProgress(GraphEnginePool pool) : IProgress<EngineRunInfo>
+    {
+        public List<(EngineRunInfo Info, GraphEngineSnapshot Snapshot)> Events { get; } = [];
+
+        public void Report(EngineRunInfo value)
+        {
+            Events.Add((value, pool.Snapshot()));
+            throw new InvalidOperationException("The progress failed.");
+        }
+    }
+
+    [Fact]
     public async Task Error_answer_is_a_clean_answer()
     {
         await using var pool = Pool();

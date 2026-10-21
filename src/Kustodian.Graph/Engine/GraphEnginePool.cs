@@ -66,7 +66,9 @@ public sealed class GraphEnginePool : IAsyncDisposable
         => RunAsync(request, runTag, null, ct);
 
     /// <summary>As <see cref="RunAsync(EngineRequest, string, CancellationToken)"/>, reporting the run's worker events to
-    /// <paramref name="progress"/> as they happen, on the run's own thread.</summary>
+    /// <paramref name="progress"/> as they happen, on the run's own thread: <c>done</c> and <c>killed</c> once the worker is
+    /// back in the pool or gone and its slot is free. A <paramref name="progress"/> that throws is logged and otherwise
+    /// ignored, so it can't keep a worker or a slot from the pool, nor change the run's outcome.</summary>
     public async Task<EngineResponse> RunAsync(EngineRequest request, string runTag, IProgress<EngineRunInfo>? progress, CancellationToken ct)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -264,7 +266,7 @@ public sealed class GraphEnginePool : IAsyncDisposable
     private async Task<EngineResponse> ExecuteAsync(
         Worker worker, EngineRequest request, string runTag, TimeSpan limit, IProgress<EngineRunInfo>? progress, CancellationToken ct)
     {
-        progress?.Report(new EngineRunInfo("start", worker.Id, null, null));
+        Report(progress, new EngineRunInfo("start", worker.Id, null, null), runTag);
         var peak = new Peak();
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var timeout = Task.Delay(limit, _time, stop.Token);
@@ -283,7 +285,7 @@ public sealed class GraphEnginePool : IAsyncDisposable
                     _idle.Push(worker);
             }
             ReleaseSlot();
-            progress?.Report(new EngineRunInfo("done", worker.Id, peak.Bytes, null));
+            Report(progress, new EngineRunInfo("done", worker.Id, peak.Bytes, null), runTag);
             return response;
         }
 
@@ -309,7 +311,6 @@ public sealed class GraphEnginePool : IAsyncDisposable
                 exchange.Exception?.GetBaseException() is InvalidDataException ? "frame" : "crash");
 
         await stop.CancelAsync();
-        progress?.Report(new EngineRunInfo("killed", worker.Id, peak.Bytes, kind));
         bool retired;
         // Time, memory, answer size and cancellation are the query's doing and don't feed the crash guard; only unexplained
         // deaths do.
@@ -322,6 +323,7 @@ public sealed class GraphEnginePool : IAsyncDisposable
         }
         // The next run that finds no idle worker starts one.
         ReleaseSlot();
+        Report(progress, new EngineRunInfo("killed", worker.Id, peak.Bytes, kind), runTag);
         try
         {
             await exchange;
@@ -333,6 +335,22 @@ public sealed class GraphEnginePool : IAsyncDisposable
 
         ct.ThrowIfCancellationRequested();
         throw new GraphEngineException(failure ?? GraphEngineFailure.Crashed, limit);
+    }
+
+    /// <summary>Tells <paramref name="progress"/> about a worker event. It only observes the run: whatever it throws is logged
+    /// and goes no further.</summary>
+    private void Report(IProgress<EngineRunInfo>? progress, EngineRunInfo info, string runTag)
+    {
+        if (progress is null)
+            return;
+        try
+        {
+            progress.Report(info);
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning(e, "Reporting the engine event {Event} of run {RunTag} failed", info.Event, runTag);
+        }
     }
 
     /// <summary>Whether the worker exited because its GC heap hit <c>DOTNET_GCHeapHardLimit</c>: it says so with
