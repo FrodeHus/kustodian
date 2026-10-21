@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kustodian · Azure Resource Graph tab and scope picker</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="studio.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#4CC2FF}a:hover{color:#8FD8FF}</style>
+</helmet>
+<div class="studio" style="width: 1440px; height: 900px; display: flex; flex-direction: column;">
+<div class="titlebar"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><span class="brand">Kustodian</span><div style="flex-grow: 1;"></div><span class="pill"><span class="dot-ok" aria-hidden="true"></span><b>Contoso Ltd</b> · kari@contoso.com</span></div>
+<div class="tabs" role="tablist" aria-label="Open queries">
+<button type="button" role="tab" class="tab" aria-selected="false"><span class="src graph">GR</span>Expired app credentials <span class="x" aria-hidden="true">×</span></button>
+<button type="button" role="tab" class="tab" aria-selected="false"><span class="src hunt">AH</span>Sign-ins from TOR exits <span class="x" aria-hidden="true">×</span></button>
+<button type="button" role="tab" class="tab" aria-selected="true"><span class="src arg">ARG</span>Public storage accounts <span class="x" aria-hidden="true">×</span></button>
+<button type="button" class="tab-add" aria-label="New tab">+</button>
+</div>
+<div class="body">
+<aside class="side" aria-label="Resource Graph tables">
+<h2>Resource Graph tables</h2>
+<input class="search" type="search" aria-label="Find a table or resource type" placeholder="Find a table or resource type">
+<ul class="tree">
+<li><button type="button" aria-expanded="true">▾ <span class="mono" style="color: var(--tbl);">Resources</span></button></li>
+<li><button type="button" class="col mono">id<span class="ty">string</span></button></li>
+<li><button type="button" class="col mono">name<span class="ty">string</span></button></li>
+<li><button type="button" class="col mono">type<span class="ty">string</span></button></li>
+<li><button type="button" class="col mono">location<span class="ty">string</span></button></li>
+<li><button type="button" class="col mono">subscriptionId<span class="ty">string</span></button></li>
+<li><button type="button" class="col mono">properties<span class="ty">dynamic</span></button></li>
+<li><button type="button" class="col mono">tags<span class="ty">dynamic</span></button></li>
+<li><button type="button">▸ <span class="mono">ResourceContainers</span></button></li>
+<li><button type="button">▸ <span class="mono">AuthorizationResources</span></button></li>
+<li><button type="button">▸ <span class="mono">SecurityResources</span></button></li>
+<li><button type="button">▸ <span class="mono">PolicyResources</span></button></li>
+<li><button type="button">▸ <span class="mono">AdvisorResources</span></button></li>
+</ul>
+<h2>Resource types · storage</h2>
+<ul class="tree">
+<li><button type="button" class="mono" style="font-size: 12px;">microsoft.storage/storageaccounts</button></li>
+<li><button type="button" class="mono" style="font-size: 12px;">microsoft.storage/storageaccounts/…</button></li>
+</ul>
+<span class="faint" style="font-size: 12px; padding: 12px 14px; margin-top: auto;">properties is dynamic; types come from the resource type list</span>
+</aside>
+<main class="main" style="position: relative;">
+<div class="toolbar">
+<button type="button" class="btn primary">Run</button>
+<span class="sep" aria-hidden="true"></span>
+<div style="position: relative;">
+<button type="button" class="btn" aria-expanded="true" aria-haspopup="dialog">Scope: 3 subscriptions ▾</button>
+<div class="menu" role="dialog" aria-label="Query scope" style="left: 0; top: 36px; width: 420px; padding: 12px; gap: 8px;">
+<div role="radiogroup" aria-label="Scope kind" style="display: flex; gap: 6px;">
+<button type="button" role="radio" aria-checked="true" class="on" style="flex: 1; justify-content: center; height: 30px;">Subscriptions</button>
+<button type="button" role="radio" aria-checked="false" style="flex: 1; justify-content: center; height: 30px;">Management group</button>
+<button type="button" role="radio" aria-checked="false" style="flex: 1; justify-content: center; height: 30px;">All I can see</button>
+</div>
+<input class="search" type="search" aria-label="Find a subscription" placeholder="Find among 7 subscriptions" style="margin: 0; width: 100%;">
+<label style="display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 6px;"><input type="checkbox" checked> <span>Contoso Production</span><span class="mono faint" style="margin-left: auto; font-size: 11px;">8f2c…41aa</span></label>
+<label style="display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 6px;"><input type="checkbox" checked> <span>Contoso Shared Services</span><span class="mono faint" style="margin-left: auto; font-size: 11px;">1b9e…07d3</span></label>
+<label style="display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 6px;"><input type="checkbox" checked> <span>Contoso Dev/Test</span><span class="mono faint" style="margin-left: auto; font-size: 11px;">c40a…9e12</span></label>
+<label style="display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 6px;"><input type="checkbox"> <span>Sandbox – kari</span><span class="mono faint" style="margin-left: auto; font-size: 11px;">77d1…b0c5</span></label>
+<span class="faint" style="font-size: 12px;">Only subscriptions in Contoso Ltd you have Reader on. The scope is saved with the query.</span>
+</div>
+</div>
+<button type="button" class="btn">Parameters</button>
+<button type="button" class="btn ghost">Format</button>
+<div style="flex-grow: 1;"></div>
+<span class="src arg" style="height: 22px; padding: 0 8px; font-size: 11px;">RESOURCE GRAPH</span>
+<span class="muted" style="font-size: 12px;">Runs in Azure · pages of 1,000 · current state, no history</span>
+</div>
+<div class="editor" role="textbox" aria-multiline="true" aria-label="KQL query" tabindex="0" style="height: 168px;">
+<div class="ln"><span class="g">1</span><span class="cm">// Storage accounts that allow public blob access or any network</span></div>
+<div class="ln"><span class="g">2</span><span class="t">Resources</span></div>
+<div class="ln"><span class="g">3</span>| <span class="k">where</span> <span class="c">type</span> =~ <span class="s">"microsoft.storage/storageaccounts"</span></div>
+<div class="ln cur"><span class="g">4</span>| <span class="k">where</span> <span class="c">properties</span>.allowBlobPublicAccess == <span class="n">true</span> <span class="k">or</span> <span class="c">properties</span>.networkAcls.defaultAction == <span class="s">"Allow"</span></div>
+<div class="ln"><span class="g">5</span>| <span class="k">project</span> <span class="c">name</span>, <span class="c">resourceGroup</span>, <span class="c">subscriptionId</span>, <span class="c">location</span>, publicBlob = <span class="c">properties</span>.allowBlobPublicAccess</div>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line);">
+<span class="chip ok">● 14 rows</span><span class="chip">3 subscriptions · 1 page</span>
+<div style="flex-grow: 1;"></div><span class="mono faint" style="font-size: 11.5px;">10:07:22 · 0.9 s · Microsoft.ResourceGraph/resources</span>
+</div>
+<div class="rbar"><div role="tablist" aria-label="Result" style="display: flex;"><button type="button" role="tab" class="rtab" aria-selected="true">Rows · 14</button><button type="button" role="tab" class="rtab" aria-selected="false">Chart</button><button type="button" role="tab" class="rtab" aria-selected="false">JSON</button><button type="button" role="tab" class="rtab" aria-selected="false">Diagnostics</button></div><div style="flex-grow: 1;"></div><button type="button" class="btn">Export ▾</button></div>
+<div style="flex: 1; min-height: 0; overflow: hidden;">
+<table class="grid">
+<thead><tr><th scope="col">name</th><th scope="col">resourceGroup</th><th scope="col">subscriptionId</th><th scope="col">location</th><th scope="col">publicBlob</th></tr></thead>
+<tbody>
+<tr><td>stcontosoweb01</td><td>rg-web-prod</td><td>8f2c…41aa</td><td>westeurope</td><td>true</td></tr>
+<tr><td>stsharedlogs</td><td>rg-logging</td><td>1b9e…07d3</td><td>northeurope</td><td>false</td></tr>
+<tr><td>stdevscratch7</td><td>rg-dev-kari</td><td>c40a…9e12</td><td>norwayeast</td><td>true</td></tr>
+</tbody>
+</table>
+</div>
+</main>
+</div>
+<div class="status"><span>Ln 4, Col 92</span><span>KQL · Resource Graph</span><div style="flex-grow: 1;"></div><span>Azure Resource Manager token · same account</span><span>Dark</span></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

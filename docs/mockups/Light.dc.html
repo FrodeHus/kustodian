@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kustodian · light theme, chart and compare</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="studio.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#0B6FAE}a:hover{color:#084F7C}</style>
+</helmet>
+<div class="studio light" style="width: 1440px; height: 900px; display: flex; flex-direction: column;">
+<div class="titlebar">
+<div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
+<span class="brand">Kustodian</span>
+<div style="flex-grow: 1;"></div>
+<span class="pill"><span class="dot-ok" aria-hidden="true"></span><b>Contoso Ltd</b> · kari@contoso.com</span>
+</div>
+<div class="tabs" role="tablist" aria-label="Open queries">
+<button type="button" role="tab" class="tab" aria-selected="false">Expired app credentials <span class="x" aria-hidden="true">×</span></button>
+<button type="button" role="tab" class="tab" aria-selected="true">Sign-ins by app, 7 days <span class="x" aria-hidden="true">×</span></button>
+<button type="button" class="tab-add" aria-label="New tab">+</button>
+</div>
+<div class="body">
+<main class="main">
+<div class="toolbar">
+<button type="button" class="btn primary">Run</button>
+<button type="button" class="btn">Explain</button>
+<button type="button" class="btn">Parameters · 1</button>
+<div style="flex-grow: 1;"></div>
+<span class="muted" style="font-size: 12px;">Time range</span>
+<button type="button" class="btn">Last 7 days ▾</button>
+</div>
+<div class="editor" role="textbox" aria-multiline="true" aria-label="KQL query" tabindex="0" style="height: 126px;">
+<div class="ln"><span class="g">1</span><span class="t">auditLogs_signIns</span></div>
+<div class="ln"><span class="g">2</span>| <span class="k">where</span> <span class="c">createdDateTime</span> &gt;= <span class="f">ago</span>(<span class="n">{timeRange}</span>)</div>
+<div class="ln cur"><span class="g">3</span>| <span class="k">summarize</span> signIns = <span class="f">count</span>() <span class="k">by</span> <span class="c">appDisplayName</span>, day = <span class="f">bin</span>(<span class="c">createdDateTime</span>, <span class="n">1d</span>)</div>
+<div class="ln"><span class="g">4</span>| <span class="k">render</span> <span class="k">columnchart</span></div>
+</div>
+<div class="rbar">
+<div role="tablist" aria-label="Result" style="display: flex;">
+<button type="button" role="tab" class="rtab" aria-selected="false">Rows · 35</button>
+<button type="button" role="tab" class="rtab" aria-selected="true">Chart</button>
+<button type="button" role="tab" class="rtab" aria-selected="false">JSON</button>
+<button type="button" role="tab" class="rtab" aria-selected="false">Compare runs</button>
+</div>
+<div style="flex-grow: 1;"></div>
+<button type="button" class="btn">Column ▾</button>
+<button type="button" class="btn">Copy image</button>
+</div>
+<div style="display: flex; gap: 16px; padding: 16px; flex: 1; min-height: 0;">
+<section class="card" aria-label="Chart" style="flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 10px;"><b style="font-size: 14px;">Sign-ins per app per day</b><span class="muted" style="font-size: 12px;">rendered from render columnchart</span></div>
+<svg role="img" aria-label="Column chart of sign-ins per app per day" viewBox="0 0 760 300" style="width: 100%; height: 300px;">
+<g stroke="#DCE1E8"><line x1="40" y1="20" x2="750" y2="20"></line><line x1="40" y1="90" x2="750" y2="90"></line><line x1="40" y1="160" x2="750" y2="160"></line><line x1="40" y1="230" x2="750" y2="230"></line></g>
+<g font-family="JetBrains Mono" font-size="11" fill="#4E5867"><text x="6" y="24">900</text><text x="6" y="94">600</text><text x="6" y="164">300</text><text x="18" y="234">0</text></g>
+<g>
+<rect x="60" y="80" width="26" height="150" fill="#0B6FAE"></rect><rect x="88" y="150" width="26" height="80" fill="#E08A00"></rect>
+<rect x="160" y="60" width="26" height="170" fill="#0B6FAE"></rect><rect x="188" y="140" width="26" height="90" fill="#E08A00"></rect>
+<rect x="260" y="95" width="26" height="135" fill="#0B6FAE"></rect><rect x="288" y="160" width="26" height="70" fill="#E08A00"></rect>
+<rect x="360" y="70" width="26" height="160" fill="#0B6FAE"></rect><rect x="388" y="130" width="26" height="100" fill="#E08A00"></rect>
+<rect x="460" y="40" width="26" height="190" fill="#0B6FAE"></rect><rect x="488" y="120" width="26" height="110" fill="#E08A00"></rect>
+<rect x="560" y="190" width="26" height="40" fill="#0B6FAE"></rect><rect x="588" y="210" width="26" height="20" fill="#E08A00"></rect>
+<rect x="660" y="200" width="26" height="30" fill="#0B6FAE"></rect><rect x="688" y="215" width="26" height="15" fill="#E08A00"></rect>
+</g>
+<g font-family="JetBrains Mono" font-size="11" fill="#4E5867"><text x="64" y="252">14 Oct</text><text x="164" y="252">15 Oct</text><text x="264" y="252">16 Oct</text><text x="364" y="252">17 Oct</text><text x="464" y="252">18 Oct</text><text x="564" y="252">19 Oct</text><text x="664" y="252">20 Oct</text></g>
+</svg>
+<div style="display: flex; gap: 16px; font-size: 12px;" class="muted"><span><span style="display: inline-block; width: 10px; height: 10px; background: #0B6FAE; margin-right: 6px;"></span>Microsoft Teams</span><span><span style="display: inline-block; width: 10px; height: 10px; background: #E08A00; margin-right: 6px;"></span>Office 365 Exchange Online</span></div>
+</section>
+<section class="card" aria-label="Compare two runs" style="width: 420px; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+<b style="font-size: 14px;">Compare runs</b>
+<div style="display: flex; gap: 8px;"><button type="button" class="btn" style="flex: 1;">09:12 · 33 rows ▾</button><button type="button" class="btn" style="flex: 1;">09:41 · 35 rows ▾</button></div>
+<div class="muted" style="font-size: 12px;">Matched on appDisplayName, day</div>
+<table class="grid">
+<thead><tr><th scope="col">appDisplayName</th><th scope="col">day</th><th scope="col" class="num">signIns</th></tr></thead>
+<tbody>
+<tr><td style="color: var(--ok);">+ Azure Portal</td><td>20 Oct</td><td class="num">12</td></tr>
+<tr><td style="color: var(--ok);">+ Graph Explorer</td><td>20 Oct</td><td class="num">4</td></tr>
+<tr><td>Microsoft Teams</td><td>20 Oct</td><td class="num">96 <span class="faint">→</span> 118</td></tr>
+<tr><td style="color: var(--bad);">− Legacy Intranet</td><td>19 Oct</td><td class="num">3</td></tr>
+</tbody>
+</table>
+<div class="muted" style="font-size: 12px;">2 added · 1 removed · 1 changed · 31 the same</div>
+</section>
+</div>
+</main>
+</div>
+<div class="status"><span>Ln 3, Col 61</span><span>KQL</span><div style="flex-grow: 1;"></div><span>Light</span></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

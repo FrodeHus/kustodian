@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kustodian · sign in, accounts and client ID</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="studio.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#4CC2FF}a:hover{color:#8FD8FF}</style>
+</helmet>
+<div class="studio" style="width: 1440px; height: 900px; display: flex; flex-direction: column;">
+<div class="titlebar"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><span class="brand">Kustodian</span><div style="flex-grow: 1;"></div><span class="pill">Not signed in</span></div>
+<div style="flex: 1; display: flex; gap: 32px; padding: 48px 64px; align-items: flex-start;">
+
+<section class="card" aria-label="Sign in" style="width: 520px; padding: 28px; display: flex; flex-direction: column; gap: 18px;">
+<div style="display: flex; flex-direction: column; gap: 6px;"><h1 style="margin: 0; font-size: 22px; font-weight: 600;">Sign in to Microsoft Graph</h1><span class="muted">Queries run as you, with your delegated permissions, in the tenant you sign in to.</span></div>
+<button type="button" class="btn primary" style="height: 40px; justify-content: center; font-size: 14px;">Sign in with your browser</button>
+<button type="button" class="btn" style="height: 40px; justify-content: center;">Use a device code instead</button>
+<div style="display: flex; flex-direction: column; gap: 4px;"><span class="muted" style="font-size: 12px;">Signing in as</span>
+<label style="display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 8px;"><input type="radio" name="client" checked style="margin-top: 3px;"><span><b>Azure CLI</b> <span class="faint">(default)</span><br><span class="muted" style="font-size: 12px;">Microsoft's public client 04b07795-8ddb-461a-bbee-02f9e1bf7b46. Most tenants have already consented to what it asks for.</span></span></label>
+<label style="display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px;"><input type="radio" name="client" style="margin-top: 3px;"><span><b>My own app registration</b><br><span class="muted" style="font-size: 12px;">A public client with http://localhost as a redirect URI.</span></span></label>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; opacity: .55;">
+<div class="field"><label for="cid">Client ID</label><input id="cid" class="input mono" placeholder="00000000-0000-0000-0000-000000000000" disabled></div>
+<div class="field"><label for="tid">Tenant</label><input id="tid" class="input mono" placeholder="organizations or a tenant ID" disabled></div>
+</div>
+<span class="faint" style="font-size: 12px;">Your token stays in this computer's keychain. Nothing is sent anywhere but Microsoft.</span>
+</section>
+
+<section style="flex: 1; display: flex; flex-direction: column; gap: 16px;">
+<div class="card" aria-label="Accounts" style="padding: 20px; display: flex; flex-direction: column; gap: 12px;">
+<b style="font-size: 14px;">Accounts on this computer</b>
+<div style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px;"><span class="dot-ok" aria-hidden="true"></span><div style="display: flex; flex-direction: column;"><b>kari@contoso.com</b><span class="muted" style="font-size: 12px;">Contoso Ltd · Azure CLI client · signed in 2 days ago</span></div><div style="flex-grow: 1;"></div><button type="button" class="btn">Use</button><button type="button" class="btn ghost">Sign out</button></div>
+<div style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: var(--faint); display: inline-block;" aria-hidden="true"></span><div style="display: flex; flex-direction: column;"><b>admin@fabrikamlab.onmicrosoft.com</b><span class="muted" style="font-size: 12px;">Fabrikam Lab · client 7d1f…c20a · token expired, sign in again</span></div><div style="flex-grow: 1;"></div><button type="button" class="btn">Sign in</button><button type="button" class="btn ghost">Remove</button></div>
+<span class="muted" style="font-size: 12px;">One tenant at a time. Switching closes no tabs; each run uses the account active when it starts.</span>
+</div>
+<div class="card" aria-label="What you can read" style="padding: 20px; display: flex; flex-direction: column; gap: 10px;">
+<b style="font-size: 14px;">What this sign-in can read</b>
+<span class="muted" style="font-size: 12px;">From the token's scopes. A table you can't read answers "No permission" when you run it.</span>
+<div style="display: flex; flex-wrap: wrap; gap: 6px;">
+<span class="chip ok">Application.ReadWrite.All</span><span class="chip ok">Directory.AccessAsUser.All</span><span class="chip ok">User.ReadWrite.All</span><span class="chip ok">Group.ReadWrite.All</span><span class="chip ok">AuditLog.Read.All</span><span class="chip">Policy.Read.All</span><span class="chip">IdentityRiskyUser.Read.All</span>
+</div>
+<span class="faint" style="font-size: 12px;">Delegated permissions are also limited by your own Entra roles.</span>
+</div>
+</section>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

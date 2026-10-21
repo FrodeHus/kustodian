@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kustodian · raw Graph request</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="studio.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#4CC2FF}a:hover{color:#8FD8FF}</style>
+</helmet>
+<div class="studio" style="width: 1440px; height: 900px; display: flex; flex-direction: column;">
+<div class="titlebar"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><span class="brand">Kustodian</span><div style="flex-grow: 1;"></div><span class="pill"><span class="dot-ok" aria-hidden="true"></span><b>Contoso Ltd</b> · kari@contoso.com</span></div>
+<div class="tabs" role="tablist" aria-label="Open queries">
+<button type="button" role="tab" class="tab" aria-selected="false">Expired app credentials <span class="x" aria-hidden="true">×</span></button>
+<button type="button" role="tab" class="tab" aria-selected="true">GET /me/memberOf <span class="x" aria-hidden="true">×</span></button>
+<button type="button" class="tab-add" aria-label="New tab">+</button>
+</div>
+<div class="body">
+<main class="main">
+<div class="toolbar" style="gap: 6px;">
+<label class="faint" for="m" style="font-size: 12px;">Method</label>
+<select id="m" class="input mono" style="width: 92px;"><option>GET</option><option>POST</option><option>PATCH</option><option>DELETE</option></select>
+<select class="input mono" aria-label="Version" style="width: 80px;"><option>beta</option><option>v1.0</option></select>
+<input class="input mono" aria-label="Request URL" value="/me/memberOf?$select=displayName,id&amp;$top=50" style="flex: 1;">
+<button type="button" class="btn primary">Send <span class="kbd" style="border-color: rgba(6,19,28,.3); color: var(--accent-ink);">Ctrl Enter</span></button>
+</div>
+<div style="padding: 6px 12px; border-bottom: 1px solid var(--line); background: var(--warn-soft); color: var(--warn); font-size: 12px;">POST, PATCH and DELETE change your tenant. The tool asks before sending them.</div>
+<div style="display: flex; flex: 1; min-height: 0;">
+<section aria-label="Request" style="width: 520px; border-right: 1px solid var(--line); display: flex; flex-direction: column;">
+<div class="rbar"><div role="tablist" aria-label="Request parts" style="display: flex;"><button type="button" role="tab" class="rtab" aria-selected="true">Headers · 2</button><button type="button" role="tab" class="rtab" aria-selected="false">Body</button></div></div>
+<table class="grid"><thead><tr><th scope="col">Header</th><th scope="col">Value</th></tr></thead>
+<tbody><tr><td>ConsistencyLevel</td><td>eventual</td></tr><tr><td>Prefer</td><td>outlook.timezone="W. Europe Standard Time"</td></tr><tr><td class="faint">Authorization</td><td class="faint">Bearer · added for you, never shown</td></tr></tbody></table>
+<div style="padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+<span class="muted" style="font-size: 12px;">Requests sent from here show up in Recent like queries do.</span>
+<button type="button" class="btn" style="align-self: flex-start;">Turn this into a KQL query</button>
+</div>
+</section>
+<section aria-label="Response" style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
+<div class="rbar">
+<span class="chip ok">200 OK</span><span class="mono faint" style="font-size: 12px;">412 ms · 3.1 KB · 6 items · request-id 7f3c…a91e</span>
+<div style="flex-grow: 1;"></div>
+<div role="tablist" aria-label="Response view" style="display: flex;"><button type="button" role="tab" class="rtab" aria-selected="true">JSON</button><button type="button" role="tab" class="rtab" aria-selected="false">Table</button><button type="button" role="tab" class="rtab" aria-selected="false">Headers</button></div>
+<button type="button" class="btn ghost">Copy</button>
+</div>
+<div class="code" style="margin: 12px; flex: 1; overflow: hidden;">{
+  "@odata.context": "https://graph.microsoft.com/beta/$metadata#directoryObjects(displayName,id)",
+  "value": [
+    { "@odata.type": "#microsoft.graph.group",
+      "id": "5a7c1e02-9b44-4d1e-8f0b-2c9a3e11f0d4", "displayName": "SOC Analysts" },
+    { "@odata.type": "#microsoft.graph.group",
+      "id": "b1e9f6a3-0d27-4c88-a5e1-7f3b92c4d6e8", "displayName": "Entra ID P2 users" },
+    { "@odata.type": "#microsoft.graph.directoryRole",
+      "id": "62e90394-69f5-4237-9190-012177145e10", "displayName": "Security Reader" },
+    { "@odata.type": "#microsoft.graph.directoryRole",
+      "id": "f2ef992c-3afb-46b9-b7cf-a126ee74c451", "displayName": "Global Reader" }
+  ]
+}</div>
+</section>
+</div>
+</main>
+</div>
+<div class="status"><span>Raw request</span><div style="flex-grow: 1;"></div><span>Dark</span></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

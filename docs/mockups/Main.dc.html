@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kustodian · main window</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="studio.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#4CC2FF}a:hover{color:#8FD8FF}</style>
+</helmet>
+<div class="studio" style="width: 1440px; height: 900px; display: flex; flex-direction: column;">
+
+<div class="titlebar">
+<div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
+<span class="brand">Kustodian</span>
+<span class="faint" style="font-size: 12px;">Microsoft Graph beta</span>
+<div style="flex-grow: 1;"></div>
+<button type="button" class="pill" aria-label="Command palette">Search or run a command <span class="kbd">Ctrl K</span></button>
+<span class="pill"><span class="dot-ok" aria-hidden="true"></span><b>Contoso Ltd</b> · kari@contoso.com</span>
+</div>
+
+<div class="tabs" role="tablist" aria-label="Open queries">
+<button type="button" role="tab" class="tab" aria-selected="true"><span class="src graph" title="Microsoft Graph">GR</span>Expired app credentials <span class="mod" aria-label="Unsaved changes"></span><span class="x" aria-hidden="true">×</span></button>
+<button type="button" role="tab" class="tab" aria-selected="false"><span class="src hunt" title="Defender advanced hunting">AH</span>Sign-ins from TOR exits <span class="x" aria-hidden="true">×</span></button>
+<button type="button" role="tab" class="tab" aria-selected="false"><span class="src arg" title="Azure Resource Graph">ARG</span>Public storage accounts <span class="x" aria-hidden="true">×</span></button>
+<button type="button" role="tab" class="tab" aria-selected="false"><span class="src graph" title="Microsoft Graph">GR</span>GET /me/memberOf <span class="x" aria-hidden="true">×</span></button>
+<div style="position: relative;">
+<button type="button" class="tab-add" aria-label="New tab" aria-expanded="true">+</button>
+<div class="menu" role="menu" aria-label="New tab" style="left: 0; top: 34px; width: 300px;">
+<button type="button" role="menuitem" class="on"><span class="src graph">GR</span>Microsoft Graph query<span style="flex-grow: 1;"></span><span class="kbd">Ctrl T</span></button>
+<button type="button" role="menuitem"><span class="src hunt">AH</span>Defender advanced hunting</button>
+<button type="button" role="menuitem"><span class="src arg">ARG</span>Azure Resource Graph</button>
+<button type="button" role="menuitem"><span class="src graph">GR</span>Raw Graph request</button>
+</div>
+</div>
+</div>
+
+<div class="body">
+<nav class="rail" aria-label="Side panels">
+<button type="button" aria-pressed="true" aria-label="Schema"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"></ellipse><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"></path><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"></path></svg></button>
+<button type="button" aria-pressed="false" aria-label="Saved queries"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"></path></svg></button>
+<button type="button" aria-pressed="false" aria-label="Recent runs"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg></button>
+<button type="button" aria-pressed="false" aria-label="Snippets"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M8 7l-5 5 5 5"></path><path d="M16 7l5 5-5 5"></path></svg></button>
+<div style="flex-grow: 1;"></div>
+<button type="button" aria-pressed="false" aria-label="Settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3.9a7 7 0 0 0-2-1.2L14 3h-4l-.6 2.6a7 7 0 0 0-2 1.2l-2.3-.9-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.3-.9a7 7 0 0 0 2 1.2L10 21h4l.6-2.6a7 7 0 0 0 2-1.2l2.3.9 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z"></path></svg></button>
+</nav>
+
+<aside class="side" aria-label="Schema">
+<h2>Schema</h2>
+<input class="search" type="search" aria-label="Find a table or column" placeholder="Find among 436 tables">
+<h2 style="padding-top: 4px;">In this query</h2>
+<ul class="tree">
+<li><button type="button" aria-expanded="true">▾ <span class="mono" style="color: var(--tbl);">applications</span><span class="ty">44 columns</span></button></li>
+<li><button type="button" class="col mono">appId <span class="tag" title="Graph filters on this: eq">filter</span><span class="ty">string</span></button></li>
+<li><button type="button" class="col mono">displayName <span class="tag" title="Graph filters on this: eq, ne, in, startsWith">filter</span><span class="ty">string</span></button></li>
+<li><button type="button" class="col mono">createdDateTime <span class="tag">filter</span><span class="ty">datetime</span></button></li>
+<li><button type="button" class="col mono">passwordCredentials<span class="ty">dynamic[]</span></button></li>
+<li><button type="button" class="col mono">keyCredentials<span class="ty">dynamic[]</span></button></li>
+<li><button type="button" class="col mono">onPremisesPublishing <span class="tag warn" title="Read one application at a time">per object</span><span class="ty">dynamic</span></button></li>
+<li><button type="button" class="col mono">signInAudience <span class="tag">filter</span><span class="ty">string</span></button></li>
+</ul>
+<h2>All tables</h2>
+<ul class="tree">
+<li><button type="button">▸ <span class="mono">administrativeUnits</span></button></li>
+<li><button type="button">▸ <span class="mono">auditLogs_signIns</span></button></li>
+<li><button type="button">▸ <span class="mono">devices</span></button></li>
+<li><button type="button">▸ <span class="mono">groups</span></button></li>
+<li><button type="button">▸ <span class="mono">identityProtection_riskyUsers</span></button></li>
+<li><button type="button">▸ <span class="mono">servicePrincipals</span></button></li>
+<li><button type="button">▸ <span class="mono">users</span></button></li>
+</ul>
+</aside>
+
+<main class="main">
+<div class="toolbar">
+<button type="button" class="btn primary"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 4v16l14-8z"></path></svg>Run</button>
+<span class="faint" style="font-size: 12px;">the block at the cursor</span><span class="kbd">Shift Enter</span>
+<button type="button" class="btn ghost">Run all <span class="kbd">Ctrl Shift Enter</span></button>
+<span class="sep" aria-hidden="true"></span>
+<button type="button" class="btn">Explain</button>
+<button type="button" class="btn">Parameters · 1</button>
+<button type="button" class="btn ghost">Format</button>
+<div style="flex-grow: 1;"></div>
+<button type="button" class="btn ghost">Save</button>
+<button type="button" class="btn ghost">Save as…</button>
+</div>
+
+<div class="editor" role="textbox" aria-multiline="true" aria-label="KQL query" tabindex="0" style="height: 252px;">
+<div class="ln"><span class="g">1</span><span class="cm">// Expired secrets or certificates, or App Proxy apps without pre-authentication</span></div>
+<div class="ln block"><span class="g">2</span><span class="k">let</span> expired = <span class="k">union</span></div>
+<div class="ln block"><span class="g">3</span>    (<span class="t">applications</span> | <span class="k">mv-expand</span> cred = <span class="c">passwordCredentials</span> | <span class="k">extend</span> kind = <span class="s">"secret"</span>),</div>
+<div class="ln block"><span class="g">4</span>    (<span class="t">applications</span> | <span class="k">mv-expand</span> cred = <span class="c">keyCredentials</span> | <span class="k">extend</span> kind = <span class="s">"certificate"</span>)</div>
+<div class="ln block"><span class="g">5</span>  | <span class="k">where</span> <span class="f">todatetime</span>(cred.endDateTime) &lt; <span class="f">now</span>() - <span class="n">{graceDays}</span></div>
+<div class="ln block"><span class="g">6</span>  | <span class="k">summarize</span> expired = <span class="f">count</span>(), kinds = <span class="f">make_set</span>(kind) <span class="k">by</span> <span class="c">appId</span>;</div>
+<div class="ln block cur"><span class="g">7</span><span class="t">applications</span> | <span class="k">join kind</span>=leftouter expired <span class="k">on</span> <span class="c">appId</span></div>
+<div class="ln block"><span class="g">8</span>| <span class="k">extend</span> passthru = <span class="f">tostring</span>(<span class="c">onPremisesPublishing</span>.externalAuthenticationType) == <span class="s">"passthru"</span></div>
+<div class="ln block"><span class="g">9</span>| <span class="k">where</span> expired &gt; <span class="n">0</span> <span class="k">or</span> passthru | <span class="k">project</span> <span class="c">displayName</span>, <span class="c">appId</span>, expired, kinds, passthru</div>
+<div class="ln"><span class="g">10</span></div>
+<div class="ln"><span class="g">11</span><span class="t">users</span> | <span class="k">where</span> <span class="c">userType</span> == <span class="s">"Guest"</span> | <span class="k">count</span></div>
+</div>
+
+<div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line);">
+<span class="chip ok">● 4 rows</span>
+<span class="chip">2 Graph requests · 1 read per object (37 apps)</span>
+<span class="chip warn">1 column read one app at a time</span>
+<div style="flex-grow: 1;"></div>
+<span class="mono faint" style="font-size: 11.5px;">09:41:12 · 1.8 s · 412 objects fetched</span>
+</div>
+
+<div class="rbar">
+<div role="tablist" aria-label="Result" style="display: flex;">
+<button type="button" role="tab" class="rtab" aria-selected="true">Rows · 4</button>
+<button type="button" role="tab" class="rtab" aria-selected="false">Chart</button>
+<button type="button" role="tab" class="rtab" aria-selected="false">JSON</button>
+<button type="button" role="tab" class="rtab" aria-selected="false">Diagnostics</button>
+</div>
+<div style="flex-grow: 1;"></div>
+<input class="search" type="search" aria-label="Filter rows" placeholder="Filter rows" style="width: 200px; margin: 0;">
+<button type="button" class="btn ghost">Columns</button>
+<button type="button" class="btn ghost">Group by</button>
+<button type="button" class="btn">Copy as ▾</button>
+<button type="button" class="btn">Export ▾</button>
+</div>
+<div style="flex: 1; min-height: 0; overflow: hidden;">
+<table class="grid">
+<thead><tr><th scope="col">displayName ↑</th><th scope="col">appId</th><th scope="col" class="num">expired</th><th scope="col">kinds</th><th scope="col">passthru</th></tr></thead>
+<tbody>
+<tr><td>CI Deployer</td><td>3f2a9c1e-48d1-4f0b-9e0a-7b41c2d07b41</td><td class="num">2</td><td>["secret","certificate"]</td><td>false</td></tr>
+<tr class="sel"><td>Legacy Intranet (App Proxy)</td><td>9b0d4e72-1a3c-4c55-8d2e-11c8a0f311c8</td><td class="num">0</td><td class="faint">null</td><td style="color: var(--warn);">true</td></tr>
+<tr><td>Payroll Portal</td><td>a41c07d3-6b9e-4f21-b0c4-e2f0d93ae2f0</td><td class="num">1</td><td>["secret"]</td><td>false</td></tr>
+<tr><td>SharePoint Sync</td><td>08d2be5f-c1d7-47a0-9f63-44a7b5e244a7</td><td class="num">3</td><td>["secret"]</td><td>false</td></tr>
+</tbody>
+</table>
+</div>
+</main>
+</div>
+
+<div class="status">
+<span>Ln 7, Col 18</span><span>KQL</span><span>Schema: msgraph-metadata 8c56252 · 20 Oct 2026</span>
+<div style="flex-grow: 1;"></div>
+<span>Engine: 1 worker idle</span><span>Cache: 37 objects, newest 4 min</span><span>Dark</span>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

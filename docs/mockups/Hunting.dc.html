@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kustodian · Defender advanced hunting tab</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="studio.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#4CC2FF}a:hover{color:#8FD8FF}</style>
+</helmet>
+<div class="studio" style="width: 1440px; height: 900px; display: flex; flex-direction: column;">
+<div class="titlebar"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><span class="brand">Kustodian</span><div style="flex-grow: 1;"></div><span class="pill"><span class="dot-ok" aria-hidden="true"></span><b>Contoso Ltd</b> · kari@contoso.com</span></div>
+<div class="tabs" role="tablist" aria-label="Open queries">
+<button type="button" role="tab" class="tab" aria-selected="false"><span class="src graph">GR</span>Expired app credentials <span class="x" aria-hidden="true">×</span></button>
+<button type="button" role="tab" class="tab" aria-selected="true"><span class="src hunt">AH</span>Sign-ins from TOR exits <span class="x" aria-hidden="true">×</span></button>
+<button type="button" role="tab" class="tab" aria-selected="false"><span class="src arg">ARG</span>Public storage accounts <span class="x" aria-hidden="true">×</span></button>
+<button type="button" class="tab-add" aria-label="New tab">+</button>
+</div>
+<div class="body">
+<aside class="side" aria-label="Advanced hunting schema">
+<h2>Advanced hunting schema</h2>
+<input class="search" type="search" aria-label="Find a table or column" placeholder="Find among 61 tables">
+<h2 style="padding-top: 4px;">Identity</h2>
+<ul class="tree">
+<li><button type="button" aria-expanded="true">▾ <span class="mono" style="color: var(--tbl);">AADSignInEventsBeta</span></button></li>
+<li><button type="button" class="col mono">Timestamp<span class="ty">datetime</span></button></li>
+<li><button type="button" class="col mono">AccountUpn<span class="ty">string</span></button></li>
+<li><button type="button" class="col mono">IPAddress<span class="ty">string</span></button></li>
+<li><button type="button" class="col mono">Application<span class="ty">string</span></button></li>
+<li><button type="button" class="col mono">ErrorCode<span class="ty">int</span></button></li>
+<li><button type="button">▸ <span class="mono">IdentityLogonEvents</span></button></li>
+<li><button type="button">▸ <span class="mono">IdentityInfo</span></button></li>
+</ul>
+<h2>Devices</h2>
+<ul class="tree">
+<li><button type="button">▸ <span class="mono">DeviceInfo</span></button></li>
+<li><button type="button">▸ <span class="mono">DeviceLogonEvents</span></button></li>
+<li><button type="button">▸ <span class="mono">DeviceProcessEvents</span></button></li>
+</ul>
+<span class="faint" style="font-size: 12px; padding: 12px 14px; margin-top: auto;">Schema from your tenant (getHuntingSchemaTables) · 21 Oct 2026</span>
+</aside>
+<main class="main">
+<div class="toolbar">
+<button type="button" class="btn primary">Run</button>
+<span class="sep" aria-hidden="true"></span>
+<button type="button" class="btn">Parameters · 1</button>
+<button type="button" class="btn ghost">Format</button>
+<div style="flex-grow: 1;"></div>
+<span class="src hunt" style="height: 22px; padding: 0 8px; font-size: 11px;">ADVANCED HUNTING</span>
+<span class="muted" style="font-size: 12px;">Sent as-is to Graph POST /security/runHuntingQuery · last 30 days of data</span>
+</div>
+<div class="editor" role="textbox" aria-multiline="true" aria-label="KQL query" tabindex="0" style="height: 168px;">
+<div class="ln"><span class="g">1</span><span class="cm">// Successful sign-ins from addresses in the threat feed, last {lookback}</span></div>
+<div class="ln"><span class="g">2</span><span class="t">AADSignInEventsBeta</span></div>
+<div class="ln"><span class="g">3</span>| <span class="k">where</span> <span class="c">Timestamp</span> &gt; <span class="f">ago</span>(<span class="n">{lookback}</span>) <span class="k">and</span> <span class="c">ErrorCode</span> == <span class="n">0</span></div>
+<div class="ln cur"><span class="g">4</span>| <span class="k">where</span> <span class="c">IPAddress</span> <span class="k">in</span> (<span class="s">"185.220.101.44"</span>, <span class="s">"45.155.205.12"</span>)</div>
+<div class="ln"><span class="g">5</span>| <span class="k">project</span> <span class="c">Timestamp</span>, <span class="c">AccountUpn</span>, <span class="c">Application</span>, <span class="c">IPAddress</span>, <span class="c">Country</span></div>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line);">
+<span class="chip ok">● 6 rows</span><span class="chip">1 Graph call · no Explain for hunting</span>
+<div style="flex-grow: 1;"></div><span class="mono faint" style="font-size: 11.5px;">10:04:51 · 2.2 s · runHuntingQuery</span>
+</div>
+<div class="rbar"><div role="tablist" aria-label="Result" style="display: flex;"><button type="button" role="tab" class="rtab" aria-selected="true">Rows · 6</button><button type="button" role="tab" class="rtab" aria-selected="false">Chart</button><button type="button" role="tab" class="rtab" aria-selected="false">JSON</button><button type="button" role="tab" class="rtab" aria-selected="false">Diagnostics</button></div><div style="flex-grow: 1;"></div><button type="button" class="btn">Export ▾</button></div>
+<div style="flex: 1; min-height: 0; overflow: hidden;">
+<table class="grid">
+<thead><tr><th scope="col">Timestamp ↓</th><th scope="col">AccountUpn</th><th scope="col">Application</th><th scope="col">IPAddress</th><th scope="col">Country</th></tr></thead>
+<tbody>
+<tr><td>2026-10-21 09:38:12</td><td>t.dahl@contoso.com</td><td>Microsoft Teams</td><td>185.220.101.44</td><td>DE</td></tr>
+<tr><td>2026-10-21 08:57:31</td><td>svc-backup@contoso.com</td><td>Azure Portal</td><td>45.155.205.12</td><td>NL</td></tr>
+<tr><td>2026-10-20 22:12:05</td><td>a.lind@contoso.com</td><td>Office 365 Exchange Online</td><td>185.220.101.44</td><td>DE</td></tr>
+</tbody>
+</table>
+</div>
+</main>
+</div>
+<div class="status"><span>Ln 4, Col 66</span><span>KQL · advanced hunting</span><div style="flex-grow: 1;"></div><span>Needs ThreatHunting.Read.All (delegated) and a Defender role</span><span>Dark</span></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

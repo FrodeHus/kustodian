@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kustodian · command palette and row details</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="studio.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#4CC2FF}a:hover{color:#8FD8FF}</style>
+</helmet>
+<div class="studio" style="width: 1440px; height: 900px; display: flex; flex-direction: column; position: relative;">
+<div class="titlebar"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><span class="brand">Kustodian</span><div style="flex-grow: 1;"></div><span class="pill"><span class="dot-ok" aria-hidden="true"></span><b>Contoso Ltd</b> · kari@contoso.com</span></div>
+<div class="tabs" role="tablist" aria-label="Open queries">
+<button type="button" role="tab" class="tab" aria-selected="true">Expired app credentials <span class="x" aria-hidden="true">×</span></button>
+<button type="button" class="tab-add" aria-label="New tab">+</button>
+</div>
+<div class="body">
+<main class="main">
+<div class="editor" role="textbox" aria-multiline="true" aria-label="KQL query" tabindex="0" style="height: 84px;">
+<div class="ln"><span class="g">1</span><span class="t">servicePrincipals</span> | <span class="k">where</span> <span class="c">accountEnabled</span> == <span class="k">true</span></div>
+<div class="ln cur"><span class="g">2</span>| <span class="k">project</span> <span class="c">displayName</span>, <span class="c">appId</span>, <span class="c">servicePrincipalType</span>, <span class="c">appRoles</span></div>
+</div>
+<div class="rbar"><div role="tablist" aria-label="Result" style="display: flex;"><button type="button" role="tab" class="rtab" aria-selected="true">Rows · 128</button><button type="button" role="tab" class="rtab" aria-selected="false">Chart</button></div><div style="flex-grow: 1;"></div><span class="muted" style="font-size: 12px;">Grouped by servicePrincipalType</span></div>
+<div style="display: flex; flex: 1; min-height: 0;">
+<div style="flex: 1; overflow: hidden;">
+<table class="grid">
+<thead><tr><th scope="col">displayName</th><th scope="col">appId</th><th scope="col">appRoles</th></tr></thead>
+<tbody>
+<tr><td colspan="3" style="font-family: Inter, sans-serif; font-weight: 600; background: var(--panel2);">▾ Application · 96</td></tr>
+<tr><td>CI Deployer</td><td>3f2a9c1e-48d1-4f0b-9e0a-7b41c2d07b41</td><td>[]</td></tr>
+<tr class="sel"><td>HR Connector</td><td>c19e0b7a-5d33-4b0e-9a71-0e6d4f2a8b13</td><td>[{"allowedMemberTypes":["Application"],…</td></tr>
+<tr><td>Payroll Portal</td><td>a41c07d3-6b9e-4f21-b0c4-e2f0d93ae2f0</td><td>[]</td></tr>
+<tr><td colspan="3" style="font-family: Inter, sans-serif; font-weight: 600; background: var(--panel2);">▸ ManagedIdentity · 32</td></tr>
+</tbody>
+</table>
+</div>
+<aside aria-label="Row details" style="width: 420px; border-left: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column;">
+<div style="display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line);"><b>HR Connector</b><div style="flex-grow: 1;"></div><button type="button" class="btn ghost">Copy row as JSON</button><button type="button" class="tab-add" aria-label="Close row details">×</button></div>
+<div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; overflow: hidden;">
+<div class="field"><label>appId · string</label><span class="mono">c19e0b7a-5d33-4b0e-9a71-0e6d4f2a8b13</span></div>
+<div class="field"><label>servicePrincipalType · string</label><span class="mono">Application</span></div>
+<div class="field"><label>appRoles · dynamic</label><span class="code">[
+  {
+    "allowedMemberTypes": ["Application"],
+    "displayName": "Read employee records",
+    "value": "Employees.Read.All",
+    "isEnabled": true
+  }
+]</span></div>
+</div>
+</aside>
+</div>
+</main>
+</div>
+<div class="status"><span>Ln 2, Col 80</span><span>KQL</span><div style="flex-grow: 1;"></div><span>Dark</span></div>
+<div class="overlay" aria-hidden="true"></div>
+<div role="dialog" aria-label="Command palette" class="card" style="position: absolute; left: 420px; top: 96px; width: 600px; box-shadow: 0 24px 60px rgba(0,0,0,.5); overflow: hidden;">
+<input class="input" aria-label="Type a command" value="exp" style="width: 100%; height: 44px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; font-size: 14px; background: var(--panel);">
+<ul style="list-style: none; margin: 0; padding: 6px;">
+<li><button type="button" class="tab" style="width: 100%; border-radius: 6px; height: 34px; background: var(--accent-soft); color: var(--text);">Explain the query <span style="flex-grow: 1;"></span><span class="kbd">Ctrl E</span></button></li>
+<li><button type="button" class="tab" style="width: 100%; border-radius: 6px; height: 34px;">Export results as CSV <span style="flex-grow: 1;"></span></button></li>
+<li><button type="button" class="tab" style="width: 100%; border-radius: 6px; height: 34px;">Export results as JSON <span style="flex-grow: 1;"></span></button></li>
+<li><button type="button" class="tab" style="width: 100%; border-radius: 6px; height: 34px;">Snippet: Expired app credentials <span style="flex-grow: 1;"></span><span class="faint" style="font-size: 12px;">Snippets</span></button></li>
+<li><button type="button" class="tab" style="width: 100%; border-radius: 6px; height: 34px;">Table: identityProtection_riskyServicePrincipals <span style="flex-grow: 1;"></span><span class="faint" style="font-size: 12px;">Schema</span></button></li>
+</ul>
+<div style="padding: 8px 12px; border-top: 1px solid var(--line); display: flex; gap: 14px; font-size: 11.5px;" class="faint"><span>↑↓ to move</span><span>Enter to run</span><span>Esc to close</span></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kustodian · diagnostics and run statistics</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="studio.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#4CC2FF}a:hover{color:#8FD8FF}</style>
+</helmet>
+<div class="studio" style="width: 1440px; height: 900px; display: flex; flex-direction: column;">
+<div class="titlebar"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><span class="brand">Kustodian</span><div style="flex-grow: 1;"></div><span class="pill"><span class="dot-ok" aria-hidden="true"></span><b>Contoso Ltd</b> · kari@contoso.com</span></div>
+<div class="tabs" role="tablist" aria-label="Open queries">
+<button type="button" role="tab" class="tab" aria-selected="true">Expired app credentials <span class="x" aria-hidden="true">×</span></button>
+<button type="button" class="tab-add" aria-label="New tab">+</button>
+</div>
+<div class="body">
+<main class="main">
+<div class="editor" role="textbox" aria-multiline="true" aria-label="KQL query" tabindex="0" style="height: 84px;">
+<div class="ln"><span class="g">1</span><span class="t">applications</span></div>
+<div class="ln cur"><span class="g">2</span>| <span class="k">project</span> <span class="c">appId</span>, <span class="c">displayName</span>, <span class="c">onPremisesPublishing</span>, <span class="c">passwordCredentials</span></div>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line);">
+<span class="chip ok">● 412 rows</span><span class="chip warn">1 column needs a permission you don't have</span>
+<div style="flex-grow: 1;"></div><span class="mono faint" style="font-size: 11.5px;">09:52:07 · 3.4 s</span>
+</div>
+<div class="rbar">
+<div role="tablist" aria-label="Result" style="display: flex;">
+<button type="button" role="tab" class="rtab" aria-selected="false">Rows · 412</button>
+<button type="button" role="tab" class="rtab" aria-selected="false">Chart</button>
+<button type="button" role="tab" class="rtab" aria-selected="false">JSON</button>
+<button type="button" role="tab" class="rtab" aria-selected="true">Diagnostics</button>
+</div>
+</div>
+<div style="display: flex; gap: 16px; padding: 16px; flex: 1; min-height: 0;">
+<section class="card" aria-label="Run statistics" style="width: 360px; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+<b style="font-size: 14px;">This run</b>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+<div class="field"><label>Duration</label><span class="mono" style="font-size: 20px;">3.4 s</span></div>
+<div class="field"><label>Rows</label><span class="mono" style="font-size: 20px;">412</span></div>
+<div class="field"><label>Graph requests</label><span class="mono" style="font-size: 20px;">5</span></div>
+<div class="field"><label>Objects fetched</label><span class="mono" style="font-size: 20px;">412</span></div>
+<div class="field"><label>From cache</label><span class="mono" style="font-size: 20px;">0</span></div>
+<div class="field"><label>Engine</label><span class="mono" style="font-size: 20px;">0.21 s</span></div>
+</div>
+<div class="field"><label>Time spent</label>
+<div style="display: flex; height: 10px; border-radius: 5px; overflow: hidden;"><span style="width: 72%; background: var(--accent);"></span><span style="width: 22%; background: var(--warn);"></span><span style="width: 6%; background: var(--ok);"></span></div>
+<span class="muted" style="font-size: 12px;">Fetching 2.4 s · probing columns 0.8 s · engine 0.2 s</span></div>
+<div class="field"><label>Columns</label>
+<span><span class="mono">onPremisesPublishing</span> <span class="tag warn">empty</span></span>
+<span class="muted" style="font-size: 12px;">Graph refused it for permission (401). It needs Directory.ReadWrite.All; the rest of the table was read.</span></div>
+</section>
+<section class="card" aria-label="Event log" style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
+<div style="display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line);"><b style="font-size: 14px;">What happened</b><div style="flex-grow: 1;"></div><button type="button" class="btn ghost">Copy log</button></div>
+<table class="grid">
+<thead><tr><th scope="col">Time</th><th scope="col">Step</th><th scope="col">Request</th><th scope="col" class="num">Status</th><th scope="col" class="num">ms</th></tr></thead>
+<tbody>
+<tr><td>+0.00</td><td>Plan</td><td>applications · 4 columns · no filter</td><td class="num">·</td><td class="num">4</td></tr>
+<tr><td>+0.01</td><td>Fetch</td><td>GET applications?$select=appId,displayName,onPremisesPublishing,passwordCredentials,id&amp;$top=999</td><td class="num" style="color: var(--bad);">404</td><td class="num">610</td></tr>
+<tr><td>+0.62</td><td>Probe</td><td>GET applications?$select=id&amp;$top=1</td><td class="num" style="color: var(--ok);">200</td><td class="num">180</td></tr>
+<tr><td>+0.80</td><td>Probe</td><td>GET applications?$select=id,appId,displayName&amp;$top=1</td><td class="num" style="color: var(--ok);">200</td><td class="num">170</td></tr>
+<tr><td>+0.97</td><td>Probe</td><td>GET applications?$select=id,onPremisesPublishing&amp;$top=1</td><td class="num" style="color: var(--bad);">401</td><td class="num">160</td></tr>
+<tr><td>+1.13</td><td>Probe</td><td>GET applications?$select=id,passwordCredentials&amp;$top=1</td><td class="num" style="color: var(--ok);">200</td><td class="num">150</td></tr>
+<tr><td>+1.28</td><td>Fetch</td><td>GET applications?$select=appId,displayName,passwordCredentials,id&amp;$top=999</td><td class="num" style="color: var(--ok);">200</td><td class="num">1,890</td></tr>
+<tr><td>+3.17</td><td>Engine</td><td>1 table · 412 rows → 412 rows</td><td class="num">·</td><td class="num">210</td></tr>
+</tbody>
+</table>
+<div style="padding: 12px 16px; border-top: 1px solid var(--line); display: flex; gap: 16px; font-size: 12px;" class="muted"><span>Throttling: none</span><span>Retries: 0</span><span>Worker: pid 48211, 186 MB peak</span></div>
+</section>
+</div>
+</main>
+</div>
+<div class="status"><span>Ln 2, Col 74</span><span>KQL</span><div style="flex-grow: 1;"></div><span>Dark</span></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

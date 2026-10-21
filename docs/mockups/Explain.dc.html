@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kustodian · explain</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="studio.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#4CC2FF}a:hover{color:#8FD8FF}</style>
+</helmet>
+<div class="studio" style="width: 1440px; height: 900px; display: flex; flex-direction: column;">
+<div class="titlebar"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><span class="brand">Kustodian</span><div style="flex-grow: 1;"></div><span class="pill"><span class="dot-ok" aria-hidden="true"></span><b>Contoso Ltd</b> · kari@contoso.com</span></div>
+<div class="tabs" role="tablist" aria-label="Open queries">
+<button type="button" role="tab" class="tab" aria-selected="true">Expired app credentials <span class="x" aria-hidden="true">×</span></button>
+<button type="button" role="tab" class="tab" aria-selected="false">Stale guests <span class="x" aria-hidden="true">×</span></button>
+<button type="button" class="tab-add" aria-label="New tab">+</button>
+</div>
+<div class="body">
+<main class="main">
+<div class="toolbar">
+<button type="button" class="btn primary">Run</button>
+<button type="button" class="btn" aria-pressed="true" style="border-color: var(--accent); color: var(--accent);">Explain</button>
+<span class="faint" style="font-size: 12px;">Nothing is sent to Graph until you run.</span>
+</div>
+<div class="editor" role="textbox" aria-multiline="true" aria-label="KQL query" tabindex="0" style="height: 126px;">
+<div class="ln"><span class="g">1</span><span class="t">users</span></div>
+<div class="ln"><span class="g">2</span>| <span class="k">where</span> <span class="c">userType</span> == <span class="s">"Guest"</span> <span class="k">and</span> <span class="c">createdDateTime</span> &lt; <span class="f">ago</span>(<span class="n">180d</span>)</div>
+<div class="ln"><span class="g">3</span>| <span class="k">where</span> <span class="c">displayName</span> <span class="k">has</span> <span class="s">"contractor"</span></div>
+<div class="ln cur"><span class="g">4</span>| <span class="k">project</span> <span class="c">displayName</span>, <span class="c">mail</span>, <span class="c">createdDateTime</span>, <span class="c">signInActivity</span></div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 16px; flex: 1; min-height: 0;">
+<section class="card" aria-label="Plan" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+<b style="font-size: 14px;">What the query will ask Graph for</b>
+<div class="field"><label>Table</label><span class="mono">users <span class="faint">→ GET /beta/users</span></span></div>
+<div class="field"><label>Columns ($select) · 5</label><span class="mono" style="font-size: 12px;">id, displayName, mail, createdDateTime, userType</span></div>
+<div class="field"><label>Pushed to Graph ($filter)</label><span class="code">userType eq 'Guest' and createdDateTime le 2026-04-24T08:00:00Z</span></div>
+<div class="field"><label>Filtered here, after the fetch</label><span class="code">displayName has "contractor"</span><span class="muted" style="font-size: 12px;"><span class="mono">has</span> can't be expressed in $filter, so these rows are fetched and filtered locally.</span></div>
+<div class="field"><label>Read one object at a time</label><span><span class="mono">signInActivity</span> <span class="tag warn">per object</span></span><span class="muted" style="font-size: 12px;">Graph only returns it on a single user. Up to 2,000 users, 20 per batch request.</span></div>
+</section>
+<section class="card" aria-label="Requests" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+<b style="font-size: 14px;">Requests</b>
+<div class="code">GET /beta/users?$select=id,displayName,mail,createdDateTime,userType
+  &amp;$filter=userType eq 'Guest' and createdDateTime le 2026-04-24T08:00:00Z
+  &amp;$top=999</div>
+<div class="code">POST /beta/$batch   × ⌈guests / 20⌉
+  GET /users/{id}?$select=id,signInActivity</div>
+<div class="field"><label>Estimate</label><span>1 list request, then one batch per 20 guests. Cached per-object values from the last 30 minutes are reused.</span></div>
+<div class="field"><label>Permissions this uses</label><span class="mono" style="font-size: 12px;">User.Read.All, AuditLog.Read.All</span><span class="muted" style="font-size: 12px;">Delegated, as kari@contoso.com · <a href="#">Graph docs: user</a></span></div>
+<div style="display: flex; gap: 8px; margin-top: auto;"><button type="button" class="btn">Copy requests</button><button type="button" class="btn">Open in raw request tab</button></div>
+</section>
+</div>
+</main>
+</div>
+<div class="status"><span>Ln 4, Col 62</span><span>KQL</span><div style="flex-grow: 1;"></div><span>Dark</span></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
