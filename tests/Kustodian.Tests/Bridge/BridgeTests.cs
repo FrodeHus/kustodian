@@ -274,10 +274,94 @@ public class BridgeTests
         }
     });
 
-    private Messaging.Bridge NewBridge(GraphRun run, string? account = "acct-1")
+    [Fact]
+    public async Task Run_result_duration_goes_out_as_duration_ms()
+    {
+        var bridge = NewBridge((_, _, _, _, _) =>
+            Task.FromResult(Ok() with { Duration = TimeSpan.FromMilliseconds(1234.4) }));
+
+        var result = Parse(await bridge.HandleAsync(Run("r1", "t1", "users"))).GetProperty("result");
+
+        Assert.Equal(JsonValueKind.Number, result.GetProperty("durationMs").ValueKind);
+        Assert.Equal(1234, result.GetProperty("durationMs").GetInt64());
+        Assert.False(result.TryGetProperty("duration", out _));
+        Assert.Equal(
+            ["outcome", "message", "error", "columns", "rows", "total", "tables", "durationMs", "droppedValues"],
+            result.EnumerateObject().Select(p => p.Name));
+    }
+
+    [Fact]
+    public async Task Back_to_back_runs_on_one_tab_leave_the_newer_alive()
+    {
+        // The older run's account lookup finishes last: the newer run must still be the one left running.
+        var lookups = new Queue<TaskCompletionSource<string?>>([NewGate(), NewGate()]);
+        var gates = lookups.ToArray();
+        var bridge = NewBridge((_, kql, _, _, ct) =>
+        {
+            ct.ThrowIfCancellationRequested();
+            return Task.FromResult(Ok() with { Message = kql });
+        }, () => lookups.Dequeue().Task);
+
+        var first = bridge.HandleAsync(Run("r1", "t1", "older"));
+        var second = bridge.HandleAsync(Run("r2", "t1", "newer"));
+        gates[1].SetResult("acct-1");
+        var secondReply = Parse(await second.WaitAsync(Patience, TestContext.Current.CancellationToken));
+        gates[0].SetResult("acct-1");
+        var firstReply = Parse(await first.WaitAsync(Patience, TestContext.Current.CancellationToken));
+
+        Assert.Equal("ok", secondReply.GetProperty("result").GetProperty("outcome").GetString());
+        Assert.Equal("newer", secondReply.GetProperty("result").GetProperty("message").GetString());
+        Assert.Equal("cancelled", firstReply.GetProperty("error").GetProperty("code").GetString());
+    }
+
+    [Fact]
+    public async Task Cancel_right_after_run_cancels_it()
+    {
+        var lookup = NewGate();
+        var called = false;
+        var bridge = NewBridge((_, _, _, _, _) =>
+        {
+            called = true;
+            return Task.FromResult(Ok());
+        }, () => lookup.Task);
+
+        var run = bridge.HandleAsync(Run("r1", "t1", "users"));
+        await bridge.HandleAsync("""{"id":"c1","method":"query.cancel","params":{"tabId":"t1"}}""");
+        lookup.SetResult("acct-1");
+        var reply = Parse(await run.WaitAsync(Patience, TestContext.Current.CancellationToken));
+
+        Assert.Equal("cancelled", reply.GetProperty("error").GetProperty("code").GetString());
+        Assert.False(called);
+    }
+
+    [Fact]
+    public async Task Bridge_close_cancels_an_in_flight_run()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var bridge = NewBridge(async (_, _, _, _, ct) =>
+        {
+            started.SetResult();
+            await Task.Delay(Timeout.Infinite, ct);
+            return Ok();
+        });
+
+        var run = bridge.HandleAsync(Run("r1", "t1", "users"));
+        await started.Task.WaitAsync(Patience, TestContext.Current.CancellationToken);
+        bridge.Close();
+        var reply = Parse(await run.WaitAsync(Patience, TestContext.Current.CancellationToken));
+
+        Assert.Equal("cancelled", reply.GetProperty("error").GetProperty("code").GetString());
+    }
+
+    private static TaskCompletionSource<string?> NewGate() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    private Messaging.Bridge NewBridge(GraphRun run, string? account = "acct-1") =>
+        NewBridge(run, () => Task.FromResult(account));
+
+    private Messaging.Bridge NewBridge(GraphRun run, Func<Task<string?>> accountLookup)
     {
         var bridge = NewBridge();
-        new QueryHandler(GraphSchemaCatalog.Beta, () => Task.FromResult(account), run).Register(bridge);
+        new QueryHandler(GraphSchemaCatalog.Beta, accountLookup, run).Register(bridge);
         return bridge;
     }
 

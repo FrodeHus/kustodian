@@ -62,15 +62,17 @@ public static class AppWindow
             }
         }
 
+        // Messages arrive on the UI thread; the pump hands them on in order, off it, so the window never waits on a query.
+        var pump = new MessagePump(ReplyAsync);
         window
             .RegisterCustomSchemeHandler(EmbeddedAssets.Scheme, (object _, string _, string url, out string contentType) =>
                 assets.Open(url, out contentType))
-            // Messages arrive on the UI thread; handling them runs on the thread pool so the window never waits on a query.
-            .RegisterWebMessageReceivedHandler((_, message) => _ = Task.Run(() => ReplyAsync(message)))
+            .RegisterWebMessageReceivedHandler((_, message) => pump.Post(message))
             .Load(EmbeddedAssets.StartUrl);
 
         window.WaitForClose();
         Volatile.Write(ref closed, 1);
         bridge.Close();
+        pump.CompleteAsync().GetAwaiter().GetResult();
     }
 }

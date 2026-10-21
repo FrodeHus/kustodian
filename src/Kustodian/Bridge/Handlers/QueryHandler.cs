@@ -19,7 +19,12 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
 
     public void Register(Bridge bridge)
     {
-        bridge.Register("query.complete", (p, _) => Task.FromResult<object?>(Complete(BridgeJson.Params<CompleteParams>(p))));
+        // Completion parses and binds the query: CPU work, done off the thread that dispatches messages in order.
+        bridge.Register("query.complete", (p, _) =>
+        {
+            var request = BridgeJson.Params<CompleteParams>(p);
+            return Task.Run<object?>(() => Complete(request));
+        });
         bridge.Register("query.run", async (p, ct) => await RunAsync(bridge, BridgeJson.Params<RunParams>(p), ct));
         bridge.Register("query.cancel", (p, _) =>
         {
@@ -47,11 +52,8 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
             throw new BridgeException(BridgeErrorCodes.BadRequest, "A run needs a tabId and kql.");
         }
 
-        if (await activeAccount() is not { } account)
-        {
-            return new RunResult(RunOutcome.SignInNeeded, GraphRunner.SignInMessage, null, [], [], 0, [], TimeSpan.Zero);
-        }
-
+        // The tab's run is registered before the first await, so runs and cancels on a tab take effect in the order they
+        // arrived: a newer run always replaces an older one, and a cancel right after a run finds it.
         var tabId = p.TabId;
         var cts = CancellationTokenSource.CreateLinkedTokenSource(closing);
         CancellationTokenSource? previous;
@@ -68,6 +70,12 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
 
         try
         {
+            if (await activeAccount() is not { } account)
+            {
+                return new RunResult(RunOutcome.SignInNeeded, GraphRunner.SignInMessage, null, [], [], 0, [], TimeSpan.Zero);
+            }
+
+            cts.Token.ThrowIfCancellationRequested();
             var progress = new TabProgress(bridge, tabId);
             return await run(account, p.Kql, p.Refresh, progress, cts.Token);
         }

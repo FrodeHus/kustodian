@@ -1,5 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Kustodian.Graph.Engine;
+using Kustodian.Graph.Query;
+using Kustodian.Graph.Run;
 
 namespace Kustodian.Messaging;
 
@@ -37,7 +40,7 @@ public static class BridgeJson
 {
     public static JsonSerializerOptions Options { get; } = new(JsonSerializerDefaults.Web)
     {
-        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase), new RunResultConverter() },
     };
 
     /// <summary>Reads a request's params as <typeparamref name="T"/>; missing or malformed params are a
@@ -60,4 +63,20 @@ public static class BridgeJson
             throw new BridgeException(BridgeErrorCodes.BadRequest, "The request's params are not valid.");
         }
     }
+}
+
+/// <summary>Writes a <see cref="RunResult"/> as the UI reads it: its duration as <c>durationMs</c>, a number of milliseconds,
+/// rather than a TimeSpan string. Results only go out, so reading is not supported.</summary>
+public sealed class RunResultConverter : JsonConverter<RunResult>
+{
+    public override RunResult Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        throw new NotSupportedException("Run results are only written.");
+
+    public override void Write(Utf8JsonWriter writer, RunResult value, JsonSerializerOptions options) =>
+        JsonSerializer.Serialize(writer, new RunResultWire(value.Outcome, value.Message, value.Error, value.Columns, value.Rows,
+            value.Total, value.Tables, (long)Math.Round(value.Duration.TotalMilliseconds), value.DroppedValues), options);
+
+    private sealed record RunResultWire(RunOutcome Outcome, string? Message, GraphQueryError? Error,
+        IReadOnlyList<EngineColumn> Columns, IReadOnlyList<JsonElement[]> Rows, int Total, IReadOnlyList<TableFetch> Tables,
+        long DurationMs, int DroppedValues);
 }

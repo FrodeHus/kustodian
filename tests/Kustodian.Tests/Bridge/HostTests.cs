@@ -115,6 +115,38 @@ public class HostTests
         Assert.Equal(expected, EmbeddedAssets.ContentTypeFor(url));
     }
 
+    [Fact]
+    public async Task Message_pump_starts_each_message_in_arrival_order()
+    {
+        var started = new List<string>();
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var never = new TaskCompletionSource();
+        var pump = new MessagePump(message =>
+        {
+            lock (started)
+            {
+                started.Add(message);
+                if (started.Count == 50)
+                {
+                    done.SetResult();
+                }
+            }
+
+            // Each handling stays pending: the next one is still started, in order.
+            return never.Task;
+        });
+
+        for (var i = 0; i < 50; i++)
+        {
+            pump.Post(i.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+
+        await done.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await pump.CompleteAsync();
+
+        Assert.Equal(Enumerable.Range(0, 50).Select(i => i.ToString(System.Globalization.CultureInfo.InvariantCulture)), started);
+    }
+
     private sealed class NoTokens : ITokenSource
     {
         public string? ActiveAccountKey => null;
