@@ -10,7 +10,17 @@ namespace Kustodian.Messaging;
 public sealed record BridgeRequest(string? Id, string? Method, JsonElement Params);
 
 /// <summary>A successful answer: <c>{ "id", "result" }</c>.</summary>
-public sealed record BridgeResponse(string Id, object Result);
+public sealed record BridgeResponse(string Id, object? Result);
+
+/// <summary>What a handler returns to answer <c>null</c> on the wire: a handler that returns nothing answers <c>{}</c>.</summary>
+public sealed class BridgeNull
+{
+    public static BridgeNull Value { get; } = new();
+
+    private BridgeNull()
+    {
+    }
+}
 
 /// <summary>A failed answer: <c>{ "id", "error": { "code", "message" } }</c>.</summary>
 public sealed record BridgeErrorResponse(string Id, BridgeError Error);

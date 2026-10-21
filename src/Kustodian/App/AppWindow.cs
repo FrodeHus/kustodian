@@ -1,4 +1,5 @@
 using System.Drawing;
+using Kustodian.Files;
 using Kustodian.Messaging;
 using Microsoft.Extensions.Logging;
 using Photino.NET;
@@ -12,8 +13,10 @@ public static class AppWindow
     public const string Title = "Kustodian";
 
     /// <summary>Opens the window on the calling thread (the process's main thread) and returns when it closes.
-    /// <paramref name="register"/> adds the bridge's handlers before the UI can send anything.</summary>
-    public static void Run(EmbeddedAssets assets, Action<Bridge> register, ILogger<Bridge> logger)
+    /// <paramref name="register"/> adds the bridge's handlers before the UI can send anything;
+    /// the window is put in <paramref name="holder"/> as soon as it exists, for the handlers that need it.</summary>
+    public static void Run(EmbeddedAssets assets, Action<Bridge> register, WindowHolder holder,
+        ILogger<Bridge> logger)
     {
         var closed = 0;
         // Verbosity 0 from construction, so nothing is logged: Photino logs every call, and every message it sends, at
@@ -25,6 +28,7 @@ public static class AppWindow
             .SetSize(WindowSizing.Default.Width, WindowSizing.Default.Height)
             .SetMinSize(WindowSizing.Minimum.Width, WindowSizing.Minimum.Height)
             .Center();
+        holder.Window = window;
 
         // On Windows those sizes reach Win32 as physical pixels, so at any scaling above 100 % the page would get only a fraction
         // of them. The monitor's DPI is only known once the native window exists, so it is resized and re-centred then, before

@@ -203,6 +203,11 @@ export function createMockTransport(): Transport {
         userSnippets.delete(params?.id ?? '');
         reply(id, null);
         break;
+      case 'file.open':
+      case 'file.saveAs':
+        // The mock has no native dialog: it answers as if the user cancelled.
+        reply(id, null);
+        break;
       case 'recent.list':
         reply(id, { runs: [] });
         break;

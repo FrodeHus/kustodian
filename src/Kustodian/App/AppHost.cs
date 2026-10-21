@@ -31,7 +31,7 @@ public static class AppHost
         var services = AppServices.Build(startup, settings, accounts, cache, engineCommand, store, TimeProvider.System);
         try
         {
-            AppWindow.Run(new EmbeddedAssets(typeof(AppHost).Assembly, AppOrigin.Current(startup.Theme)), services.Register,
+            AppWindow.Run(new EmbeddedAssets(typeof(AppHost).Assembly, AppOrigin.Current(startup.Theme)), services.Register, services.Window,
                 new StderrLogger<Bridge>());
         }
         finally

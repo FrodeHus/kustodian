@@ -54,7 +54,7 @@ public sealed class Bridge(Action<string> send, ILogger<Bridge>? logger = null)
         try
         {
             var result = await handler(request.Params, _closing.Token);
-            return JsonSerializer.Serialize(new BridgeResponse(request.Id, result ?? new { }), BridgeJson.Options);
+            return JsonSerializer.Serialize(new BridgeResponse(request.Id, result is BridgeNull ? null : result ?? new { }), BridgeJson.Options);
         }
         catch (BridgeException ex)
         {

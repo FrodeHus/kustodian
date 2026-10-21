@@ -1,4 +1,5 @@
 using Kustodian.Auth;
+using Kustodian.Files;
 using Kustodian.Graph.Engine;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Run;
@@ -56,6 +57,9 @@ public sealed class AppServices : IAsyncDisposable
             new StderrLogger<GraphRunner>());
     }
 
+    /// <summary>The window, set by <see cref="AppWindow"/> once it exists; the file dialogs read it from here.</summary>
+    public WindowHolder Window { get; } = new();
+
     /// <summary>The Graph limits the app started with.</summary>
     public GraphLimits Limits { get; }
 
@@ -82,6 +86,7 @@ public sealed class AppServices : IAsyncDisposable
         new LibraryHandler(_library, _recent).Register(bridge);
         new SessionHandler(_session).Register(bridge);
         new SnippetHandler(_snippets).Register(bridge);
+        new FileHandler(new PhotinoFileDialogs(Window)).Register(bridge);
         new AccountHandler(_accounts, _tokenCache, Objects).Register(bridge);
     }
 
