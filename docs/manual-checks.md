@@ -57,7 +57,7 @@ that. This Mac's token cache holds the owner's account; the builder never presse
 | `npm ci`, lint, typecheck, test, build in `web/` | ok (240 web tests; lint shows only the known TanStack Table warning, now at `src/results/result-grid.tsx`; build only the Vite chunk-size note) | - (no Node in the VM) | ok (Ubuntu 24.04 arm64 container, Node 22.12.0: 240 tests, lint only the known warning, tsc clean, build only the chunk-size note) |
 | `dotnet build Kustodian.slnx -warnaserror`, 0 warnings | ok | ok (run on the VM as `dotnet build Kustodian.slnx -warnaserror`, default Debug configuration) | ok (Ubuntu 24.04 container with `libwebkit2gtk-4.1-dev` and `libsecret-1-dev`) |
 | `dotnet test --solution Kustodian.slnx` | ok, 885 passed | ok, 881 passed, 4 skipped | ok, 885 passed |
-| Window opens and renders the UI from its origin | ok (Debug build launched; the window rendered the workbench with the owner's cached account, 436 schema tables, Run and Explain in the toolbar, status bar "Dark"; captured with `screencapture -l`, see notes; nothing pressed) | ok (4112x2436 physical px; sign-in screen, "Not signed in", settings gear in the header; captured with `PrintWindow` on the Kustodian window only) | - (headless container) |
+| Window opens and renders the UI from its origin | ok (launched from `kustodian/src/Kustodian/bin/Debug/net10.0/Kustodian`; the window rendered the workbench with the owner's cached account, 436 schema tables, Run and Explain in the toolbar, status bar "Dark"; captured with `screencapture -l`, see notes; nothing pressed) | ok (4112x2436 physical px; sign-in screen, "Not signed in", settings gear in the header; captured with `PrintWindow` on the Kustodian window only) | - (headless container) |
 
 ### Plan 2 features
 
@@ -100,12 +100,13 @@ behind sign-in; Linux "owner" = headless container.
 | Close tab with the shortcut; closing a tab is a command on every platform. macOS: `⌘ W`, and Photino's menu may take it before the page sees it | owner | owner (`Ctrl W`; not checked, workbench behind sign-in) | owner (`Ctrl W`; not checked, headless) |
 | Row, column, copy and export menus and the save dialog: a click on an item lands (WebKit doesn't focus buttons on mousedown) | owner (WKWebView) | owner (WebView2) | owner (WebKitGTK) |
 | `crypto.randomUUID` works, or the `getRandomValues` fallback covers it; log `window.isSecureContext` in a dev build | owner (the `app://` origin may not be a secure context; not logged) | owner (`https://kustodian.invalid` is probably a secure context; not checked) | owner |
-| monaco-kusto completion in the web view (owner-only since Plan 1) | owner (WKWebView; the launch screenshot happened to show a completion list for `ta` in a restored tab, but the builder did not type it and can't reproduce it) | owner (WebView2) | owner (WebKitGTK) |
+| monaco-kusto completion in the web view (owner-only since Plan 1) | owner (WKWebView; the launch screenshot happened to show a completion list for `ta` in a restored tab, but the builder typed nothing and doesn't know why the list was open) | owner (WebView2) | owner (WebKitGTK) |
 
 ## Notes
 
 - macOS launch check: the window title was "Kustodian". It showed a signed-in account because of an earlier owner sign-in cached
-  on this Mac, so the sign-in screen itself was not seen. Closing the app (SIGTERM) left no Kustodian or `--engine` process.
+  on this Mac, so the sign-in screen itself was not seen. Closing the app (SIGTERM) left no Kustodian or `--engine` process. In Plan 2 (Task 13) SIGTERM
+  did not stop the app within 8 s; see the Backlog.
 - Windows launch check (Parallels Windows 11 ARM64, WebView2 154), first run: the "Kustodian" window opened but stayed white.
   With `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333`, the only page target reported `about:blank`: the
   navigation to `app://localhost/index.html` never took effect. Cause: Photino.Native 4.0.22 never registers custom schemes
@@ -136,9 +137,10 @@ behind sign-in; Linux "owner" = headless container.
   names truncate with an ellipsis. Seen in the macOS app (for example "agentRegistry_agentC… 21 columns" on one line).
 - macOS screenshot attempt (Task 13, fix round): `screencapture -l <windowid>` works without extra permissions here. No Python
   `Quartz` module is installed, so a small Swift script called `CGWindowListCopyWindowInfo` (option `.optionAll`) and listed the
-  windows whose owner name contains "Kustodian"; one of them was the 1440x900-point main window. `screencapture -x -o -l <id>`
-  of that id gave a 2880x1800 PNG of that window only. The first id picked (an unnamed Kustodian window) captured something
-  else, so pick the one with the 1440x900 bounds. The shot showed the workbench with a restored "Query 1" tab (unsaved dot),
+  windows whose owner name contains "Kustodian"; one of them was the 1440x900-point main window. The command that
+  gave the shot, as run: `screencapture -x -o -l 81735 <scratchpad>/mac2.png` (81735 was that window's number; the PNG is
+  2880x1800 and shows that window only). The first try, `screencapture -x -l 81740 <scratchpad>/mac.png`, used the id of
+  another Kustodian window and captured something else, so pick the one with the 1440x900 bounds. The shot showed the workbench with a restored "Query 1" tab (unsaved dot),
   the owner's cached account, 436 schema tables, Run, Cancel, Format and Explain, and "Dark" in the status bar. Nothing was
   pressed. Typing and clicking still need Accessibility permission, so the rows stay owner. After the shot, SIGTERM did not stop
   the app within 8 s (the Plan 1 note says it did); it was killed with SIGKILL, and nothing was left running.
@@ -149,3 +151,4 @@ behind sign-in; Linux "owner" = headless container.
 
 - Windows: Photino.Native 4.0.22 has no `WM_DPICHANGED` handler, so a window dragged to a monitor with a different DPI keeps its
   physical size (too big or too small there). It needs handling in Photino or a native hook in the host.
+- Possible shutdown regression: SIGTERM didn't stop the macOS app (owner look).
