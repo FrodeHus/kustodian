@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Kustodian.Graph\Kustodian.Graph.csproj" />
+    <ProjectReference Include="..\Kustodian.Engine\Kustodian.Engine.csproj" />
+  </ItemGroup>
+
+</Project>

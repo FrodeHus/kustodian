@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Kustodian/Kustodian.csproj" />
+    <Project Path="src/Kustodian.Graph/Kustodian.Graph.csproj" />
+    <Project Path="src/Kustodian.Engine/Kustodian.Engine.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Kustodian.Graph.Tests/Kustodian.Graph.Tests.csproj" />
+    <Project Path="tests/Kustodian.Engine.Tests/Kustodian.Engine.Tests.csproj" />
+    <Project Path="tests/Kustodian.Tests/Kustodian.Tests.csproj" />
+    <Project Path="tests/Kustodian.EngineWorker/Kustodian.EngineWorker.csproj" />
+  </Folder>
+</Solution>
