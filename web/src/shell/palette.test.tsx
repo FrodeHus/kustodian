@@ -141,4 +141,41 @@ describe('Palette', () => {
     expect(onInsert).toHaveBeenCalledTimes(1);
     expect(useTabs.getState().tabs[1]).toMatchObject({ title: 'Expired app credentials', text: expiredCreds.text, savedId: undefined });
   });
+
+  it('palette_is_modal_and_keeps_focus', async () => {
+    const outside = document.createElement('button');
+    document.body.append(outside);
+    render(<Palette onClose={() => undefined} onInsert={() => undefined} />);
+    const dialog = screen.getByRole('dialog', { name: 'Command palette' });
+    const input = screen.getByRole('combobox', { name: 'Type a command' });
+    await screen.findByText('Saved: Stale guests');
+
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+    expect(document.activeElement).toBe(input);
+
+    // Tab doesn't leave it, and focus moved outside comes back.
+    const tab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    input.dispatchEvent(tab);
+    expect(tab.defaultPrevented).toBe(true);
+    outside.focus();
+    expect(document.activeElement).toBe(input);
+
+    // Clicking a row doesn't take focus from the input.
+    const down = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+    rows()[0]!.dispatchEvent(down);
+    expect(down.defaultPrevented).toBe(true);
+    outside.remove();
+  });
+
+  it('closing_lets_focus_go_where_the_caller_puts_it', async () => {
+    const editor = document.createElement('textarea');
+    document.body.append(editor);
+    render(<Palette onClose={() => editor.focus()} onInsert={() => undefined} />);
+    await screen.findByText('Saved: Stale guests');
+
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Type a command' }), { key: 'Escape' });
+
+    expect(document.activeElement).toBe(editor);
+    editor.remove();
+  });
 });

@@ -57,6 +57,14 @@ export function Palette({ onClose, onInsert }: { onClose: () => void; onInsert: 
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [problem, setProblem] = useState<string | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Once closing, focus may go wherever the caller puts it.
+  const closing = useRef(false);
+  const close = () => {
+    closing.current = true;
+    onClose();
+  };
   const id = useId();
 
   useEffect(() => {
@@ -67,6 +75,17 @@ export function Palette({ onClose, onInsert }: { onClose: () => void; onInsert: 
     return () => {
       live = false;
     };
+  }, []);
+
+  // A modal: focus that lands outside the palette goes back to its input.
+  useEffect(() => {
+    const onFocusIn = (e: FocusEvent) => {
+      if (!closing.current && (!(e.target instanceof Node) || !dialogRef.current?.contains(e.target))) {
+        inputRef.current?.focus();
+      }
+    };
+    document.addEventListener('focusin', onFocusIn);
+    return () => document.removeEventListener('focusin', onFocusIn);
   }, []);
 
   const rows = useMemo(() => {
@@ -99,7 +118,7 @@ export function Palette({ onClose, onInsert }: { onClose: () => void; onInsert: 
     if (!row || row.disabled) {
       return;
     }
-    onClose();
+    close();
     row.choose(newTab);
   };
 
@@ -115,7 +134,11 @@ export function Palette({ onClose, onInsert }: { onClose: () => void; onInsert: 
         choose(rows[current], e.shiftKey);
         break;
       case 'Escape':
-        onClose();
+        close();
+        break;
+      case 'Tab':
+        // The input is the palette's only stop.
+        inputRef.current?.focus();
         break;
       default:
         return;
@@ -128,13 +151,23 @@ export function Palette({ onClose, onInsert }: { onClose: () => void; onInsert: 
 
   return (
     <div className="fixed inset-0 z-20">
-      <div className="scrim" onClick={onClose} />
+      <div className="scrim" onClick={close} />
       <div
+        ref={dialogRef}
         role="dialog"
+        aria-modal="true"
         aria-label="Command palette"
+        onKeyDown={onKeyDown}
+        onMouseDown={(e) => {
+          // Clicking a row or the hint line leaves the focus in the input.
+          if (e.target !== inputRef.current) {
+            e.preventDefault();
+          }
+        }}
         className="card absolute top-[96px] left-1/2 flex max-h-[70vh] w-[600px] max-w-[calc(100vw-32px)] -translate-x-1/2 flex-col overflow-hidden shadow-[0_24px_60px_rgba(0,0,0,0.5)]"
       >
         <input
+          ref={inputRef}
           role="combobox"
           aria-label="Type a command"
           aria-expanded="true"
@@ -149,7 +182,6 @@ export function Palette({ onClose, onInsert }: { onClose: () => void; onInsert: 
             setQuery(e.target.value);
             setSelected(0);
           }}
-          onKeyDown={onKeyDown}
         />
         <ul ref={listRef} id={`${id}-list`} role="listbox" aria-label="Commands" className="m-0 min-h-0 list-none overflow-y-auto p-1.5">
           {rows.map((row, index) => (

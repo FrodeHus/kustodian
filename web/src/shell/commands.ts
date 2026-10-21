@@ -30,9 +30,30 @@ const watchers = new Set<() => void>();
 
 const changed = () => watchers.forEach((w) => w());
 
+const chordKey = (c: Chord) => `${c.mod}|${c.ctrl}|${c.shift}|${c.alt}|${c.key.toLowerCase()}`;
+const sameChord = (a: Chord, b: Chord) => chordKey(a) === chordKey(b);
+
+/** In development, says when a command's id or one of its shortcuts is already registered: one of the two would be lost. */
+function warnDuplicates(cmd: Command) {
+  if (!import.meta.env.DEV) {
+    return;
+  }
+  for (const chord of parseShortcut(cmd.shortcut)) {
+    const other = [...registry.values()].find((o) => o.id !== cmd.id && parseShortcut(o.shortcut).some((c) => sameChord(c, chord)));
+    if (other) {
+      const written = [chord.mod && 'Mod', chord.ctrl && 'Ctrl', chord.shift && 'Shift', chord.alt && 'Alt', chord.key].filter(Boolean).join('+');
+      console.warn(`The shortcut ${written} of ${cmd.id} is also the shortcut of ${other.id}.`);
+    }
+  }
+  if (registry.has(cmd.id)) {
+    console.warn(`The command id ${cmd.id} is registered twice.`);
+  }
+}
+
 /** Adds commands (a command with an id already there replaces it); returns the function that removes them again. */
 export function registerCommands(cmds: Command[]): () => void {
   for (const cmd of cmds) {
+    warnDuplicates(cmd);
     registry.set(cmd.id, cmd);
   }
   changed();
@@ -120,10 +141,18 @@ function isEditable(target: EventTarget | null): boolean {
   );
 }
 
+/** The shortcuts that also fire while typing in a text field: the palette and Save. */
+const FIELD_SHORTCUTS = parseShortcut('Mod+K, Mod+Shift+P, Mod+S');
+
 /**
- * One keydown listener for the window that runs the command whose shortcut was pressed. Keys pressed in the editor are left to
- * it (it binds the same shortcuts), and so are keys something else already handled. A shortcut without Ctrl, Cmd or Alt
- * doesn't fire while typing in a field. While `enabled` says no (the sign-in screen covers the workspace), no shortcut fires.
+ * One keydown listener for the window that runs the command whose shortcut was pressed.
+ *
+ * - Keys pressed in the editor are left to it (it binds the same shortcuts), and so are keys something else already handled.
+ * - Enter chords (run block, run all, run without cache) run only from the editor's own bindings, so everywhere else Enter
+ *   keeps its meaning, such as pressing a focused button.
+ * - In a text field only {@link FIELD_SHORTCUTS} fire.
+ * - While `enabled` says no (sign-in covers the workspace, or the palette is open), no shortcut fires.
+ *
  * Returns the function that removes the listener.
  */
 export function bindGlobalKeys(enabled: () => boolean = () => true): () => void {
@@ -136,7 +165,7 @@ export function bindGlobalKeys(enabled: () => boolean = () => true): () => void 
       if (!chord) {
         continue;
       }
-      if ((!chord.mod && !chord.ctrl && !chord.alt && isEditable(e.target)) || !isEnabled(cmd)) {
+      if (chord.key === 'Enter' || (isEditable(e.target) && !FIELD_SHORTCUTS.some((c) => sameChord(c, chord))) || !isEnabled(cmd)) {
         return;
       }
       e.preventDefault();

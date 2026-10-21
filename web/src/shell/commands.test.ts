@@ -45,15 +45,64 @@ describe('commands', () => {
     key({ key: 't', code: 'KeyT', ctrlKey: true }, inner);
     expect(newTab).toHaveBeenCalledTimes(1);
 
-    // A shortcut without Ctrl or Alt doesn't fire while typing in a field.
-    const input = document.createElement('input');
-    document.body.append(input);
-    key({ key: 'Enter', code: 'Enter', shiftKey: true }, input);
-    expect(runAll).not.toHaveBeenCalled();
+    // The run keys are the editor's alone: anywhere else Enter keeps its meaning (a focused button's, say).
+    const button = document.createElement('button');
+    document.body.append(button);
+    key({ key: 'Enter', code: 'Enter', shiftKey: true }, button);
     key({ key: 'Enter', code: 'Enter', shiftKey: true });
-    expect(runAll).toHaveBeenCalledTimes(1);
+    expect(runAll).not.toHaveBeenCalled();
     monaco.remove();
+    button.remove();
+  });
+
+  it('in_a_text_field_only_the_palette_and_save_shortcuts_fire', () => {
+    const ran: string[] = [];
+    const cmd = (id: string, shortcut: string) => ({ id, title: id, group: 'Test', shortcut, run: () => ran.push(id) });
+    keep(
+      registerCommands([
+        cmd('palette', 'Mod+K, Mod+Shift+P'),
+        cmd('save', 'Mod+S'),
+        cmd('tab.new', 'Mod+T'),
+        cmd('format', 'Shift+Alt+F'),
+        cmd('run.refresh', 'Mod+Shift+Enter'),
+      ]),
+    );
+    keep(bindGlobalKeys());
+    const input = document.createElement('input');
+    const area = document.createElement('textarea');
+    document.body.append(input, area);
+
+    key({ key: 't', code: 'KeyT', ctrlKey: true }, input);
+    key({ key: 'f', code: 'KeyF', shiftKey: true, altKey: true }, area);
+    key({ key: 'Enter', code: 'Enter', ctrlKey: true, shiftKey: true }, input);
+    expect(ran).toEqual([]);
+
+    key({ key: 'k', code: 'KeyK', ctrlKey: true }, input);
+    key({ key: 'P', code: 'KeyP', ctrlKey: true, shiftKey: true }, area);
+    key({ key: 's', code: 'KeyS', ctrlKey: true }, input);
+    expect(ran).toEqual(['palette', 'palette', 'save']);
+
+    // Outside a field the others fire.
+    key({ key: 't', code: 'KeyT', ctrlKey: true });
+    key({ key: 'f', code: 'KeyF', shiftKey: true, altKey: true });
+    expect(ran).toEqual(['palette', 'palette', 'save', 'tab.new', 'format']);
     input.remove();
+    area.remove();
+  });
+
+  it('registering_an_id_or_shortcut_twice_warns', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    keep(registerCommands([{ id: 'a', title: 'A', group: 'Test', shortcut: 'Mod+J', run: () => undefined }]));
+
+    keep(registerCommands([{ id: 'b', title: 'B', group: 'Test', shortcut: 'Ctrl+L, Mod+j', run: () => undefined }]));
+    keep(registerCommands([{ id: 'c', title: 'C', group: 'Test', shortcut: 'Mod+Shift+J', run: () => undefined }]));
+    keep(registerCommands([{ id: 'a', title: 'A again', group: 'Test', run: () => undefined }]));
+
+    expect(warn.mock.calls.map((c) => c[0])).toEqual([
+      'The shortcut Mod+j of b is also the shortcut of a.',
+      'The command id a is registered twice.',
+    ]);
+    warn.mockRestore();
   });
 
   it('global_keys_do_nothing_while_their_guard_says_no', () => {

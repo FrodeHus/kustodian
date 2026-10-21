@@ -220,4 +220,21 @@ describe('App', () => {
     expect(useTabs.getState().tabs).toHaveLength(1);
     expect(screen.queryByRole('dialog', { name: 'Command palette' })).toBeNull();
   });
+
+  it('app_while_the_palette_is_open_only_escape_works', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+
+    fireEvent.keyDown(window, { key: 'k', code: 'KeyK', ctrlKey: true });
+    const input = screen.getByRole('combobox', { name: 'Type a command' });
+    // Not from a text field, so only the open palette stops these.
+    fireEvent.keyDown(window, { key: 't', code: 'KeyT', ctrlKey: true });
+    fireEvent.keyDown(window, { key: 'f', code: 'KeyF', shiftKey: true, altKey: true });
+    expect(useTabs.getState().tabs).toHaveLength(1);
+    expect(screen.getAllByRole('dialog', { name: 'Command palette' })).toHaveLength(1);
+
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Command palette' })).toBeNull();
+  });
 });

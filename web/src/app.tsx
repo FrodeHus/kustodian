@@ -163,10 +163,11 @@ export function App() {
   // Unreadable accounts also mean sign-in: it shows why, and signing in reads them again.
   const signingIn = accountsError !== null || (accounts !== null && (!account || accountsOpen));
 
-  // The window's shortcuts act on the workspace, so none fires while sign-in covers it.
+  // The window's shortcuts act on the workspace, so none fires while sign-in covers it or the palette is open (it handles
+  // its own keys, Esc included).
   const shortcutsOn = useRef(false);
   useEffect(() => {
-    shortcutsOn.current = !signingIn;
+    shortcutsOn.current = !signingIn && !paletteOpen;
   });
   useEffect(() => bindGlobalKeys(() => shortcutsOn.current), []);
 

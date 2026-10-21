@@ -31,6 +31,8 @@ function host(answer: SessionAnswer | Error) {
 
 const saves = () => bridge.call.mock.calls.filter((c) => c[0] === 'session.save').map((c) => (c[1] as { session: Session }).session);
 
+const UNREADABLE = 'Couldn’t read your last session; changes won’t be saved until it can be read.';
+
 let stop: (() => void) | undefined;
 
 beforeEach(() => {
@@ -101,13 +103,124 @@ describe('session sync', () => {
     expect(useTabs.getState().tabs[0]).toMatchObject({ source: 'graph', title: 'Query 1', text: '', dirty: false });
     stop();
 
-    // An unreadable session also starts with one empty Graph tab, and says so.
-    useTabs.setState({ tabs: [], activeId: null, cursors: {} });
-    host(new BridgeError('failed', 'The disk is gone.'));
+  });
+
+  it('an_unreadable_session_is_never_overwritten_and_is_restored_when_a_retry_reads_it', async () => {
+    vi.useFakeTimers();
+    let reads = 0;
+    bridge.call.mockImplementation((method: string) => {
+      if (method === 'session.get') {
+        return ++reads <= 2 ? Promise.reject(new BridgeError('failed', 'The file is locked.')) : Promise.resolve({ session: saved, corrupt: false });
+      }
+      return Promise.resolve({ dropped: 0 });
+    });
     const notify = vi.fn();
     stop = startSessionSync(notify);
+
+    // The window still opens with one empty Graph tab to work in, but says it won't save.
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useTabs.getState().tabs).toHaveLength(1);
+    expect(notify).toHaveBeenCalledWith(UNREADABLE);
+    const temporary = useTabs.getState().tabs[0]!.id;
+    useTabs.getState().setText(temporary, 'groups | count');
+    window.dispatchEvent(new Event('pagehide'));
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(saves()).toEqual([]);
+    expect(reads).toBe(1);
+
+    // Retries every 5 s; the second retry reads it. The session comes back, the tab typed in meanwhile is kept after it.
+    await vi.advanceTimersByTimeAsync(1);
+    expect(reads).toBe(2);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(reads).toBe(3);
+    expect(useTabs.getState().tabs.map((t) => t.id)).toEqual(['a', 'b', temporary]);
+    expect(useTabs.getState().tabs[2]?.text).toBe('groups | count');
+
+    // Saving starts now, with the kept tab in it.
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(saves().map((x) => x.tabs.map((t) => t.id))).toEqual([['a', 'b', temporary]]);
+  });
+
+  it('reading_gives_up_after_3_retries', async () => {
+    vi.useFakeTimers();
+    host(new BridgeError('failed', 'Access denied.'));
+    stop = startSessionSync();
     await vi.waitFor(() => expect(useTabs.getState().tabs).toHaveLength(1));
-    expect(notify).toHaveBeenCalledWith('The last session couldn’t be restored: The disk is gone.');
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    useTabs.getState().setText(useTabs.getState().tabs[0]!.id, 'users');
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(bridge.call.mock.calls.filter((c) => c[0] === 'session.get')).toHaveLength(4);
+    expect(saves()).toEqual([]);
+  });
+
+  it('one_save_is_in_flight_and_later_changes_follow_it_as_one', async () => {
+    vi.useFakeTimers();
+    const answers: ((a: { dropped: number }) => void)[] = [];
+    bridge.call.mockImplementation((method: string) =>
+      method === 'session.get'
+        ? Promise.resolve({ session: saved, corrupt: false })
+        : new Promise((resolve) => answers.push(resolve)),
+    );
+    stop = startSessionSync();
+    await vi.waitFor(() => expect(useTabs.getState().tabs).toHaveLength(2));
+
+    useTabs.getState().setTitle('a', 'One');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(saves()).toHaveLength(1);
+
+    useTabs.getState().setTitle('a', 'Two');
+    await vi.advanceTimersByTimeAsync(1000);
+    useTabs.getState().setTitle('a', 'Three');
+    window.dispatchEvent(new Event('pagehide'));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(saves()).toHaveLength(1);
+
+    answers[0]!({ dropped: 0 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(saves().map((x) => x.tabs[0]?.title)).toEqual(['One', 'Three']);
+    answers[1]!({ dropped: 0 });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(saves()).toHaveLength(2);
+  });
+
+  it('a_failed_save_is_retried_without_a_new_change', async () => {
+    vi.useFakeTimers();
+    let attempts = 0;
+    bridge.call.mockImplementation((method: string) => {
+      if (method === 'session.get') {
+        return Promise.resolve({ session: saved, corrupt: false });
+      }
+      return ++attempts === 1 ? Promise.reject(new BridgeError('failed', 'The disk is full.')) : Promise.resolve({ dropped: 0 });
+    });
+    const notify = vi.fn();
+    stop = startSessionSync(notify);
+    await vi.waitFor(() => expect(useTabs.getState().tabs).toHaveLength(2));
+
+    useTabs.getState().setTitle('a', 'Kept');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(notify).toHaveBeenCalledWith('The open tabs couldn’t be saved: The disk is full.');
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(saves()).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(saves().map((x) => x.tabs[0]?.title)).toEqual(['Kept', 'Kept']);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(saves()).toHaveLength(2);
+  });
+
+  it('dropped_tabs_are_reported', async () => {
+    bridge.call.mockImplementation((method: string) =>
+      Promise.resolve(method === 'session.get' ? { session: saved, corrupt: false } : { dropped: 2 }),
+    );
+    const notify = vi.fn();
+    stop = startSessionSync(notify);
+    await vi.waitFor(() => expect(useTabs.getState().tabs).toHaveLength(2));
+
+    useTabs.getState().setTitle('a', 'Big');
+    window.dispatchEvent(new Event('pagehide'));
+
+    await vi.waitFor(() => expect(notify).toHaveBeenCalledWith('2 tabs were too large to keep for the next start.'));
   });
 
   it('a_corrupt_session_file_is_reported', async () => {

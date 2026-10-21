@@ -50,6 +50,18 @@ public sealed class SessionSnippetHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task Session_keeps_a_raw_request_tab()
+    {
+        await CallAsync("session.save", """{"session":{"activeId":"r","tabs":[{"id":"r","source":"raw","title":"Raw request","text":"GET me"}]}}""");
+        var got = (await CallAsync("session.get", "{}")).GetProperty("result").GetProperty("session");
+
+        var tab = got.GetProperty("tabs")[0];
+        Assert.Equal("raw", tab.GetProperty("source").GetString());
+        Assert.Equal("GET me", tab.GetProperty("text").GetString());
+        Assert.Equal("r", got.GetProperty("activeId").GetString());
+    }
+
+    [Fact]
     public async Task Session_save_keeps_only_approved_file_paths()
     {
         var approved = Path.Combine(_dir, "ok.kql");
