@@ -26,8 +26,9 @@ public static class AppWindow
             .SetMinSize(WindowSizing.Minimum.Width, WindowSizing.Minimum.Height)
             .Center();
 
-        // On Windows those sizes reach Win32 as physical pixels, so at 200 % the page would get half of them. The monitor's DPI
-        // is only known once the native window exists, so it is resized and re-centred then, before the message loop runs.
+        // On Windows those sizes reach Win32 as physical pixels, so at any scaling above 100 % the page would get only a fraction
+        // of them. The monitor's DPI is only known once the native window exists, so it is resized and re-centred then, before
+        // the message loop runs.
         if (OperatingSystem.IsWindows())
         {
             window.WindowCreated += (_, _) => FitToMonitor(window);

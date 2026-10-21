@@ -12,7 +12,7 @@ Legend: `ok` verified, `-` not run, `owner` needs a live tenant sign-in, `n/a` n
 | --- | --- | --- | --- |
 | `npm ci`, lint, typecheck, test, build in `web/` | ok (40 web tests) | - (no Node in the VM; the web build was made on macOS and embedded) | ok (Ubuntu 24.04 arm64 container, Node 22) |
 | `dotnet build -warnaserror`, 0 warnings | ok | ok | ok |
-| `dotnet test` | ok, 445 passed (466 after the Windows origin and DPI fixes) | ok, 442 passed, 3 skipped (after the origin fix: 457, 454 passed, 3 skipped) | ok, 445 passed |
+| `dotnet test` | ok, 445 passed (466 after the Windows origin and DPI fixes) | ok, 442 passed, 3 skipped (after the origin fix: 457, 454 passed, 3 skipped) | ok, 445 passed, before the origin and DPI fixes; not re-run |
 
 Known open warnings, not failures: oxlint `react(incompatible-library)` for TanStack Table, Vite chunk-size.
 
@@ -22,7 +22,7 @@ Known open warnings, not failures: oxlint `react(incompatible-library)` for TanS
 | --- | --- | --- | --- |
 | Window opens and the web UI renders from its origin (`app://localhost`; `https://kustodian.invalid` on Windows) | ok (main window with an account already in the token cache; schema panel listed 438 tables, 436 on the re-check after the fix) | ok after the fix (sign-in screen: "Sign in to Microsoft Graph", "Not signed in"; see notes) | - (headless container, no display) |
 | Window opens at 1440x900 logical, never larger than the work area | ok (1440x900 points) | ok at 300 %: capped at the 4112x2436 work area, page about 1370x810 CSS px, no scrollbars (see notes) | - |
-| No `--engine` process left after closing the window (idle) | ok | - (the app was force-killed after the check, not closed) | - |
+| No `--engine` process left after closing the window (idle) | ok (quit the way the Dock's Quit does: a quit Apple Event through `NSRunningApplication.terminate`; before, the app and its `--engine` child were running; 5 s after, `ps` showed neither) | - (the app was force-killed after the check, not closed) | - |
 
 ## Spec 13 checklist
 
@@ -39,7 +39,7 @@ Known open warnings, not failures: oxlint `react(incompatible-library)` for TanS
 | No orphaned `Kustodian --engine` after closing mid-run (`ps` / Task Manager) | owner | owner | owner |
 | Restart with unsaved tabs | owner | owner | owner |
 | Missing keychain on Linux | n/a | n/a | owner |
-| monaco-kusto completion works in the web view (WKWebView / WebView2 / WebKitGTK; spec 14 risk 2) | owner | owner | owner |
+| monaco-kusto completion works in the web view (WKWebView / WebView2 / WebKitGTK; spec 14 risk 2) | owner (not run in the app: typing into the window needs Accessibility permission, which the builder doesn't have; the blank-label bug is fixed and checked in Chromium, see notes) | owner | owner |
 | Fresh download opens past Gatekeeper / SmartScreen (README walkthrough) | owner | owner | owner |
 
 ## Notes
@@ -64,5 +64,20 @@ Known open warnings, not failures: oxlint `react(incompatible-library)` for TanS
   scrollbars. Captured on the Kustodian window only; not signed in; killed afterwards, no Kustodian process left. The 200 % case
   was not run on the VM (changing its display scaling is a system setting); it is covered by `WindowSizingTests` (2880x1800,
   minimum 2048x1280). macOS re-check: the window is still 1440x900 points (a 2880x1800 capture on Retina).
+- Completion labels were blank (the owner's report: rows and icons showed, labels didn't). Cause: our global class `.main`
+  (`display: flex; flex-direction: column`) also matched the `.main` element inside each Monaco suggestion row. That stacked the
+  icon above the label, and the 21 px row clipped the label off, leaving only stray marks. `.body`, `.code`, `.input`, `.light`,
+  `.overlay`, `.status` and `.tree` also clashed with Monaco's CSS (for example `.input` would restyle the find widget's input).
+  They are renamed (`panes`, `codeblock`, `textbox`, `theme-light`, `workspace`, `scrim`, `statusbar`, `schema-tree`), and
+  `src/styles.test.ts` fails if `styles.css` shares any class name with Monaco's or monaco-kusto's CSS. Checked in `vite dev`
+  (Chromium): `applications | where ` now lists appId, createdDateTime, displayName ... with readable labels. Not seen in
+  WKWebView in the app (see the completion row).
+- Schema panel: the "N columns" count and the tags no longer shrink or wrap (`flex-shrink: 0; white-space: nowrap`); long table
+  names truncate with an ellipsis. Seen in the macOS app (for example "agentRegistry_agentC… 21 columns" on one line).
 - Linux: only build and tests could be run (container, no display). The monaco-kusto-in-WebKitGTK question (spec 14, risk 2) is
   still open and needs a machine with a display.
+
+## Backlog
+
+- Windows: Photino.Native 4.0.22 has no `WM_DPICHANGED` handler, so a window dragged to a monitor with a different DPI keeps its
+  physical size (too big or too small there). It needs handling in Photino or a native hook in the host.

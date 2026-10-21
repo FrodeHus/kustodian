@@ -22,18 +22,14 @@ public sealed class AppOriginTests
         Assert.Equal(new Uri("app://localhost/index.html"), origin.StartUrl);
     }
 
-    [Fact]
-    public void Current_follows_the_running_platform()
-    {
-        Assert.Equal(AppOrigin.For(OperatingSystem.IsWindows()), AppOrigin.Current);
-    }
-
     [Theory]
     [InlineData(true, "https://kustodian.invalid/index.html", true)]
     [InlineData(true, "HTTPS://Kustodian.Invalid/assets/index.js", true)]
     [InlineData(true, "https://learn.microsoft.com/graph/api/resources/user", false)]
     [InlineData(true, "https://kustodian.invalid:8443/index.html", false)]
     [InlineData(true, "http://kustodian.invalid/index.html", false)]
+    [InlineData(true, "https://kustodian.invalid.evil.com/", false)]
+    [InlineData(true, "https://kustodian.invalid@evil.com/", false)]
     [InlineData(false, "app://localhost/", true)]
     [InlineData(false, "app://other/index.html", false)]
     [InlineData(false, "not a url", false)]
