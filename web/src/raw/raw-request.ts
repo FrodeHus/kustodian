@@ -23,7 +23,8 @@ export function headerProblem(name: string, value: string): string | null {
   return PRINTABLE.test(value) ? null : `The ${name} header's value can only have printable ASCII characters.`;
 }
 
-/** The headers the raw tab could send, in order, within the host's caps: what the session keeps. */
+/** The headers the raw tab could send, names trimmed as Send trims them, in order, within the host's caps: what the session
+ * keeps (the host's `SessionService` applies the same rules). */
 export function sendableHeaders(headers: RawTabHeader[]): RawTabHeader[] {
   const kept: RawTabHeader[] = [];
   let total = 0;
@@ -31,9 +32,10 @@ export function sendableHeaders(headers: RawTabHeader[]): RawTabHeader[] {
     if (kept.length === MAX_HEADERS) {
       break;
     }
-    if (headerProblem(h.name, h.value) === null && total + h.name.length + h.value.length <= MAX_HEADER_BYTES) {
-      total += h.name.length + h.value.length;
-      kept.push(h);
+    const name = h.name.trim();
+    if (headerProblem(name, h.value) === null && total + name.length + h.value.length <= MAX_HEADER_BYTES) {
+      total += name.length + h.value.length;
+      kept.push({ name, value: h.value });
     }
   }
   return kept;

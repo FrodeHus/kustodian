@@ -16,6 +16,8 @@ export type Command = {
   enabled?: () => boolean;
   /** The shortcut fires everywhere: in text fields, and for an Enter chord outside the editor (the raw tab's Send). */
   global?: boolean;
+  /** Commands whose shortcut this one shares on purpose (each enabled where the other isn't); any other collision warns. */
+  shares?: string[];
 };
 
 /** One key combination of a shortcut. */
@@ -35,16 +37,20 @@ const changed = () => watchers.forEach((w) => w());
 const chordKey = (c: Chord) => `${c.mod}|${c.ctrl}|${c.shift}|${c.alt}|${c.key.toLowerCase()}`;
 const sameChord = (a: Chord, b: Chord) => chordKey(a) === chordKey(b);
 
-/** In development, says when a command's id or one of its shortcuts is already registered: one of the two would be lost. Two
- * commands may share a shortcut when both say when they are enabled (Run on query tabs, Send on raw tabs): the key runs the
- * first one enabled. */
+/** In development, says when a command's id or one of its shortcuts is already registered: one of the two would be lost. A
+ * shortcut is shared without a warning only when one command names the other in `shares` (Send on raw tabs shares Run's);
+ * the key runs the first one enabled. */
 function warnDuplicates(cmd: Command) {
   if (!import.meta.env.DEV) {
     return;
   }
   for (const chord of parseShortcut(cmd.shortcut)) {
     const other = [...registry.values()].find(
-      (o) => o.id !== cmd.id && !(o.enabled && cmd.enabled) && parseShortcut(o.shortcut).some((c) => sameChord(c, chord)),
+      (o) =>
+        o.id !== cmd.id &&
+        !cmd.shares?.includes(o.id) &&
+        !o.shares?.includes(cmd.id) &&
+        parseShortcut(o.shortcut).some((c) => sameChord(c, chord)),
     );
     if (other) {
       const written = [chord.mod && 'Mod', chord.ctrl && 'Ctrl', chord.shift && 'Shift', chord.alt && 'Alt', chord.key].filter(Boolean).join('+');

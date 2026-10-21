@@ -136,7 +136,8 @@ public sealed class SessionServiceTests : IDisposable
             new RawTabHeader("Bad Name", "x"),
             new RawTabHeader("X-Split", "a\r\nAuthorization: Bearer secret-token"),
             new RawTabHeader("", "orphan"),
-            new RawTabHeader("Prefer", "odata.maxpagesize=5"),
+            new RawTabHeader(" Authorization ", "Bearer secret-token"),
+            new RawTabHeader(" Prefer ", "odata.maxpagesize=5"),
         ]);
 
         await NewService().SaveAsync(new Session(1, "r", [RawTab("r", raw)]), Ct);

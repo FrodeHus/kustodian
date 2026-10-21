@@ -61,7 +61,8 @@ describe('session sync', () => {
         version: 'v1.0',
         headers: [
           { name: 'Authorization', value: 'Bearer typed-token' },
-          { name: 'ConsistencyLevel', value: 'eventual' },
+          { name: ' ConsistencyLevel ', value: 'eventual' },
+          { name: ' Authorization', value: 'Bearer typed-token' },
           { name: 'X-Line', value: 'a\r\nb' },
         ],
       },

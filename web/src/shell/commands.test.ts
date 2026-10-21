@@ -162,12 +162,25 @@ describe('commands', () => {
     keep(
       registerCommands([
         { id: 'run.block', title: 'Run', group: 'Run', shortcut: 'Mod+Enter', run: () => ran.push('run'), enabled: () => !raw },
-        { id: 'raw.send', title: 'Send', group: 'Run', shortcut: 'Mod+Enter', global: true, run: () => ran.push('send'), enabled: () => raw },
+        {
+          id: 'raw.send',
+          title: 'Send',
+          group: 'Run',
+          shortcut: 'Mod+Enter',
+          global: true,
+          shares: ['run.block'],
+          run: () => ran.push('send'),
+          enabled: () => raw,
+        },
       ]),
     );
     keep(bindGlobalKeys());
-    // Both say when they are enabled, so sharing the shortcut is meant.
+    // raw.send says it shares the shortcut with run.block, so that collision is meant.
     expect(warn).not.toHaveBeenCalled();
+    // Any other collision still warns, enabled predicates or not.
+    keep(registerCommands([{ id: 'other', title: 'Other', group: 'Run', shortcut: 'Mod+Enter', run: () => undefined, enabled: () => false }]));
+    expect(warn).toHaveBeenCalledWith('The shortcut Mod+Enter of other is also the shortcut of run.block.');
+    warn.mockClear();
 
     const field = document.createElement('input');
     document.body.append(field);

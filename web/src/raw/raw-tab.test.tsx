@@ -242,6 +242,49 @@ describe('RawTab', () => {
     expect(screen.getByRole('combobox', { name: 'Request path' }).getAttribute('aria-invalid')).toBe('false');
   });
 
+  it('raw_path_refusals_that_mention_the_version_stay_with_the_path', async () => {
+    bridge.call.mockRejectedValueOnce(new BridgeError('bad_request', 'The path must be relative to the version, not a URL.'));
+    renderTab(openTab('https://graph.microsoft.com/beta/me'));
+
+    fireEvent.click(screen.getByRole('button', { name: /^Send/ }));
+
+    const path = screen.getByRole('combobox', { name: 'Request path' });
+    await waitFor(() => expect(path.getAttribute('aria-invalid')).toBe('true'));
+    expect(screen.getByRole('alert').textContent).toBe('The path must be relative to the version, not a URL.');
+    expect(screen.getByRole('combobox', { name: 'Version' }).getAttribute('aria-invalid')).toBe('false');
+  });
+
+  it('raw_send_trims_names_and_keeps_the_last_of_names_that_differ_only_in_case', async () => {
+    bridge.call.mockResolvedValue(response({ value: [] }));
+    const id = openTab();
+    useTabs.getState().setRaw(id, {
+      version: null,
+      headers: [
+        { name: ' Prefer ', value: 'first' },
+        { name: 'prefer', value: 'second' },
+        { name: 'ConsistencyLevel', value: 'eventual' },
+        { name: '  ', value: 'orphan' },
+      ],
+    });
+    renderTab(id);
+    expect(screen.getByText('Prefer is set again below; only the last one is sent.')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Send/ }));
+
+    await waitFor(() =>
+      expect(bridge.call).toHaveBeenCalledWith('raw.send', { version: 'beta', path: 'me/memberOf', headers: { prefer: 'second', ConsistencyLevel: 'eventual' } }),
+    );
+  });
+
+  it('raw_send_is_enabled_only_for_the_active_tab', () => {
+    const id = openTab();
+    renderTab(id);
+    expect(runCommand('raw.send')).toBe(true);
+
+    act(() => void useTabs.getState().open('graph'));
+    expect(runCommand('raw.send')).toBe(false);
+  });
+
   it('raw_refusals_show_beside_their_field', async () => {
     bridge.call.mockRejectedValueOnce(new BridgeError('bad_request', 'The Cookie header can’t be set from the raw tab.'));
     renderTab(openTab());

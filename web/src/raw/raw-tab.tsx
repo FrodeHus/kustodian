@@ -77,7 +77,16 @@ export function RawTab({ tab, schema, defaultVersion, accountKey, onSignIn }: Ra
       return;
     }
     const path = sentPath(tab.text);
-    const headers = Object.fromEntries(request.headers.filter((h) => h.name.trim() !== '').map((h) => [h.name.trim(), h.value]));
+    // Names are trimmed, as the session keeps them; of names that differ only in case the last one is sent, as the editor says.
+    const byName = new Map<string, [string, string]>();
+    for (const h of request.headers) {
+      const name = h.name.trim();
+      if (name !== '') {
+        byName.delete(name.toLowerCase());
+        byName.set(name.toLowerCase(), [name, h.value]);
+      }
+    }
+    const headers = Object.fromEntries(byName.values());
     updateRaw(tab.id, { sending: true, error: null });
     try {
       const response = await call<RawResponse>('raw.send', { version, path, headers });
@@ -86,7 +95,7 @@ export function RawTab({ tab, schema, defaultVersion, accountKey, onSignIn }: Ra
       useTabs.getState().setTitle(tab.id, `GET /${path.split('?')[0] ?? ''}`);
     } catch (e) {
       const message = errorText(e);
-      updateRaw(tab.id, { sending: false, error: failure(e, /header/i.test(message) ? 'headers' : /version/i.test(message) ? 'version' : 'path') });
+      updateRaw(tab.id, { sending: false, error: failure(e, /^The version /.test(message) ? 'version' : /header/i.test(message) ? 'headers' : 'path') });
     }
   }
 
@@ -133,10 +142,20 @@ export function RawTab({ tab, schema, defaultVersion, accountKey, onSignIn }: Ra
   useEffect(
     () =>
       registerCommands([
-        { id: 'raw.send', title: 'Send the raw request', group: 'Run', shortcut: 'Mod+Enter', global: true, run: () => void actions.current.send(), enabled: () => true },
+        {
+          id: 'raw.send',
+          title: 'Send the raw request',
+          group: 'Run',
+          shortcut: 'Mod+Enter',
+          global: true,
+          // Run's shortcut on query tabs; on the active raw tab it sends.
+          shares: ['run.block'],
+          run: () => void actions.current.send(),
+          enabled: () => useTabs.getState().activeId === tab.id,
+        },
         { id: 'raw.next', title: 'Next page of the raw response', group: 'Run', run: () => void actions.current.next(), enabled: () => actions.current.canNext },
       ]),
-    [],
+    [tab.id],
   );
 
   return (

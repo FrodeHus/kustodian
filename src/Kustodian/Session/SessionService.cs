@@ -64,8 +64,9 @@ public sealed class SessionService(JsonFileStore store)
         return session.Tabs.Count - kept.Count;
     }
 
-    /// <summary>The raw request with only the headers the raw tab could send, within the caps, in order; a header that would go
-    /// over the size cap is left out and later smaller ones may still fit.</summary>
+    /// <summary>The raw request with only the headers the raw tab could send, names trimmed as the page trims them when it
+    /// sends, within the caps, in order; a header that would go over the size cap is left out and later smaller ones may still
+    /// fit.</summary>
     private static RawTabRequest Sendable(RawTabRequest raw)
     {
         var headers = new List<RawTabHeader>();
@@ -77,14 +78,15 @@ public sealed class SessionService(JsonFileStore store)
                 break;
             }
 
-            if (RawRequestService.HeaderProblem(header.Name, header.Value) is not null
-                || total + header.Name.Length + header.Value.Length > RawRequestService.MaxHeaderBytes)
+            var name = header.Name.Trim();
+            if (RawRequestService.HeaderProblem(name, header.Value) is not null
+                || total + name.Length + header.Value.Length > RawRequestService.MaxHeaderBytes)
             {
                 continue;
             }
 
-            total += header.Name.Length + header.Value.Length;
-            headers.Add(header);
+            total += name.Length + header.Value.Length;
+            headers.Add(header with { Name = name });
         }
 
         var version = raw.Version is not null && RawVersions.Contains(raw.Version, StringComparer.Ordinal) ? raw.Version : null;
