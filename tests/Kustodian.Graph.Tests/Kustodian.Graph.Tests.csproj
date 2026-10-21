@@ -22,6 +22,22 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Kustodian.Graph\Kustodian.Graph.csproj" />
+    <!-- The worker program is not referenced for its code: its whole output folder is copied to engine-worker/ under the test
+         output, and the runner tests start Kustodian.EngineWorker.dll from there on the dotnet host. -->
+    <ProjectReference Include="..\Kustodian.EngineWorker\Kustodian.EngineWorker.csproj" OutputItemType="EngineWorkerAssembly" ReferenceOutputAssembly="false" />
   </ItemGroup>
+
+  <Target Name="IncludeEngineWorker" AfterTargets="ResolveProjectReferences" Condition="'@(EngineWorkerAssembly)' != ''">
+    <PropertyGroup>
+      <_EngineWorkerDir>@(EngineWorkerAssembly->'%(RootDir)%(Directory)')</_EngineWorkerDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <_EngineWorkerFile Include="$(_EngineWorkerDir)**/*" />
+      <ContentWithTargetPath Include="@(_EngineWorkerFile)">
+        <TargetPath>engine-worker/%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </ContentWithTargetPath>
+    </ItemGroup>
+  </Target>
 
 </Project>

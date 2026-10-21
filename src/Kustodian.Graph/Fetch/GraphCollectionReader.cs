@@ -112,7 +112,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException or JsonException && !ct.IsCancellationRequested)
         {
-            throw new GraphReadException(GraphReadFailure.Failed, "Graph didn't answer: " + ex.Message) { Requests = [.. requests] };
+            throw new GraphReadException(GraphReadFailure.Failed, "Graph didn't answer: " + ex.Message, inner: ex) { Requests = [.. requests] };
         }
     }
 

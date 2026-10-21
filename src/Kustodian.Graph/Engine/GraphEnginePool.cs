@@ -63,6 +63,9 @@ public sealed class GraphEnginePool : IAsyncDisposable
         return await ExecuteAsync(worker, request, runTag, _options.Timeout, ct);
     }
 
+    /// <summary>The limits the pool runs with.</summary>
+    public GraphEngineOptions Options => _options;
+
     public GraphEngineSnapshot Snapshot()
     {
         lock (_gate)
