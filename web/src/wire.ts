@@ -55,6 +55,12 @@ export interface SchemaView {
   complexTypes: Record<string, SchemaField[]>;
 }
 
+/** `schema.listedByDefault`'s answer: for the active account, the columns Graph lists by default (without `$select`) for each
+ * table read so far, by table name. A table not in it hasn't been read yet. */
+export interface ListedByDefault {
+  tables: Record<string, string[]>;
+}
+
 export type RunOutcome =
   | 'ok'
   | 'queryError'

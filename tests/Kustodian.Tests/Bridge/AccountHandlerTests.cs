@@ -75,7 +75,23 @@ public class AccountHandlerTests : IDisposable
         Assert.Equal(FakeMsal.DeviceCodeMessage, evt.GetProperty("data").GetProperty("message").GetString());
     }
 
-    private Messaging.Bridge NewBridge(TokenCacheStatus cache)
+    [Fact]
+    public async Task Sign_out_forgets_what_probing_found_for_the_account()
+    {
+        var probes = new MemoryGraphProbeCache(TimeProvider.System);
+        var bridge = NewBridge(new MemoryOnly("x"), probes);
+        var key = Parse(await bridge.HandleAsync("""{"id":"s","method":"account.signIn","params":{"deviceCode":true}}"""))
+            .GetProperty("result").GetProperty("key").GetString()!;
+        await probes.SetAsync(key, "auditLogs/signIns", ["mfaDetail"], [], CancellationToken.None);
+        await probes.SetAsync("someone-else", "auditLogs/signIns", ["mfaDetail"], [], CancellationToken.None);
+
+        await bridge.HandleAsync($$$"""{"id":"o","method":"account.signOut","params":{"key":"{{{key}}}"}}""");
+
+        Assert.Null(await probes.GetAsync(key, "auditLogs/signIns", CancellationToken.None));
+        Assert.NotNull(await probes.GetAsync("someone-else", "auditLogs/signIns", CancellationToken.None));
+    }
+
+    private Messaging.Bridge NewBridge(TokenCacheStatus cache, IGraphProbeCache? probes = null)
     {
         var bridge = new Messaging.Bridge(message =>
         {
@@ -86,7 +102,7 @@ public class AccountHandlerTests : IDisposable
         });
         var msal = new FakeMsal();
         var accounts = new AccountService(_ => msal, new JsonFileStore(_dir));
-        new AccountHandler(accounts, cache, new MemoryGraphObjectCache(TimeProvider.System)).Register(bridge);
+        new AccountHandler(accounts, cache, new MemoryGraphObjectCache(TimeProvider.System), probes ?? NoGraphProbeCache.Instance).Register(bridge);
         return bridge;
     }
 

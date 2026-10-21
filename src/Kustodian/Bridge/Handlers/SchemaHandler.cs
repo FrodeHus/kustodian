@@ -1,3 +1,4 @@
+using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Schema;
 using Kustodian.Sources.Arg;
 using Kustodian.Sources.Hunting;
@@ -8,15 +9,19 @@ namespace Kustodian.Messaging.Handlers;
 /// show. <c>graph</c> is the bundled Graph schema. <c>hunting</c> is the active account's advanced hunting schema
 /// (<see cref="HuntingSchemaSource"/>, cached for 24 hours unless <c>refresh</c>), or the bundled one, with the reason, when it
 /// can't be read or nobody is signed in. <c>arg</c> is the bundled list of Resource Graph tables (<see cref="BuiltInArgSchema"/>);
-/// the account's resource types come from <c>arm.resourceTypes</c>.</summary>
-public sealed class SchemaHandler(GraphSchema schema, HuntingSchemaSource hunting, Func<Task<string?>> activeAccount)
+/// the account's resource types come from <c>arm.resourceTypes</c>.
+/// <c>schema.listedByDefault {source: "graph"}</c>: for the active account, the columns Graph lists by default for each table read
+/// so far (<see cref="IGraphProbeCache"/>), by table name; a table not read yet isn't in it.</summary>
+public sealed class SchemaHandler(GraphSchema schema, HuntingSchemaSource hunting, Func<Task<string?>> activeAccount,
+    IGraphProbeCache? probes = null)
 {
     public const string SignInForTenantSchema = "Sign in to see your tenant's schema. The built-in schema is shown.";
 
     private readonly Lazy<SchemaView> _graph = new(() => SchemaView.From(schema));
     private readonly Lazy<SchemaView> _arg = new(SchemaView.FromArg);
 
-    public void Register(Bridge bridge) =>
+    public void Register(Bridge bridge)
+    {
         bridge.Register("schema.get", async (p, ct) =>
         {
             var request = BridgeJson.Params<SchemaParams>(p);
@@ -30,8 +35,38 @@ public sealed class SchemaHandler(GraphSchema schema, HuntingSchemaSource huntin
                 _ => throw new BridgeException(BridgeErrorCodes.BadRequest, $"Unknown source {request.Source}."),
             };
         });
+        bridge.Register("schema.listedByDefault", async (p, ct) =>
+        {
+            RequireGraph(p);
+            return await ListedByDefaultAsync(ct);
+        });
+    }
+
+    private async Task<ListedByDefault> ListedByDefaultAsync(CancellationToken ct)
+    {
+        var tables = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+        if (probes is null || await activeAccount() is not { } account)
+            return new ListedByDefault(tables);
+        var byPath = await probes.DefaultsOfAsync(account, ct);
+        foreach (var table in schema.Tables)
+        {
+            if (byPath.TryGetValue(table.Path, out var defaults))
+                tables[table.Name] = defaults.Columns;
+        }
+        return new ListedByDefault(tables);
+    }
+
+    private static void RequireGraph(System.Text.Json.JsonElement p)
+    {
+        var source = BridgeJson.Params<SchemaParams>(p).Source;
+        if (source != "graph")
+            throw new BridgeException(BridgeErrorCodes.BadRequest, $"Unknown source {source}.");
+    }
 
     private sealed record SchemaParams(string? Source, bool Refresh);
+
+    /// <summary><c>schema.listedByDefault</c>'s answer: the default columns by table name.</summary>
+    private sealed record ListedByDefault(IReadOnlyDictionary<string, IReadOnlyList<string>> Tables);
 }
 
 /// <summary><c>schema.get</c>'s answer. <paramref name="Origin"/> is <c>tenant</c> (read for the account) or <c>builtIn</c>

@@ -126,8 +126,11 @@ public sealed class RunDiagnosticsTests
         await Assert.ThrowsAsync<GraphReadException>(() => graph.Reader(new GraphFetchBudget())
             .ReadAsync(Account, Fetch(["id", "displayName"], []), new GraphFetchBudget().Lease(), false, diagnostics, Ct));
 
-        var throttled = Assert.Single(OfKind(diagnostics, "throttled"));
-        Assert.Equal(("applications: Graph is throttling; Retry-After 7 s", (int?)429), (throttled.Detail, throttled.Status));
+        // Sent once more after the wait, and throttled again: both are logged, and the retry between them.
+        Assert.All(OfKind(diagnostics, "throttled"), throttled =>
+            Assert.Equal(("applications: Graph is throttling; Retry-After 7 s", (int?)429), (throttled.Detail, throttled.Status)));
+        Assert.Equal(2, OfKind(diagnostics, "throttled").Count);
+        Assert.Equal("applications: sent the request again after 7 s", Assert.Single(OfKind(diagnostics, "retry")).Detail);
     }
 
     [Fact]

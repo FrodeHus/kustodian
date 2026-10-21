@@ -23,6 +23,9 @@ public sealed record GraphLimits
     /// <summary>How long per-object values are kept (<see cref="MemoryGraphObjectCache"/>). Zero keeps nothing.</summary>
     public TimeSpan PerObjectCacheTtl { get; init; } = TimeSpan.FromMinutes(30);
 
+    /// <summary>How long the columns probing found a table can't serve in a list are kept (<see cref="IGraphProbeCache"/>).</summary>
+    public TimeSpan ProbeCacheTtl { get; init; } = TimeSpan.FromDays(7);
+
     /// <summary>The most rows the engine sends back for one run; the run's total still counts them all.</summary>
     public int RowsPerRun { get; init; } = 50_000;
 }

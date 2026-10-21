@@ -176,7 +176,7 @@ public sealed class ArmAuthTests : IDisposable
         var service = new AccountService(_ => msal, new JsonFileStore(_dir));
         var account = await service.SignInInteractiveAsync(ClientConfig.AzureCli, Ct);
         var bridge = new Messaging.Bridge(_ => { });
-        new AccountHandler(service, new MemoryOnly("x"), new MemoryGraphObjectCache(TimeProvider.System)).Register(bridge);
+        new AccountHandler(service, new MemoryOnly("x"), new MemoryGraphObjectCache(TimeProvider.System), NoGraphProbeCache.Instance).Register(bridge);
 
         var ok = await Send(bridge, "account.consent", new { key = account.Key, audience = "arm" });
         var badAudience = await Send(bridge, "account.consent", new { key = account.Key, audience = "graph" });
@@ -259,7 +259,7 @@ public sealed class ArmAuthTests : IDisposable
         var account = await service.SignInInteractiveAsync(ClientConfig.AzureCli, Ct);
         msal.InteractiveFails = new MsalClientException(MsalError.AuthenticationCanceledError, "User canceled authentication.");
         var bridge = new Messaging.Bridge(_ => { });
-        new AccountHandler(service, new MemoryOnly("x"), new MemoryGraphObjectCache(TimeProvider.System)).Register(bridge);
+        new AccountHandler(service, new MemoryOnly("x"), new MemoryGraphObjectCache(TimeProvider.System), NoGraphProbeCache.Instance).Register(bridge);
 
         var reply = await Send(bridge, "account.consent", new { key = account.Key, audience = "arm" });
 
