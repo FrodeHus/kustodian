@@ -71,6 +71,24 @@ describe('export', () => {
     expect(call.mock.calls[0]?.[1]).toMatchObject({ content: '﻿name\r\na' });
   });
 
+  it('Excel_csv_escapes_formulas_and_plain_csv_does_not', async () => {
+    numberFormat((n) => String(n));
+    call.mockResolvedValue(null);
+    const cols = [
+      { name: 'v', type: 'string' },
+      { name: 'n', type: 'long' },
+    ];
+    const rows = [['=1+1', -5], ['+SUM(A1)', 3], ['-x', null], ['@cmd', null], ['\tx', null], ['\rx', null], ['safe', null]];
+
+    await exportResult('excel', 'q', { columns: cols, rows });
+
+    expect((call.mock.calls[0]![1] as { content: string }).content).toBe(
+      ['﻿v,n', "'=1+1,-5", "'+SUM(A1),3", "'-x,", "'@cmd,", "'\tx,", '"\'\rx",', 'safe,'].join('\r\n'),
+    );
+    // Plain CSV writes every value as it is.
+    expect(toCsv(cols, rows.slice(0, 2))).toBe(['v,n', '=1+1,-5', '+SUM(A1),3'].join('\r\n'));
+  });
+
   it('Markdown_escapes_pipes', () => {
     const rows = [['a|b', 1, { x: 'c|d' }], ['line\nbreak', null, null]];
 

@@ -156,6 +156,28 @@ describe('ResultGrid', () => {
     expect(writeText).toHaveBeenLastCalledWith('| Payroll | 2 | {"kind":"secret"} |');
   });
 
+  it('grid_selected_count_leaves_out_rows_the_filter_hides', () => {
+    const rows = [
+      ['Contoso', 1, null],
+      ['Payroll', 2, null],
+      ['Legacy', 3, null],
+    ];
+    const { container } = render(<ResultGrid columns={columns} rows={rows} />);
+    fireEvent.click(bodyRows(container)[0]!);
+    fireEvent.click(bodyRows(container)[1]!, { shiftKey: true });
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Filter rows' }), { target: { value: 'Payroll' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Copy as' }));
+    expect(screen.getByText('1 row selected')).toBeTruthy();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Cells as CSV' }));
+    expect(writeText).toHaveBeenLastCalledWith('Payroll,2,');
+
+    // With none of the selected rows shown, every row shown is copied.
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Filter rows' }), { target: { value: 'Legacy' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Copy as' }));
+    expect(screen.getByText('All 1 row')).toBeTruthy();
+  });
+
   it('grid_copy_says_when_the_clipboard_fails', async () => {
     writeText.mockRejectedValue(new Error('Write permission denied.'));
     render(<ResultGrid columns={columns} rows={[['Contoso', 1, null]]} />);

@@ -329,7 +329,7 @@ export function App() {
                   </div>
                 )}
                 <RunStatus run={active.run} onSignIn={() => setAccountsOpen(true)} />
-                <Results tab={active} />
+                <Results tab={active} dialogOpen={paletteOpen || saving !== null} />
               </>
             ) : (
               <div className="flex flex-1 flex-col items-center justify-center gap-3">
@@ -420,7 +420,7 @@ function Toolbar({ tab, onRun, onFormat, paramCount, paramsOpen, onParams }: Too
   );
 }
 
-function Results({ tab }: { tab: Tab }) {
+function Results({ tab, dialogOpen }: { tab: Tab; dialogOpen: boolean }) {
   const result = tab.run?.state === 'done' ? tab.run.result : undefined;
   if (!result || result.outcome !== 'ok') {
     return (
@@ -431,5 +431,5 @@ function Results({ tab }: { tab: Tab }) {
       </div>
     );
   }
-  return <ResultPanel key={tab.id} tabId={tab.id} title={tab.title} kql={tab.run?.kql ?? tab.text} result={result} pinned={tab.pinned} />;
+  return <ResultPanel key={tab.id} tabId={tab.id} title={tab.title} kql={tab.run?.kql ?? tab.text} result={result} pinned={tab.pinned} dialogOpen={dialogOpen} />;
 }

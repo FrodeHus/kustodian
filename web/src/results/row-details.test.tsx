@@ -39,7 +39,7 @@ describe('RowDetails', () => {
     expect(JSON.parse(writeText.mock.lastCall?.[0] ?? '')).toEqual({ displayName: 'HR Connector', appRoles: row[1], owner: null });
   });
 
-  it('row_details_closes_on_escape_and_keeps_focus_inside', () => {
+  it('row_details_is_not_modal_and_tab_cycles_inside', () => {
     const onClose = vi.fn();
     render(
       <>
@@ -48,10 +48,21 @@ describe('RowDetails', () => {
       </>,
     );
     const sheet = screen.getByRole('dialog');
-    expect(sheet.contains(document.activeElement)).toBe(true);
+    expect(sheet.getAttribute('aria-modal')).toBeNull();
+    const close = screen.getByRole('button', { name: 'Close row details' });
+    expect(document.activeElement).toBe(close);
 
+    // Tab from the last button wraps to the first, Shift+Tab from the first to the last.
+    const buttons = within(sheet).getAllByRole('button');
+    buttons.at(-1)!.focus();
+    fireEvent.keyDown(buttons.at(-1)!, { key: 'Tab' });
+    expect(document.activeElement).toBe(buttons[0]);
+    fireEvent.keyDown(buttons[0]!, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(buttons.at(-1));
+
+    // Focus may leave it, as into the editor.
     screen.getByRole('button', { name: 'Outside' }).focus();
-    expect(sheet.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Outside' }));
 
     fireEvent.keyDown(sheet, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledOnce();

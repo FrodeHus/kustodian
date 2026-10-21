@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { ResultColumn } from '../wire';
 import { copyFailed, copyText } from './copy';
 import { cellText, type Row } from './export';
@@ -14,8 +14,10 @@ const rowJson = (columns: ResultColumn[], row: Row) => JSON.stringify(Object.fro
 
 /**
  * Row details (spec 6.5, mockup Palette): a side sheet with every column of one row, dynamic values expanded as formatted JSON,
- * a copy button for each value and one for the whole row. Esc or × closes it, and focus goes back where it was; while it is
- * open, focus stays inside it.
+ * a copy button for each value and one for the whole row. Esc or × closes it, and focus goes back where it was.
+ *
+ * It isn't modal (ruling 26): focus may go elsewhere, such as into the editor. While focus is in the sheet, Tab and Shift+Tab
+ * cycle through its buttons.
  */
 export function RowDetails({ columns, row, onClose }: { columns: ResultColumn[]; row: Row; onClose: () => void }) {
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -23,23 +25,34 @@ export function RowDetails({ columns, row, onClose }: { columns: ResultColumn[];
   const closeButton = useRef<HTMLButtonElement>(null);
   const title = cellText(row[0]) || 'Row details';
 
+  // Where focus was when the sheet opened: Esc and × put it back there. (Closing because a dialog opened leaves focus to it.)
+  const before = useRef<Element | null>(null);
   useEffect(() => {
-    const before = document.activeElement;
+    before.current = document.activeElement;
     closeButton.current?.focus();
-    // A modal, as the other dialogs are: focus that lands outside the sheet comes back to its close button.
-    const onFocusIn = (e: FocusEvent) => {
-      if (!(e.target instanceof Node) || !sheet.current?.contains(e.target)) {
-        closeButton.current?.focus();
-      }
-    };
-    document.addEventListener('focusin', onFocusIn);
-    return () => {
-      document.removeEventListener('focusin', onFocusIn);
-      if (before instanceof HTMLElement) {
-        before.focus();
-      }
-    };
   }, []);
+
+  const close = () => {
+    const back = before.current;
+    onClose();
+    if (back instanceof HTMLElement && back.isConnected) {
+      back.focus();
+    }
+  };
+
+  /** Tab from the last button goes to the first, Shift+Tab from the first to the last. */
+  const cycle = (e: KeyboardEvent<HTMLDivElement>) => {
+    const focusable = [...(sheet.current?.querySelectorAll<HTMLElement>('button:not(:disabled), [tabindex="0"]') ?? [])];
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last?.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first?.focus();
+    }
+  };
 
   const copy = (text: string, done: string) =>
     copyText(text).then(
@@ -51,14 +64,15 @@ export function RowDetails({ columns, row, onClose }: { columns: ResultColumn[];
     <div
       ref={sheet}
       role="dialog"
-      aria-modal="true"
       aria-label={`Row details: ${title}`}
       className="absolute top-0 right-0 bottom-0 z-[4] flex w-[420px] max-w-full flex-col border-l border-line bg-panel shadow-[0_18px_40px_rgba(0,0,0,0.45)]"
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
           e.preventDefault();
           e.stopPropagation();
-          onClose();
+          close();
+        } else if (e.key === 'Tab') {
+          cycle(e);
         }
       }}
     >
@@ -68,7 +82,7 @@ export function RowDetails({ columns, row, onClose }: { columns: ResultColumn[];
         <button type="button" className="btn ghost shrink-0" onClick={() => void copy(rowJson(columns, row), 'Copied the row as JSON.')}>
           Copy row as JSON
         </button>
-        <button ref={closeButton} type="button" className="tab-add shrink-0" aria-label="Close row details" onClick={onClose}>
+        <button ref={closeButton} type="button" className="tab-add shrink-0" aria-label="Close row details" onClick={close}>
           ×
         </button>
       </div>

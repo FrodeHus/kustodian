@@ -44,6 +44,8 @@ interface PanelProps {
   result: RunResult;
   /** The run pinned to compare with, when there is one. */
   pinned?: RunResult;
+  /** A dialog (the palette, the save dialog) is open: the row details sheet closes first, so focus is the dialog's. */
+  dialogOpen?: boolean;
 }
 
 /**
@@ -51,7 +53,7 @@ interface PanelProps {
  * arrow keys, Home and End. The Rows tab's tools and Export sit in the tab bar; a row opened in the grid shows in the row
  * details sheet.
  */
-export function ResultPanel({ tabId, title, kql, result, pinned }: PanelProps) {
+export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = false }: PanelProps) {
   const [chosen, setChosen] = useState<ResultTab>('rows');
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
   const [details, setDetails] = useState<number | null>(null);
@@ -60,6 +62,9 @@ export function ResultPanel({ tabId, title, kql, result, pinned }: PanelProps) {
   const [resultSeen, setResultSeen] = useState(result);
   if (resultSeen !== result) {
     setResultSeen(result);
+    setDetails(null);
+  }
+  if (dialogOpen && details !== null) {
     setDetails(null);
   }
   const tabRefs = useRef(new Map<ResultTab, HTMLButtonElement>());

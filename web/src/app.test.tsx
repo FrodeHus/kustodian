@@ -179,6 +179,24 @@ describe('App', () => {
     expect(screen.queryByRole('tab', { name: 'Compare' })).toBeNull();
   });
 
+  it('app_palette_opens_over_row_details_and_keeps_focus', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    render(<App />);
+    fireEvent.change(await screen.findByRole('textbox', { name: 'KQL query' }), { target: { value: 'applications' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Run all Shift Enter' }));
+    await screen.findByRole('tab', { name: 'Rows · 1' });
+
+    fireEvent.doubleClick(within(screen.getByRole('region', { name: 'Result rows' })).getByText('Contoso Portal'));
+    const close = screen.getByRole('button', { name: 'Close row details' });
+    expect(document.activeElement).toBe(close);
+
+    fireEvent.keyDown(close, { key: 'k', code: 'KeyK', ctrlKey: true });
+
+    const input = screen.getByRole('combobox', { name: 'Type a command' });
+    expect(screen.queryByRole('dialog', { name: /Row details/ })).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(input));
+  });
+
   it('app_sign_in_needed_opens_sign_in_and_keeps_the_query', async () => {
     host({ accounts: [kari], cache: 'persistent' }, { ...rows, outcome: 'signInNeeded', message: 'Sign in again to run this query.', rows: [], columns: [], total: 0 });
     render(<App />);

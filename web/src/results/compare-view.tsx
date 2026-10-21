@@ -1,5 +1,5 @@
-import { useId, useState } from 'react';
-import { commonColumns, diffRows } from './diff';
+import { useId, useMemo, useState } from 'react';
+import { commonColumns, defaultKey, diffRows, isUnique } from './diff';
 import { cellText, type ResultTable, type Row } from './export';
 import { ResultGrid } from './result-grid';
 
@@ -16,7 +16,7 @@ export function CompareView({ pinned, current }: { pinned: ResultTable; current:
   const [mode, setMode] = useState<'diff' | 'side'>('diff');
   const common = commonColumns(pinned, current);
   const [chosenKey, setKey] = useState<string | null>(null);
-  const key = chosenKey && common.includes(chosenKey) ? chosenKey : common[0];
+  const key = chosenKey && common.includes(chosenKey) ? chosenKey : defaultKey(pinned, current)?.key;
   const id = useId();
 
   return (
@@ -63,7 +63,14 @@ export function CompareView({ pinned, current }: { pinned: ResultTable; current:
 }
 
 function Diff({ pinned, current, keyColumn, columns }: { pinned: ResultTable; current: ResultTable; keyColumn: string; columns: string[] }) {
-  const diff = diffRows(pinned, current, keyColumn);
+  const diff = useMemo(() => diffRows(pinned, current, keyColumn), [pinned, current, keyColumn]);
+  const notes = useMemo(() => {
+    const type = (t: ResultTable) => t.columns.find((c) => c.name === keyColumn)?.type;
+    return [
+      type(pinned) !== type(current) && 'The key column has a different type in each run.',
+      !(isUnique(pinned, keyColumn) && isUnique(current, keyColumn)) && 'Key isn’t unique: rows are matched in order.',
+    ].filter((n): n is string => !!n);
+  }, [pinned, current, keyColumn]);
   const at = (t: ResultTable) => new Map(t.columns.map((c, i) => [c.name, i]));
   const before = at(pinned);
   const after = at(current);
@@ -107,6 +114,11 @@ function Diff({ pinned, current, keyColumn, columns }: { pinned: ResultTable; cu
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {notes.map((note) => (
+        <p key={note} className="m-0 border-b border-line bg-warn-soft px-3 py-1.5 text-[12px] text-warn" role="note">
+          {note}
+        </p>
+      ))}
       <div className="min-h-0 flex-1 overflow-auto" tabIndex={0} role="region" aria-label="Compared rows">
         <table className="datagrid" aria-label="Differences">
           <thead>

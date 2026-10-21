@@ -17,19 +17,32 @@ export function cellText(value: unknown): string {
   return typeof value === 'object' ? JSON.stringify(value) : String(value);
 }
 
-/** One CSV field (RFC 4180): quoted, with its quotes doubled, when it holds the separator, a quote, CR or LF. */
-function csvField(value: unknown, separator: string): string {
-  const text = cellText(value);
+/** Text Excel would read as a formula: it starts with `=`, `+`, `-`, `@`, a tab or CR. */
+const FORMULA_START = /^[=+\-@\t\r]/;
+
+/** One CSV field (RFC 4180): quoted, with its quotes doubled, when it holds the separator, a quote, CR or LF. With
+ * `escapeFormulas`, a text value that Excel would run as a formula gets a leading `'`; numbers and other values never do. */
+function csvField(value: unknown, separator: string, escapeFormulas: boolean): string {
+  const text = escapeFormulas && typeof value === 'string' && FORMULA_START.test(value) ? `'${value}` : cellText(value);
   return text.includes(separator) || /["\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
 /**
- * The rows as CSV (RFC 4180): a header line of column names, then one line per row, with CRLF between lines. `bom` starts the
- * text with a UTF-8 byte order mark, which Excel needs to read it as UTF-8. `header: false` leaves the header line out.
+ * The rows as CSV: a header line of column names, then one line per row, with CRLF between lines. `header: false` leaves the
+ * header line out.
+ *
+ * By default it is plain RFC 4180, every value written as it is. The Excel variant passes `bom`, which starts the text with a
+ * UTF-8 byte order mark (Excel needs it to read UTF-8), and `escapeFormulas`, which puts `'` before text values that start
+ * with `=`, `+`, `-`, `@`, a tab or CR, so Excel shows them rather than running them as formulas.
  */
-export function toCsv(columns: ResultColumn[], rows: Row[], opts: { separator?: string; bom?: boolean; header?: boolean } = {}): string {
+export function toCsv(
+  columns: ResultColumn[],
+  rows: Row[],
+  opts: { separator?: string; bom?: boolean; header?: boolean; escapeFormulas?: boolean } = {},
+): string {
   const separator = opts.separator ?? ',';
-  const line = (values: unknown[]) => values.map((v) => csvField(v, separator)).join(separator);
+  const escape = opts.escapeFormulas ?? false;
+  const line = (values: unknown[]) => values.map((v) => csvField(v, separator, escape)).join(separator);
   const lines = rows.map(line);
   if (opts.header !== false) {
     lines.unshift(line(columns.map((c) => c.name)));
@@ -83,7 +96,7 @@ function content(format: ExportFormat, { columns, rows }: ResultTable): string {
     case 'csv':
       return toCsv(columns, rows);
     case 'excel':
-      return toCsv(columns, rows, { separator: excelSeparator(), bom: true });
+      return toCsv(columns, rows, { separator: excelSeparator(), bom: true, escapeFormulas: true });
     case 'json':
       return toJson(columns, rows);
     case 'markdown':

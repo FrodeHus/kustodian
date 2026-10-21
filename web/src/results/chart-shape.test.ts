@@ -61,6 +61,33 @@ describe('chartShape', () => {
     });
   });
 
+  it('render_hint_ignores_a_trailing_comment_but_not_a_url', () => {
+    expect(renderHint('t | take 5 // | render piechart')).toBeUndefined();
+    expect(renderHint('t | render barchart // was | render piechart')).toBe('bar');
+    expect(renderHint('t | where u == "https://x" | render linechart')).toBe('line');
+  });
+
+  it('chart_data_sorts_points_along_a_date_or_number_axis', () => {
+    const columns = [col('day', 'datetime'), col('n', 'long')];
+    const rows = [['2026-10-20T00:00:00Z', 3], [null, 9], ['2026-10-18T00:00:00Z', 1], ['2026-10-19T00:00:00Z', 2]];
+    expect(chartData(columns, rows, { type: 'timechart', x: 'day', series: ['n'] }).data.map((p) => p.x)).toEqual([
+      '2026-10-18T00:00:00Z',
+      '2026-10-19T00:00:00Z',
+      '2026-10-20T00:00:00Z',
+      '',
+    ]);
+
+    const numbers = [col('bucket', 'long'), col('app', 'string'), col('n', 'long')];
+    const split = chartData(numbers, [[10, 'a', 1], [2, 'b', 2], [10, 'b', 3]], { type: 'line', x: 'bucket', series: ['n'] });
+    expect(split.data).toEqual([
+      { x: '2', values: { b: 2 } },
+      { x: '10', values: { a: 1, b: 3 } },
+    ]);
+
+    // A text axis keeps the result's order.
+    expect(chartData([col('app', 'string'), col('n', 'long')], [['b', 1], ['a', 2]], { type: 'column', x: 'app', series: ['n'] }).data.map((p) => p.x)).toEqual(['b', 'a']);
+  });
+
   it('chart_data_keeps_series_columns_without_a_split', () => {
     const columns = [col('app', 'string'), col('n', 'long'), col('m', 'real')];
     const rows = [['Teams', 1, 2.5], ['Exchange', null, 4]];

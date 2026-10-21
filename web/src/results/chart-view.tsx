@@ -119,8 +119,8 @@ export default function ChartView({ columns, rows, kql }: { columns: ResultColum
           <Tooltip {...TOOLTIP} />
           <Legend wrapperStyle={{ fontSize: 12, color: 'var(--muted)' }} />
           <Pie data={data} dataKey={valueOf(series[0] ?? '')} nameKey="x" stroke="var(--panel)" isAnimationActive={false}>
-            {data.map((p, i) => (
-              <Cell key={p.x} fill={colour(i)} />
+            {data.map((_, i) => (
+              <Cell key={i} fill={colour(i)} />
             ))}
           </Pie>
         </PieChart>

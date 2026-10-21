@@ -38,6 +38,29 @@ describe('CompareView', () => {
     expect(screen.queryByRole('table', { name: 'Differences' })).toBeNull();
   });
 
+  it('compare_view_picks_a_unique_key_and_notes_a_repeated_one', () => {
+    const cols = [
+      { name: 'app', type: 'string' },
+      { name: 'id', type: 'string' },
+    ];
+    const { unmount } = render(
+      <CompareView pinned={{ columns: cols, rows: [['Teams', '1'], ['Teams', '2']] }} current={{ columns: cols, rows: [['Teams', '1']] }} />,
+    );
+    expect(screen.getByRole('combobox', { name: 'Match rows on' })).toHaveProperty('value', 'id');
+    expect(screen.queryByText('Key isn’t unique: rows are matched in order.')).toBeNull();
+    unmount();
+
+    render(<CompareView pinned={{ columns: cols, rows: [['Teams', '1'], ['Teams', '1']] }} current={{ columns: cols, rows: [['Teams', '1']] }} />);
+    expect(screen.getByRole('combobox', { name: 'Match rows on' })).toHaveProperty('value', 'app');
+    expect(screen.getByText('Key isn’t unique: rows are matched in order.')).toBeTruthy();
+    expect(screen.getByText('0 added · 1 removed · 0 changed · 1 the same')).toBeTruthy();
+  });
+
+  it('compare_view_notes_a_key_type_mismatch', () => {
+    render(<CompareView pinned={pinned} current={{ columns: [{ name: 'app', type: 'dynamic' }, columns[1]!], rows: current.rows }} />);
+    expect(screen.getByText('The key column has a different type in each run.')).toBeTruthy();
+  });
+
   it('compare_view_without_common_columns_says_so', () => {
     render(<CompareView pinned={pinned} current={{ columns: [{ name: 'other', type: 'string' }], rows: [] }} />);
     expect(screen.getByText('The two runs have no column in common to match rows on.')).toBeTruthy();

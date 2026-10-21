@@ -343,9 +343,13 @@ export function ResultGrid({ columns, rows, onOpenRow, toolbar }: GridProps) {
     }
   };
 
+  // Every row the filter lets through, in the order shown, and those of them that are selected. Selected rows the filter now
+  // hides are neither counted nor copied; with none selected, every row shown is.
+  const filteredLeaves = leaves(table.getSortedRowModel().rows);
+  const selectedShown = filteredLeaves.filter((r) => selected.has(r.id));
+
   const copy = (format: CopyFormat, header: boolean) => {
-    const all = leaves(table.getSortedRowModel().rows);
-    const chosen = selected.size > 0 ? all.filter((r) => selected.has(r.id)) : all;
+    const chosen = selectedShown.length > 0 ? selectedShown : filteredLeaves;
     const shownColumns = visibleColumns.map((c) => meta.get(c.id)).filter((c): c is ResultColumn => !!c);
     const at = shownColumns.map((c) => columns.indexOf(c));
     const values = chosen.map((r) => at.map((i) => r.original[i]));
@@ -357,7 +361,6 @@ export function ResultGrid({ columns, rows, onOpenRow, toolbar }: GridProps) {
   };
 
   const groupedBy = grouping[0];
-  const filtered = leaves(table.getSortedRowModel().rows).length;
 
   const tools = (
     <>
@@ -425,7 +428,7 @@ export function ResultGrid({ columns, rows, onOpenRow, toolbar }: GridProps) {
       </MenuButton>
       <MenuButton label="Copy as" primary>
         <>
-          <span className="faint px-2.5 py-1 text-[11.5px]">{selected.size > 0 ? `${rowCount(selected.size)} selected` : `All ${rowCount(filtered)}`}</span>
+          <span className="faint px-2.5 py-1 text-[11.5px]">{selectedShown.length > 0 ? `${rowCount(selectedShown.length)} selected` : `All ${rowCount(filteredLeaves.length)}`}</span>
           {[true, false].flatMap((header) =>
             COPY_FORMATS.map(({ format, name }) => (
               <button

@@ -34,12 +34,33 @@ export const RENDER_HINTS: Record<string, ChartType> = {
 
 const RENDER = /\|\s*render\s+(\w+)/i;
 
-/** The chart a query's `| render` asks for: from the last line that has one, leaving out comment lines. Undefined when there
- * is none, or it names a visualization Kustodian doesn't draw. */
+/** A line without its trailing `//` comment. A `//` inside a quoted string (such as a URL) is not a comment. */
+function withoutComment(line: string): string {
+  let quote: string | null = null;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (quote) {
+      if (ch === '\\') {
+        i++;
+      } else if (ch === quote) {
+        quote = null;
+      }
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+    } else if (ch === '/' && line[i + 1] === '/') {
+      return line.slice(0, i);
+    }
+  }
+  return line;
+}
+
+/** The chart a query's `| render` asks for: from the last line that has one, leaving out comments. Undefined when there is
+ * none, or it names a visualization Kustodian doesn't draw. */
 export function renderHint(kql: string): ChartType | undefined {
   const line = kql
     .split(/\r\n|\r|\n/)
-    .filter((l) => !l.trimStart().startsWith('//') && RENDER.test(l))
+    .map(withoutComment)
+    .filter((l) => RENDER.test(l))
     .at(-1);
   const word = line?.match(RENDER)?.[1]?.toLowerCase();
   return word ? RENDER_HINTS[word] : undefined;
@@ -80,6 +101,14 @@ export function chartShape(columns: ResultColumn[], rows: Row[], renderHint?: Ch
   return null;
 }
 
+/** The rows in order of `key`, rows whose key isn't a number last, keeping their order otherwise. */
+function sortBy(rows: Row[], key: (row: Row) => number): Row[] {
+  return rows
+    .map((row) => ({ row, k: key(row) }))
+    .sort((a, b) => (Number.isNaN(a.k) ? (Number.isNaN(b.k) ? 0 : 1) : Number.isNaN(b.k) ? -1 : a.k - b.k))
+    .map((e) => e.row);
+}
+
 /** One point along the x axis: `x`, and a value for each series by its name. (Kept apart from `x`, and read by function rather
  * than by a Recharts key path, so a series called "x" or "a.b" draws as itself.) */
 export interface ChartPoint {
@@ -92,9 +121,13 @@ export interface ChartPoint {
  * the result's one other text column, when it has one (as `summarize count() by app, bin(day)` charts a series per app);
  * otherwise each row is a point and the series are the spec's.
  */
-export function chartData(columns: ResultColumn[], rows: Row[], spec: ChartSpec): { series: string[]; data: ChartPoint[] } {
+export function chartData(columns: ResultColumn[], unsorted: Row[], spec: ChartSpec): { series: string[]; data: ChartPoint[] } {
   const index = (name: string) => columns.findIndex((c) => c.name === name);
   const xAt = index(spec.x);
+  const xColumn = columns[xAt];
+  // Along a date or number axis the points go in order of x, however the rows came.
+  const order = xColumn && isDate(xColumn) ? (v: unknown) => Date.parse(String(v)) : xColumn && isNumeric(xColumn) ? Number : undefined;
+  const rows = order ? sortBy(unsorted, (row) => (row[xAt] === null || row[xAt] === undefined ? NaN : order(row[xAt]))) : unsorted;
   const splits = columns.filter((c) => isText(c) && c.name !== spec.x);
   const split = spec.series.length === 1 && spec.type !== 'pie' && splits.length === 1 ? splits[0] : undefined;
 
