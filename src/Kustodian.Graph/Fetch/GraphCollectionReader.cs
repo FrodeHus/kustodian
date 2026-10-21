@@ -223,7 +223,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
             if (root?["value"] is JsonArray value)
                 objects.AddRange(value.OfType<JsonObject>());
             if (objects.Count > MaxObjects)
-                throw new GraphReadException(GraphReadFailure.TooLarge,
+                throw new GraphReadException(GraphReadFailure.TooManyObjects,
                     $"{fetch.Table.Name} has more than 50,000 objects. Add a `where` Graph can filter on (see the schema list).");
 
             // The account's token goes with every request: a next link is only followed back to Graph itself.

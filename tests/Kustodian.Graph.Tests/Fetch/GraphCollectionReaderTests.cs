@@ -106,7 +106,7 @@ public sealed class GraphCollectionReaderTests
 
         var ex = await Fails(Read(Reader(handler), Fetch()));
 
-        Assert.Equal(GraphReadFailure.TooLarge, ex.Failure);
+        Assert.Equal(GraphReadFailure.TooManyObjects, ex.Failure);
         Assert.Equal("applications has more than 50,000 objects. Add a `where` Graph can filter on (see the schema list).", ex.Message);
     }
 

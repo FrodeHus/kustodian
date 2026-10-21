@@ -33,6 +33,10 @@ public sealed class FakeGraph : HttpMessageHandler
     /// <summary>A one-page collection.</summary>
     public static HttpResponseMessage Collection(IEnumerable<object> values) => Json(HttpStatusCode.OK, new { value = values });
 
+    /// <summary>One page of a collection, with the link to the next.</summary>
+    public static HttpResponseMessage Page(IEnumerable<object> values, string nextLink)
+        => Json(HttpStatusCode.OK, new Dictionary<string, object> { ["value"] = values, ["@odata.nextLink"] = nextLink });
+
     /// <summary>A Graph error answer.</summary>
     public static HttpResponseMessage Error(HttpStatusCode status, string code, string message, int? retryAfterSeconds = null)
     {

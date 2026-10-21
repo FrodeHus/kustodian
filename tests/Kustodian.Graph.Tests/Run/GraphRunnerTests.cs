@@ -137,6 +137,58 @@ public sealed class GraphRunnerTests
     }
 
     [Fact]
+    public async Task Run_over_the_object_cap_reports_too_large_with_the_readers_reason()
+    {
+        await using var h = NewHost();
+        h.Graph.Answer = (request, _) =>
+        {
+            // Pages of 10,000 until there are more than 50,000.
+            var page = request.RequestUri!.Query.Contains("page=", StringComparison.Ordinal)
+                ? int.Parse(request.RequestUri.Query.Split("page=")[1], System.Globalization.CultureInfo.InvariantCulture)
+                : 0;
+            var values = Enumerable.Range(page * 10_000, 10_000).Select(i => new { id = i.ToString(System.Globalization.CultureInfo.InvariantCulture) });
+            return Task.FromResult(FakeGraph.Page(values, $"https://graph.microsoft.com/beta/applications?page={page + 1}"));
+        };
+
+        var r = await h.RunAsync("applications | project id", ct: Ct);
+
+        Assert.Equal(RunOutcome.TooLarge, r.Outcome);
+        Assert.Equal("applications has more than 50,000 objects. Add a `where` Graph can filter on (see the schema list).", r.Message);
+        Assert.Equal(0, h.Budget.Used);
+    }
+
+    [Fact]
+    public async Task Cancel_during_fetch_throws_returns_the_budget_and_next_run_succeeds()
+    {
+        await using var h = NewHost();
+        using var cancel = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        var fetching = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var first = true;
+        h.Graph.Answer = async (_, ct) =>
+        {
+            if (first)
+            {
+                first = false;
+                fetching.SetResult();
+                await Task.Delay(Timeout.Infinite, ct);
+            }
+            return FakeGraph.Collection([App("Payroll")]);
+        };
+
+        var running = h.RunAsync(ct: cancel.Token);
+        await fetching.Task.WaitAsync(TimeSpan.FromSeconds(10), Ct);
+        await cancel.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
+        Assert.Equal(0, h.Budget.Used);
+        Assert.Equal(0, h.Engine.Snapshot().Busy);
+
+        var again = await h.RunAsync(ct: Ct);
+        Assert.Equal(RunOutcome.Ok, again.Outcome);
+        Assert.Equal(["Payroll"], Column(again, "displayName"));
+    }
+
+    [Fact]
     public async Task Cancel_during_engine_kills_worker_and_next_run_succeeds()
     {
         await using var h = NewHost();

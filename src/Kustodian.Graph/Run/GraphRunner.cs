@@ -122,6 +122,8 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
             GraphReadFailure.TooLarge => (RunOutcome.TooLarge,
                 $"Too much data from {table.Name} for one run ({(budget.MaxBytes / BytesPerMegabyte).ToString(CultureInfo.InvariantCulture)} MB). "
                 + "Add a filter or project fewer columns."),
+            // The object cap's own text says what to do: add a `where` Graph can filter on.
+            GraphReadFailure.TooManyObjects => (RunOutcome.TooLarge, read.Message),
             _ => (RunOutcome.Failed, read.Message),
         };
     }
