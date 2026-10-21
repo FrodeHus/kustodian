@@ -10,7 +10,8 @@ export function TitleBar({ account, onAccount }: { account: AccountInfo | undefi
       <span className="brand">Kustodian</span>
       <span className="faint text-[12px]">Microsoft Graph beta</span>
       <div className="grow" />
-      <button type="button" className="pill" onClick={onAccount} aria-label={account ? `Account: ${account.username}, ${account.tenantName}` : 'Sign in'}>
+      {/* Named by its visible text (WCAG 2.5.3); the title says what it does. */}
+      <button type="button" className="pill" onClick={onAccount} title={account ? 'Accounts and sign-in' : 'Sign in'}>
         {account ? (
           <>
             <span className={account.expired ? 'dot-off' : 'dot-ok'} aria-hidden="true" />

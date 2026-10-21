@@ -15,6 +15,18 @@ export interface TabRun {
   /** The run was cancelled before it answered; there is no result. */
   cancelled?: boolean;
   startedAt: number;
+  /** Where the text sent begins in the editor (lines and columns from 1). The host counts an error's position within the text
+   * sent; this turns it back into the editor's. */
+  origin: { line: number; column: number };
+}
+
+/** A query error's position in the editor: the host's position within the text sent, moved by where that text began. The
+ * column moves only on the text's first line (a selection can start mid-line). */
+export function editorPosition(origin: TabRun['origin'], error: { line: number; column: number }): { line: number; column: number } {
+  return {
+    line: origin.line + error.line - 1,
+    column: error.line === 1 ? origin.column + error.column - 1 : error.column,
+  };
 }
 
 export interface Tab {
@@ -26,11 +38,14 @@ export interface Tab {
   run?: TabRun;
 }
 
-/** Where the editor's cursor is in a tab, and the selected text (empty when nothing is selected). Lines count from 1. */
+/** Where the editor's cursor is in a tab, and the selected text (empty when nothing is selected) with where it starts. Lines and
+ * columns count from 1. */
 export interface TabCursor {
   line: number;
   column: number;
   selection: string;
+  selectionLine: number;
+  selectionColumn: number;
 }
 
 /** `block`: the block at the cursor; `selection`: the selected text; `all`: the whole tab (spec 6.2). */
@@ -120,9 +135,20 @@ export const useTabs = create<TabsState>()((set, get) => {
       if (!tab) {
         return;
       }
-      const cursor = get().cursors[id] ?? { line: 1, column: 1, selection: '' };
-      const kql =
-        mode === 'all' ? tab.text : mode === 'selection' && cursor.selection ? cursor.selection : blockAt(tab.text, cursor.line).text;
+      const cursor = get().cursors[id] ?? { line: 1, column: 1, selection: '', selectionLine: 1, selectionColumn: 1 };
+      let kql: string;
+      let origin: TabRun['origin'];
+      if (mode === 'all') {
+        kql = tab.text;
+        origin = { line: 1, column: 1 };
+      } else if (mode === 'selection' && cursor.selection) {
+        kql = cursor.selection;
+        origin = { line: cursor.selectionLine, column: cursor.selectionColumn };
+      } else {
+        const block = blockAt(tab.text, cursor.line);
+        kql = block.text;
+        origin = { line: block.start, column: 1 };
+      }
       if (kql.trim() === '') {
         return;
       }
@@ -132,17 +158,17 @@ export const useTabs = create<TabsState>()((set, get) => {
       const controller = new AbortController();
       controllers.set(id, controller);
       const startedAt = Date.now();
-      update(id, () => ({ run: { state: 'running', startedAt } }));
+      update(id, () => ({ run: { state: 'running', startedAt, origin } }));
 
       let run: TabRun;
       try {
         const result = await call<RunResult>('query.run', { tabId: id, source: tab.source, kql, refresh: false }, controller.signal);
-        run = { state: 'done', result, startedAt };
+        run = { state: 'done', result, startedAt, origin };
       } catch (error) {
         run =
           error instanceof BridgeError && error.code === 'cancelled'
-            ? { state: 'done', cancelled: true, startedAt }
-            : { state: 'done', result: failed(error instanceof Error ? error.message : String(error)), startedAt };
+            ? { state: 'done', cancelled: true, startedAt, origin }
+            : { state: 'done', result: failed(error instanceof Error ? error.message : String(error)), startedAt, origin };
       }
 
       // A newer run on the tab owns it now; this one's answer is stale.

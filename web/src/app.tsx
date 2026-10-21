@@ -37,8 +37,19 @@ function formatDate(iso: string): string {
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-function readAccounts(onList: (list: AccountList) => void, onProblem: (text: string) => void): Promise<void> {
-  return call<AccountList>('account.list').then(onList, (e: unknown) => onProblem(`The accounts couldn’t be read: ${errorText(e)}`));
+/** Reads the accounts; resolves whether that worked. A failure is reported as the sign-in screen's error line. */
+function readAccounts(onList: (list: AccountList) => void, onError: (text: string | null) => void): Promise<boolean> {
+  return call<AccountList>('account.list').then(
+    (list) => {
+      onList(list);
+      onError(null);
+      return true;
+    },
+    (e: unknown) => {
+      onError(`The accounts couldn’t be read: ${errorText(e)}`);
+      return false;
+    },
+  );
 }
 
 /** The main window (spec 6.1, mockup Main), or sign-in when no account is active (mockup SignIn). */
@@ -47,6 +58,7 @@ export function App() {
   const [schema, setSchema] = useState<SchemaView | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [accountsOpen, setAccountsOpen] = useState(false);
+  const [accountsError, setAccountsError] = useState<string | null>(null);
   const editor = useRef<KqlEditorHandle>(null);
 
   const tabs = useTabs((s) => s.tabs);
@@ -54,10 +66,10 @@ export function App() {
   const cursors = useTabs((s) => s.cursors);
   const active = tabs.find((t) => t.id === activeId);
 
-  const refreshAccounts = () => readAccounts(setAccounts, setProblem);
+  const refreshAccounts = () => readAccounts(setAccounts, setAccountsError);
 
   useEffect(() => {
-    void readAccounts(setAccounts, setProblem);
+    void readAccounts(setAccounts, setAccountsError);
     call<SchemaView>('schema.get', { source: 'graph' }).then(setSchema, (e: unknown) =>
       setProblem(`The Graph schema couldn’t be loaded: ${errorText(e)}`),
     );
@@ -67,7 +79,8 @@ export function App() {
   }, []);
 
   const account = accounts?.accounts.find((a) => a.active);
-  const signingIn = accounts !== null && (!account || accountsOpen);
+  // Unreadable accounts also mean sign-in: it shows why, and signing in reads them again.
+  const signingIn = accountsError !== null || (accounts !== null && (!account || accountsOpen));
 
   const runActive = (mode: 'block' | 'all') => {
     if (!active) {
@@ -94,14 +107,16 @@ export function App() {
       {signingIn && (
         <SignIn
           list={accounts}
+          error={accountsError}
           onChanged={(done) => {
-            void refreshAccounts().then(() => {
-              if (done) {
+            // The screen closes only once the accounts were read again.
+            void refreshAccounts().then((read) => {
+              if (done && read) {
                 setAccountsOpen(false);
               }
             });
           }}
-          onBack={account ? () => setAccountsOpen(false) : undefined}
+          onBack={account && !accountsError ? () => setAccountsOpen(false) : undefined}
         />
       )}
       {/* Hidden rather than unmounted while signing in, so the editor keeps each tab's undo history. */}

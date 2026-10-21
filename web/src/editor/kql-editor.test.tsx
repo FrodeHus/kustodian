@@ -1,6 +1,8 @@
-import { render } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import schema from '../fixtures/graph-schema.json';
 import { useTabs } from '../tabs/tab-store';
+import type { SchemaView } from '../wire';
 
 // Monaco doesn't run in jsdom. A stand-in records what the editor registers, with Monaco's own KeyMod and KeyCode values.
 const fake = vi.hoisted(() => {
@@ -45,6 +47,7 @@ const fake = vi.hoisted(() => {
     commands,
     setSelectionEmpty: (empty: boolean) => (selectionEmpty = empty),
     press: (keybinding: number) => commands.get(keybinding)?.(),
+    kustoWorker: (): Promise<unknown> => new Promise(() => undefined),
   };
 });
 
@@ -52,7 +55,7 @@ vi.mock('monaco-editor/esm/vs/editor/edcore.main.js', () => ({}));
 vi.mock('monaco-editor/esm/vs/editor/editor.api.js', () => fake.monaco);
 vi.mock('monaco-editor/esm/vs/editor/editor.worker.js?worker', () => ({ default: class {} }));
 vi.mock('./kusto.worker?worker', () => ({ default: class {} }));
-vi.mock('@kusto/monaco-kusto/release/esm/monaco.contribution.js', () => ({ getKustoWorker: () => new Promise(() => undefined) }));
+vi.mock('@kusto/monaco-kusto/release/esm/monaco.contribution.js', () => ({ getKustoWorker: () => fake.kustoWorker() }));
 vi.mock('../bridge', () => ({ call: vi.fn(), on: () => () => undefined }));
 
 const { default: KqlEditor } = await import('./kql-editor');
@@ -60,6 +63,7 @@ const { default: KqlEditor } = await import('./kql-editor');
 beforeEach(() => {
   fake.commands.clear();
   fake.setSelectionEmpty(true);
+  fake.kustoWorker = () => new Promise(() => undefined);
   useTabs.setState({ tabs: [], activeId: null, cursors: {} });
   useTabs.getState().open('graph');
 });
@@ -81,5 +85,19 @@ describe('KqlEditor', () => {
     fake.press(KeyMod.CtrlCmd | KeyCode.Enter);
     expect(onRun).toHaveBeenLastCalledWith('selection');
     expect(onRun).toHaveBeenCalledTimes(3);
+  });
+
+  it('schema_that_fails_to_load_shows_a_notice_and_retries_on_tab_change', async () => {
+    const setSchema = vi.fn().mockRejectedValueOnce(new Error('worker crashed')).mockResolvedValue(undefined);
+    fake.kustoWorker = () => Promise.resolve(() => Promise.resolve({ setSchema }));
+    render(<KqlEditor schema={schema as SchemaView} onRun={() => undefined} />);
+
+    expect((await screen.findByRole('status')).textContent).toMatch(/Schema not loaded in the editor/);
+
+    act(() => {
+      useTabs.getState().open('graph');
+    });
+    await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
+    expect(setSchema).toHaveBeenCalledTimes(2);
   });
 });

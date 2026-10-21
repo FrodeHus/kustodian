@@ -34,7 +34,8 @@ describe('ResultGrid', () => {
     fireEvent.change(screen.getByRole('searchbox', { name: 'Filter rows' }), { target: { value: 'secret' } });
     expect(firstCells()).toEqual(['Payroll']);
 
-    fireEvent.click(screen.getByRole('button', { name: '{"kind":"secret"}' }));
+    expect(screen.getByRole('region', { name: 'Result rows' })).toHaveProperty('tabIndex', 0);
+    fireEvent.click(screen.getByRole('button', { name: 'Show tags as JSON' }));
     const panel = screen.getByRole('dialog', { name: 'tags' });
     expect(within(panel).getByText(/"kind": "secret"/)).toBeTruthy();
   });

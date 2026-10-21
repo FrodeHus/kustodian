@@ -38,7 +38,7 @@ function result(overrides: Partial<RunResult>): RunResult {
   };
 }
 
-const done = (r: RunResult) => ({ state: 'done' as const, result: r, startedAt: Date.parse('2026-10-21T09:41:12Z') });
+const done = (r: RunResult) => ({ state: 'done' as const, result: r, startedAt: Date.parse('2026-10-21T09:41:12Z'), origin: { line: 1, column: 1 } });
 
 beforeEach(() => {
   call.mockReset();
@@ -60,6 +60,32 @@ describe('RunStatus', () => {
 
     expect(screen.getByText(message)).toBeTruthy();
     expect(screen.queryByText(/rows?$/)).toBeNull();
+  });
+
+  it('query_error_in_a_block_below_the_top_shows_the_editor_line', async () => {
+    // The host counts lines within the block it was sent: line 2 of the block that starts on line 4.
+    const error = { line: 2, column: 3, message: "'wher' isn't an operator." };
+    call.mockResolvedValue(result({ outcome: 'queryError', message: error.message, error, rows: [], columns: [], total: 0, tables: [] }));
+    const id = useTabs.getState().open('graph');
+    useTabs.getState().setText(id, 'applications\n| take 1\n\nusers\n| wher x\n| count');
+    useTabs.getState().setCursor(id, { line: 6, column: 1, selection: '', selectionLine: 6, selectionColumn: 1 });
+    await useTabs.getState().run(id, 'block');
+
+    render(<RunStatus run={useTabs.getState().tabs[0]?.run} onSignIn={() => undefined} />);
+    expect(screen.getByText('Ln 5, Col 3')).toBeTruthy();
+  });
+
+  it('query_error_on_the_first_line_of_a_selection_moves_the_column', async () => {
+    const error = { line: 1, column: 4, message: 'Bad.' };
+    call.mockResolvedValue(result({ outcome: 'queryError', message: error.message, error, rows: [], columns: [], total: 0, tables: [] }));
+    const id = useTabs.getState().open('graph');
+    useTabs.getState().setText(id, 'let x = 1;\nusers | wher y');
+    // "wher y" is selected from line 2, column 9; the host's column 4 is the editor's column 12.
+    useTabs.getState().setCursor(id, { line: 2, column: 15, selection: 'wher y', selectionLine: 2, selectionColumn: 9 });
+    await useTabs.getState().run(id, 'selection');
+
+    render(<RunStatus run={useTabs.getState().tabs[0]?.run} onSignIn={() => undefined} />);
+    expect(screen.getByText('Ln 2, Col 12')).toBeTruthy();
   });
 
   it('run_status_sign_in_needed_shows_sign_in_button_and_keeps_text', async () => {

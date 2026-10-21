@@ -4,7 +4,7 @@ import 'monaco-editor/esm/vs/editor/edcore.main.js';
 import { getKustoWorker } from '@kusto/monaco-kusto/release/esm/monaco.contribution.js';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api.js';
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker.js?worker';
-import { useEffect, useImperativeHandle, useRef, type Ref } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { call } from '../bridge';
 import { useTabs, type RunMode } from '../tabs/tab-store';
 import type { CompletionItem, SchemaView } from '../wire';
@@ -99,11 +99,13 @@ export default function KqlEditor({ schema, onRun, ref }: KqlEditorProps) {
   const views = useRef(new Map<string, monaco.editor.ICodeEditorViewState | null>());
   const current = useRef<string | null>(null);
   const appliedSchema = useRef<SchemaView | null>(null);
+  const [schemaFailed, setSchemaFailed] = useState(false);
   const latest = useRef({ onRun });
   useEffect(() => {
     latest.current = { onRun };
   });
-  const tabs = useTabs((s) => s.tabs);
+  // Re-syncs the models whenever the store's tabs change.
+  const tabsChanged = useTabs((s) => s.tabs);
   const activeId = useTabs((s) => s.activeId);
 
   useEffect(() => {
@@ -148,6 +150,8 @@ export default function KqlEditor({ schema, onRun, ref }: KqlEditorProps) {
             line: e.selection.positionLineNumber,
             column: e.selection.positionColumn,
             selection: model.getValueInRange(e.selection),
+            selectionLine: e.selection.startLineNumber,
+            selectionColumn: e.selection.startColumn,
           });
         }
       }),
@@ -168,12 +172,14 @@ export default function KqlEditor({ schema, onRun, ref }: KqlEditorProps) {
     };
   }, []);
 
-  // A model per open tab; text the store has that the model doesn't (set from outside the editor) goes in.
+  // A model per open tab; text the store has that the model doesn't (set from outside the editor) goes in. The tabs are read
+  // from the store here, not from this render: typing may have moved on since, and older text must never replace newer.
   useEffect(() => {
     const editor = editorRef.current;
     if (!editor) {
       return;
     }
+    const { tabs } = useTabs.getState();
     const open = new Set(tabs.map((t) => t.id));
     for (const [id, model] of models.current) {
       if (!open.has(id)) {
@@ -206,7 +212,7 @@ export default function KqlEditor({ schema, onRun, ref }: KqlEditorProps) {
         editor.focus();
       }
     }
-  }, [tabs, activeId]);
+  }, [tabsChanged, activeId]);
 
   // The language service completes and checks against the schema; without it the editor still colours and checks syntax.
   useEffect(() => {
@@ -218,9 +224,14 @@ export default function KqlEditor({ schema, onRun, ref }: KqlEditorProps) {
     void (async () => {
       const worker = await (await getKustoWorker())(model.uri);
       await worker.setSchema(toKustoSchema(schema));
-    })().catch(() => {
-      appliedSchema.current = null;
-    });
+    })().then(
+      () => setSchemaFailed(false),
+      () => {
+        // Tried again on the next schema or tab change.
+        appliedSchema.current = null;
+        setSchemaFailed(true);
+      },
+    );
   }, [schema, activeId]);
 
   useImperativeHandle(
@@ -245,7 +256,16 @@ export default function KqlEditor({ schema, onRun, ref }: KqlEditorProps) {
     [],
   );
 
-  return <div ref={host} className="h-full w-full" data-testid="kql-editor" />;
+  return (
+    <div className="relative h-full w-full">
+      <div ref={host} className="h-full w-full" data-testid="kql-editor" />
+      {schemaFailed && (
+        <span className="chip warn absolute right-3 bottom-2 z-[1]" role="status">
+          Schema not loaded in the editor: no table or column completion. Switching tabs tries again.
+        </span>
+      )}
+    </div>
+  );
 }
 
 function isGraph(tabId: string): boolean {

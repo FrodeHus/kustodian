@@ -118,7 +118,7 @@ export function ResultGrid({ columns, rows }: { columns: ResultColumn[]; rows: R
           style={{ width: 200, margin: 0 }}
         />
       </div>
-      <div ref={scroller} className="min-h-0 flex-1 overflow-auto">
+      <div ref={scroller} className="min-h-0 flex-1 overflow-auto" tabIndex={0} role="region" aria-label="Result rows">
         <table className="datagrid">
           <thead>
             {table.getHeaderGroups().map((group) => (
@@ -171,7 +171,12 @@ export function ResultGrid({ columns, rows }: { columns: ResultColumn[]; rows: R
                       const text = cellText(value);
                       return (
                         <td key={cell.id}>
-                          <button type="button" title="Show as JSON" onClick={() => setOpened({ column: meta?.name ?? '', value })}>
+                          <button
+                            type="button"
+                            aria-label={`Show ${meta?.name ?? ''} as JSON`}
+                            title={text}
+                            onClick={() => setOpened({ column: meta?.name ?? '', value })}
+                          >
                             {text}
                           </button>
                         </td>

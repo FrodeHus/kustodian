@@ -12,10 +12,12 @@ interface SignInProps {
   onChanged: (done: boolean) => void;
   /** Back to the queries, when the screen was opened from the account pill. */
   onBack?: () => void;
+  /** Why the accounts couldn't be read, if they couldn't. */
+  error?: string | null;
 }
 
 /** Sign-in and accounts (spec 6.7, mockup SignIn). */
-export function SignIn({ list, onChanged, onBack }: SignInProps) {
+export function SignIn({ list, onChanged, onBack, error: listError = null }: SignInProps) {
   const [own, setOwn] = useState(false);
   const [clientId, setClientId] = useState('');
   const [tenant, setTenant] = useState('');
@@ -85,9 +87,9 @@ export function SignIn({ list, onChanged, onBack }: SignInProps) {
             Waiting for the sign-in to finish…
           </span>
         )}
-        {error && (
+        {(error ?? listError) && (
           <span className="text-[12px] text-bad" role="alert">
-            {error}
+            {error ?? listError}
           </span>
         )}
         <div className="flex flex-col gap-1" role="radiogroup" aria-label="Signing in as">

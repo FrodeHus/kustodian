@@ -54,7 +54,7 @@ describe('tab store', () => {
     bridge.call.mockResolvedValue(ok);
     const id = useTabs.getState().open('graph');
     useTabs.getState().setText(id, 'applications\n| take 1\n\nusers\n| count');
-    useTabs.getState().setCursor(id, { line: 5, column: 3, selection: '' });
+    useTabs.getState().setCursor(id, { line: 5, column: 3, selection: '', selectionLine: 5, selectionColumn: 3 });
 
     const done = useTabs.getState().run(id, 'block');
     expect(useTabs.getState().tabs[0]?.run?.state).toBe('running');
@@ -74,7 +74,7 @@ describe('tab store', () => {
     bridge.call.mockResolvedValue(ok);
     const id = useTabs.getState().open('graph');
     useTabs.getState().setText(id, 'applications\n\nusers');
-    useTabs.getState().setCursor(id, { line: 1, column: 1, selection: 'appl' });
+    useTabs.getState().setCursor(id, { line: 1, column: 1, selection: 'appl', selectionLine: 1, selectionColumn: 1 });
 
     await useTabs.getState().run(id, 'selection');
     await useTabs.getState().run(id, 'all');

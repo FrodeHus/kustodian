@@ -17,6 +17,18 @@ describe('blockAt', () => {
     expect(blockAt('a\n   \nb', 2)).toEqual({ start: 1, end: 1, text: 'a' });
   });
 
+  it('blockAt_reads_crlf_line_endings', () => {
+    const crlf = 'applications\r\n| take 3\r\n\r\nusers\r\n| count';
+    expect(blockAt(crlf, 2)).toEqual({ start: 1, end: 2, text: 'applications\n| take 3' });
+    expect(blockAt(crlf, 3)).toEqual({ start: 1, end: 2, text: 'applications\n| take 3' });
+    expect(blockAt(crlf, 5)).toEqual({ start: 4, end: 5, text: 'users\n| count' });
+  });
+
+  it('blockAt_on_a_last_line_with_text_takes_its_block', () => {
+    const last = 'applications\n\nusers\n| where accountEnabled\n| count';
+    expect(blockAt(last, 5)).toEqual({ start: 3, end: 5, text: 'users\n| where accountEnabled\n| count' });
+  });
+
   it('blockAt_single_block_returns_all', () => {
     const single = 'applications\n| where displayName startswith "C"\n| take 10';
     expect(blockAt(single, 2)).toEqual({ start: 1, end: 3, text: single });

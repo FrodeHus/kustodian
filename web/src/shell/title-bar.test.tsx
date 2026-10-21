@@ -21,7 +21,7 @@ describe('TitleBar', () => {
       />,
     );
 
-    const pill = screen.getByRole('button', { name: 'Account: kari@contoso.com, Contoso Ltd' });
+    const pill = screen.getByRole('button', { name: 'Contoso Ltd · kari@contoso.com' });
     expect(pill.textContent).toBe('Contoso Ltd · kari@contoso.com');
     fireEvent.click(pill);
     expect(onAccount).toHaveBeenCalledOnce();
@@ -29,6 +29,6 @@ describe('TitleBar', () => {
 
   it('title_bar_without_account_says_not_signed_in', () => {
     render(<TitleBar account={undefined} onAccount={() => undefined} />);
-    expect(screen.getByRole('button', { name: 'Sign in' }).textContent).toBe('Not signed in');
+    expect(screen.getByRole('button', { name: 'Not signed in' })).toHaveProperty('title', 'Sign in');
   });
 });

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { TabRun } from '../tabs/tab-store';
+import { editorPosition, type TabRun } from '../tabs/tab-store';
 import type { RunResult, TableFetch } from '../wire';
 
 const count = (n: number) => n.toLocaleString('en-US');
@@ -94,15 +94,16 @@ export function RunStatus({ run, onSignIn }: { run: TabRun | undefined; onSignIn
     content = <span className="chip">Run cancelled</span>;
   } else {
     const result = run.result;
+    const at = result.error ? editorPosition(run.origin, result.error) : null;
     meta = `${new Date(run.startedAt).toLocaleTimeString('en-GB')} · ${duration(result.durationMs)}`;
     content = (
       <>
         {result.outcome !== 'ok' && (
           <span className="flex min-w-0 items-center gap-2 text-bad" role="alert">
             <span className="min-w-0">{result.message ?? 'The query failed.'}</span>
-            {result.error && (
+            {at && (
               <span className="mono faint shrink-0 text-[11.5px]">
-                Ln {result.error.line}, Col {result.error.column}
+                Ln {at.line}, Col {at.column}
               </span>
             )}
           </span>

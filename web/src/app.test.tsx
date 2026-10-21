@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './app';
+import { BridgeError } from './bridge';
 import schema from './fixtures/graph-schema.json';
 import { useTabs } from './tabs/tab-store';
 import type { AccountInfo, AccountList, RunResult } from './wire';
@@ -73,7 +74,25 @@ describe('App', () => {
     render(<App />);
 
     expect(await screen.findByRole('heading', { name: 'Sign in to Microsoft Graph' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Sign in' }).textContent).toBe('Not signed in');
+    expect(screen.getByRole('button', { name: 'Not signed in' })).toBeTruthy();
+  });
+
+  it('app_when_accounts_cannot_be_read_shows_sign_in_with_the_error', async () => {
+    bridge.call.mockImplementation((method: string) => {
+      if (method === 'account.list') {
+        return Promise.reject(new BridgeError('failed', 'The keychain is locked.'));
+      }
+      return method === 'schema.get' ? Promise.resolve(schema) : Promise.resolve(kari);
+    });
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Sign in to Microsoft Graph' })).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toBe('The accounts couldn’t be read: The keychain is locked.');
+
+    // Signing in works, but the accounts still can't be read: the screen stays.
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with your browser' }));
+    await waitFor(() => expect(bridge.call.mock.calls.filter((c) => c[0] === 'account.list')).toHaveLength(2));
+    expect(screen.getByRole('heading', { name: 'Sign in to Microsoft Graph' })).toBeTruthy();
   });
 
   it('app_opens_a_graph_tab_runs_it_and_shows_rows', async () => {
