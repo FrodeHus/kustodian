@@ -70,7 +70,8 @@ describe('tab store', () => {
       { tabId: id, source: 'graph', kql: 'users\n| count', refresh: false, parameters: [], runId: expect.any(String) },
       expect.any(AbortSignal),
     );
-    expect(useTabs.getState().tabs[0]?.run).toMatchObject({ state: 'done', result: ok });
+    // The run keeps the text it sent, for the Chart tab's `| render`.
+    expect(useTabs.getState().tabs[0]?.run).toMatchObject({ state: 'done', result: ok, kql: 'users\n| count' });
   });
 
   it('run_selection_and_all_send_what_they_name', async () => {

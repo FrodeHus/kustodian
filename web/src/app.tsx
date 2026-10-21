@@ -6,7 +6,8 @@ import { SaveDialog } from './library/save-dialog';
 import { openDroppedFile, openKqlFile, save, saveToFile } from './library/saving';
 import { findParams } from './params/find-params';
 import { ParamsForm } from './params/params-form';
-import { ResultGrid } from './results/result-grid';
+import { EXPORT_FORMATS, EXPORT_NAMES, exportResult } from './results/export';
+import { ResultPanel } from './results/result-panel';
 import { RunStatus } from './results/run-status';
 import { startSessionSync } from './session/session-sync';
 import { bindGlobalKeys, registerCommands, type Command } from './shell/commands';
@@ -49,6 +50,12 @@ function formatDate(iso: string): string {
 const activeTab = (): Tab | undefined => {
   const { tabs, activeId } = useTabs.getState();
   return tabs.find((t) => t.id === activeId);
+};
+
+/** The active tab's result, when its last run ended with rows to show. */
+const activeResult = () => {
+  const run = activeTab()?.run;
+  return run?.state === 'done' && run.result?.outcome === 'ok' ? run.result : undefined;
 };
 
 /** Runs the active tab: `block` runs the selection instead when there is one. */
@@ -151,6 +158,19 @@ export function App() {
       group: 'Theme',
       run: () => void chooseTheme(t).catch(fail('The theme couldn’t be kept for the next start')),
     });
+    const hasResult = () => activeResult() !== undefined;
+    const exportCommands: Command[] = EXPORT_FORMATS.map((format) => ({
+      id: `results.export.${format}`,
+      title: `Export the result as ${EXPORT_NAMES[format]}`,
+      group: 'Results',
+      run: withTab((tab) => {
+        const result = activeResult();
+        if (result) {
+          void exportResult(format, tab.title, result).catch(fail('The result couldn’t be exported'));
+        }
+      }),
+      enabled: hasResult,
+    }));
     const commands: Command[] = [
       { id: 'palette', title: 'Command palette', group: 'Window', shortcut: 'Mod+K, Mod+Shift+P', run: () => setPaletteOpen(true) },
       { id: 'tab.new', title: 'New Microsoft Graph query', group: 'Tabs', shortcut: 'Mod+T', run: () => useTabs.getState().open('graph') },
@@ -184,6 +204,15 @@ export function App() {
       { id: 'file.saveAs', title: 'Save as', group: 'File', shortcut: 'Mod+Shift+S', run: withTab((tab) => setSaving(tab.id)), enabled: runnable },
       { id: 'file.saveToFile', title: 'Save to file', group: 'File', run: withTab((tab) => void saveToFile(tab.id).catch(saveFailed)), enabled: runnable },
       { id: 'file.open', title: 'Open .kql', group: 'File', shortcut: 'Mod+O', run: () => void openKqlFile().catch(fail('The file couldn’t be opened')) },
+      ...exportCommands,
+      { id: 'results.pin', title: 'Pin the result to compare', group: 'Results', run: withTab((tab) => useTabs.getState().pin(tab.id)), enabled: hasResult },
+      {
+        id: 'results.unpin',
+        title: 'Unpin the compared result',
+        group: 'Results',
+        run: withTab((tab) => useTabs.getState().unpin(tab.id)),
+        enabled: () => activeTab()?.pinned !== undefined,
+      },
       ...panelCommands,
       themeCommand('dark'),
       themeCommand('light'),
@@ -402,5 +431,5 @@ function Results({ tab }: { tab: Tab }) {
       </div>
     );
   }
-  return <ResultGrid key={tab.id} columns={result.columns} rows={result.rows} />;
+  return <ResultPanel key={tab.id} tabId={tab.id} title={tab.title} kql={tab.run?.kql ?? tab.text} result={result} pinned={tab.pinned} />;
 }

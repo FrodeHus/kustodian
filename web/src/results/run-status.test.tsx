@@ -56,6 +56,20 @@ describe('RunStatus', () => {
     expect(screen.getByText('1 Graph request')).toBeTruthy();
   });
 
+  it('status_line_shows_total_requests_and_cache', () => {
+    const rows = Array.from({ length: 50000 }, (_, i) => [`app ${i}`]);
+    const tables = [
+      { ...fetch, requests: ['applications?$top=999', 'applications?$skiptoken=1'], perObjectCached: 5 },
+      { ...fetch, table: 'servicePrincipals', requests: ['servicePrincipals?$top=999'], perObjectCached: 2 },
+    ];
+    render(<RunStatus run={done(result({ rows, total: 61204, tables, durationMs: 1800 }))} onSignIn={() => undefined} />);
+
+    expect(screen.getByText('● 50,000 of 61,204 rows')).toBeTruthy();
+    expect(screen.getByText('3 Graph requests')).toBeTruthy();
+    expect(screen.getByText('7 objects from cache')).toBeTruthy();
+    expect(screen.getByText(/· 1\.8 s$/)).toBeTruthy();
+  });
+
   it('run_status_too_large_shows_message', () => {
     const message = 'The query would fetch more than 512 MB from Graph. Add a filter or take fewer columns.';
     render(<RunStatus run={done(result({ outcome: 'tooLarge', message, rows: [], columns: [], total: 0 }))} onSignIn={() => undefined} />);

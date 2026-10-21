@@ -22,6 +22,8 @@ export interface TabRun {
   /** Where the text sent begins in the editor (lines and columns from 1). The host counts an error's position within the text
    * sent; this turns it back into the editor's. */
   origin: { line: number; column: number };
+  /** The text sent: the Chart tab reads its `| render`. */
+  kql?: string;
 }
 
 /** A query error's position in the editor: the host's position within the text sent, moved by where that text began. The
@@ -249,7 +251,7 @@ export const useTabs = create<TabsState>()((set, get) => {
       const startedAt = Date.now();
       // Ruling 19: the page names the run, so progress for an older run of this tab can be told apart from the first event.
       const runId = newId();
-      update(id, () => ({ run: { state: 'running', runId, startedAt, origin } }));
+      update(id, () => ({ run: { state: 'running', runId, startedAt, origin, kql } }));
       // Every placeholder in the tab, as the parameters form shows it: the tab's definition, or an optional text one.
       const parameters: ParameterValue[] = mergeParameters(findParams(tab.text), tab.parameters).map(({ name, type, value, required }) => ({
         name,
@@ -265,12 +267,12 @@ export const useTabs = create<TabsState>()((set, get) => {
           { tabId: id, source: tab.source, kql, refresh: opts?.refresh ?? false, parameters, runId },
           controller.signal,
         );
-        run = { state: 'done', runId, result, startedAt, origin };
+        run = { state: 'done', runId, result, startedAt, origin, kql };
       } catch (error) {
         run =
           error instanceof BridgeError && error.code === 'cancelled'
-            ? { state: 'done', runId, cancelled: true, startedAt, origin }
-            : { state: 'done', runId, result: failed(error instanceof Error ? error.message : String(error), runId), startedAt, origin };
+            ? { state: 'done', runId, cancelled: true, startedAt, origin, kql }
+            : { state: 'done', runId, result: failed(error instanceof Error ? error.message : String(error), runId), startedAt, origin, kql };
       }
 
       // A newer run on the tab owns it now; this one's answer is stale.

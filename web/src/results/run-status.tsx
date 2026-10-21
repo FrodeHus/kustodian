@@ -66,10 +66,9 @@ function resultChips(result: RunResult): Chip[] {
   if (result.outcome !== 'ok') {
     return tableChips(result.tables);
   }
-  const chips: Chip[] = [{ tone: 'ok', text: `● ${plural(result.total, 'row')}` }];
-  if (result.total > result.rows.length) {
-    chips.push({ tone: 'warn', text: `Showing the first ${count(result.rows.length)}` });
-  }
+  // More rows than were sent: how many there are, as "50,000 of 61,204 rows".
+  const rows = result.total > result.rows.length ? `${count(result.rows.length)} of ${plural(result.total, 'row')}` : plural(result.total, 'row');
+  const chips: Chip[] = [{ tone: 'ok', text: `● ${rows}` }];
   if (result.droppedValues > 0) {
     chips.push({ tone: 'warn', text: `${plural(result.droppedValues, 'value')} didn't fit the column's type, left empty` });
   }

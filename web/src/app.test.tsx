@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './app';
 import { BridgeError } from './bridge';
 import schema from './fixtures/graph-schema.json';
+import { runCommand } from './shell/commands';
 import { applyTheme } from './shell/theme';
 import { useTabs } from './tabs/tab-store';
 import type { AccountInfo, AccountList, RunResult, SavedQuery, Session, SettingsAnswer } from './wire';
@@ -146,6 +147,36 @@ describe('App', () => {
     await waitFor(() => expect(screen.getByRole('tab', { name: 'Rows · 1' })).toBeTruthy());
     expect(within(screen.getByRole('table')).getByText('Contoso Portal')).toBeTruthy();
     expect(bridge.call).toHaveBeenCalledWith('query.run', expect.objectContaining({ kql: 'applications', source: 'graph' }), expect.any(AbortSignal));
+  });
+
+  it('app_export_command_saves_the_result_and_pin_adds_compare', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    answers['file.saveAs'] = () => ({ path: '/tmp/Query 1.json', name: 'Query 1.json' });
+    render(<App />);
+
+    fireEvent.change(await screen.findByRole('textbox', { name: 'KQL query' }), { target: { value: 'applications' } });
+    // Before a run there is nothing to export.
+    expect(runCommand('results.export.json')).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Run all Shift Enter' }));
+    await screen.findByRole('tab', { name: 'Rows · 1' });
+
+    expect(runCommand('results.export.json')).toBe(true);
+    await waitFor(() =>
+      expect(bridge.call).toHaveBeenCalledWith('file.saveAs', {
+        suggestedName: 'Query 1.json',
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+        content: JSON.stringify([{ displayName: 'Contoso Portal' }], null, 2),
+      }),
+    );
+
+    act(() => {
+      runCommand('results.pin');
+    });
+    expect(screen.getByRole('tab', { name: 'Compare' })).toBeTruthy();
+    act(() => {
+      runCommand('results.unpin');
+    });
+    expect(screen.queryByRole('tab', { name: 'Compare' })).toBeNull();
   });
 
   it('app_sign_in_needed_opens_sign_in_and_keeps_the_query', async () => {
