@@ -44,7 +44,9 @@
   <Target Name="KustodianEmbedWeb" Condition="'$(KustodianHasWeb)' == 'true'" DependsOnTargets="KustodianBuildWeb"
           BeforeTargets="AssignTargetPaths">
     <ItemGroup>
-      <EmbeddedResource Include="$(KustodianWebDist)**\*" LogicalName="wwwroot/%(RecursiveDir)%(Filename)%(Extension)" />
+      <!-- Items made inside a target can't read their own %(RecursiveDir): list the files first, then batch over that list. -->
+      <KustodianWebFile Include="$(KustodianWebDist)**\*" />
+      <EmbeddedResource Include="@(KustodianWebFile)" LogicalName="wwwroot/%(KustodianWebFile.RecursiveDir)%(KustodianWebFile.Filename)%(KustodianWebFile.Extension)" />
     </ItemGroup>
   </Target>
 

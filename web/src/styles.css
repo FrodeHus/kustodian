@@ -1,0 +1,101 @@
+@import 'tailwindcss';
+
+/* Fonts are bundled with the app (never fetched). */
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/700.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
+
+/* Design tokens, from docs/mockups/studio.css. Dark is the default; .light on the root element switches them. */
+:root {
+  --bg: #0f1115;
+  --panel: #161a20;
+  --panel2: #1c2129;
+  --raise: #232934;
+  --line: #2a303a;
+  --text: #e6e9ee;
+  --muted: #a3adbb;
+  --faint: #7d8796;
+  --accent: #4cc2ff;
+  --accent-ink: #06131c;
+  --accent-soft: rgba(76, 194, 255, 0.14);
+  --warn: #f5a524;
+  --warn-soft: rgba(245, 165, 36, 0.14);
+  --bad: #f0716b;
+  --bad-soft: rgba(240, 113, 107, 0.14);
+  --ok: #7fd4a8;
+  --kw: #c9a0ff;
+  --tbl: #4cc2ff;
+  --col: #f2c779;
+  --str: #a5d6a7;
+  --num: #f7a072;
+  --fn: #82aaff;
+  --cm: #7d8796;
+  color-scheme: dark;
+}
+
+.light {
+  --bg: #f4f6f8;
+  --panel: #ffffff;
+  --panel2: #f8fafc;
+  --raise: #eef2f6;
+  --line: #dce1e8;
+  --text: #14171c;
+  --muted: #4e5867;
+  --faint: #6b7584;
+  --accent: #0b6fae;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(11, 111, 174, 0.1);
+  --warn: #a05a00;
+  --warn-soft: rgba(160, 90, 0, 0.1);
+  --bad: #b4232c;
+  --bad-soft: rgba(180, 35, 44, 0.08);
+  --ok: #1e7a4e;
+  --kw: #7a3ec8;
+  --tbl: #0b6fae;
+  --col: #8a5a00;
+  --str: #2e7d32;
+  --num: #b4501a;
+  --fn: #2f57c9;
+  --cm: #6b7584;
+  color-scheme: light;
+}
+
+/* The tokens as Tailwind colours and fonts: bg-panel, text-muted, border-line, font-mono ... */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel2: var(--panel2);
+  --color-raise: var(--raise);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-ok: var(--ok);
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 18px;
+}
