@@ -52,11 +52,17 @@ public sealed class FilterExplanationTests
     [InlineData("applications | where displayName has 'x'", "displayName has 'x'", "Graph doesn't allow this operator on displayName")]
     [InlineData("applications | where weight < 2", "weight < 2", "Graph doesn't allow this operator on weight")]
     [InlineData("applications | where tolower(displayName) == 'x'", "tolower(displayName) == 'x'",
-        "Graph doesn't allow this operator on tolower(displayName)")]
+        "Graph can only compare a column with a fixed value")]
     [InlineData("applications | where onPremisesPublishing.externalAuthenticationType == 'passthru'",
-        "onPremisesPublishing.externalAuthenticationType == 'passthru'",
-        "Graph doesn't allow this operator on onPremisesPublishing.externalAuthenticationType")]
-    [InlineData("security_incidents | where displayName =~ 'x'", "displayName =~ 'x'",
+        "onPremisesPublishing.externalAuthenticationType == 'passthru'", "Graph can only compare a column with a fixed value")]
+    [InlineData("applications | where appId == displayName", "appId == displayName", "Graph can only compare a column with a fixed value")]
+    [InlineData("applications | where appId in (displayName)", "appId in (displayName)", "Graph can only compare a column with a fixed value")]
+    [InlineData("security_incidents | where isnull(tolower(displayName))", "isnull(tolower(displayName))",
+        "Graph can only compare a column with a fixed value")]
+    [InlineData("applications | where createdDateTime == datetime(2026-01-01 10:00:00.5)", "createdDateTime == datetime(2026-01-01 10:00:00.5)",
+        "Graph can't compare this value exactly")]
+    [InlineData("applications | where createdDateTime in (datetime(2026-01-01 10:00:00.5))", "createdDateTime in (datetime(2026-01-01 10:00:00.5))",
+        "Graph can't compare this value exactly")]    [InlineData("security_incidents | where displayName =~ 'x'", "displayName =~ 'x'",
         "Case-insensitive comparison only goes to Graph for directory objects")]
     [InlineData("security_incidents | where appId in~ ('a')", "appId in~ ('a')",
         "Case-insensitive comparison only goes to Graph for directory objects")]

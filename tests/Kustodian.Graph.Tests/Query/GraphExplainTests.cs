@@ -72,6 +72,10 @@ public sealed class GraphExplainTests
     [InlineData("applications | where keyCount > 3 | where appId == 'a' or displayName has 'b'", "appId == 'a' or displayName has 'b'",
         "One side of this or can't be sent to Graph")]
     [InlineData("applications | where keyCount > 3 | project displayName, appId | where appId == 'a'", "appId == 'a'", "Not part of a leading where")]
+    [InlineData("applications | where keyCount > 3 | where appId == displayName", "appId == displayName",
+        "Graph can only compare a column with a fixed value")]
+    [InlineData("applications | where keyCount > 3 | where createdDateTime == datetime(2026-01-01 10:00:00.5)",
+        "createdDateTime == datetime(2026-01-01 10:00:00.5)", "Graph can't compare this value exactly")]
     public void Explain_lists_pushed_and_local_with_reason(string kql, string condition, string reason)
     {
         var table = Assert.Single(Explain(kql).Tables);

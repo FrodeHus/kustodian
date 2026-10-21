@@ -19,8 +19,13 @@ public static class PushdownReasons
     public const string Not = "not() is never sent to Graph";
     public const string OrSide = "One side of this or can't be sent to Graph";
     public const string NotLeading = "Not part of a leading where";
+    /// <summary>The right side isn't a literal (a column, a function), or the left side isn't a plain column.</summary>
+    public const string FixedValue = "Graph can only compare a column with a fixed value";
+    /// <summary>A value Graph can't represent faithfully: an empty <c>in</c> list, a datetime <c>==</c> with sub-second
+    /// precision.</summary>
+    public const string Inexact = "Graph can't compare this value exactly";
 
-    /// <summary>The operator (or the value it is compared with) isn't one Graph's <c>$filter</c> allows on
-    /// <paramref name="column"/>, or <paramref name="column"/> isn't a column Graph can filter on at all.</summary>
+    /// <summary>The operator isn't one Graph's <c>$filter</c> allows on <paramref name="column"/>, or the column's type
+    /// can't be filtered on at all.</summary>
     public static string Operator(string column) => $"Graph doesn't allow this operator on {column}";
 }

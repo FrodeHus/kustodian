@@ -107,7 +107,7 @@ public static partial class GraphFilterTranslator
         private Pushdown Comparison(BinaryExpression binary)
         {
             if (Column(binary.Left) is not var (column, kind))
-                return Pushdown.Keep(PushdownReasons.Operator(Name(binary.Left)));
+                return NotAColumn(binary.Left);
 
             if (binary.Kind is SyntaxKind.StartsWithExpression or SyntaxKind.StartsWithCsExpression)
             {
@@ -116,7 +116,7 @@ public static partial class GraphFilterTranslator
                     return Pushdown.Keep(PushdownReasons.Operator(column.Name));
                 if (!table.DirectoryObject)
                     return Pushdown.Keep(PushdownReasons.CaseInsensitive);
-                return Value(binary.Right, column, kind, Rounding.Exact, prefix => $"startswith({column.Name},{prefix})");
+                return Value(binary.Right, kind, Rounding.Exact, prefix => $"startswith({column.Name},{prefix})");
             }
 
             var (op, rounding) = binary.Kind switch
@@ -148,24 +148,27 @@ public static partial class GraphFilterTranslator
             }
             if (!Allows(column, op))
                 return Pushdown.Keep(PushdownReasons.Operator(column.Name));
-            return Value(binary.Right, column, kind, rounding, value => $"{column.Name} {op} {value}");
+            return Value(binary.Right, kind, rounding, value => $"{column.Name} {op} {value}");
         }
 
         private Pushdown In(InExpression @in)
         {
             if (Column(@in.Left) is not var (column, kind))
-                return Pushdown.Keep(PushdownReasons.Operator(Name(@in.Left)));
+                return NotAColumn(@in.Left);
             if (kind is Kind.Bool || !Allows(column, "in"))
                 return Pushdown.Keep(PushdownReasons.Operator(column.Name));
             // in~ ignores case, which Graph's in is only known to do on directory objects.
             if (@in.Operator.Text.Contains('~', StringComparison.Ordinal) && !table.DirectoryObject)
                 return Pushdown.Keep(PushdownReasons.CaseInsensitive);
-            if (@in.Right is not ExpressionList list || list.Expressions.Count == 0)
-                return Pushdown.Keep(PushdownReasons.Operator(column.Name));
+            if (@in.Right is not ExpressionList list)
+                return Pushdown.Keep(PushdownReasons.FixedValue);
+            // Graph has no empty in list.
+            if (list.Expressions.Count == 0)
+                return Pushdown.Keep(PushdownReasons.Inexact);
             var values = new List<string>();
             foreach (var element in list.Expressions)
             {
-                var value = Value(element.Element, column, kind, Rounding.Exact, v => v);
+                var value = Value(element.Element, kind, Rounding.Exact, v => v);
                 if (value.Filter is null)
                     return value;
                 values.Add(value.Filter);
@@ -184,7 +187,7 @@ public static partial class GraphFilterTranslator
             if ((isNull || isNotNull) && table.DirectoryObject)
                 return Pushdown.Keep(PushdownReasons.AdvancedQuery);
             if (Column(argument) is not var (column, kind))
-                return Pushdown.Keep(PushdownReasons.Operator(Name(argument)));
+                return NotAColumn(argument);
             if (isNull && Allows(column, "eq"))
                 return Pushdown.Push($"{column.Name} eq null");
             if (isNotNull && kind == Kind.String)
@@ -195,16 +198,36 @@ public static partial class GraphFilterTranslator
         }
 
         /// <summary><paramref name="expression"/> as a literal of the column's kind, formatted; else why not: an empty string
-        /// is never pushed, and any other value Graph can't compare with (a column, a function of one, a datetime that isn't
-        /// on a whole second for an exact match) counts as the operator not being allowed.</summary>
-        private Pushdown Value(Expression expression, GraphColumn column, Kind kind, Rounding rounding, Func<string, string> format)
+        /// is never pushed, a value that isn't fixed (a column, a function of one) can't be compared with, and a fixed value
+        /// Graph can't represent faithfully (a datetime that isn't on a whole second for an exact match) isn't compared
+        /// exactly.</summary>
+        private Pushdown Value(Expression expression, Kind kind, Rounding rounding, Func<string, string> format)
         {
             if (Literal(expression, kind, rounding) is { } value)
                 return Pushdown.Push(format(value));
-            return Pushdown.Keep(kind == Kind.String && Unwrap(expression) is LiteralExpression { LiteralValue: string { Length: 0 } }
-                ? PushdownReasons.EmptyString
-                : PushdownReasons.Operator(column.Name));
+            expression = Unwrap(expression);
+            if (kind == Kind.String && expression is LiteralExpression { LiteralValue: string { Length: 0 } })
+                return Pushdown.Keep(PushdownReasons.EmptyString);
+            return Pushdown.Keep(Fixed(expression) ? PushdownReasons.Inexact : PushdownReasons.FixedValue);
         }
+
+        /// <summary>A literal, or <c>now()</c>/<c>ago()</c> of literals: a value that doesn't depend on the row.</summary>
+        private static bool Fixed(Expression expression) => Unwrap(expression) switch
+        {
+            LiteralExpression => true,
+            FunctionCallExpression call when call.ReferencedSymbol == Functions.Now || call.ReferencedSymbol == Functions.Ago
+                => call.ArgumentList.Expressions.All(a => Unwrap(a.Element) is LiteralExpression),
+            _ => false,
+        };
+
+        /// <summary>Why the left side <paramref name="expression"/> can't be filtered on: a plain column of the table whose
+        /// type Graph can't filter (a collection, a dynamic value) doesn't allow the operator; anything else (a function of
+        /// a column, a nested field) isn't a plain column.</summary>
+        private Pushdown NotAColumn(Expression expression) =>
+            Pushdown.Keep(Unwrap(expression) is NameReference { ReferencedSymbol: ColumnSymbol symbol }
+                && table.Columns.Any(c => c.Name == symbol.Name)
+                ? PushdownReasons.Operator(symbol.Name)
+                : PushdownReasons.FixedValue);
 
         /// <summary>What a condition is about, for its reason: the column's name, or the expression as written.</summary>
         private static string Name(Expression expression) => Unwrap(expression) is NameReference reference ? reference.SimpleName : Text(expression);
