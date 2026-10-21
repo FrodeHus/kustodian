@@ -126,6 +126,49 @@ public sealed class GraphRunnerTests
         Assert.Contains(table.Requests, q => q.Contains("$top=1") && !q.Contains("displayName"));   // the probes are listed
     }
 
+    // A tenant without SharePoint Online: Graph refuses any users list that selects a SharePoint profile column, and each
+    // single-user read of one.
+    private static Host SpoLessHost()
+    {
+        var h = NewHost();
+        string[] profile = ["aboutMe", "birthday", "hireDate", "interests", "mySite", "pastProjects", "preferredName",
+            "responsibilities", "schools", "skills"];
+        object User(string name) => new { id = Guid.NewGuid().ToString(), displayName = name };
+        h.Graph.Answer = (request, _) => Task.FromResult(request.Method == HttpMethod.Get
+            ? FakeGraph.Select(request).Intersect(profile).Any()
+                ? FakeGraph.Error(HttpStatusCode.BadRequest, "BadRequest", "Tenant does not have a SPO license.")
+                : FakeGraph.Collection([User("Ada"), User("Grace")])
+            : FakeGraph.BatchErrors(request, HttpStatusCode.BadRequest, "BadRequest", "Tenant does not have a SPO license."));
+        return h;
+    }
+
+    [Fact]
+    public async Task Users_runs_in_a_tenant_without_sharepoint()
+    {
+        await using var h = SpoLessHost();
+
+        var r = await h.RunAsync("users", ct: Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        Assert.Equal(["Ada", "Grace"], Column(r, "displayName"));
+        Assert.Empty(Assert.Single(r.Tables).PerObject);
+    }
+
+    [Fact]
+    public async Task Users_about_me_refused_per_user_is_empty_and_reported()
+    {
+        await using var h = SpoLessHost();
+
+        var r = await h.RunAsync("users | project displayName, aboutMe", ct: Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        Assert.Equal(["Ada", "Grace"], Column(r, "displayName"));
+        Assert.Equal(["", ""], Column(r, "aboutMe"));   // a Kusto string has no null: empty
+        var table = Assert.Single(r.Tables);
+        Assert.Equal(["aboutMe"], table.PerObject);
+        Assert.Equal(2, table.PerObjectFailed);
+    }
+
     [Fact]
     public async Task Run_over_budget_reports_too_large()
     {

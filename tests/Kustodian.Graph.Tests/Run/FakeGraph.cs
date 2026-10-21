@@ -48,6 +48,19 @@ public sealed class FakeGraph : HttpMessageHandler
         return response;
     }
 
+    /// <summary>A <c>$batch</c> answer that gives every item of <paramref name="request"/> the same Graph error.</summary>
+    public static HttpResponseMessage BatchErrors(HttpRequestMessage request, HttpStatusCode status, string code, string message)
+    {
+        using var batch = JsonDocument.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+        var responses = batch.RootElement.GetProperty("requests").EnumerateArray().Select(item => new
+        {
+            id = item.GetProperty("id").GetString(),
+            status = (int)status,
+            body = new { error = new { code, message } },
+        });
+        return Json(HttpStatusCode.OK, new { responses });
+    }
+
     private static HttpResponseMessage Json(HttpStatusCode status, object body)
         => new(status) { Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json") };
 }
