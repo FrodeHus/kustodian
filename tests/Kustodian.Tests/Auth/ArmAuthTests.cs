@@ -65,13 +65,35 @@ public sealed class ArmAuthTests : IDisposable
         Assert.False(Assert.Single(await service.ListAccountsAsync()).Expired);
     }
 
-    /// <summary>Ruling 7: an ARM ui-required that isn't consent (an expired or revoked refresh token, a policy's interaction)
-    /// is a sign-in to renew, and still leaves the Graph sign-in as it is.</summary>
+    /// <summary>Ruling 7 (amended): consent and Conditional Access step-up on the ARM scope are what an interactive acquire for
+    /// that scope ("Grant Azure access") clears, so each is consent needed, and the Graph sign-in is left as it is.</summary>
+    [Theory]
+    [InlineData("invalid_grant", "consent needed", UiRequiredExceptionClassification.ConsentRequired)]
+    [InlineData("interaction_required", "AADSTS50076: You must use multi-factor authentication.", UiRequiredExceptionClassification.AdditionalAction)]
+    [InlineData("invalid_grant", "AADSTS50078: Presented multi-factor authentication has expired.", UiRequiredExceptionClassification.BasicAction)]
+    public async Task Arm_consent_and_conditional_access_need_azure_access_and_leave_graph_alone(string code, string message,
+        UiRequiredExceptionClassification classification)
+    {
+        var msal = new ArmMsal { ArmNeedsUi = true };
+        var service = new AccountService(_ => msal, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.AzureCli, Ct);
+        msal.ArmUiFailure = new MsalUiRequiredException(code, message, null, classification);
+
+        var consent = await Assert.ThrowsAsync<ConsentRequiredException>(() => service.GetTokenAsync(account.Key, Audience.Arm, Ct));
+
+        Assert.Equal("arm", consent.Audience);
+        Assert.False(Assert.Single(await service.ListAccountsAsync()).Expired);
+        Assert.Equal("graph-token", await service.GetTokenAsync(account.Key, Audience.Graph, Ct));
+    }
+
+    /// <summary>Ruling 7: any other ARM ui-required (no classification, an expired or revoked refresh token, an expired
+    /// password, a failed silent acquire) is a sign-in to renew, and still leaves the Graph sign-in as it is.</summary>
     [Theory]
     [InlineData("invalid_grant", "AADSTS700082: The refresh token has expired due to inactivity.", UiRequiredExceptionClassification.None)]
     [InlineData("invalid_grant", "AADSTS50173: The provided grant has expired due to it being revoked.", UiRequiredExceptionClassification.None)]
-    [InlineData("interaction_required", "AADSTS50076: You must use multi-factor authentication.", UiRequiredExceptionClassification.AdditionalAction)]
-    [InlineData("invalid_grant", "AADSTS50078: Presented multi-factor authentication has expired.", UiRequiredExceptionClassification.BasicAction)]
+    [InlineData("invalid_grant", "AADSTS50055: The password is expired.", UiRequiredExceptionClassification.UserPasswordExpired)]
+    [InlineData("invalid_grant", "The refresh token couldn't be used.", UiRequiredExceptionClassification.AcquireTokenSilentFailed)]
+    [InlineData("invalid_grant", "Something is needed.", UiRequiredExceptionClassification.MessageOnly)]
     public async Task Arm_ui_required_other_than_consent_needs_sign_in_and_leaves_graph_alone(string code, string message,
         UiRequiredExceptionClassification classification)
     {

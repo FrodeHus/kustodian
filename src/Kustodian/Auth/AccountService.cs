@@ -136,14 +136,14 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
             }
             catch (MsalUiRequiredException ex) when (audience == Audience.Arm && IsConsent(ex))
             {
-                // The Graph sign-in is untouched: ARM needs consent, granted with ConsentAsync.
+                // The Graph sign-in is untouched: ARM needs consent or a Conditional Access step-up, granted with ConsentAsync.
                 throw new ConsentRequiredException("arm", ex);
             }
             catch (MsalUiRequiredException ex) when (audience == Audience.Arm)
             {
-                // Ruling 7: the account is gone from MSAL's cache (ListAccountsAsync already shows it expired), its refresh
-                // token expired or was revoked, or a policy wants an interaction: a sign-in to renew. The Graph sign-in's state
-                // is left as it is; only a Graph token says anything about Graph.
+                // Ruling 7: the account is gone from MSAL's cache (ListAccountsAsync already shows it expired), or its refresh
+                // token expired or was revoked: a sign-in to renew. The Graph sign-in's state is left as it is; only a Graph
+                // token says anything about Graph.
                 throw new SignInRequiredException("The sign-in has expired. Sign in again.", ex);
             }
             catch (MsalUiRequiredException ex)
@@ -225,10 +225,13 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
         }
     }
 
-    /// <summary>Whether an ARM ui-required failure asks for consent: MSAL classifies it so, or the error says so
-    /// (<c>consent_required</c>, or <c>AADSTS65001</c>: the user or administrator has not consented).</summary>
+    /// <summary>Whether an ARM ui-required failure is cleared by an interactive acquire for the ARM scope ("Grant Azure access",
+    /// <see cref="ConsentAsync"/>), ruling 7 as amended: MSAL classifies it as consent or as a Conditional Access step-up
+    /// (<c>BasicAction</c>, <c>AdditionalAction</c>; a Graph sign-in wouldn't reach the ARM scope's policy), or the error says
+    /// consent (<c>consent_required</c>, or <c>AADSTS65001</c>: the user or administrator has not consented).</summary>
     private static bool IsConsent(MsalUiRequiredException ex) =>
-        ex.Classification == UiRequiredExceptionClassification.ConsentRequired
+        ex.Classification is UiRequiredExceptionClassification.ConsentRequired or UiRequiredExceptionClassification.BasicAction
+            or UiRequiredExceptionClassification.AdditionalAction
         || string.Equals(ex.ErrorCode, "consent_required", StringComparison.OrdinalIgnoreCase)
         || ex.Message.Contains("AADSTS65001", StringComparison.Ordinal);
 
