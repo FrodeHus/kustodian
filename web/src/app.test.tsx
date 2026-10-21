@@ -3,10 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './app';
 import { BridgeError } from './bridge';
 import schema from './fixtures/graph-schema.json';
+import { useSchemas } from './schema/schema-store';
 import { runCommand } from './shell/commands';
 import { applyTheme } from './shell/theme';
 import { useTabs } from './tabs/tab-store';
-import type { AccountInfo, AccountList, RunResult, SavedQuery, Session, SettingsAnswer } from './wire';
+import type { AccountInfo, AccountList, RunResult, SavedQuery, SchemaView, Session, SettingsAnswer } from './wire';
 
 const bridge = vi.hoisted(() => ({ call: vi.fn(), handlers: new Map<string, Set<(data: unknown) => void>>() }));
 vi.mock('./bridge', async (importOriginal) => ({
@@ -105,6 +106,7 @@ beforeEach(() => {
   answers = {};
   bridge.call.mockReset();
   useTabs.setState({ tabs: [], activeId: null, cursors: {} });
+  useSchemas.getState().reset();
 });
 
 afterEach(() => applyTheme('dark'));
@@ -134,6 +136,53 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sign in with your browser' }));
     await waitFor(() => expect(bridge.call.mock.calls.filter((c) => c[0] === 'account.list')).toHaveLength(2));
     expect(screen.getByRole('heading', { name: 'Sign in to Microsoft Graph' })).toBeTruthy();
+  });
+
+  it('app_footer_panel_and_refresh_follow_the_active_source', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    const other = (source: string, origin: SchemaView['origin'], fallbackReason: string | null): SchemaView => ({
+      source,
+      origin,
+      fallbackReason,
+      generatedAt: '2026-10-21T00:00:00Z',
+      complexTypes: {},
+      functions: [],
+      tables: [{ name: source === 'arg' ? 'Resources' : 'DeviceInfo', path: null, description: '', docsUrl: null, permissions: null, columns: [] }],
+    });
+    answers['schema.get'] = (p) => {
+      const { source } = p as { source: string };
+      if (source === 'hunting') {
+        return other('hunting', 'builtIn', "Sign in again to read the tenant's schema. The built-in schema is shown.");
+      }
+      return source === 'arg' ? other('arg', 'builtIn', null) : schema;
+    };
+    answers['arm.resourceTypes'] = () => ({ types: ['microsoft.compute/virtualmachines', 'microsoft.storage/storageaccounts'] });
+    render(<App />);
+
+    const footer = () => document.querySelector('footer.statusbar')?.textContent ?? '';
+    await waitFor(() => expect(footer()).toContain('Schema: '));
+    expect(footer()).toContain('KQL');
+    // Nothing asks ARM for anything before a Resource Graph tab opens.
+    expect(bridge.call.mock.calls.some(([m]) => m === 'arm.resourceTypes')).toBe(false);
+
+    act(() => {
+      runCommand('tab.newHunting');
+    });
+    expect(await screen.findByRole('complementary', { name: 'Advanced hunting schema' })).toBeTruthy();
+    await waitFor(() => expect(footer()).toContain("Built-in schema (Sign in again to read the tenant's schema)"));
+    expect(footer()).toContain('KQL · advanced hunting');
+    expect(screen.queryByRole('button', { name: /Explain/ })).toBeNull();
+
+    act(() => {
+      runCommand('schema.refresh');
+    });
+    await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('schema.get', { source: 'hunting', refresh: true }));
+
+    act(() => {
+      runCommand('tab.newArg');
+    });
+    expect(await screen.findByRole('complementary', { name: 'Resource Graph tables' })).toBeTruthy();
+    await waitFor(() => expect(footer()).toContain('Resource Graph tables · 2 resource types'));
   });
 
   it('app_opens_a_graph_tab_runs_it_and_shows_rows', async () => {

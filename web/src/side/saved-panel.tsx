@@ -4,8 +4,10 @@ import { openSaved } from '../library/open-library';
 import { MAX_NAME_LENGTH, useRevisions } from '../library/saving';
 import { errorText } from '../shell/errors';
 import { MOD } from '../shell/keys';
+import { SourceBadge } from '../tabs/source-badge';
 import { useTabs } from '../tabs/tab-store';
-import type { LibraryList, SavedQuery } from '../wire';
+import type { LibraryList, SavedQuery, Source } from '../wire';
+import { PanelHeading } from './panel-heading';
 import { ConfirmDelete, RowMenu } from './row-menu';
 
 function skippedText(n: number): string {
@@ -13,10 +15,11 @@ function skippedText(n: number): string {
 }
 
 /**
- * The Saved panel (spec 6.6): the library's folders as groups that fold, then the queries in no folder, with a search. A
- * query opens on click; its menu renames it or deletes it (after asking).
+ * The Saved panel (spec 6.6): the library's folders as groups that fold, then the queries in no folder, with a search. It lists
+ * the queries of the active tab's `source` (spec 6.1), or every source's with "All sources". A query opens on click; its menu
+ * renames it or deletes it (after asking).
  */
-export function SavedPanel() {
+export function SavedPanel({ source = 'graph' }: { source?: Source }) {
   const revision = useRevisions((s) => s.library);
   const [list, setList] = useState<LibraryList | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -25,6 +28,7 @@ export function SavedPanel() {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [all, setAll] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -45,8 +49,8 @@ export function SavedPanel() {
     if (!trimmed || trimmed === q.name) {
       return;
     }
-    const { id, folder, source, text, parameters } = q;
-    call<SavedQuery>('library.save', { query: { id, name: trimmed, folder, source, text, parameters } }).then(
+    const { id, folder, text, parameters, options } = q;
+    call<SavedQuery>('library.save', { query: { id, name: trimmed, folder, source: q.source, text, parameters, options: options ?? null } }).then(
       (saved) => {
         const { tabs, setTitle } = useTabs.getState();
         tabs.filter((t) => t.savedId === saved.id).forEach((t) => setTitle(t.id, saved.name));
@@ -69,7 +73,7 @@ export function SavedPanel() {
   };
 
   const needle = search.trim().toLowerCase();
-  const queries = (list?.queries ?? []).filter((q) => !needle || q.name.toLowerCase().includes(needle));
+  const queries = (list?.queries ?? []).filter((q) => (all || q.source === source) && (!needle || q.name.toLowerCase().includes(needle)));
 
   const row = (q: SavedQuery) => {
     if (deleting === q.id) {
@@ -105,7 +109,8 @@ export function SavedPanel() {
     }
     return (
       <li key={q.id} className="side-item">
-        <button type="button" className="side-open" title={q.text} onClick={() => openSaved(q)}>
+        <button type="button" className="side-open" aria-label={q.name} title={q.text} onClick={() => openSaved(q)}>
+          {all && <SourceBadge source={q.source} titled />}
           <span className="truncate">{q.name}</span>
         </button>
         <RowMenu
@@ -130,7 +135,7 @@ export function SavedPanel() {
 
   return (
     <aside className="side" aria-label="Saved">
-      <h2>Saved</h2>
+      <PanelHeading title="Saved" source={source} all={all} onAll={setAll} />
       <input
         className="search"
         type="search"

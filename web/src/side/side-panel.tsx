@@ -1,5 +1,6 @@
 import { SchemaPanel } from '../schema/schema-panel';
-import type { SchemaView } from '../wire';
+import { schemaSourceOf, useSchemas } from '../schema/schema-store';
+import type { Source } from '../wire';
 import { PANELS, type PanelName } from './panels';
 import { RecentPanel } from './recent-panel';
 import { SavedPanel } from './saved-panel';
@@ -20,23 +21,40 @@ export function Rail({ panel, onChoose }: { panel: PanelName; onChoose: (panel: 
 
 interface SidePanelProps {
   panel: PanelName;
-  schema: SchemaView | null;
+  /** The active tab's source: every panel follows it (spec 6.1). A raw request tab's is Graph's. */
+  source: Source;
   /** The active tab's query, for the schema's "In this query". */
   text: string;
   /** Puts text at the editor's cursor; false when the editor isn't ready. */
   onInsert: (text: string) => boolean;
 }
 
-/** The side panel the rail chose. */
-export function SidePanel({ panel, schema, text, onInsert }: SidePanelProps) {
+/** The side panel the rail chose, for the active tab's source. */
+export function SidePanel({ panel, source: tabSource, text, onInsert }: SidePanelProps) {
+  const source = schemaSourceOf(tabSource);
+  const schema = useSchemas((s) => s.byKey[source]);
+  const error = useSchemas((s) => s.errors[source]);
+  const resourceTypes = useSchemas((s) => s.resourceTypes);
+  const resourceTypesError = useSchemas((s) => s.resourceTypesError);
   switch (panel) {
     case 'saved':
-      return <SavedPanel />;
+      return <SavedPanel source={source} />;
     case 'recent':
-      return <RecentPanel />;
+      return <RecentPanel source={source} />;
     case 'snippets':
-      return <SnippetPanel onInsert={onInsert} />;
+      return <SnippetPanel source={source} onInsert={onInsert} />;
     default:
-      return <SchemaPanel schema={schema} text={text} onInsert={onInsert} />;
+      return (
+        <SchemaPanel
+          key={source}
+          source={source}
+          schema={schema}
+          error={error}
+          resourceTypes={resourceTypes}
+          resourceTypesError={resourceTypesError}
+          text={text}
+          onInsert={onInsert}
+        />
+      );
   }
 }

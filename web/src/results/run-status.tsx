@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
 import { editorPosition, type TabRun } from '../tabs/tab-store';
-import type { RunResult, TableFetch } from '../wire';
+import type { ArgScope, RunResult, Source, TableFetch } from '../wire';
+import { plural, scopeText, serverRequests } from './source-wording';
 
 const count = (n: number) => n.toLocaleString('en-US');
-const plural = (n: number, one: string, many = `${one}s`) => `${count(n)} ${n === 1 ? one : many}`;
 
 function stageLabel(stage: string | undefined, detail: string | undefined): string {
   switch (stage) {
@@ -62,9 +62,22 @@ function tableChips(tables: TableFetch[]): Chip[] {
   return chips;
 }
 
-function resultChips(result: RunResult): Chip[] {
+/** What the run sent, in its source's words (Graph's requests are its tables'). */
+function sourceChips(result: RunResult, source: Source, scope: ArgScope | null | undefined): Chip[] {
+  if (source === 'hunting') {
+    const queries = serverRequests(result);
+    return queries > 0 ? [{ text: plural(queries, 'hunting query', 'hunting queries') }] : [];
+  }
+  if (source === 'arg') {
+    const pages = serverRequests(result);
+    return pages > 0 ? [{ text: `${plural(pages, 'page')} · ${scopeText(scope)}` }] : [];
+  }
+  return tableChips(result.tables);
+}
+
+function resultChips(result: RunResult, source: Source, scope: ArgScope | null | undefined): Chip[] {
   if (result.outcome !== 'ok') {
-    return tableChips(result.tables);
+    return sourceChips(result, source, scope);
   }
   // More rows than were sent: how many there are, as "50,000 of 61,204 rows".
   const rows = result.total > result.rows.length ? `${count(result.rows.length)} of ${plural(result.total, 'row')}` : plural(result.total, 'row');
@@ -72,11 +85,19 @@ function resultChips(result: RunResult): Chip[] {
   if (result.droppedValues > 0) {
     chips.push({ tone: 'warn', text: `${plural(result.droppedValues, 'value')} didn't fit the column's type, left empty` });
   }
-  return [...chips, ...tableChips(result.tables)];
+  return [...chips, ...sourceChips(result, source, scope)];
 }
 
-/** The line between the editor and the results: the run's progress, then how it ended and what it fetched. */
-export function RunStatus({ run, onSignIn }: { run: TabRun | undefined; onSignIn: () => void }) {
+interface RunStatusProps {
+  run: TabRun | undefined;
+  /** The Resource Graph scope the run had; none is "all I can see". */
+  scope?: ArgScope | null;
+  onSignIn: () => void;
+}
+
+/** The line between the editor and the results: the run's progress, then how it ended and what it sent, worded for the source
+ * the run went to. */
+export function RunStatus({ run, scope, onSignIn }: RunStatusProps) {
   let content: ReactNode;
   let meta: string | null = null;
 
@@ -112,7 +133,7 @@ export function RunStatus({ run, onSignIn }: { run: TabRun | undefined; onSignIn
             Sign in
           </button>
         )}
-        {resultChips(result).map((chip, i) => (
+        {resultChips(result, run.source ?? 'graph', scope).map((chip, i) => (
           <span key={i} className={`chip${chip.tone ? ` ${chip.tone}` : ''}`} title={chip.title}>
             {chip.text}
           </span>

@@ -1,7 +1,7 @@
 import { Component, Suspense, lazy, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { errorText } from '../shell/errors';
 import { useTabs } from '../tabs/tab-store';
-import type { RunResult } from '../wire';
+import type { RunResult, Source } from '../wire';
 import { CompareView } from './compare-view';
 import { DiagnosticsView } from './diagnostics-view';
 import { EXPORT_FORMATS, EXPORT_NAMES, exportResult, toJson, type ExportFormat } from './export';
@@ -46,6 +46,8 @@ interface PanelProps {
   pinned?: RunResult;
   /** A dialog (the palette, the save dialog) is open: the row details sheet closes first, so focus is the dialog's. */
   dialogOpen?: boolean;
+  /** The source the run went to: Diagnostics words its statistics after it. */
+  source?: Source;
 }
 
 /**
@@ -53,7 +55,7 @@ interface PanelProps {
  * arrow keys, Home and End. The Rows tab's tools and Export sit in the tab bar; a row opened in the grid shows in the row
  * details sheet.
  */
-export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = false }: PanelProps) {
+export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = false, source = 'graph' }: PanelProps) {
   const [chosen, setChosen] = useState<ResultTab>('rows');
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
   const [details, setDetails] = useState<number | null>(null);
@@ -195,7 +197,7 @@ export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = fa
           </div>
         ),
       )}
-      {panel('diagnostics', active === 'diagnostics' && <DiagnosticsView result={result} />)}
+      {panel('diagnostics', active === 'diagnostics' && <DiagnosticsView result={result} source={source} />)}
       {pinned && panel('compare', active === 'compare' && <CompareView pinned={pinned} current={result} />)}
       {detailsRow && <RowDetails columns={result.columns} row={detailsRow} onClose={() => setDetails(null)} />}
     </div>

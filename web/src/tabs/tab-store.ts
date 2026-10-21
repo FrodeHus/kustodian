@@ -9,6 +9,9 @@ export type { Source } from '../wire';
 
 export interface TabRun {
   state: 'running' | 'done';
+  /** The source the run went to (the tab's may change after); the status line and Diagnostics word it after this. Graph when
+   * absent. */
+  source?: Source;
   /** The id sent with `query.run`; progress events for any other run of the tab are stale. */
   runId: string;
   /** The latest `query.progress` stage while running (planning, fetching, probing, per-object, engine). */
@@ -117,6 +120,9 @@ interface TabsState {
    */
   markSaved(id: string, saved: { savedId?: string | null; filePath?: string | null; title: string; text: string }): void;
   setParameters(id: string, parameters: ParameterDef[]): void;
+  /** Changes a query tab's source (the badge menu's "Change source"); a raw request tab keeps its own. A tab saved to the
+   * library then has a change to save, since the library keeps the source. */
+  setSource(id: string, source: Exclude<Source, 'raw'>): void;
   /** Sets a raw request tab's version and headers. */
   setRaw(id: string, raw: RawTabRequest): void;
   /** Keeps the tab's current result to compare with. */
@@ -211,6 +217,10 @@ export const useTabs = create<TabsState>()((set, get) => {
       update(id, () => ({ parameters }));
     },
 
+    setSource(id, source) {
+      update(id, (t) => (t.source === 'raw' || t.source === source ? {} : { source, dirty: t.dirty || t.savedId !== undefined }));
+    },
+
     setRaw(id, raw) {
       update(id, () => ({ raw }));
     },
@@ -268,7 +278,8 @@ export const useTabs = create<TabsState>()((set, get) => {
       const startedAt = Date.now();
       // Ruling 19: the page names the run, so progress for an older run of this tab can be told apart from the first event.
       const runId = newId();
-      update(id, () => ({ run: { state: 'running', runId, startedAt, origin, kql } }));
+      const source = tab.source;
+      update(id, () => ({ run: { state: 'running', source, runId, startedAt, origin, kql } }));
       const parameters = runParameters(tab);
 
       let run: TabRun;
@@ -278,12 +289,12 @@ export const useTabs = create<TabsState>()((set, get) => {
           { tabId: id, source: tab.source, kql, refresh: opts?.refresh ?? false, parameters, runId } satisfies QueryRunParams,
           controller.signal,
         );
-        run = { state: 'done', runId, result, startedAt, origin, kql };
+        run = { state: 'done', source, runId, result, startedAt, origin, kql };
       } catch (error) {
         run =
           error instanceof BridgeError && error.code === 'cancelled'
-            ? { state: 'done', runId, cancelled: true, startedAt, origin, kql }
-            : { state: 'done', runId, result: failed(error instanceof Error ? error.message : String(error), runId), startedAt, origin, kql };
+            ? { state: 'done', source, runId, cancelled: true, startedAt, origin, kql }
+            : { state: 'done', source, runId, result: failed(error instanceof Error ? error.message : String(error), runId), startedAt, origin, kql };
       }
 
       // A newer run on the tab owns it now; this one's answer is stale.

@@ -272,4 +272,25 @@ describe('session sync', () => {
     await vi.waitFor(() => expect(notify).toHaveBeenCalledWith('The session file couldn’t be read, so it was set aside. Kustodian started with an empty tab.'));
     expect(useTabs.getState().tabs).toHaveLength(1);
   });
+
+  it('session_sync_saves_a_changed_source', async () => {
+    vi.useFakeTimers();
+    host({ session: saved, corrupt: false });
+    stop = startSessionSync();
+    await vi.waitFor(() => expect(useTabs.getState().tabs).toHaveLength(2));
+
+    useTabs.getState().setSource('b', 'hunting');
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(saves().at(-1)?.tabs.map((t) => [t.id, t.source])).toEqual([
+      ['a', 'graph'],
+      ['b', 'hunting'],
+    ]);
+  });
+
+  it('session_restore_keeps_each_tab_source', async () => {
+    host({ session: { ...saved, tabs: [{ ...saved.tabs[0]!, source: 'arg' }, { ...saved.tabs[1]!, source: 'hunting' }] }, corrupt: false });
+    stop = startSessionSync();
+    await vi.waitFor(() => expect(useTabs.getState().tabs.map((t) => t.source)).toEqual(['arg', 'hunting']));
+  });
 });

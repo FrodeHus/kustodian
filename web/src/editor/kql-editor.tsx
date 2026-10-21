@@ -6,9 +6,10 @@ import * as monaco from 'monaco-editor/esm/vs/editor/editor.api.js';
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker.js?worker';
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { call } from '../bridge';
+import { schemaSourceOf } from '../schema/schema-store';
 import { useTheme } from '../shell/theme';
 import { useTabs, type RunMode } from '../tabs/tab-store';
-import type { CompletionItem, SchemaView } from '../wire';
+import type { CompletionItem, SchemaView, Source } from '../wire';
 import { createDotProvider } from './dot-completion';
 import { toKustoSchema } from './kusto-schema';
 import KustoWorker from './kusto.worker?worker';
@@ -121,8 +122,26 @@ monaco.editor.defineTheme('kustodian-light', {
 
 const monacoTheme = (resolved: 'dark' | 'light') => (resolved === 'light' ? 'kustodian-light' : 'kustodian-dark');
 
+/** The `majorVersion` each schema view goes to the language service with: a new view (or an empty database) always gets a higher
+ * one than any before it, so monaco-kusto's cache, which keeps a database until its version grows, takes it. The same view
+ * again keeps its version, and the cache's copy. */
+const versions = new WeakMap<SchemaView, number>();
+let lastVersion = 0;
+function versionOf(view: SchemaView | undefined): number {
+  if (!view) {
+    return ++lastVersion;
+  }
+  let version = versions.get(view);
+  if (version === undefined) {
+    version = ++lastVersion;
+    versions.set(view, version);
+  }
+  return version;
+}
+
 const uriOf = (tabId: string) => monaco.Uri.parse(`inmemory://kustodian/${tabId}.kql`);
 
+// Only ever asked for Graph tabs: the other sources' completion comes from monaco-kusto and their schema alone.
 const complete = (kql: string, position: number, signal: AbortSignal) =>
   call<CompletionItem[]>('query.complete', { source: 'graph', kql, position }, signal);
 
@@ -135,23 +154,25 @@ export interface KqlEditorHandle {
 }
 
 interface KqlEditorProps {
-  schema: SchemaView | null;
+  /** Each source's schema, as far as it is read; the active tab's source's is the one the language service uses. */
+  schemas: Partial<Record<Source, SchemaView>>;
   onRun: (mode: RunMode) => void;
   ref?: Ref<KqlEditorHandle>;
 }
 
 /**
- * The query editor (spec 6.2): Monaco with Microsoft's Kusto language service set to the Graph schema, plus completion inside
- * complex values from the host. One editor for the window, with a model per tab, so each tab keeps its own text, undo history
+ * The query editor (spec 6.2): Monaco with Microsoft's Kusto language service set to the active tab's source's schema, plus,
+ * on Graph tabs only, completion inside complex values from the host. One editor for the window, with a model per tab, so each tab keeps its own text, undo history
  * and scroll position. The tab store owns the text: the editor reports each change to it.
  */
-export default function KqlEditor({ schema, onRun, ref }: KqlEditorProps) {
+export default function KqlEditor({ schemas, onRun, ref }: KqlEditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const models = useRef(new Map<string, monaco.editor.ITextModel>());
   const views = useRef(new Map<string, monaco.editor.ICodeEditorViewState | null>());
   const current = useRef<string | null>(null);
-  const appliedSchema = useRef<SchemaView | null>(null);
+  /** The schema the language service has: its source and view (undefined: the source's empty database). */
+  const appliedSchema = useRef<{ source: string; view: SchemaView | undefined } | null>(null);
   const [schemaFailed, setSchemaFailed] = useState(false);
   const latest = useRef({ onRun });
   useEffect(() => {
@@ -279,16 +300,20 @@ export default function KqlEditor({ schema, onRun, ref }: KqlEditorProps) {
     }
   }, [tabsChanged, activeId]);
 
-  // The language service completes and checks against the schema; without it the editor still colours and checks syntax.
+  // The language service completes and checks against the active tab's source's schema (one at a time: it is the worker's).
+  // Until that source's schema is read it has an empty database for it, so a hunting tab never completes Graph's tables.
+  const activeSource = tabsChanged.find((t) => t.id === activeId)?.source;
+  const source = activeSource ? schemaSourceOf(activeSource) : undefined;
+  const view = source ? schemas[source] : undefined;
   useEffect(() => {
     const model = activeId ? models.current.get(activeId) : undefined;
-    if (!schema || !model || appliedSchema.current === schema) {
+    if (!source || !model || (appliedSchema.current?.source === source && appliedSchema.current.view === view)) {
       return;
     }
-    appliedSchema.current = schema;
+    appliedSchema.current = { source, view };
     void (async () => {
       const worker = await (await getKustoWorker())(model.uri);
-      await worker.setSchema(toKustoSchema(schema));
+      await worker.setSchema(toKustoSchema(view, source, versionOf(view)));
     })().then(
       () => setSchemaFailed(false),
       () => {
@@ -297,7 +322,7 @@ export default function KqlEditor({ schema, onRun, ref }: KqlEditorProps) {
         setSchemaFailed(true);
       },
     );
-  }, [schema, activeId]);
+  }, [source, view, activeId]);
 
   useImperativeHandle(
     ref,

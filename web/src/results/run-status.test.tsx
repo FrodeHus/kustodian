@@ -120,4 +120,32 @@ describe('RunStatus', () => {
     // The query is still there to run again once signed in.
     expect(useTabs.getState().tabs[0]).toMatchObject({ text: 'applications | take 5', dirty: true });
   });
+
+  it('status_wording_follows_source', () => {
+    const request = (detail: string) => ({ atMs: 0, kind: 'request' as const, detail, status: 200, durationMs: 900, bytes: 4096 });
+    const retry = { atMs: 950, kind: 'retry' as const, detail: 'Sending the page again after 2 s', status: null, durationMs: null, bytes: null };
+
+    // Graph: its requests.
+    const view = render(<RunStatus run={done(result({}))} onSignIn={() => undefined} />);
+    expect(screen.getByText('1 Graph request')).toBeTruthy();
+
+    // Advanced hunting: one hunting query, and never "Graph requests".
+    const hunting = result({ tables: [], diagnostics: [request('POST security/runHuntingQuery')] });
+    view.rerender(<RunStatus run={{ ...done(hunting), source: 'hunting' }} onSignIn={() => undefined} />);
+    expect(screen.getByText('1 hunting query')).toBeTruthy();
+    expect(screen.queryByText(/Graph request/)).toBeNull();
+
+    // Resource Graph: its pages (a page sent again counts once) and the scope.
+    const arg = result({
+      tables: [],
+      diagnostics: [request('POST providers/Microsoft.ResourceGraph/resources'), retry, request('POST providers/Microsoft.ResourceGraph/resources'), request('POST providers/Microsoft.ResourceGraph/resources')],
+    });
+    view.rerender(<RunStatus run={{ ...done(arg), source: 'arg' }} onSignIn={() => undefined} />);
+    expect(screen.getByText('2 pages · all I can see')).toBeTruthy();
+    expect(screen.queryByText(/Graph request/)).toBeNull();
+    view.rerender(<RunStatus run={{ ...done(arg), source: 'arg' }} scope={{ kind: 'subscriptions', ids: ['a', 'b', 'c'] }} onSignIn={() => undefined} />);
+    expect(screen.getByText('2 pages · 3 subscriptions')).toBeTruthy();
+    view.rerender(<RunStatus run={{ ...done(arg), source: 'arg' }} scope={{ kind: 'managementGroup', ids: ['contoso-platform'] }} onSignIn={() => undefined} />);
+    expect(screen.getByText('2 pages · contoso-platform')).toBeTruthy();
+  });
 });

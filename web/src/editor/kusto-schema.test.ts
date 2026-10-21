@@ -45,7 +45,7 @@ const view: SchemaView = {
 describe('toKustoSchema', () => {
   // Pinned: the result is what monaco-kusto's worker.setSchema takes, an EngineSchema with the database in context.
   it('toKustoSchema_maps_tables_columns_and_types', () => {
-    const schema = toKustoSchema(view);
+    const schema = toKustoSchema(view, 'graph');
 
     expect(schema.clusterType).toBe('Engine');
     expect(schema.cluster.databases).toHaveLength(1);
@@ -63,6 +63,85 @@ describe('toKustoSchema', () => {
           { name: 'onPremisesPublishing', type: 'dynamic', docstring: 'App Proxy.' },
         ],
       },
+    ]);
+  });
+
+  it('hunting_functions_become_kusto_functions', () => {
+    const hunting: SchemaView = {
+      source: 'hunting',
+      origin: 'tenant',
+      fallbackReason: null,
+      generatedAt: '2026-10-21T05:38:29Z',
+      complexTypes: {},
+      tables: [
+        {
+          name: 'DeviceInfo',
+          path: null,
+          description: '',
+          docsUrl: null,
+          permissions: null,
+          columns: [{ name: 'DeviceId', type: 'string', description: '', filterable: null, listable: null, complexType: null, collection: false }],
+        },
+      ],
+      functions: [
+        {
+          name: 'FileProfile',
+          description: 'Adds what Microsoft knows about each file.',
+          parameters: [
+            { name: 'SHA1', type: 'string' },
+            { name: 'limit', type: 'long' },
+          ],
+        },
+      ],
+    };
+
+    const schema = toKustoSchema(hunting, 'hunting');
+
+    expect(schema.cluster.connectionString).toBe('https://hunting.kustodian.invalid');
+    expect(schema.database?.name).toBe('hunting');
+    expect(schema.database?.tables.map((t) => t.name)).toEqual(['DeviceInfo']);
+    expect(schema.database?.functions).toEqual([
+      {
+        name: 'FileProfile',
+        body: '{ }',
+        docstring: 'Adds what Microsoft knows about each file.',
+        inputParameters: [
+          { name: 'SHA1', type: 'string', cslType: 'string' },
+          { name: 'limit', type: 'long', cslType: 'long' },
+        ],
+      },
+    ]);
+  });
+
+  it('arg_properties_and_tags_are_dynamic', () => {
+    const column = (name: string, type: string) => ({ name, type, description: '', filterable: null, listable: null, complexType: null, collection: false });
+    const arg: SchemaView = {
+      source: 'arg',
+      origin: 'builtIn',
+      fallbackReason: null,
+      generatedAt: '2026-10-21T00:00:00Z',
+      complexTypes: {},
+      functions: [],
+      tables: [
+        {
+          name: 'Resources',
+          path: null,
+          description: '',
+          docsUrl: null,
+          permissions: null,
+          columns: [column('name', 'string'), column('properties', 'object'), column('tags', 'string')],
+        },
+      ],
+    };
+
+    const schema = toKustoSchema(arg, 'arg');
+
+    expect(schema.cluster.connectionString).toBe('https://arg.kustodian.invalid');
+    expect(schema.database?.name).toBe('arg');
+    expect(schema.database?.tables[0]?.columns.map((c) => [c.name, c.type])).toEqual([
+      ['name', 'string'],
+      ['properties', 'dynamic'],
+      ['tags', 'dynamic'],
     ]);
   });
 });

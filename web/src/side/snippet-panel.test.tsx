@@ -142,4 +142,17 @@ describe('SnippetPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'More for Expired app credentials' }));
     expect(screen.queryByRole('menuitem', { name: 'Delete' })).toBeNull();
   });
+
+  it('snippets_follow_active_source_with_all_toggle', async () => {
+    snippets = [builtIn, mine, { ...builtIn, id: 'h1', source: 'hunting', name: 'Sign-ins from TOR exits', group: 'Threat hunting' }];
+    render(<SnippetPanel onInsert={() => true} source="hunting" />);
+
+    expect(await screen.findByRole('button', { name: 'Sign-ins from TOR exits' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Expired app credentials' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Owners of an app' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'All sources' }));
+    expect(screen.getByRole('button', { name: 'Expired app credentials' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Owners of an app' })).toBeTruthy();
+  });
 });

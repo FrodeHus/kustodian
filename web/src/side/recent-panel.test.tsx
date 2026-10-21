@@ -88,4 +88,15 @@ describe('RecentPanel', () => {
 
     await waitFor(() => expect(calls()).toBe(before + 1));
   });
+
+  it('recent_follows_active_source_with_all_toggle', async () => {
+    listed = [...runs, { id: 'r3', source: 'arg', text: 'Resources | count', parameters: [], startedAt: '2026-10-21T11:00:00Z', durationMs: 900, rows: 1, outcome: 'ok' }];
+    render(<RecentPanel source="arg" />);
+
+    expect(await screen.findByRole('button', { name: /Resources \| count/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /groups \| take 1/ })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'All sources' }));
+    expect(screen.getByRole('button', { name: /groups \| take 1/ })).toBeTruthy();
+  });
 });

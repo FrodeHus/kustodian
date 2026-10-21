@@ -126,4 +126,31 @@ describe('SavedPanel', () => {
     render(<SavedPanel />);
     expect(await screen.findByText('2 saved queries couldn’t be read and were moved aside.')).toBeTruthy();
   });
+
+  it('panels_follow_active_source_with_all_toggle', async () => {
+    library = {
+      ...library,
+      queries: [...library.queries, { ...query('q3', 'TOR sign-ins', null, 'AADSignInEventsBeta'), source: 'hunting' }],
+    };
+    const view = render(<SavedPanel source="hunting" />);
+
+    // A hunting tab's panel lists the hunting queries only.
+    await screen.findByRole('button', { name: 'TOR sign-ins' });
+    expect(screen.queryByRole('button', { name: 'All apps' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Identity' })).toBeNull();
+
+    // "All sources" lists every query, each with its source's badge.
+    const all = screen.getByRole('button', { name: 'All sources' });
+    expect(all.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(all);
+    expect(all.getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'All apps' })).toBeTruthy();
+    expect(within(screen.getByRole('button', { name: 'TOR sign-ins' })).getByText('AH')).toBeTruthy();
+
+    // The Graph tab's panel, without the toggle, lists Graph's.
+    fireEvent.click(all);
+    view.rerender(<SavedPanel source="graph" />);
+    expect(await screen.findByRole('button', { name: 'All apps' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'TOR sign-ins' })).toBeNull();
+  });
 });

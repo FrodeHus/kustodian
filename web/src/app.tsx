@@ -13,6 +13,7 @@ import { ResultPanel } from './results/result-panel';
 import { RunStatus } from './results/run-status';
 import { openRaw } from './raw/raw-request';
 import { RawTab } from './raw/raw-tab';
+import { schemaSourceOf, startSchemaLoading, useSchemas } from './schema/schema-store';
 import { startSessionSync } from './session/session-sync';
 import { SettingsView } from './settings/settings-view';
 import { bindGlobalKeys, registerCommands, runCommand, type Command } from './shell/commands';
@@ -26,7 +27,7 @@ import { PANELS, type PanelName } from './side/panels';
 import { Rail, SidePanel } from './side/side-panel';
 import { runParameters, sentText, useTabs, type RunMode, type Tab, type TabCursor } from './tabs/tab-store';
 import { TabStrip } from './tabs/tab-strip';
-import type { AccountList, SchemaView, SettingsAnswer } from './wire';
+import type { AccountList, SchemaView, SettingsAnswer, Source } from './wire';
 
 // Monaco and the Kusto language service are several megabytes: a chunk of their own, loaded after the window is up.
 const KqlEditor = lazy(() => import('./editor/kql-editor'));
@@ -51,6 +52,31 @@ function formatDate(iso: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
+
+/** Advanced hunting's footer text says where its schema came from, without the fallback reason's closing "The built-in schema
+ * is shown." (the footer says so). */
+function builtInReason(reason: string | null): string {
+  return (reason ?? 'not read').replace(/\s*The built-in schema is shown\.?$/, '').replace(/\.$/, '');
+}
+
+/** The status bar's schema text for the source (spec 8: the hunting footer says where the schema came from). */
+function schemaFooter(source: Source, view: SchemaView | undefined, resourceTypes: string[] | undefined): string | null {
+  if (source === 'arg') {
+    return resourceTypes ? `Resource Graph tables · ${resourceTypes.length.toLocaleString('en-US')} resource types` : 'Resource Graph tables';
+  }
+  if (!view) {
+    return null;
+  }
+  if (source === 'hunting') {
+    return view.origin === 'tenant'
+      ? `Schema from your tenant (getHuntingSchema) · ${formatDate(view.generatedAt)}`
+      : `Built-in schema (${builtInReason(view.fallbackReason)})`;
+  }
+  return `Schema: ${view.source} · ${formatDate(view.generatedAt)}`;
+}
+
+/** What the status bar calls the active tab's language. */
+const LANGUAGE: Record<Source, string> = { graph: 'KQL', hunting: 'KQL · advanced hunting', arg: 'KQL · Resource Graph', raw: 'Raw request' };
 
 const activeTab = (): Tab | undefined => {
   const { tabs, activeId } = useTabs.getState();
@@ -123,7 +149,6 @@ function readAccounts(onList: (list: AccountList) => void, onError: (text: strin
 /** The main window (spec 6.1, mockup Main), or sign-in when no account is active (mockup SignIn). */
 export function App() {
   const [accounts, setAccounts] = useState<AccountList | null>(null);
-  const [schema, setSchema] = useState<SchemaView | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   /** A notice that stays for the rest of the window's life: it has no Dismiss. */
   const [lasting, setLasting] = useState<string | null>(null);
@@ -153,9 +178,6 @@ export function App() {
 
   useEffect(() => {
     void readAccounts(setAccounts, setAccountsError);
-    call<SchemaView>('schema.get', { source: 'graph' }).then(setSchema, (e: unknown) =>
-      setProblem(`The Graph schema couldn’t be loaded: ${errorText(e)}`),
-    );
     // The raw tab's default version and sign-in's default client; without them the built-in defaults apply.
     call<SettingsAnswer | null>('settings.get').then(
       (answer) => {
@@ -173,6 +195,19 @@ export function App() {
 
   // The last session's tabs come back, or one empty Graph tab.
   useEffect(() => startSessionSync(setProblem, setLasting), []);
+  // Each source's schema is read when its first tab opens. Graph's failing is said in the window, as it always was.
+  useEffect(() => {
+    const stopLoading = startSchemaLoading();
+    const stopWatching = useSchemas.subscribe((s, previous) => {
+      if (s.errors.graph && s.errors.graph !== previous.errors.graph) {
+        setProblem(`The Graph schema couldn’t be loaded: ${s.errors.graph}`);
+      }
+    });
+    return () => {
+      stopLoading();
+      stopWatching();
+    };
+  }, []);
 
   useEffect(() => {
     const fail = (what: string) => (e: unknown) => setProblem(`${what}: ${errorText(e)}`);
@@ -225,6 +260,13 @@ export function App() {
       },
       { id: 'tab.new', title: 'New Microsoft Graph query', group: 'Tabs', shortcut: 'Mod+T', run: () => useTabs.getState().open('graph') },
       { id: 'tab.newRaw', title: 'New raw Graph request', group: 'Tabs', run: () => openRaw() },
+      {
+        id: 'schema.refresh',
+        title: 'Refresh schema',
+        group: 'View',
+        run: withTab((tab) => void useSchemas.getState().load(schemaSourceOf(tab.source), { refresh: true })),
+        enabled: () => activeTab() !== undefined,
+      },
       { id: 'tab.next', title: 'Next tab', group: 'Tabs', shortcut: 'Ctrl+Tab', run: () => cycleTab(1), enabled: () => useTabs.getState().tabs.length > 1 },
       { id: 'tab.previous', title: 'Previous tab', group: 'Tabs', shortcut: 'Ctrl+Shift+Tab', run: () => cycleTab(-1), enabled: () => useTabs.getState().tabs.length > 1 },
       { id: 'run.block', title: 'Run the block at the cursor', group: 'Run', shortcut: 'Mod+Enter', run: () => runActive('block'), enabled: runnable },
@@ -294,6 +336,23 @@ export function App() {
   }, []);
 
   const account = accounts?.accounts.find((a) => a.active);
+  const accountKey = account?.key;
+  const graphSchema = useSchemas((s) => s.byKey.graph);
+  const schemas = useSchemas((s) => s.byKey);
+  const resourceTypes = useSchemas((s) => s.resourceTypes);
+
+  // Another account sees another hunting schema and other resource types: every schema is read again.
+  const shownAccount = useRef<string | undefined | null>(null);
+  useEffect(() => {
+    if (accounts === null) {
+      return;
+    }
+    if (shownAccount.current !== null && shownAccount.current !== accountKey) {
+      useSchemas.getState().reset();
+    }
+    shownAccount.current = accountKey;
+  }, [accounts, accountKey]);
+
   // Unreadable accounts also mean sign-in: it shows why, and signing in reads them again.
   const signingIn = accountsError !== null || (accounts !== null && (!account || accountsOpen));
 
@@ -342,6 +401,8 @@ export function App() {
   // Schema and snippet text goes into the editor, never into a raw tab's path.
   const insert = (text: string) => (raw ? false : (editor.current?.insert(text) ?? false));
   const savingTab = tabs.find((t) => t.id === saving);
+  const footerSource = schemaSourceOf(active?.source ?? 'graph');
+  const footer = schemaFooter(footerSource, schemas[footerSource], resourceTypes);
 
   return (
     <div className="flex h-full flex-col">
@@ -401,7 +462,7 @@ export function App() {
         <TabStrip onDialog={setConfirming} />
         <div className="panes">
           <Rail panel={panel} onChoose={setPanel} />
-          <SidePanel panel={panel} schema={schema} text={active?.text ?? ''} onInsert={insert} />
+          <SidePanel panel={panel} source={active?.source ?? 'graph'} text={active?.text ?? ''} onInsert={insert} />
           <main className="workspace">
             {active ? (
               <>
@@ -421,7 +482,7 @@ export function App() {
                 <div className="relative min-h-[160px] shrink-0 basis-[38%] border-b border-line" hidden={raw}>
                   <EditorFailed>
                     <Suspense fallback={<p className="faint m-0 p-4 text-[12px]">Loading the editor…</p>}>
-                      <KqlEditor ref={editor} schema={schema} onRun={(mode) => void useTabs.getState().run(active.id, mode)} />
+                      <KqlEditor ref={editor} schemas={schemas} onRun={(mode) => void useTabs.getState().run(active.id, mode)} />
                     </Suspense>
                   </EditorFailed>
                 </div>
@@ -429,7 +490,7 @@ export function App() {
                   <RawTab
                     key={active.id}
                     tab={active}
-                    schema={schema}
+                    schema={graphSchema ?? null}
                     defaultVersion={settings?.settings.rawDefaultVersion ?? 'beta'}
                     accountKey={account?.key}
                     onSignIn={() => setAccountsOpen(true)}
@@ -466,12 +527,8 @@ export function App() {
               Ln {cursor.line}, Col {cursor.column}
             </span>
           )}
-          <span>{raw ? 'Raw request' : 'KQL'}</span>
-          {schema && (
-            <span>
-              Schema: {schema.source} · {formatDate(schema.generatedAt)}
-            </span>
-          )}
+          <span>{LANGUAGE[active?.source ?? 'graph']}</span>
+          {footer && <span>{footer}</span>}
           <div className="grow" />
           <span title="Theme">{theme.theme === 'system' ? `System (${THEME_NAMES[theme.resolved]})` : THEME_NAMES[theme.theme]}</span>
         </footer>
@@ -554,7 +611,7 @@ function Results({ tab, dialogOpen }: { tab: Tab; dialogOpen: boolean }) {
   if (result && result.outcome !== 'ok' && result.diagnostics.length > 0) {
     return (
       <section aria-label="Diagnostics" className="flex min-h-0 flex-1 flex-col">
-        <DiagnosticsView result={result} />
+        <DiagnosticsView result={result} source={tab.run?.source} />
       </section>
     );
   }
@@ -567,5 +624,16 @@ function Results({ tab, dialogOpen }: { tab: Tab; dialogOpen: boolean }) {
       </div>
     );
   }
-  return <ResultPanel key={tab.id} tabId={tab.id} title={tab.title} kql={tab.run?.kql ?? tab.text} result={result} pinned={tab.pinned} dialogOpen={dialogOpen} />;
+  return (
+    <ResultPanel
+      key={tab.id}
+      tabId={tab.id}
+      title={tab.title}
+      kql={tab.run?.kql ?? tab.text}
+      result={result}
+      pinned={tab.pinned}
+      dialogOpen={dialogOpen}
+      source={tab.run?.source}
+    />
+  );
 }

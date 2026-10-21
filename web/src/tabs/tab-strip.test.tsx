@@ -15,13 +15,89 @@ describe('TabStrip', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'New tab' }));
     const items = screen.getAllByRole('menuitem');
-    expect(items.map((i) => i.textContent)).toEqual([expect.stringContaining('Microsoft Graph query'), expect.stringContaining('Raw Graph request')]);
+    expect(items.map((i) => i.textContent)).toEqual([
+      expect.stringContaining('Microsoft Graph query'),
+      expect.stringContaining('Defender hunting query'),
+      expect.stringContaining('Resource Graph query'),
+      expect.stringContaining('Raw Graph request'),
+    ]);
     fireEvent.click(items[0]!);
 
-    const tab = screen.getByRole('tab', { selected: true });
+    // The badge sits beside the tab's button: it is the button of its own menu.
+    const tab = screen.getByRole('tab', { selected: true }).parentElement!;
     expect(within(tab).getByTitle('Microsoft Graph')).toHaveProperty('textContent', 'GR');
     expect(screen.queryByRole('menu')).toBeNull();
     expect(useTabs.getState().tabs).toHaveLength(1);
+  });
+
+  it('new_hunting_and_arg_tabs_from_menu_and_commands', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    render(<TabStrip />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'New tab' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /Defender hunting query/ }));
+    expect(within(screen.getByRole('tab', { selected: true }).parentElement!).getByTitle('Defender advanced hunting')).toHaveProperty('textContent', 'AH');
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'New tab' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /Resource Graph query/ }));
+    expect(within(screen.getByRole('tab', { selected: true }).parentElement!).getByTitle('Azure Resource Graph')).toHaveProperty('textContent', 'ARG');
+
+    act(() => {
+      expect(runCommand('tab.newHunting')).toBe(true);
+    });
+    act(() => {
+      expect(runCommand('tab.newArg')).toBe(true);
+    });
+    expect(useTabs.getState().tabs.map((t) => t.source)).toEqual(['hunting', 'arg', 'hunting', 'arg']);
+    // The new shortcuts collide with none of the window's.
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('change_source_from_badge', () => {
+    const id = useTabs.getState().open('graph');
+    useTabs.getState().setText(id, 'DeviceInfo | take 10');
+    render(<TabStrip />);
+
+    const badge = screen.getByRole('button', { name: 'Source: Microsoft Graph. Change source' });
+    fireEvent.mouseDown(badge);
+    fireEvent.click(badge);
+    const menu = screen.getByRole('menu', { name: 'Change source' });
+    const current = within(menu).getByRole('menuitemradio', { name: /Microsoft Graph/ });
+    expect(current.getAttribute('aria-checked')).toBe('true');
+    // A mousedown in the menu doesn't move focus (macOS WebKit), so the click lands.
+    const hunting = within(menu).getByRole('menuitemradio', { name: /Defender advanced hunting/ });
+    expect(fireEvent.mouseDown(hunting)).toBe(false);
+    fireEvent.click(hunting);
+
+    expect(useTabs.getState().tabs[0]).toMatchObject({ source: 'hunting', text: 'DeviceInfo | take 10' });
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Source: Defender advanced hunting. Change source' })).toBeTruthy();
+
+    // Esc closes the menu; so does a click outside it, never a blur.
+    fireEvent.click(screen.getByRole('button', { name: /Change source/ }));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Change source/ }));
+    fireEvent.blur(screen.getAllByRole('menuitemradio')[0]!);
+    expect(screen.getByRole('menu')).toBeTruthy();
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    // As a command too.
+    act(() => {
+      expect(runCommand('tab.source.arg')).toBe(true);
+    });
+    expect(useTabs.getState().tabs[0]?.source).toBe('arg');
+    expect(runCommand('tab.source.arg')).toBe(false);
+  });
+
+  it('a_raw_tab_has_no_source_menu', () => {
+    useTabs.getState().openWith({ source: 'raw', title: 'Raw request 1', text: '' });
+    render(<TabStrip />);
+    expect(screen.queryByRole('button', { name: /Change source/ })).toBeNull();
+    expect(runCommand('tab.source.hunting')).toBe(false);
   });
 
   it('plus_menu_opens_a_raw_graph_request_tab', () => {

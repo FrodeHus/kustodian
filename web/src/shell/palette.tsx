@@ -1,7 +1,8 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { call } from '../bridge';
 import { insertSnippet, openSaved, openSnippetInNewTab } from '../library/open-library';
-import type { LibraryList, SavedQuery, Snippet } from '../wire';
+import { SourceBadge } from '../tabs/source-badge';
+import type { LibraryList, SavedQuery, Snippet, Source } from '../wire';
 import { allCommands, formatShortcut, matchScore } from './commands';
 
 interface Row {
@@ -9,6 +10,8 @@ interface Row {
   title: string;
   group: string;
   shortcut?: string;
+  /** A saved query's or snippet's source: its badge shows, since each source's are listed together. */
+  source?: Source;
   disabled: boolean;
   /** `newTab`: Shift+Enter, which opens a snippet in a new tab rather than inserting it. */
   choose: (newTab: boolean) => void;
@@ -20,6 +23,7 @@ function savedRow(q: SavedQuery): Row {
     key: `saved:${q.id}`,
     title: `Saved: ${q.folder ? `${q.folder} / ` : ''}${q.name}`,
     group: 'Saved',
+    source: q.source,
     disabled: false,
     choose: () => openSaved(q),
   };
@@ -32,6 +36,7 @@ function snippetRow(s: Snippet, onInsert: (text: string) => boolean, onProblem: 
     key: `snippet:${s.id}`,
     title: `Snippet: ${s.name}`,
     group: 'Snippets',
+    source: s.source,
     disabled: false,
     choose: (newTab) => {
       if (newTab) {
@@ -201,6 +206,7 @@ export function Palette({ onClose, onInsert, onProblem = () => undefined }: Pale
               onMouseMove={() => index !== current && setSelected(index)}
               onClick={(e) => choose(row, e.shiftKey)}
             >
+              {row.source && <SourceBadge source={row.source} titled />}
               <span data-title className="truncate">
                 {row.title}
               </span>

@@ -277,4 +277,29 @@ describe('tab store', () => {
     useTabs.getState().setTitle(id, 'Risky apps');
     expect(useTabs.getState().tabs[0]?.title).toBe('Risky apps');
   });
+
+  it('setSource_changes_a_query_tab_and_its_runs_keep_theirs', async () => {
+    bridge.call.mockResolvedValue(ok);
+    const fresh = useTabs.getState().open('graph');
+    const saved = useTabs.getState().openWith({ source: 'graph', title: 'Saved', text: 'DeviceInfo', savedId: 's1' });
+    const raw = useTabs.getState().openWith({ source: 'raw', title: 'Raw', text: '' });
+    useTabs.getState().setText(fresh, 'DeviceInfo');
+    await useTabs.getState().run(fresh, 'all');
+
+    useTabs.getState().setSource(fresh, 'hunting');
+    useTabs.getState().setSource(saved, 'arg');
+    useTabs.getState().setSource(raw, 'hunting');
+
+    const [a, b, c] = useTabs.getState().tabs;
+    expect(a).toMatchObject({ source: 'hunting' });
+    // The run that went to Graph stays Graph's.
+    expect(a?.run?.source).toBe('graph');
+    // A saved query's source is part of what is saved.
+    expect(b).toMatchObject({ source: 'arg', dirty: true });
+    expect(c?.source).toBe('raw');
+
+    await useTabs.getState().run(fresh, 'all');
+    expect(bridge.call).toHaveBeenLastCalledWith('query.run', expect.objectContaining({ source: 'hunting' }), expect.anything());
+    expect(useTabs.getState().tabs[0]?.run?.source).toBe('hunting');
+  });
 });

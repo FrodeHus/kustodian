@@ -4,8 +4,10 @@ import { insertSnippet, openSnippetInNewTab } from '../library/open-library';
 import { useRevisions } from '../library/saving';
 import { findParams, mergeParameters } from '../params/find-params';
 import { errorText } from '../shell/errors';
+import { SourceBadge } from '../tabs/source-badge';
 import { useTabs } from '../tabs/tab-store';
-import type { Snippet } from '../wire';
+import type { Snippet, Source } from '../wire';
+import { PanelHeading } from './panel-heading';
 import { ConfirmDelete, RowMenu } from './row-menu';
 
 /** Groups in the order they first appear: the built-in snippets by their group, then the user's own as "Mine". */
@@ -21,9 +23,10 @@ function grouped(snippets: Snippet[]): { title: string; snippets: Snippet[] }[] 
 /**
  * The Snippets panel (spec 6.4, mockup Parameters): the built-in snippets by group, then the user's own, with a search. A click
  * inserts a snippet at the cursor; its menu opens it in a new tab, or deletes one of the user's (after asking). The selected
- * text can be saved as a new snippet.
+ * text can be saved as a new snippet. It lists the snippets of the active tab's `source` (spec 6.1), or every source's with "All
+ * sources".
  */
-export function SnippetPanel({ onInsert }: { onInsert: (text: string) => boolean }) {
+export function SnippetPanel({ onInsert, source = 'graph' }: { onInsert: (text: string) => boolean; source?: Source }) {
   const revision = useRevisions((s) => s.snippets);
   const [snippets, setSnippets] = useState<Snippet[] | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -31,6 +34,7 @@ export function SnippetPanel({ onInsert }: { onInsert: (text: string) => boolean
   const [deleting, setDeleting] = useState<string | null>(null);
   const [naming, setNaming] = useState<{ text: string } | null>(null);
   const [name, setName] = useState('');
+  const [all, setAll] = useState(false);
   const selection = useTabs((s) => (s.activeId ? (s.cursors[s.activeId]?.selection ?? '') : ''));
 
   useEffect(() => {
@@ -83,7 +87,9 @@ export function SnippetPanel({ onInsert }: { onInsert: (text: string) => boolean
   };
 
   const needle = search.trim().toLowerCase();
-  const shown = (snippets ?? []).filter((s) => !needle || s.name.toLowerCase().includes(needle) || s.description.toLowerCase().includes(needle));
+  const shown = (snippets ?? []).filter(
+    (s) => (all || s.source === source) && (!needle || s.name.toLowerCase().includes(needle) || s.description.toLowerCase().includes(needle)),
+  );
   const mine = shown.filter((s) => !s.builtIn);
 
   const row = (s: Snippet) => {
@@ -104,6 +110,7 @@ export function SnippetPanel({ onInsert }: { onInsert: (text: string) => boolean
           title={s.description ? `${s.description}\n\n${s.text}` : s.text}
           onClick={() => setProblem(insertSnippet(s, onInsert) ? null : 'The editor isn’t ready yet. Try again in a moment.')}
         >
+          {all && <SourceBadge source={s.source} titled />}
           <span className="truncate">{s.name}</span>
           {params.length > 0 && (
             <span className="ty mono" aria-hidden="true">
@@ -124,7 +131,7 @@ export function SnippetPanel({ onInsert }: { onInsert: (text: string) => boolean
 
   return (
     <aside className="side" aria-label="Snippets">
-      <h2>Snippets</h2>
+      <PanelHeading title="Snippets" source={source} all={all} onAll={setAll} />
       <input className="search" type="search" aria-label="Find a snippet" placeholder="Find a snippet" value={search} onChange={(e) => setSearch(e.target.value)} />
       <div className="min-h-0 flex-1 overflow-y-auto pb-3">
         {problem && (

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createBridge } from './bridge';
 import { createMockTransport } from './bridge.mock';
-import type { ArmManagementGroupsAnswer, ArmResourceTypesAnswer, ArmSubscriptionsAnswer } from './wire';
+import { BridgeError } from './bridge';
+import type { ArmManagementGroupsAnswer, ArmResourceTypesAnswer, ArmSubscriptionsAnswer, RunResult, SchemaView } from './wire';
 
 describe('bridge mock', () => {
   it('mock_answers_the_arm_methods_in_the_hosts_shapes', async () => {
@@ -18,6 +19,39 @@ describe('bridge mock', () => {
     expect(groups.groups[0]).toEqual({ name: 'contoso-platform', displayName: 'Platform' });
     expect(groups.note).toBeUndefined();
     expect(types.types).toContain('microsoft.keyvault/vaults');
+  });
+
+  it('mock_schema_follows_the_source', async () => {
+    const bridge = createBridge(createMockTransport());
+
+    const graph = await bridge.call<SchemaView>('schema.get', { source: 'graph' });
+    const hunting = await bridge.call<SchemaView>('schema.get', { source: 'hunting' });
+    const arg = await bridge.call<SchemaView>('schema.get', { source: 'arg' });
+
+    expect(graph.tables.some((t) => t.name === 'applications')).toBe(true);
+    expect(hunting).toMatchObject({ source: 'hunting', origin: 'tenant', fallbackReason: null });
+    expect(hunting.functions.map((f) => f.name)).toEqual(['AssignedIPAddresses', 'DeviceFromIP', 'FileProfile', 'SeenBy']);
+    expect(hunting.tables[0]?.columns[0]).toEqual({ name: 'Timestamp', type: 'datetime', description: '', filterable: null, listable: null, complexType: null, collection: false });
+    expect(arg).toMatchObject({ source: 'arg', origin: 'builtIn', functions: [] });
+    expect(arg.tables.map((t) => t.name)).toContain('Resources');
+    expect(arg.tables[0]?.path).toBeNull();
+    await expect(bridge.call('schema.get', { source: 'raw' })).rejects.toBeInstanceOf(BridgeError);
+  });
+
+  it('mock_explain_and_completion_are_graph_only', async () => {
+    const bridge = createBridge(createMockTransport());
+
+    await expect(bridge.call('query.explain', { source: 'hunting', kql: 'DeviceInfo' })).rejects.toMatchObject({
+      code: 'bad_request',
+      message: 'Explain is only available for Microsoft Graph.',
+    });
+    await expect(bridge.call('query.complete', { source: 'arg', kql: 'Resources', position: 9 })).rejects.toMatchObject({
+      code: 'bad_request',
+      message: 'Completion comes from the editor for this source.',
+    });
+    const hunting = await bridge.call<RunResult>('query.run', { tabId: 't', source: 'hunting', kql: 'DeviceInfo', refresh: false });
+    expect(hunting.tables).toEqual([]);
+    expect(hunting.diagnostics.map((d) => d.detail)).toEqual(['POST security/runHuntingQuery']);
   });
 
   it('mock_settings_carry_the_arg_rows_limit', async () => {

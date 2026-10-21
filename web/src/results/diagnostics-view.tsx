@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react';
-import type { DiagnosticEntry, RunResult } from '../wire';
+import type { ArgScope, DiagnosticEntry, RunResult, Source } from '../wire';
 import { copyFailed, copyText, diagnosticsText } from './copy';
 import { NoticeLine, type Notice } from './result-grid';
+import { scopeText, serverRequests } from './source-wording';
 
 const ROW_HEIGHT = 28;
 /** Entries drawn above and below the ones in view. */
@@ -15,10 +16,10 @@ function seconds(ms: number): string {
 }
 
 /**
- * The Diagnostics tab (spec 6.10, mockup Diagnostics): the run's statistics, and its log as a virtualized list with a badge for
- * each entry's kind, copyable as text.
+ * The Diagnostics tab (spec 6.10, mockup Diagnostics): the run's statistics in its source's words, and its log as a virtualized
+ * list with a badge for each entry's kind, copyable as text. `scope` is a Resource Graph run's.
  */
-export function DiagnosticsView({ result }: { result: RunResult }) {
+export function DiagnosticsView({ result, source = 'graph', scope }: { result: RunResult; source?: Source; scope?: ArgScope | null }) {
   const [notice, setNotice] = useState<Notice | null>(null);
   const entries = result.diagnostics;
   // A window of entries around the ones in view, every entry one row high. (Windowed here rather than with TanStack Virtual,
@@ -38,11 +39,22 @@ export function DiagnosticsView({ result }: { result: RunResult }) {
   const padTop = first * ROW_HEIGHT;
   const padBottom = (entries.length - last) * ROW_HEIGHT;
 
+  const sent: [string, string][] =
+    source === 'hunting'
+      ? [['Hunting queries', count(serverRequests(result))]]
+      : source === 'arg'
+        ? [
+            ['Pages', count(serverRequests(result))],
+            ['Scope', scopeText(scope)],
+          ]
+        : [
+            ['Graph requests', count(result.tables.reduce((n, t) => n + t.requests.length, 0))],
+            ['From cache', count(result.tables.reduce((n, t) => n + t.perObjectCached, 0))],
+          ];
   const stats: [string, string][] = [
     ['Duration', seconds(result.durationMs)],
     ['Rows', count(result.total)],
-    ['Graph requests', count(result.tables.reduce((n, t) => n + t.requests.length, 0))],
-    ['From cache', count(result.tables.reduce((n, t) => n + t.perObjectCached, 0))],
+    ...sent,
     ['Retries', count(entries.filter((e) => e.kind === 'retry').length)],
     ['Throttled', count(entries.filter((e) => e.kind === 'throttled').length)],
   ];

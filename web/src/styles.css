@@ -121,6 +121,9 @@ body {
   .tab > button[role='tab'] { display: flex; align-items: center; gap: 8px; height: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
   .tab .x { width: 18px; height: 18px; border-radius: 4px; border: 0; background: transparent; color: var(--faint); display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
   .tab .x:hover { background: var(--raise); color: var(--text); }
+  .tab .src-pick { display: inline-flex; align-items: center; padding: 0; border: 0; border-radius: 4px; background: transparent; cursor: pointer; }
+  .tab .src-pick:hover .src, .tab .src-pick[aria-expanded='true'] .src { box-shadow: 0 0 0 1px currentColor; }
+  .tab .src-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .tab .mod { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: inline-block; }
   .tab-add { height: 30px; width: 30px; border: 0; background: transparent; color: var(--muted); border-radius: 6px; cursor: pointer; font-size: 16px; }
   .tab-add:hover { background: var(--raise); color: var(--text); }
@@ -161,7 +164,7 @@ body {
   .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); }
   .btn.ghost:not(:disabled):hover { background: var(--raise); color: var(--text); }
   .btn[aria-pressed='true'] { border-color: var(--accent); color: var(--accent); }
-  .kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; border-radius: 4px; border: 1px solid var(--line); font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--faint); }
+  .kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; border-radius: 4px; border: 1px solid var(--line); font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--faint); white-space: nowrap; }
   .sep { width: 1px; height: 20px; background: var(--line); }
 
   .rbar { display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 38px; border-bottom: 1px solid var(--line); background: var(--panel); }

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { call } from '../bridge';
 import { errorText } from '../shell/errors';
+import { SourceBadge } from '../tabs/source-badge';
 import { useTabs } from '../tabs/tab-store';
-import type { RecentRun } from '../wire';
+import type { RecentRun, Source } from '../wire';
+import { PanelHeading } from './panel-heading';
 
 const OUTCOMES: Record<string, string> = {
   ok: 'OK',
@@ -49,12 +51,14 @@ function open(run: RecentRun) {
   });
 }
 
-/** The Recent panel (spec 6.6): the last runs, newest first, each with its outcome, rows and when. A run opens in a new tab with
- * its parameter values. Read again whenever a run ends. */
-export function RecentPanel() {
+/** The Recent panel (spec 6.6): the last runs, newest first, each with its outcome, rows and when. It lists the runs of the active
+ * tab's `source` (spec 6.1), or every source's with "All sources". A run opens in a new tab with its parameter values. Read again
+ * whenever a run ends. */
+export function RecentPanel({ source = 'graph' }: { source?: Source }) {
   const [runs, setRuns] = useState<RecentRun[] | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [cleared, setCleared] = useState(0);
+  const [all, setAll] = useState(false);
   // Changes when any tab's run ends: the host has added it to Recent by then.
   const ended = useTabs((s) =>
     s.tabs
@@ -74,6 +78,8 @@ export function RecentPanel() {
     };
   }, [ended, cleared]);
 
+  const shown = runs?.filter((r) => all || r.source === source);
+
   const clear = () =>
     call('recent.clear').then(
       () => {
@@ -85,22 +91,25 @@ export function RecentPanel() {
 
   return (
     <aside className="side" aria-label="Recent">
-      <h2>Recent</h2>
+      <PanelHeading title="Recent" source={source} all={all} onAll={setAll} />
       <div className="min-h-0 flex-1 overflow-y-auto pb-3">
         {problem && (
           <p role="alert" className="m-0 px-[14px] pb-2 text-[12px] text-bad">
             {problem}
           </p>
         )}
-        {runs?.length === 0 && <p className="faint m-0 px-[14px] text-[12px]">No runs yet.</p>}
+        {shown?.length === 0 && <p className="faint m-0 px-[14px] text-[12px]">{runs?.length ? 'No runs of this source yet.' : 'No runs yet.'}</p>}
         <ul className="side-list">
-          {runs?.map((run) => {
+          {shown?.map((run) => {
             const title = runTitle(run.text);
             const at = when(run.startedAt);
             return (
               <li key={run.id} className="side-item">
                 <button type="button" className="side-open flex-col !items-start" aria-label={`Open the run “${title}” from ${at}`} title={run.text} onClick={() => open(run)}>
-                  <span className="mono w-full truncate">{title}</span>
+                  <span className="flex w-full min-w-0 items-center gap-1.5">
+                    {all && <SourceBadge source={run.source} titled />}
+                    <span className="mono truncate">{title}</span>
+                  </span>
                   <span className="faint flex gap-2 text-[11px]">
                     <span className={run.outcome === 'ok' ? 'text-ok' : 'text-bad'}>{OUTCOMES[run.outcome] ?? run.outcome}</span>
                     {run.outcome === 'ok' && <span>{run.rows === 1 ? '1 row' : `${run.rows.toLocaleString('en-US')} rows`}</span>}

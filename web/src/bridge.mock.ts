@@ -110,6 +110,154 @@ const armResourceTypes = {
   types: ['microsoft.compute/virtualmachines', 'microsoft.keyvault/vaults', 'microsoft.storage/storageaccounts'],
 };
 
+/** A column as `SchemaHandler` writes it for advanced hunting and Resource Graph: Graph's own fields are null. */
+const column = (name: string, type: string) => ({ name, type, description: '', filterable: null, listable: null, complexType: null, collection: false });
+const table = (name: string, description: string, columns: [string, string][]) => ({
+  name,
+  path: null,
+  description,
+  docsUrl: null,
+  permissions: null,
+  columns: columns.map(([n, t]) => column(n, t)),
+});
+
+/** `schema.get {source: "hunting"}`: a few of the tenant's tables and the four built-in functions, as `SchemaView.From` writes
+ * a tenant's schema (`origin: tenant`). */
+const huntingSchema = {
+  source: 'hunting',
+  origin: 'tenant',
+  fallbackReason: null,
+  generatedAt: '2026-10-21T06:12:00Z',
+  tables: [
+    table('AADSignInEventsBeta', 'Microsoft Entra sign-ins.', [
+      ['Timestamp', 'datetime'],
+      ['AccountUpn', 'string'],
+      ['IPAddress', 'string'],
+      ['Application', 'string'],
+      ['ErrorCode', 'int'],
+      ['Country', 'string'],
+    ]),
+    table('DeviceInfo', 'Machine information, including OS information.', [
+      ['Timestamp', 'datetime'],
+      ['DeviceId', 'string'],
+      ['DeviceName', 'string'],
+      ['OSPlatform', 'string'],
+    ]),
+    table('DeviceProcessEvents', 'Process creation and related events.', [
+      ['Timestamp', 'datetime'],
+      ['DeviceId', 'string'],
+      ['DeviceName', 'string'],
+      ['FileName', 'string'],
+      ['ProcessCommandLine', 'string'],
+      ['SHA1', 'string'],
+    ]),
+    table('IdentityLogonEvents', 'Authentication events on Active Directory and Microsoft online services.', [
+      ['Timestamp', 'datetime'],
+      ['AccountUpn', 'string'],
+      ['ActionType', 'string'],
+      ['LogonType', 'string'],
+      ['IPAddress', 'string'],
+    ]),
+  ],
+  functions: [
+    {
+      name: 'AssignedIPAddresses',
+      description: 'The latest IP addresses assigned to a device, or those it had at a point in time.',
+      parameters: [
+        { name: 'DeviceId', type: 'string' },
+        { name: 'Timestamp', type: 'datetime' },
+      ],
+    },
+    {
+      name: 'DeviceFromIP',
+      description: 'The devices that were assigned an IP address at a point in time.',
+      parameters: [
+        { name: 'IP', type: 'string' },
+        { name: 'Timestamp', type: 'datetime' },
+      ],
+    },
+    {
+      name: 'FileProfile',
+      description: 'Adds what Microsoft knows about each file to the rows, such as prevalence and signer.',
+      parameters: [
+        { name: 'SHA1', type: 'string' },
+        { name: 'limit', type: 'long' },
+      ],
+    },
+    { name: 'SeenBy', description: 'The onboarded devices that have seen a device through device discovery.', parameters: [{ name: 'DeviceId', type: 'string' }] },
+  ],
+  complexTypes: {},
+};
+
+const ARG_COLUMNS: [string, string][] = [
+  ['id', 'string'],
+  ['name', 'string'],
+  ['type', 'string'],
+  ['tenantId', 'string'],
+  ['location', 'string'],
+  ['resourceGroup', 'string'],
+  ['subscriptionId', 'string'],
+  ['properties', 'dynamic'],
+  ['tags', 'dynamic'],
+];
+
+/** `schema.get {source: "arg"}`: some of the bundled Resource Graph tables (`SchemaView.FromArg`). */
+const argSchema = {
+  source: 'arg',
+  origin: 'builtIn',
+  fallbackReason: null,
+  generatedAt: '2026-10-21T00:00:00Z',
+  tables: [
+    table('Resources', 'Resources in the subscriptions the account can read.', ARG_COLUMNS),
+    table('ResourceContainers', 'Subscriptions, resource groups and management groups.', ARG_COLUMNS),
+    table('AuthorizationResources', 'Role assignments and role definitions.', ARG_COLUMNS),
+    table('SecurityResources', 'Microsoft Defender for Cloud assessments and alerts.', ARG_COLUMNS),
+  ],
+  functions: [],
+  complexTypes: {},
+};
+
+/** `query.run`'s answer for advanced hunting and Resource Graph: no Graph tables, one request in the log (per page). */
+function serverRunResult(source: 'hunting' | 'arg') {
+  const detail = source === 'hunting' ? 'POST security/runHuntingQuery' : 'POST providers/Microsoft.ResourceGraph/resources';
+  return {
+    ...runResult,
+    columns: [
+      { name: 'Timestamp', type: 'datetime' },
+      { name: 'Name', type: 'string' },
+    ],
+    rows: [
+      ['2026-10-21T09:38:12Z', source === 'hunting' ? 't.dahl@contoso.example' : 'stcontosoweb01'],
+      ['2026-10-21T08:57:31Z', source === 'hunting' ? 'svc-backup@contoso.example' : 'stsharedlogs'],
+    ],
+    total: 2,
+    tables: [],
+    diagnostics: [{ atMs: 5, kind: 'request', detail, status: 200, durationMs: 380, bytes: 1024 }],
+  };
+}
+
+/** Built-in hunting and Resource Graph snippets, so the Snippets panel has some for each source. */
+const builtInHuntingSnippet = {
+  id: '5f0e6a6e-6d0a-4a55-9a53-0b7e3a1c0101',
+  source: 'hunting',
+  name: 'Sign-ins from TOR exits',
+  description: 'Successful sign-ins from addresses in the list.',
+  text: 'AADSignInEventsBeta\n| where Timestamp > ago({lookback}) and ErrorCode == 0\n| project Timestamp, AccountUpn, Application, IPAddress, Country',
+  builtIn: true,
+  group: 'Threat hunting',
+  parameters: [{ name: 'lookback', type: 'timespan', value: '7d', required: false, choices: ['1d', '7d', '30d'] }],
+};
+const builtInArgSnippet = {
+  id: '5f0e6a6e-6d0a-4a55-9a53-0b7e3a1c0201',
+  source: 'arg',
+  name: 'Public storage accounts',
+  description: 'Storage accounts that allow public blob access.',
+  text: 'Resources\n| where type =~ "microsoft.storage/storageaccounts"\n| where properties.allowBlobPublicAccess == true\n| project name, resourceGroup, subscriptionId, location',
+  builtIn: true,
+  group: 'Azure posture',
+  parameters: [],
+};
+
 /** `raw.send`'s and `raw.next`'s answer, as the host builds it: never a `Set-Cookie` or `Authorization` header. */
 function rawResponse(url: string, accountKey: string) {
   const body = JSON.stringify({
@@ -161,6 +309,7 @@ interface MockRequest {
     nextLink?: string;
     accountKey?: string;
     options?: QueryOptions | null;
+    source?: string;
   };
 }
 
@@ -271,7 +420,7 @@ export function createMockTransport(): Transport {
         reply(id, { dropped: 0 });
         break;
       case 'snippets.list':
-        reply(id, { snippets: [builtInSnippet, ...userSnippets.values()] });
+        reply(id, { snippets: [builtInSnippet, builtInHuntingSnippet, builtInArgSnippet, ...userSnippets.values()] });
         break;
       case 'snippets.save': {
         const input = params?.snippet;
@@ -304,7 +453,20 @@ export function createMockTransport(): Transport {
         reply(id, {});
         break;
       case 'schema.get':
-        reply(id, schema);
+        // As `SchemaHandler`: Graph's bundled schema, the tenant's hunting schema, the bundled Resource Graph tables.
+        switch (params?.source) {
+          case 'graph':
+            reply(id, schema);
+            break;
+          case 'hunting':
+            reply(id, huntingSchema);
+            break;
+          case 'arg':
+            reply(id, argSchema);
+            break;
+          default:
+            fail(id, 'bad_request', `Unknown source ${params?.source ?? ''}.`);
+        }
         break;
       case 'account.list':
         reply(id, { accounts: [account], cache: 'persistent' });
@@ -333,9 +495,17 @@ export function createMockTransport(): Transport {
         reply(id, null);
         break;
       case 'query.complete':
+        if (params?.source !== 'graph') {
+          fail(id, 'bad_request', 'Completion comes from the editor for this source.');
+          break;
+        }
         reply(id, []);
         break;
       case 'query.explain':
+        if (params?.source !== 'graph') {
+          fail(id, 'bad_request', 'Explain is only available for Microsoft Graph.');
+          break;
+        }
         reply(id, explainView);
         break;
       case 'query.run': {
@@ -347,7 +517,8 @@ export function createMockTransport(): Transport {
         cancelRun(tabId);
         const timer = setTimeout(() => {
           runs.delete(tabId);
-          reply(id, { ...runResult, runId });
+          const source = params?.source;
+          reply(id, { ...(source === 'hunting' || source === 'arg' ? serverRunResult(source) : runResult), runId });
         }, RUN_DELAY_MS);
         runs.set(tabId, { id, timer });
         receive(JSON.stringify({ event: 'query.progress', data: { tabId, runId, stage: 'fetch', detail: 'applications' } }));

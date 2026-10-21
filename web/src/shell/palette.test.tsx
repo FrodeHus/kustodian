@@ -221,4 +221,23 @@ describe('Palette', () => {
     expect(document.activeElement).toBe(editor);
     editor.remove();
   });
+
+  it('palette_shows_each_saved_query_and_snippet_source', async () => {
+    bridge.call.mockImplementation((method: string) =>
+      Promise.resolve(
+        method === 'library.list'
+          ? ({ queries: [{ ...staleGuests, source: 'hunting' }], folders: [], skipped: 0 } satisfies LibraryList)
+          : { snippets: [expiredCreds, { ...expiredCreds, id: 'a1', source: 'arg', name: 'Public storage accounts' }] },
+      ),
+    );
+    render(<Palette onClose={() => undefined} onInsert={() => false} />);
+    await screen.findByText('Snippet: Public storage accounts');
+
+    const row = (text: string) => rows().find((r) => r.textContent?.includes(text))!;
+    expect(within(row('Stale guests')).getByTitle('Defender advanced hunting').textContent).toBe('AH');
+    expect(within(row('Public storage')).getByTitle('Azure Resource Graph').textContent).toBe('ARG');
+    expect(within(row('Expired app')).getByTitle('Microsoft Graph').textContent).toBe('GR');
+    // Commands have no source.
+    expect(within(row('Run all')).queryByTitle(/Graph|hunting/)).toBeNull();
+  });
 });
