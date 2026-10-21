@@ -1,0 +1,64 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build and test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install Photino dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libsecret-1-dev
+
+      - name: Web install
+        run: npm ci
+        working-directory: web
+
+      # oxlint exits 0 on warnings: the known TanStack react(incompatible-library) warning stays open and does not fail CI.
+      - name: Web lint
+        run: npm run lint
+        working-directory: web
+
+      - name: Web typecheck
+        run: npm run typecheck
+        working-directory: web
+
+      - name: Web test
+        run: npm test
+        working-directory: web
+
+      # Vite's chunk-size warning is known and does not fail the build.
+      - name: Web build
+        run: npm run build
+        working-directory: web
+
+      - name: Build
+        run: dotnet build -warnaserror
+
+      - name: Test
+        run: dotnet test
