@@ -1,3 +1,6 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
+
 namespace Kustodian.Storage;
 
 /// <summary>The outcome of reading a user data file. <see cref="Corrupt"/> is true when the file existed but could not be read
@@ -6,8 +9,10 @@ public sealed record UserDataRead<T>(T Value, bool Corrupt);
 
 /// <summary>
 /// One user data file under the store's root, owned by one service: reads and writes go through one gate, so they never
-/// overlap. A missing file reads as <paramref name="defaults"/>; content that doesn't parse, or that
-/// <paramref name="isValid"/> refuses, is moved aside and read as the defaults too, marked corrupt. Writes are atomic
+/// overlap. A missing file reads as <paramref name="defaults"/>. Fields missing from the file (or null in it) load with their
+/// defaults, at every level (<see cref="JsonDefaults.Fill"/>), before <paramref name="isValid"/> sees the value. Content that
+/// doesn't parse, isn't an object, has a value of the wrong type, or that <paramref name="isValid"/> refuses, is moved aside
+/// and read as the defaults too, marked corrupt. Writes are atomic
 /// (<see cref="JsonFileStore.WriteAsync{T}"/>).
 /// </summary>
 public sealed class UserDataFile<T>(JsonFileStore store, string relativePath, Func<T> defaults, Func<T, bool> isValid)
@@ -20,7 +25,7 @@ public sealed class UserDataFile<T>(JsonFileStore store, string relativePath, Fu
         await _gate.WaitAsync(ct);
         try
         {
-            var read = await store.ReadAsync<T?>(relativePath, null, ct);
+            var read = await store.ReadAsync<JsonNode?>(relativePath, null, ct);
             if (read.Corrupt)
             {
                 return new UserDataRead<T>(defaults(), true);
@@ -31,17 +36,39 @@ public sealed class UserDataFile<T>(JsonFileStore store, string relativePath, Fu
                 return new UserDataRead<T>(defaults(), false);
             }
 
-            if (!isValid(read.Value))
+            if (Complete(read.Value) is not { } value || !isValid(value))
             {
                 store.MoveAside(relativePath);
                 return new UserDataRead<T>(defaults(), true);
             }
 
-            return new UserDataRead<T>(read.Value, false);
+            return new UserDataRead<T>(value, false);
         }
         finally
         {
             _gate.Release();
+        }
+    }
+
+    /// <summary>The file's object with the defaults filled in, as <typeparamref name="T"/>; null when it isn't an object or a
+    /// value has the wrong type.</summary>
+    private T? Complete(JsonNode node)
+    {
+        if (node is not JsonObject value)
+        {
+            return null;
+        }
+
+        try
+        {
+            var filled = JsonSerializer.SerializeToNode(defaults(), JsonFileStore.Options) is JsonObject fallback
+                ? JsonDefaults.Fill(value, fallback)
+                : value;
+            return filled.Deserialize<T>(JsonFileStore.Options);
+        }
+        catch (JsonException)
+        {
+            return null;
         }
     }
 

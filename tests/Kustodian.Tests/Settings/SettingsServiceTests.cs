@@ -126,7 +126,8 @@ public sealed class SettingsServiceTests : IDisposable
     [InlineData("{ not json")]
     [InlineData("""{"version":1,"theme":"dark","rawDefaultVersion":"beta","signIn":{},"limits":{"engineWorkers":0}}""")]
     [InlineData("""{"version":2,"theme":"dark","rawDefaultVersion":"beta","signIn":{},"limits":{}}""")]
-    [InlineData("""{"version":1,"theme":"dark","rawDefaultVersion":"beta"}""")]
+    [InlineData("[1, 2]")]
+    [InlineData("""{"limits":{"engineWorkers":"many"}}""")]
     public async Task Corrupt_settings_file_is_moved_aside_and_defaults_used(string content)
     {
         Directory.CreateDirectory(_dir);
@@ -189,10 +190,57 @@ public sealed class SettingsServiceTests : IDisposable
         new SettingsHandler(NewService(), LimitSettings.Default).Register(bridge);
 
         var missing = Parse(await bridge.HandleAsync("""{"id":"a","method":"settings.set","params":{}}"""));
-        var partial = Parse(await bridge.HandleAsync("""{"id":"b","method":"settings.set","params":{"settings":{"theme":"dark"}}}"""));
+        var notAnObject = Parse(await bridge.HandleAsync("""{"id":"b","method":"settings.set","params":{"settings":3}}"""));
+        var wrongType = Parse(await bridge.HandleAsync(
+            """{"id":"c","method":"settings.set","params":{"settings":{"limits":{"engineWorkers":"many"}}}}"""));
 
         Assert.Equal("bad_request", missing.GetProperty("error").GetProperty("code").GetString());
-        Assert.Equal("bad_request", partial.GetProperty("error").GetProperty("code").GetString());
+        Assert.Equal("bad_request", notAnObject.GetProperty("error").GetProperty("code").GetString());
+        Assert.Equal("bad_request", wrongType.GetProperty("error").GetProperty("code").GetString());
+        Assert.False(File.Exists(SettingsPath));
+    }
+
+    [Fact]
+    public async Task Settings_file_missing_fields_loads_them_with_defaults()
+    {
+        Directory.CreateDirectory(_dir);
+        const string content = """{"version":1,"theme":"light","limits":{"graphObjectsPerTable":100000,"engineWorkers":4}}""";
+        await File.WriteAllTextAsync(SettingsPath, content, Ct);
+        var service = NewService();
+
+        var settings = await service.GetAsync(Ct);
+
+        Assert.Equal(2_000, settings.Limits.PerObjectReadsPerTable);
+        Assert.Equal(30, settings.Limits.PerObjectCacheMinutes);
+        Assert.Equal(100_000, settings.Limits.GraphObjectsPerTable);
+        Assert.Equal(4, settings.Limits.EngineWorkers);
+        Assert.Equal(AppSettings.Default with
+        {
+            Theme = "light",
+            Limits = LimitSettings.Default with { GraphObjectsPerTable = 100_000, EngineWorkers = 4 },
+        }, settings);
+        Assert.False(service.MovedAside);
+        Assert.Equal(content, await File.ReadAllTextAsync(SettingsPath, Ct));
+    }
+
+    [Fact]
+    public async Task Settings_set_with_partial_limits_keeps_the_defaults_for_the_missing_ones()
+    {
+        var bridge = new Messaging.Bridge(_ => { });
+        new SettingsHandler(NewService(), LimitSettings.Default).Register(bridge);
+
+        var result = Parse(await bridge.HandleAsync(
+            """{"id":"a","method":"settings.set","params":{"settings":{"theme":"system","limits":{"engineWorkers":3,"perObjectCacheMinutes":null}}}}"""))
+            .GetProperty("result");
+        var stored = await NewService().GetAsync(Ct);
+
+        var expected = AppSettings.Default with { Theme = "system", Limits = LimitSettings.Default with { EngineWorkers = 3 } };
+        Assert.Equal(expected, stored);
+        Assert.Equal(2_000, stored.Limits.PerObjectReadsPerTable);
+        Assert.Equal(30, stored.Limits.PerObjectCacheMinutes);
+        Assert.Equal(3, result.GetProperty("settings").GetProperty("limits").GetProperty("engineWorkers").GetInt32());
+        Assert.Equal(30, result.GetProperty("settings").GetProperty("limits").GetProperty("perObjectCacheMinutes").GetInt32());
+        Assert.Equal("beta", result.GetProperty("settings").GetProperty("rawDefaultVersion").GetString());
     }
 
     [Fact]

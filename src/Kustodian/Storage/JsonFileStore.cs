@@ -9,7 +9,8 @@ public sealed record StoreRead<T>(T Value, bool Corrupt);
 /// <summary>Small JSON files under one root directory. Writes are atomic: a temp file in the same directory, then a rename.</summary>
 public sealed class JsonFileStore(string root)
 {
-    private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web) { WriteIndented = true };
+    /// <summary>How the files are read and written: web defaults (camelCase, names matched ignoring case), indented.</summary>
+    public static JsonSerializerOptions Options { get; } = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
     public string Root { get; } = Path.GetFullPath(root);
 
