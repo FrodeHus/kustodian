@@ -34,8 +34,15 @@ public sealed class JsonFileStore(string root)
         {
         }
 
-        File.Move(path, path + ".corrupt", overwrite: true);
+        MoveAside(relativePath);
         return new StoreRead<T>(fallback, true);
+    }
+
+    /// <summary>Renames the file to <c>*.corrupt</c>, replacing an earlier one.</summary>
+    public void MoveAside(string relativePath)
+    {
+        var path = Resolve(relativePath);
+        File.Move(path, path + ".corrupt", overwrite: true);
     }
 
     public async Task WriteAsync<T>(string relativePath, T value, CancellationToken ct = default)
@@ -51,6 +58,7 @@ public sealed class JsonFileStore(string root)
             {
                 await JsonSerializer.SerializeAsync(stream, value, Options, ct);
                 await stream.FlushAsync(ct);
+                stream.Flush(flushToDisk: true);
             }
 
             File.Move(temp, path, overwrite: true);

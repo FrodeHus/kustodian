@@ -160,7 +160,7 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
     }
 
     /// <summary>The <c>scp</c> claim of a JWT access token, or empty when the token is not a readable JWT.</summary>
-    internal static IReadOnlyList<string> ScopesOf(string accessToken)
+    public static IReadOnlyList<string> ScopesOf(string accessToken)
     {
         var parts = accessToken.Split('.');
         if (parts.Length != 3)
@@ -178,7 +178,7 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
                 ? scp.GetString()!.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 : [];
         }
-        catch (Exception ex) when (ex is FormatException or JsonException)
+        catch (Exception ex) when (ex is FormatException or JsonException or InvalidOperationException)
         {
             return [];
         }
@@ -187,10 +187,23 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
     private async Task<AccountInfo> SignInAsync(
         ClientConfig config, CancellationToken ct, Func<IMsalClient, string, Task<MsalSignIn>> acquire)
     {
+        IMsalClient client;
         await _gate.WaitAsync(ct);
         try
         {
-            var signIn = await acquire(ClientFor(config), Audience.Graph.ScopeFor());
+            client = ClientFor(config);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        // The browser or device-code wait can take minutes: do it outside the gate so other calls are not stalled.
+        var signIn = await acquire(client, Audience.Graph.ScopeFor());
+
+        await _gate.WaitAsync(ct);
+        try
+        {
             var state = await LoadAsync(ct);
             var account = signIn.Account;
             var key = $"{config.ClientId}:{account.HomeAccountId}";
@@ -234,7 +247,14 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
         if (_state is null)
         {
             var read = await store.ReadAsync(FileName, new FileModel(null, []), ct);
-            _state = new State { ActiveKey = read.Value.ActiveKey, Accounts = [.. read.Value.Accounts] };
+            var model = read.Value;
+            if (model.Accounts is null || model.Accounts.Any(a => a is null || a.Info is null))
+            {
+                store.MoveAside(FileName);
+                model = new FileModel(null, []);
+            }
+
+            _state = new State { ActiveKey = model.ActiveKey, Accounts = [.. model.Accounts] };
             _activeKey = _state.ActiveKey;
         }
 

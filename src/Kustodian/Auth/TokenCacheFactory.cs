@@ -53,8 +53,7 @@ public static class TokenCacheFactory
             cache.Verify();
             return new Persistent(cache);
         }
-        catch (Exception ex) when (ex is MsalCachePersistenceException or InvalidOperationException or PlatformNotSupportedException
-                                       or IOException or UnauthorizedAccessException or DllNotFoundException)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return new MemoryOnly($"The OS secure store is not available ({ex.GetType().Name}: {ex.Message}).");
         }

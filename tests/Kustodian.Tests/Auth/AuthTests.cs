@@ -192,6 +192,78 @@ public class AuthTests : IDisposable
         Assert.Equal("go to https://microsoft.com/devicelogin and enter CODE", shown);
     }
 
+    [Fact]
+    public async Task Other_calls_complete_while_a_sign_in_is_blocked()
+    {
+        var msal = new FakeMsal();
+        var service = NewService(msal);
+        await service.SignInInteractiveAsync(ClientConfig.AzureCli, TestContext.Current.CancellationToken);
+        msal.Block = new TaskCompletionSource();
+        msal.Next = ("home-2", "bob@fabrikam.com", "tenant-2");
+
+        var pending = service.SignInInteractiveAsync(ClientConfig.AzureCli, TestContext.Current.CancellationToken);
+        Assert.False(pending.IsCompleted);
+
+        var token = service.GetTokenAsync(Audience.Graph, TestContext.Current.CancellationToken);
+        var list = service.ListAccountsAsync();
+        var done = await Task.WhenAny(Task.WhenAll(token, list), Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+        Assert.True(token.IsCompletedSuccessfully && list.IsCompletedSuccessfully, "calls were stalled by the sign-in");
+        Assert.NotNull(done);
+
+        msal.Block.SetResult();
+        await pending;
+        Assert.Equal(2, (await service.ListAccountsAsync()).Count);
+    }
+
+    [Fact]
+    public async Task Cache_any_failure_means_memory_only_but_cancellation_propagates()
+    {
+        var status = await TokenCacheFactory.TryCreateAsync(_dir, _ => throw new FormatException("odd"));
+        Assert.IsType<MemoryOnly>(status);
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            TokenCacheFactory.TryCreateAsync(_dir, _ => throw new OperationCanceledException()));
+    }
+
+    [Theory]
+    [InlineData("scp0", "a b")]
+    [InlineData("scp2", "a")]
+    [InlineData("scp3", "ab c")]
+    public void ScopesOf_reads_scp_for_all_padding_remainders(string name, string scp)
+    {
+        var payload = Convert.ToBase64String(Encoding.UTF8.GetBytes("{\"scp\":\"" + scp + "\",\"x\":\"" + name + "\"}"))
+            .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+        Assert.Equal(scp.Split(' '), AccountService.ScopesOf($"h.{payload}.s"));
+    }
+
+    [Theory]
+    [InlineData("h.A.s")]
+    [InlineData("h.bm90LWpzb24.s")]
+    [InlineData("h.e30.s")]
+    [InlineData("h.e30")]
+    [InlineData("a.b.c.d.e")]
+    [InlineData("h.W10.s")]
+    [InlineData("h.NDI.s")]
+    public void ScopesOf_returns_empty_for_unreadable_tokens(string token) =>
+        Assert.Empty(AccountService.ScopesOf(token));
+
+    [Fact]
+    public async Task Accounts_file_with_null_accounts_or_entries_is_treated_as_corrupt()
+    {
+        Directory.CreateDirectory(_dir);
+        foreach (var json in new[] { """{"activeKey":null,"accounts":null}""", """{"activeKey":"k","accounts":[null]}""" })
+        {
+            await File.WriteAllTextAsync(Path.Combine(_dir, "accounts.json"), json, TestContext.Current.CancellationToken);
+            var service = NewService(new FakeMsal());
+
+            Assert.Empty(await service.ListAccountsAsync());
+            Assert.Null(service.ActiveAccountKey);
+            Assert.False(File.Exists(Path.Combine(_dir, "accounts.json")));
+            Assert.True(File.Exists(Path.Combine(_dir, "accounts.json.corrupt")));
+        }
+    }
+
     private AccountService NewService(FakeMsal msal) => new(_ => msal, new JsonFileStore(_dir));
 
     private sealed class FixedTokens(string token) : ITokenSource
@@ -252,13 +324,23 @@ public class AuthTests : IDisposable
 
         public bool SilentNeedsUi { get; set; }
 
+        public TaskCompletionSource? Block { get; set; }
+
         public bool ForgetAccounts { get; set; }
 
         public List<string> Removed { get; } = [];
 
         public string LastJwt { get; private set; } = "";
 
-        public Task<MsalSignIn> AcquireInteractiveAsync(string scope, CancellationToken ct) => Task.FromResult(SignIn());
+        public async Task<MsalSignIn> AcquireInteractiveAsync(string scope, CancellationToken ct)
+        {
+            if (Block is not null)
+            {
+                await Block.Task;
+            }
+
+            return SignIn();
+        }
 
         public Task<MsalSignIn> AcquireDeviceCodeAsync(string scope, Action<string> showCode, CancellationToken ct)
         {
