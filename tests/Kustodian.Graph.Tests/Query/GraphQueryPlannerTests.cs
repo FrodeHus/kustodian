@@ -357,4 +357,51 @@ public sealed class GraphQueryPlannerTests
         Assert.Equal("Only Microsoft Graph tables can be queried.", plan.Error?.Message);
         Assert.Empty(plan.Fetches);
     }
+    [Theory]
+    [InlineData("servicePrincipals | take 10", 10)]
+    [InlineData("servicePrincipals | limit 10", 10)]
+    [InlineData("servicePrincipals | where accountEnabled == true | take 10", 10)]
+    [InlineData("servicePrincipals | where accountEnabled == true | where appId == 'a' | limit 3 | project displayName", 3)]
+    [InlineData("servicePrincipals | take 2000", 2000)]
+    public void A_take_after_only_pushed_filters_is_a_row_limit(string kql, int top)
+    {
+        var plan = Plan(kql);
+
+        Assert.True(plan.CanRun, plan.Error?.Message ?? plan.Refusal);
+        Assert.Equal(top, Fetch(plan, "servicePrincipals").Top);
+    }
+
+    [Theory]
+    [InlineData("servicePrincipals")]
+    [InlineData("servicePrincipals | where displayName has 'x' | take 10")]
+    [InlineData("servicePrincipals | where accountEnabled == true and displayName has 'x' | take 10")]
+    [InlineData("servicePrincipals | where accountEnabled == true | where displayName has 'x' | take 10")]
+    [InlineData("servicePrincipals | extend x = 1 | take 10")]
+    [InlineData("servicePrincipals | project displayName | take 10")]
+    [InlineData("servicePrincipals | sort by displayName | take 10")]
+    [InlineData("servicePrincipals | top 10 by displayName")]
+    [InlineData("servicePrincipals | summarize count() by appId | take 10")]
+    [InlineData("servicePrincipals | mv-expand x = dynamic([1, 2]) | take 10")]
+    [InlineData("servicePrincipals | take 0")]
+    [InlineData("let n = 10; servicePrincipals | take n * 2")]
+    [InlineData("union servicePrincipals, (servicePrincipals | where accountEnabled == true) | take 10")]
+    [InlineData("servicePrincipals | join (servicePrincipals | take 10) on appId")]
+    [InlineData("let sps = servicePrincipals; sps | take 10")]
+    public void No_row_limit_when_anything_local_comes_before_the_take(string kql)
+    {
+        var plan = Plan(kql);
+
+        Assert.True(plan.CanRun, plan.Error?.Message ?? plan.Refusal);
+        Assert.Null(Fetch(plan, "servicePrincipals").Top);
+    }
+
+    [Fact]
+    public void A_take_inside_a_join_limits_only_that_side()
+    {
+        var plan = Plan("applications | join (servicePrincipals | take 5) on appId");
+
+        Assert.True(plan.CanRun, plan.Error?.Message ?? plan.Refusal);
+        Assert.Equal(5, Fetch(plan, "servicePrincipals").Top);
+        Assert.Null(Fetch(plan, "applications").Top);
+    }
 }

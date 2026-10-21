@@ -286,12 +286,14 @@ export interface LocalCondition {
   reason: string;
 }
 
-/** What a Graph run would ask one table for. `url` is relative to the Graph version (Graph KQL tabs always use beta). */
+/** What a Graph run would ask one table for. `url` is relative to the Graph version (Graph KQL tabs always use beta). `top`: the
+ * query's `take` sent to Graph as `$top`; the read stops after that many objects. */
 export interface ExplainTable {
   table: string;
   url: string;
   select: string[];
   filter: string | null;
+  top: number | null;
   pushed: string[];
   local: LocalCondition[];
   perObject: string[];

@@ -81,6 +81,132 @@ public sealed class GraphCollectionReaderTests
     }
 
     [Fact]
+    public async Task A_row_limit_sends_top_and_stops_after_one_page()
+    {
+        var handler = new Scripted((_, n) => Json(HttpStatusCode.OK, Page(n * 10, 10, Next + n)));
+        var diagnostics = new RunDiagnostics(TimeProvider.System);
+
+        var result = await Read(Reader(handler), Fetch() with { Top = 10 }, diagnostics: diagnostics);
+
+        Assert.Equal(1, handler.Calls);
+        Assert.EndsWith("&$top=10", result.Requests.Single(), StringComparison.Ordinal);
+        Assert.Equal(10, result.Objects.Count);
+        Assert.Contains("applications: stopped after 10 objects (the query takes 10)", OfKind(diagnostics, DiagnosticKinds.Request).Select(e => e.Detail));
+    }
+
+    [Fact]
+    public async Task A_row_limit_with_a_pushed_filter_sends_both_and_stops_after_one_page()
+    {
+        var handler = new Scripted((_, n) => Json(HttpStatusCode.OK, Page(n * 10, 10, Next + n)));
+
+        var result = await Read(Reader(handler), Fetch(filter: "accountEnabled eq true") with { Top = 10 });
+
+        Assert.Equal(1, handler.Calls);
+        Assert.Contains("$filter=" + Uri.EscapeDataString("accountEnabled eq true"), result.Requests[0]);
+        Assert.EndsWith("&$top=10", result.Requests[0], StringComparison.Ordinal);
+        Assert.Equal(10, result.Objects.Count);
+    }
+
+    // Graph doesn't always honour $top: no more than the limit is kept either way.
+    [Fact]
+    public async Task A_row_limit_keeps_no_more_objects_than_it_asked_for()
+    {
+        var handler = new Scripted((_, n) => Json(HttpStatusCode.OK, Page(n * 100, 100, Next + n)));
+
+        var result = await Read(Reader(handler), Fetch() with { Top = 10 });
+
+        Assert.Equal(1, handler.Calls);
+        Assert.Equal(Enumerable.Range(0, 10).Select(i => i.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            result.Objects.Select(o => (string)o["id"]!));
+    }
+
+    [Fact]
+    public async Task A_row_limit_over_a_page_reads_pages_until_it_has_enough()
+    {
+        var handler = new Scripted((_, n) => Json(HttpStatusCode.OK, Page(n * 999, 999, Next + n)));
+
+        var result = await Read(Reader(handler), Fetch() with { Top = 1500 });
+
+        Assert.Equal(2, handler.Calls);
+        Assert.EndsWith("&$top=999", result.Requests[0], StringComparison.Ordinal);
+        Assert.Equal(1500, result.Objects.Count);
+    }
+
+    [Fact]
+    public async Task A_row_limit_reads_every_page_when_graph_refuses_the_filter()
+    {
+        var handler = new Scripted((r, n) => r.RequestUri!.Query.Contains("$filter")
+            ? Json(HttpStatusCode.BadRequest, Error("Request_UnsupportedQuery", "Unsupported or invalid query filter clause."))
+            : Json(HttpStatusCode.OK, n < 3 ? Page(n * 10, 10, Next + n) : Page(30, 5)));
+
+        var result = await Read(Reader(handler), Fetch(filter: "accountEnabled eq true") with { Top = 10 });
+
+        // Unfiltered, the first rows aren't the query's: the where runs locally over the whole collection.
+        Assert.True(result.Unfiltered);
+        Assert.EndsWith("&$top=999", result.Requests[1], StringComparison.Ordinal);
+        Assert.Equal(4, result.Requests.Count);
+    }
+
+    private static HttpResponseMessage RefusesTop(HttpRequestMessage request, int n) => request.RequestUri!.Query.Contains("$top")
+        ? Json(HttpStatusCode.BadRequest, Error("BadRequest",
+            "The query specified in the URI is not valid. Query option 'Top' is not allowed. To allow it, set the 'AllowedQueryOptions' property."))
+        : Json(HttpStatusCode.OK, Page(n * 20, 20, Next + n));
+
+    [Fact]
+    public async Task A_top_refusal_reads_again_without_it_still_stops_early_and_is_remembered()
+    {
+        var probes = await ListingEverything();
+        var handler = new Scripted(RefusesTop);
+        var diagnostics = new RunDiagnostics(TimeProvider.System);
+
+        var result = await Read(Reader(handler, probes: probes), Fetch(filter: "accountEnabled eq true") with { Top = 10 },
+            diagnostics: diagnostics);
+
+        Assert.Equal(2, result.Requests.Count);
+        Assert.DoesNotContain("$top", result.Requests[1]);
+        Assert.Contains("$filter=", result.Requests[1]);
+        Assert.False(result.Unfiltered);
+        Assert.Equal(10, result.Objects.Count);
+        Assert.Contains("applications: Graph refused $top; reading without it", OfKind(diagnostics, DiagnosticKinds.Probe).Select(e => e.Detail));
+        Assert.True(await probes.RefusesTopAsync(Account, "applications", CancellationToken.None));
+
+        var again = new Scripted(RefusesTop);
+        var second = await Read(Reader(again, probes: probes), Fetch() with { Top = 10 });
+
+        Assert.Equal(1, again.Calls);
+        Assert.DoesNotContain("$top", second.Requests.Single());
+        Assert.Equal(10, second.Objects.Count);
+    }
+
+    // Refused for $top=999 as well: a read without a row limit leaves it out too.
+    [Fact]
+    public async Task A_top_refusal_without_a_row_limit_reads_every_page_without_it()
+    {
+        var probes = await ListingEverything();
+        var handler = new Scripted((r, n) => r.RequestUri!.Query.Contains("$top") ? RefusesTop(r, n)
+            : Json(HttpStatusCode.OK, n < 4 ? Page(n * 20, 20, Next + n) : Page(80, 5)));
+
+        var result = await Read(Reader(handler, probes: probes), Fetch());
+
+        Assert.Equal(65, result.Objects.Count);
+        Assert.All(result.Requests.Skip(1), r => Assert.DoesNotContain("$top", r));
+        Assert.True(await probes.RefusesTopAsync(Account, "applications", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Refresh_sends_a_refused_top_again_and_forgets_the_refusal_when_graph_takes_it()
+    {
+        var probes = await ListingEverything();
+        await probes.SetRefusesTopAsync(Account, "applications", true, CancellationToken.None);
+        var handler = new Scripted((_, _) => Json(HttpStatusCode.OK, Page(0, 10)));
+
+        var result = await Read(Reader(handler, probes: probes), Fetch() with { Top = 10 }, refresh: true);
+
+        Assert.EndsWith("&$top=10", result.Requests.Last(), StringComparison.Ordinal);
+        Assert.False(await probes.RefusesTopAsync(Account, "applications", CancellationToken.None));
+    }
+
+    [Fact]
     public async Task Encodes_the_whole_filter_and_select()
     {
         const string filter = "startsWith(displayName,'a&b#c+d%') and displayName ne 'it''s'";

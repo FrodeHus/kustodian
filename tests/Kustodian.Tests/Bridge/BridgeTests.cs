@@ -362,7 +362,7 @@ public class BridgeTests
         Assert.Equal(JsonValueKind.Null, view.GetProperty("refusal").ValueKind);
         var table = Assert.Single(view.GetProperty("tables").EnumerateArray().ToList());
         Assert.Equal(
-            ["table", "url", "select", "filter", "pushed", "local", "perObject", "permissions", "docsUrl"],
+            ["table", "url", "select", "filter", "top", "pushed", "local", "perObject", "permissions", "docsUrl"],
             table.EnumerateObject().Select(p => p.Name));
         Assert.Equal("applications", table.GetProperty("table").GetString());
         Assert.Equal("displayName eq 'Payroll'", table.GetProperty("filter").GetString());

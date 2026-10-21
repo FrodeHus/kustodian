@@ -153,6 +153,16 @@ function TablePlan({ table, onCopy, onOpenRaw }: TablePlanProps) {
         </ul>
       </Field>
       <Field label="$filter">{table.filter ? <span className="codeblock whitespace-pre-wrap">{table.filter}</span> : <None>None: every object is read.</None>}</Field>
+      <Field label="Row limit">
+        {table.top !== null ? (
+          <span>
+            <span className="mono">take {table.top.toLocaleString('en-US')}</span> sent to Graph as $top; the read stops after{' '}
+            {table.top.toLocaleString('en-US')} objects.
+          </span>
+        ) : (
+          <None>None: every page is read.</None>
+        )}
+      </Field>
       <Field label="Sent to Graph">
         {table.pushed.length > 0 ? (
           <ul aria-label="Sent to Graph" className="m-0 flex list-none flex-col gap-1 p-0">

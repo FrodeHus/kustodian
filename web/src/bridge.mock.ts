@@ -71,6 +71,7 @@ const explainView = {
       url: "applications?$select=displayName%2CappId%2CcreatedDateTime%2Cid&$filter=displayName%20eq%20'Payroll'&$top=999",
       select: ['displayName', 'appId', 'createdDateTime', 'id'],
       filter: "displayName eq 'Payroll'",
+      top: null,
       pushed: ["displayName == 'Payroll'"],
       local: [{ condition: "appId has 'abc'", reason: "Graph doesn't allow this operator on appId" }],
       perObject: [],

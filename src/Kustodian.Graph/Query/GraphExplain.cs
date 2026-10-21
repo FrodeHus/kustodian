@@ -6,10 +6,11 @@ namespace Kustodian.Graph.Query;
 
 /// <summary>What a run would ask Graph for from one table. <see cref="Url"/> is the first page's URL relative to the Graph
 /// version, exactly as the reader sends it (<see cref="GraphCollectionReader.FirstPageUrl"/>); <see cref="Pushed"/> and
-/// <see cref="Local"/> are the query's <c>where</c> conditions sent to Graph and run locally (with why);
+/// <see cref="Local"/> are the query's <c>where</c> conditions sent to Graph and run locally (with why); <see cref="Top"/> the row
+/// limit sent to Graph as <c>$top</c> (<see cref="GraphFetch.Top"/>), after which the read stops;
 /// <see cref="PerObject"/> the columns read one object at a time; <see cref="Permissions"/> the least-privileged delegated
 /// permissions for listing the table.</summary>
-public sealed record ExplainTable(string Table, string Url, IReadOnlyList<string> Select, string? Filter, IReadOnlyList<string> Pushed,
+public sealed record ExplainTable(string Table, string Url, IReadOnlyList<string> Select, string? Filter, int? Top, IReadOnlyList<string> Pushed,
     IReadOnlyList<LocalCondition> Local, IReadOnlyList<string> PerObject, IReadOnlyList<string> Permissions, string DocsUrl);
 
 /// <summary>The limits a run reads within (<see cref="GraphLimits"/>), the fetch budget in megabytes.</summary>
@@ -60,8 +61,8 @@ public static class GraphExplain
     private static ExplainTable Describe(GraphFetch fetch, FilterExplanation filter)
     {
         var table = fetch.Table;
-        return new ExplainTable(table.Name, GraphCollectionReader.FirstPageUrl(table.Path, fetch.Select, fetch.Filter), fetch.Select,
-            fetch.Filter, filter.Pushed, filter.Local, fetch.Unreadable, table.Permissions, table.DocsUrl);
+        return new ExplainTable(table.Name, GraphCollectionReader.FirstPageUrl(table.Path, fetch.Select, fetch.Filter, fetch.Top),
+            fetch.Select, fetch.Filter, fetch.Top, filter.Pushed, filter.Local, fetch.Unreadable, table.Permissions, table.DocsUrl);
     }
 
     private static ExplainLimits Limits(GraphLimits limits) =>

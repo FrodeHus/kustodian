@@ -482,6 +482,7 @@ describe('App', () => {
           url: 'applications?$select=id&$top=999',
           select: ['id'],
           filter: null,
+          top: null,
           pushed: [],
           local: [],
           perObject: [],

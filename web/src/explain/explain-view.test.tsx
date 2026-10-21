@@ -22,6 +22,7 @@ const plan: ExplainResult = {
       url: "users?$select=id,displayName,signInActivity&$filter=userType eq 'Guest'&$top=999",
       select: ['id', 'displayName', 'signInActivity'],
       filter: "userType eq 'Guest'",
+      top: null,
       pushed: ['userType == "Guest"'],
       local: [{ condition: 'displayName has "contractor"', reason: '`has` can’t be expressed in $filter.' }],
       perObject: ['signInActivity'],
@@ -66,6 +67,22 @@ describe('ExplainView', () => {
 
     fireEvent.click(within(table).getByRole('button', { name: 'Open in a raw request tab' }));
     expect(onOpenRaw).toHaveBeenCalledWith(plan.tables[0]!.url);
+  });
+
+  it('explain_shows_the_row_limit_sent_to_graph', async () => {
+    bridge.call.mockResolvedValue({ ...plan, tables: [{ ...plan.tables[0]!, url: 'users?$select=id&$top=10', top: 10 }] });
+    render(<ExplainView request={request} />);
+
+    const table = await screen.findByRole('region', { name: 'users' });
+    expect(within(table).getByText(/sent to Graph as \$top; the read stops after 10 objects\./)).toBeTruthy();
+  });
+
+  it('explain_without_a_row_limit_says_every_page_is_read', async () => {
+    bridge.call.mockResolvedValue(plan);
+    render(<ExplainView request={request} />);
+
+    const table = await screen.findByRole('region', { name: 'users' });
+    expect(within(table).getByText('None: every page is read.')).toBeTruthy();
   });
 
   it('explain_url_is_copyable', async () => {
