@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { BridgeError, call, on } from '../bridge';
 import { errorText } from '../shell/errors';
 import type { EntraAppCreateResult, EntraAppPlan, EntraAppStep } from '../wire';
+import { CreatedView } from './created-view';
 import { PermissionList } from './permission-list';
-import { allPermissions, permKey } from './permission-plan';
+import { allPermissions, isSignInNeeded, permKey } from './permission-plan';
 
 const STEPS: { id: EntraAppStep; label: string }[] = [
   { id: 'lookUp', label: 'Looking up the permissions' },
@@ -17,9 +18,9 @@ type Phase = 'loading' | 'choose' | 'creating' | 'failed' | 'created';
 /**
  * "Create Entra ID application" (spec 5.3, 5.4; mockup EntraApp): choose the permissions, name the app and create it.
  * Nothing is created until Create. While it runs the dialog can't be closed, so the request is never orphaned.
- * `onSwitched` fires once the user has signed in with the new app (Task 6's created view).
+ * `onSwitched` fires once the user has signed in with the new app (the created view's "Switch and sign in").
  */
-export function CreateAppDialog({ onClose }: { onClose: () => void; onSwitched: () => void }) {
+export function CreateAppDialog({ onClose, onSwitched }: { onClose: () => void; onSwitched: () => void }) {
   const [phase, setPhase] = useState<Phase>('loading');
   const [plan, setPlan] = useState<EntraAppPlan | null>(null);
   const [planError, setPlanError] = useState<string | null>(null);
@@ -27,10 +28,13 @@ export function CreateAppDialog({ onClose }: { onClose: () => void; onSwitched: 
   const [typedName, setName] = useState<string | null>(null);
   const [step, setStep] = useState<EntraAppStep | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  /** The sign-in is gone: the problem can't be fixed from the permissions, so the dialog only offers Close. */
+  const [signInGone, setSignInGone] = useState(false);
   const [result, setResult] = useState<EntraAppCreateResult | null>(null);
 
   const name = (typedName ?? plan?.defaultName ?? '').trim();
   const idle = phase !== 'creating';
+  const dialog = useRef<HTMLElement>(null);
 
   useEffect(() => {
     let live = true;
@@ -60,6 +64,46 @@ export function CreateAppDialog({ onClose }: { onClose: () => void; onSwitched: 
       off();
     };
   }, []);
+
+  // Focus goes into the dialog: the name field to choose with, the primary action in the later phases. It stays inside while
+  // the dialog is open (Tab goes round it, and focus that lands behind it comes back).
+  useEffect(() => {
+    if (planError !== null || (phase !== 'loading' && plan !== null)) {
+      const target = dialog.current?.querySelector<HTMLElement>('[data-autofocus]');
+      if (target && !target.hasAttribute('disabled')) {
+        target.focus();
+      }
+    }
+  }, [phase, plan, planError, signInGone]);
+
+  useEffect(() => {
+    const onFocusIn = (e: FocusEvent) => {
+      if (e.target instanceof Node && !dialog.current?.contains(e.target)) {
+        dialog.current?.querySelector<HTMLElement>('[data-autofocus], button:not(:disabled), input:not(:disabled)')?.focus();
+      }
+    };
+    document.addEventListener('focusin', onFocusIn);
+    return () => document.removeEventListener('focusin', onFocusIn);
+  }, []);
+
+  const trapTab = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Tab') {
+      return;
+    }
+    const items = [...(dialog.current?.querySelectorAll<HTMLElement>('button, input, a[href], select, textarea, [tabindex]') ?? [])].filter(
+      (el) => !el.hasAttribute('disabled') && el.tabIndex >= 0,
+    );
+    if (items.length === 0) {
+      return;
+    }
+    const at = items.findIndex((el) => el === document.activeElement);
+    const next = at === -1 ? 0 : (at + (e.shiftKey ? -1 : 1) + items.length) % items.length;
+    // Only the ends wrap by hand; the browser moves through the rest in order.
+    if (at === -1 || (!e.shiftKey && at === items.length - 1) || (e.shiftKey && at === 0)) {
+      e.preventDefault();
+      items[next]?.focus();
+    }
+  };
 
   // Esc closes the dialog, but not while it is creating.
   useEffect(() => {
@@ -102,6 +146,7 @@ export function CreateAppDialog({ onClose }: { onClose: () => void; onSwitched: 
     setPhase('creating');
     setStep(null);
     setProblem(null);
+    setSignInGone(false);
     call<EntraAppCreateResult>('entraApp.create', { name, permissions: chosen.map((p) => ({ resource: p.resource, name: p.name })) }).then(
       (r) => {
         setResult(r);
@@ -109,6 +154,7 @@ export function CreateAppDialog({ onClose }: { onClose: () => void; onSwitched: 
       },
       (e: unknown) => {
         // An error means nothing was created (a partial creation comes back as a result), so the ticks stay.
+        setSignInGone(isSignInNeeded(e));
         setProblem(e instanceof BridgeError && e.code === 'cancelled' ? 'The request was cancelled.' : errorText(e));
         setPhase('failed');
       },
@@ -123,6 +169,8 @@ export function CreateAppDialog({ onClose }: { onClose: () => void; onSwitched: 
     <div className="fixed inset-0 z-10">
       <div className="scrim" data-testid="create-app-scrim" onClick={() => idle && onClose()} />
       <section
+        ref={dialog}
+        onKeyDown={trapTab}
         role="dialog"
         aria-modal="true"
         aria-label="Create Entra ID application"
@@ -138,7 +186,7 @@ export function CreateAppDialog({ onClose }: { onClose: () => void; onSwitched: 
             <span className="text-[12px] text-bad" role="alert">
               {planError}
             </span>
-            <button type="button" className="btn" onClick={onClose}>
+            <button type="button" className="btn" data-autofocus="" onClick={onClose}>
               Close
             </button>
           </div>
@@ -162,28 +210,20 @@ export function CreateAppDialog({ onClose }: { onClose: () => void; onSwitched: 
                   {problem}
                 </span>
                 <span className="muted">Nothing was created.</span>
-                <button type="button" className="btn primary" onClick={() => setPhase('choose')}>
-                  Back to permissions
-                </button>
+                {signInGone ? (
+                  <button type="button" className="btn primary" data-autofocus="" onClick={onClose}>
+                    Close
+                  </button>
+                ) : (
+                  <button type="button" className="btn primary" data-autofocus="" onClick={() => setPhase('choose')}>
+                    Back to permissions
+                  </button>
+                )}
               </>
             )}
           </div>
         ) : phase === 'created' && result !== null ? (
-          <div className="flex flex-1 flex-col items-start gap-3 p-6">
-            <b>{name} was created</b>
-            <div className="flex gap-2.5 text-[12.5px]">
-              <span className="muted w-[100px]">Client ID</span>
-              <span className="mono">{result.appId}</span>
-            </div>
-            {result.servicePrincipalId === null && (
-              <span className="text-[12px] text-warn" role="alert">
-                {result.servicePrincipalMessage ?? 'The service principal could not be created.'}
-              </span>
-            )}
-            <button type="button" className="btn" onClick={onClose}>
-              Close
-            </button>
-          </div>
+          <CreatedView name={name} initial={result} listed={chosen.length} onClose={onClose} onSwitched={onSwitched} />
         ) : (
           <div className="flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col border-r border-line">
@@ -208,12 +248,12 @@ export function CreateAppDialog({ onClose }: { onClose: () => void; onSwitched: 
             <div className="flex w-[400px] shrink-0 flex-col gap-3.5 overflow-auto px-5 py-[18px]">
               <div className="field">
                 <label htmlFor="entra-app-name">Name</label>
-                <input id="entra-app-name" className="textbox" value={typedName ?? plan.defaultName} onChange={(e) => setName(e.target.value)} />
+                <input id="entra-app-name" className="textbox" data-autofocus="" value={typedName ?? plan.defaultName} onChange={(e) => setName(e.target.value)} />
               </div>
               <b className="text-[13px]">What will be created</b>
               <div className="card flex flex-col gap-2 bg-panel2 px-3.5 py-3">
                 <b>App registration</b>
-                <Row label="Who can sign in">{plan.tenantName ? `Only ${plan.tenantName}` : 'Only your tenant'}</Row>
+                <Row label="Who can sign in">{plan.tenantName ? `Only ${plan.tenantName} (${plan.tenantId})` : 'Only your tenant'}</Row>
                 <Row label="Type">Public client (desktop)</Row>
                 <Row label="Public client flows">On (device code)</Row>
                 <Row label="Owner">you</Row>

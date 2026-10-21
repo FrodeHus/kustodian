@@ -20,6 +20,7 @@ import { bindGlobalKeys, registerCommands, runCommand, type Command } from './sh
 import { errorText } from './shell/errors';
 import { MOD } from './shell/keys';
 import { Palette } from './shell/palette';
+import { canOfferCreateApp } from './signin/permission-plan';
 import { chooseTheme, useTheme, type Theme } from './shell/theme';
 import { TitleBar } from './shell/title-bar';
 import { SignIn } from './signin/sign-in';
@@ -159,6 +160,9 @@ export function App() {
   /** A notice that stays for the rest of the window's life: it has no Dismiss. */
   const [lasting, setLasting] = useState<string | null>(null);
   const [accountsOpen, setAccountsOpen] = useState(false);
+  /** "Create Entra ID application" is open over the sign-in screen. */
+  const [createAppOpen, setCreateAppOpen] = useState(false);
+  const createAppAllowed = useRef(false);
   const [accountsError, setAccountsError] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [panel, setPanel] = useState<PanelName>('schema');
@@ -283,6 +287,17 @@ export function App() {
         // It lists itself: chosen from the open palette it would only open it again.
         enabled: () => !paletteShown.current,
       },
+      {
+        id: 'account.createEntraApp',
+        title: 'Create Entra ID application',
+        group: 'Account',
+        run: () => {
+          setSettingsOpen(false);
+          setAccountsOpen(true);
+          setCreateAppOpen(true);
+        },
+        enabled: () => createAppAllowed.current,
+      },
       { id: 'tab.new', title: 'New Microsoft Graph query', group: 'Tabs', shortcut: 'Mod+T', run: () => useTabs.getState().open('graph') },
       { id: 'tab.newRaw', title: 'New raw Graph request', group: 'Tabs', run: () => openRaw() },
       {
@@ -374,6 +389,9 @@ export function App() {
 
   const account = accounts?.accounts.find((a) => a.active);
   const accountKey = account?.key;
+  useEffect(() => {
+    createAppAllowed.current = canOfferCreateApp(account);
+  }, [account]);
   const graphSchema = useSchemas((s) => s.byKey.graph);
   const schemas = useSchemas((s) => s.byKey);
   const resourceTypes = useSchemas((s) => s.resourceTypes);
@@ -515,6 +533,8 @@ export function App() {
           }}
           onBack={account && !accountsError ? () => setAccountsOpen(false) : undefined}
           defaults={settings?.settings.signIn}
+          createAppOpen={createAppOpen}
+          onCreateAppOpen={setCreateAppOpen}
         />
       )}
       {settingsOpen && (
@@ -590,6 +610,7 @@ export function App() {
                       scope={active.run?.options?.scope}
                       onSignIn={() => setAccountsOpen(true)}
                       accountKey={accountKey}
+                      createApp={canOfferCreateApp(account)}
                       onConsented={() => void useTabs.getState().rerun(active.id)}
                     />
                     {explaining ? (

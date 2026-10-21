@@ -1,4 +1,9 @@
-import type { PlannedGroup, PlannedPermission } from '../wire';
+import { BridgeError } from '../bridge';
+import { AZURE_CLI_CLIENT_ID, type AccountInfo, type PlannedGroup, type PlannedPermission } from '../wire';
+
+/** "Create Entra ID application" is offered for the Azure CLI client with a token that hasn't expired (spec 6.1). */
+export const canOfferCreateApp = (account: AccountInfo | undefined): boolean =>
+  account !== undefined && !account.expired && account.clientId.toLowerCase() === AZURE_CLI_CLIENT_ID;
 
 /** A permission's identity: its resource and name (a name alone repeats across resources). */
 export const permKey = (p: Pick<PlannedPermission, 'resource' | 'name'>): string => `${p.resource}|${p.name}`;
@@ -18,3 +23,6 @@ export function lostTables(permission: PlannedPermission, groups: PlannedGroup[]
 export function allPermissions(groups: PlannedGroup[]): PlannedPermission[] {
   return groups.flatMap((g) => g.subgroups.flatMap((s) => s.permissions));
 }
+
+/** The host answered `signInNeeded`: the sign-in expired or is missing, so nothing more can be asked of it. */
+export const isSignInNeeded = (e: unknown): boolean => e instanceof BridgeError && e.code === 'signInNeeded';

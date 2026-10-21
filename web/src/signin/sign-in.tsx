@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { call, on } from '../bridge';
-import { AZURE_CLI_CLIENT_ID, type AccountInfo, type AccountList } from '../wire';
+import { AZURE_CLI_CLIENT_ID, type AccountInfo, type AccountList, type EntraAppPlan } from '../wire';
+import { CreateAppDialog } from './create-app-dialog';
+import { canOfferCreateApp } from './permission-plan';
 
 function clientLabel(clientId: string): string {
   return clientId === AZURE_CLI_CLIENT_ID ? 'Azure CLI client' : `client ${clientId.slice(0, 4)}…${clientId.slice(-4)}`;
@@ -16,10 +18,16 @@ interface SignInProps {
   error?: string | null;
   /** The settings' default client ID and tenant: with a client ID, "My own app registration" starts chosen and filled in. */
   defaults?: { clientId: string | null; tenant: string | null };
+  /** "Create Entra ID application" is open (the palette command opens the screen with it open). Kept here when not given. */
+  createAppOpen?: boolean;
+  onCreateAppOpen?: (open: boolean) => void;
 }
 
 /** Sign-in and accounts (spec 6.7, mockup SignIn). */
-export function SignIn({ list, onChanged, onBack, error: listError = null, defaults }: SignInProps) {
+export function SignIn({ list, onChanged, onBack, error: listError = null, defaults, createAppOpen, onCreateAppOpen }: SignInProps) {
+  const [localCreateOpen, setLocalCreateOpen] = useState(false);
+  const createOpen = createAppOpen ?? localCreateOpen;
+  const setCreateOpen = onCreateAppOpen ?? setLocalCreateOpen;
   const [ownChoice, setOwn] = useState(false);
   const [typedClientId, setClientId] = useState('');
   const [typedTenant, setTenant] = useState('');
@@ -48,6 +56,25 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
   const accounts = list?.accounts ?? [];
   const active = accounts.find((a) => a.active);
   const memoryOnly = list?.cache === 'memoryOnly';
+  const offerCreate = canOfferCreateApp(active);
+  const activeKey = active?.key;
+  /** What `entraApp.plan` says about creating from the active account: whether it can, and why not. */
+  const [createPlan, setCreatePlan] = useState<{ key: string; canCreate: boolean; reason: string | null } | null>(null);
+
+  useEffect(() => {
+    if (!offerCreate || activeKey === undefined) {
+      return;
+    }
+    let live = true;
+    call<EntraAppPlan>('entraApp.plan').then(
+      (p) => live && setCreatePlan({ key: activeKey, canCreate: p?.canCreate === true, reason: p?.reason ?? null }),
+      (e: unknown) => live && setCreatePlan({ key: activeKey, canCreate: false, reason: e instanceof Error ? e.message : String(e) }),
+    );
+    return () => {
+      live = false;
+    };
+  }, [offerCreate, activeKey]);
+  const planned = createPlan?.key === activeKey ? createPlan : null;
 
   async function act(work: () => Promise<unknown>, done: boolean) {
     setBusy(true);
@@ -258,9 +285,26 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
               ))}
             </div>
             <span className="faint text-[12px]">Delegated permissions are also limited by your own Entra roles.</span>
+            {offerCreate && (
+              <div className="flex flex-col items-start gap-1.5 border-t border-line pt-2.5">
+                <button type="button" className="btn" disabled={planned === null || !planned.canCreate} onClick={() => setCreateOpen(true)}>
+                  Create Entra ID application…
+                </button>
+                {planned && !planned.canCreate && planned.reason && <span className="muted text-[12px]">{planned.reason}</span>}
+              </div>
+            )}
           </div>
         )}
       </section>
+      {createOpen && (
+        <CreateAppDialog
+          onClose={() => setCreateOpen(false)}
+          onSwitched={() => {
+            setCreateOpen(false);
+            onChanged(true);
+          }}
+        />
+      )}
     </div>
   );
 }

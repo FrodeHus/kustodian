@@ -6,6 +6,8 @@ import type { RunResult, TableFetch } from '../wire';
 import { RunStatus } from './run-status';
 
 const call = vi.hoisted(() => vi.fn());
+const runCommand = vi.hoisted(() => vi.fn());
+vi.mock('../shell/commands', () => ({ runCommand }));
 vi.mock('../bridge', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../bridge')>()),
   call,
@@ -230,5 +232,18 @@ describe('RunStatus', () => {
     fireEvent.click(grant);
     expect(await screen.findByText(other)).toBeTruthy();
     expect(onConsented).not.toHaveBeenCalled();
+  });
+
+  it('noPermission_shows_create_button_for_azure_cli_only', () => {
+    const run = done(result({ outcome: 'noPermission', message: 'No permission.' }));
+    const { unmount } = render(<RunStatus run={run} onSignIn={() => undefined} createApp />);
+    fireEvent.click(screen.getByRole('button', { name: 'Create Entra ID application…' }));
+    expect(runCommand).toHaveBeenCalledWith('account.createEntraApp');
+    unmount();
+    const second = render(<RunStatus run={run} onSignIn={() => undefined} />);
+    expect(screen.queryByRole('button', { name: 'Create Entra ID application…' })).toBeNull();
+    second.unmount();
+    render(<RunStatus run={done(result({}))} onSignIn={() => undefined} createApp />);
+    expect(screen.queryByRole('button', { name: 'Create Entra ID application…' })).toBeNull();
   });
 });

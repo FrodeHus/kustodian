@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { ConsentButton } from '../signin/consent-button';
+import { runCommand } from '../shell/commands';
 import { editorPosition, type TabRun } from '../tabs/tab-store';
 import type { ArgScope, RunResult, Source, TableFetch } from '../wire';
 import { plural, scopeText, serverRequests } from './source-wording';
@@ -109,11 +110,13 @@ interface RunStatusProps {
   accountKey?: string;
   /** Azure access was granted after a run answered `consentNeeded`: the run goes again. */
   onConsented?: () => void;
+  /** The active account is the Azure CLI client: a run without permission offers to create an Entra ID application. */
+  createApp?: boolean;
 }
 
 /** The line between the editor and the results: the run's progress, then how it ended and what it sent, worded for the source
  * the run went to. A run that needs Azure access offers "Grant Azure access", which runs it again once granted. */
-export function RunStatus({ run, scope, onSignIn, accountKey, onConsented }: RunStatusProps) {
+export function RunStatus({ run, scope, onSignIn, accountKey, onConsented, createApp = false }: RunStatusProps) {
   let content: ReactNode;
   let meta: string | null = null;
 
@@ -147,6 +150,11 @@ export function RunStatus({ run, scope, onSignIn, accountKey, onConsented }: Run
         {result.outcome === 'signInNeeded' && (
           <button type="button" className="btn primary shrink-0" onClick={onSignIn}>
             Sign in
+          </button>
+        )}
+        {result.outcome === 'noPermission' && createApp && (
+          <button type="button" className="btn shrink-0" onClick={() => runCommand('account.createEntraApp')}>
+            Create Entra ID application…
           </button>
         )}
         {result.outcome === 'consentNeeded' && <ConsentButton accountKey={accountKey} onGranted={() => onConsented?.()} />}

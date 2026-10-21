@@ -173,4 +173,179 @@ describe('CreateAppDialog', () => {
     expect(onClose).toHaveBeenCalledTimes(2);
     await waitFor(() => expect(createButton()).toBeTruthy());
   });
+
+  it('focuses_the_name_field_on_open_and_traps_tab', async () => {
+    answer(() => Promise.resolve(created));
+    await open();
+    expect(document.activeElement).toBe(screen.getByLabelText('Name'));
+    const dialog = screen.getByRole('dialog');
+    const items = [...dialog.querySelectorAll<HTMLElement>('button, input')];
+    const last = items[items.length - 1];
+    last?.focus();
+    fireEvent.keyDown(last as HTMLElement, { key: 'Tab' });
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).toBe(items[0]);
+  });
+
+  it('summary_names_tenant_with_id', async () => {
+    answer(() => Promise.resolve(created));
+    await open();
+    expect(screen.getByText('Only Contoso Ltd (t1)')).toBeTruthy();
+  });
+
+  it('sign_in_needed_shows_close_not_back', async () => {
+    answer(() => Promise.reject(new BridgeError('signInNeeded', 'Sign in again.')));
+    const onClose = await open();
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Sign in again/);
+    expect(screen.queryByRole('button', { name: 'Back to permissions' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe('CreateAppDialog created view', () => {
+  const adminCreated: EntraAppCreateResult = { ...created, adminScopes: ['A.Read.All', 'B.Read.All', 'C.Read.All'] };
+  const calls = (method: string) => bridge.call.mock.calls.filter((c) => c[0] === method);
+
+  function route(over: Record<string, () => Promise<unknown>> = {}, result: EntraAppCreateResult = adminCreated) {
+    const handlers: Record<string, () => Promise<unknown>> = {
+      'entraApp.plan': () => Promise.resolve(plan),
+      'entraApp.create': () => Promise.resolve(result),
+      'entraApp.canGrant': () => Promise.resolve({ canGrant: null }),
+      'entraApp.consentStatus': () => Promise.resolve({ granted: ['A.Read.All', 'B.Read.All'], missing: ['C.Read.All'] }),
+      'entraApp.openConsent': () => Promise.resolve({}),
+      'entraApp.consentLink': () => Promise.resolve({ url: 'https://login.example/consent' }),
+      'entraApp.openPortal': () => Promise.resolve({}),
+      'settings.get': () => Promise.resolve({ settings: { version: 1, signIn: { clientId: null, tenant: null }, other: 1 } }),
+      'settings.set': () => Promise.resolve({}),
+      'account.signIn': () => Promise.resolve({}),
+      ...over,
+    };
+    bridge.call.mockImplementation((method: string) => (handlers[method] ?? (() => Promise.resolve({})))());
+  }
+
+  async function toCreated(onSwitched = vi.fn(), onClose = vi.fn()) {
+    render(<CreateAppDialog onClose={onClose} onSwitched={onSwitched} />);
+    await screen.findByRole('checkbox', { name: 'Security' });
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await screen.findByText(result_id);
+    return { onSwitched, onClose };
+  }
+  const result_id = created.appId;
+
+  it('primary_consent_button_follows_can_grant', async () => {
+    for (const [canGrant, primary, other] of [
+      [true, 'Open admin consent page', 'Copy link for an admin'],
+      [false, 'Copy link for an admin', 'Open admin consent page'],
+      [null, null, null],
+    ] as const) {
+      bridge.call.mockReset();
+      route({ 'entraApp.canGrant': () => Promise.resolve({ canGrant }) });
+      const { unmount } = render(<CreateAppDialog onClose={vi.fn()} onSwitched={vi.fn()} />);
+      await screen.findByRole('checkbox', { name: 'Security' });
+      fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+      await screen.findByText(result_id);
+      await waitFor(() => expect(calls('entraApp.canGrant').length).toBe(1));
+      await act(async () => undefined);
+      const open = screen.getByRole('button', { name: 'Open admin consent page' });
+      const copy = screen.getByRole('button', { name: 'Copy link for an admin' });
+      if (primary === null) {
+        expect(open.className).not.toMatch(/primary/);
+        expect(copy.className).not.toMatch(/primary/);
+      } else {
+        expect(screen.getByRole('button', { name: primary }).className).toMatch(/primary/);
+        expect(screen.getByRole('button', { name: other }).className).not.toMatch(/primary/);
+      }
+      if (canGrant === false) {
+        expect(screen.getByText(/You can’t grant this yourself/)).toBeTruthy();
+      }
+      expect(screen.getByText(/Until an admin grants them/)).toBeTruthy();
+      unmount();
+    }
+  });
+
+  it('shows_owner_and_dropped_messages', async () => {
+    route({}, { ...adminCreated, ownerAdded: false, ownerMessage: 'Could not add you as owner.', dropped: ['Old.Read.All'] });
+    await toCreated();
+    expect(screen.getByText('Could not add you as owner.')).toBeTruthy();
+    expect(screen.getByText(/Not in your tenant: Old\.Read\.All/)).toBeTruthy();
+  });
+
+  it('check_again_lists_missing_scopes', async () => {
+    route();
+    await toCreated();
+    fireEvent.click(screen.getByRole('button', { name: 'Check again' }));
+    expect(await screen.findByText(/Granted for the tenant: 2 of 3/)).toBeTruthy();
+    expect(screen.getByText(/missing C\.Read\.All/)).toBeTruthy();
+    expect(bridge.call).toHaveBeenCalledWith('entraApp.consentStatus', { appId: created.appId, adminScopes: adminCreated.adminScopes });
+  });
+
+  it('open_and_copy_use_the_bridge_and_clipboard', async () => {
+    route();
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    await toCreated();
+    fireEvent.click(screen.getByRole('button', { name: 'Open admin consent page' }));
+    await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('entraApp.openConsent', { appId: created.appId }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copy link for an admin' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('https://login.example/consent'));
+    fireEvent.click(screen.getByRole('button', { name: 'Open in Entra admin center' }));
+    await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('entraApp.openPortal', { appId: created.appId }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Client ID' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(created.appId));
+  });
+
+  it('switch_writes_settings_then_signs_in', async () => {
+    route();
+    const { onSwitched } = await toCreated();
+    fireEvent.click(screen.getByRole('button', { name: 'Switch and sign in' }));
+    await waitFor(() => expect(onSwitched).toHaveBeenCalled());
+    const order = bridge.call.mock.calls.map((c) => c[0]).filter((m) => m === 'settings.get' || m === 'settings.set' || m === 'account.signIn');
+    expect(order).toEqual(['settings.get', 'settings.set', 'account.signIn']);
+    expect(bridge.call).toHaveBeenCalledWith('settings.set', { settings: { version: 1, signIn: { clientId: created.appId, tenant: 't1' }, other: 1 } });
+    expect(bridge.call).toHaveBeenCalledWith('account.signIn', { clientId: created.appId, tenant: 't1', deviceCode: false });
+  });
+
+  it('just_show_closes_without_settings_set', async () => {
+    route();
+    const { onClose } = await toCreated();
+    fireEvent.click(screen.getByRole('button', { name: 'Just show me the client ID' }));
+    expect(onClose).toHaveBeenCalled();
+    expect(calls('settings.set')).toHaveLength(0);
+  });
+
+  it('consent_error_on_switch_returns_to_grant_step', async () => {
+    route({ 'account.signIn': () => Promise.reject(new BridgeError('failed', 'AADSTS65001: The user has not consented.')) });
+    const { onSwitched } = await toCreated();
+    fireEvent.click(screen.getByRole('button', { name: 'Switch and sign in' }));
+    expect(await screen.findByText(/This app still needs an admin to grant its permissions/)).toBeTruthy();
+    expect(onSwitched).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Open admin consent page' })).toBeTruthy();
+  });
+
+  it('other_switch_errors_are_shown_as_they_are', async () => {
+    route({ 'account.signIn': () => Promise.reject(new BridgeError('failed', 'Browser closed.')) });
+    await toCreated();
+    fireEvent.click(screen.getByRole('button', { name: 'Switch and sign in' }));
+    expect(await screen.findByText('Browser closed.')).toBeTruthy();
+  });
+
+  it('retry_service_principal', async () => {
+    const partial = { ...adminCreated, servicePrincipalId: null, servicePrincipalMessage: 'Graph said 403 Forbidden.' };
+    route({
+      'entraApp.retryServicePrincipal': () =>
+        Promise.resolve({ ...partial, servicePrincipalId: 'sp9', servicePrincipalMessage: null, ownerAdded: false, dropped: [], adminScopes: [] }),
+    }, partial);
+    await toCreated();
+    expect(screen.getByText(/Graph said 403 Forbidden/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Open in Entra' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Open admin consent page' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull());
+    expect(bridge.call).toHaveBeenCalledWith('entraApp.retryServicePrincipal', { appId: created.appId, objectId: 'o1' });
+    // The earlier result's other fields are kept.
+    expect(screen.getByRole('button', { name: 'Open admin consent page' })).toBeTruthy();
+    expect(screen.queryByText(/Could not add you/)).toBeNull();
+  });
 });

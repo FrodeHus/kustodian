@@ -115,4 +115,41 @@ describe('SignIn', () => {
     rerender(<SignIn list={none} onChanged={vi.fn()} defaults={{ clientId: 'from-settings', tenant: null }} />);
     expect(screen.getByLabelText('Client ID')).toHaveProperty('value', 'typed');
   });
+
+  describe('create button', () => {
+    const list = (a: Partial<AccountInfo>): AccountList => ({ accounts: [{ ...kari, ...a }], cache: 'persistent' });
+    const planAnswer = (over: object = {}) => ({ canCreate: true, defaultName: 'n', tenantId: 't1', tenantName: 'T', groups: [], tablesWithData: 0, tablesWithoutData: 0, writeOnlyTables: 0, ...over });
+    const button = () => screen.queryByRole('button', { name: 'Create Entra ID application…' });
+
+    it('button_hidden_for_own_client_and_expired_account', () => {
+      bridge.call.mockResolvedValue(planAnswer());
+      const { unmount } = render(<SignIn list={list({ clientId: 'c0ffee00-0000-0000-0000-000000000001' })} onChanged={vi.fn()} />);
+      expect(button()).toBeNull();
+      unmount();
+      render(<SignIn list={list({ expired: true })} onChanged={vi.fn()} />);
+      expect(button()).toBeNull();
+      expect(bridge.call).not.toHaveBeenCalledWith('entraApp.plan');
+    });
+
+    it('button_enabled_and_opens_the_dialog', async () => {
+      bridge.call.mockResolvedValue(planAnswer());
+      render(<SignIn list={list({})} onChanged={vi.fn()} />);
+      await waitFor(() => expect(button()?.hasAttribute('disabled')).toBe(false));
+      fireEvent.click(button() as HTMLElement);
+      expect(await screen.findByRole('dialog', { name: 'Create Entra ID application' })).toBeTruthy();
+    });
+
+    it('button_disabled_with_reason', async () => {
+      bridge.call.mockResolvedValue(planAnswer({ canCreate: false, reason: "This sign-in can't create app registrations (it needs Application.ReadWrite.All)." }));
+      render(<SignIn list={list({})} onChanged={vi.fn()} />);
+      expect(await screen.findByText(/it needs Application\.ReadWrite\.All/)).toBeTruthy();
+      expect(button()?.hasAttribute('disabled')).toBe(true);
+    });
+
+    it('dialog_opened_by_the_command_shows', async () => {
+      bridge.call.mockResolvedValue(planAnswer());
+      render(<SignIn list={list({})} onChanged={vi.fn()} createAppOpen onCreateAppOpen={vi.fn()} />);
+      expect(await screen.findByRole('dialog', { name: 'Create Entra ID application' })).toBeTruthy();
+    });
+  });
 });
