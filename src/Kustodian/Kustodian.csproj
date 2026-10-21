@@ -5,6 +5,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Identity.Client" />
+    <PackageReference Include="Microsoft.Identity.Client.Extensions.Msal" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Kustodian.Graph\Kustodian.Graph.csproj" />
     <ProjectReference Include="..\Kustodian.Engine\Kustodian.Engine.csproj" />
   </ItemGroup>
