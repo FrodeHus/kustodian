@@ -8,7 +8,9 @@ export interface RowAction {
 /**
  * A row's "⋯" button and its menu. Opening it moves focus to its first item; the arrow keys, Home and End move between items.
  * Choosing an item or pressing Esc closes it and puts focus back on "⋯". A click elsewhere, or Tab out of it, closes it and
- * leaves focus where it went.
+ * leaves focus where it went. It never closes on blur: macOS WebKit doesn't focus a button that is clicked, so a click on an
+ * item would blur the menu before the click landed. A mousedown on "⋯" or the menu doesn't move focus at all, as in
+ * `MenuButton`.
  */
 export function RowMenu({ name, actions }: { name: string; actions: RowAction[] }) {
   const [open, setOpen] = useState(false);
@@ -55,6 +57,10 @@ export function RowMenu({ name, actions }: { name: string; actions: RowAction[] 
       case 'Escape':
         closeToTrigger();
         break;
+      case 'Tab':
+        // Focus moves on as Tab moves it; the menu closes behind it.
+        setOpen(false);
+        return;
       default:
         return;
     }
@@ -63,16 +69,7 @@ export function RowMenu({ name, actions }: { name: string; actions: RowAction[] 
   };
 
   return (
-    <div
-      ref={ref}
-      className="relative shrink-0"
-      onBlur={(e) => {
-        // Tab (or anything else) taking focus out of the menu closes it.
-        if (open && !(e.relatedTarget instanceof Node && ref.current?.contains(e.relatedTarget))) {
-          setOpen(false);
-        }
-      }}
-    >
+    <div ref={ref} className="relative shrink-0">
       <button
         ref={trigger}
         type="button"
@@ -80,12 +77,16 @@ export function RowMenu({ name, actions }: { name: string; actions: RowAction[] 
         aria-label={`More for ${name}`}
         aria-haspopup="menu"
         aria-expanded={open}
+        onMouseDown={(e) => e.preventDefault()}
         onClick={() => setOpen((o) => !o)}
       >
         ⋯
       </button>
       {open && (
-        <div className="menu" role="menu" aria-label={name} style={{ right: 0, top: 26, minWidth: 170 }} onKeyDown={onMenuKey}>
+        <div className="menu" role="menu" aria-label={name} style={{ right: 0, top: 26, minWidth: 170 }}
+          onKeyDown={onMenuKey}
+          onMouseDown={(e) => e.preventDefault()}
+        >
           {actions.map((a) => (
             <button
               key={a.label}

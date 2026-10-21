@@ -51,13 +51,33 @@ describe('RowMenu', () => {
     expect(document.activeElement).toBe(more);
   });
 
-  it('row_menu_closes_when_focus_tabs_away', () => {
+  it('row_menu_closes_on_tab_and_on_a_click_outside', () => {
     const { more } = setup();
     fireEvent.click(more);
-    const item = screen.getAllByRole('menuitem')[0]!;
 
-    fireEvent.blur(item, { relatedTarget: screen.getByRole('button', { name: 'Elsewhere' }) });
+    fireEvent.keyDown(screen.getAllByRole('menuitem')[0]!, { key: 'Tab' });
+    expect(screen.queryByRole('menu')).toBeNull();
 
+    fireEvent.click(more);
+    fireEvent.mouseDown(screen.getByRole('button', { name: 'Elsewhere' }));
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('row_menu_item_click_lands_when_the_click_does_not_move_focus', () => {
+    const { remove, more } = setup();
+    // The mousedown on "⋯" keeps focus where it was.
+    expect(fireEvent.mouseDown(more)).toBe(false);
+    fireEvent.click(more);
+    const [renameItem, deleteItem] = screen.getAllByRole('menuitem');
+
+    // macOS WebKit: a mousedown on an item neither focuses it nor (prevented) moves focus, and the focused item may still
+    // blur, with nowhere for focus to go. The menu stays open and the click lands.
+    expect(fireEvent.mouseDown(deleteItem!)).toBe(false);
+    fireEvent.blur(renameItem!, { relatedTarget: null });
+    expect(screen.getByRole('menu')).toBeTruthy();
+    fireEvent.click(deleteItem!);
+
+    expect(remove).toHaveBeenCalledOnce();
     expect(screen.queryByRole('menu')).toBeNull();
   });
 });
