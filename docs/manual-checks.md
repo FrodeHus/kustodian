@@ -42,6 +42,44 @@ Known open warnings, not failures: oxlint `react(incompatible-library)` for TanS
 | monaco-kusto completion works in the web view (WKWebView / WebView2 / WebKitGTK; spec 14 risk 2) | owner (not run in the app: typing into the window needs Accessibility permission, which the builder doesn't have; the blank-label bug is fixed and checked in Chromium, see notes) | owner | owner |
 | Fresh download opens past Gatekeeper / SmartScreen (README walkthrough) | owner | owner | owner |
 
+## Plan 2 workbench (2026-10-21)
+
+Run by the builder with no sign-in and no typing into any app window. Why most rows are "owner": the builder has no
+Accessibility permission on macOS, so synthetic keys can't reach the window, and there is no screenshot tool for a single macOS
+window. The macOS app was not launched, because this Mac's token cache holds the owner's account and a Run there is not allowed.
+On the Windows VM the app has no account, so it stops at the sign-in screen; the workbench (tabs, palette, Explain, file dialogs)
+is only reachable after signing in, so those rows are "owner" there too. A Windows click (`click.ps1`) reached the page (the
+settings gear took its hover state) but opened no panel while signed out.
+
+### Automated gate
+
+| Check | macOS | Windows | Linux |
+| --- | --- | --- | --- |
+| `npm ci`, lint, typecheck, test, build in `web/` | ok (240 web tests; lint shows only the known TanStack Table warning, now at `src/results/result-grid.tsx`; build only the Vite chunk-size note) | - (no Node in the VM) | - (not run) |
+| `dotnet build Kustodian.slnx -warnaserror`, 0 warnings | ok | ok (VM, Debug) | ok (Ubuntu 24.04 container with `libwebkit2gtk-4.1-dev` and `libsecret-1-dev`) |
+| `dotnet test --solution Kustodian.slnx` | ok, 885 passed | ok, 881 passed, 4 skipped | ok, 885 passed |
+| Window opens and renders the UI from its origin | owner (not launched, see above) | ok (4112x2436 physical px; sign-in screen, "Not signed in", settings gear in the header; captured with `PrintWindow` on the Kustodian window only) | - (headless container) |
+
+### Plan 2 features
+
+| Check | macOS | Windows | Linux |
+| --- | --- | --- | --- |
+| Restart with two unsaved tabs: both come back | owner | owner | owner |
+| Theme: light, dark, system | owner | owner (dark seen on the sign-in screen only) | owner |
+| Palette opens with the platform shortcut (`⌘ K` on macOS, `Ctrl K` elsewhere) | owner | owner | owner |
+| Save a query, restart, open it from Saved | owner | owner | owner |
+| Run a `datatable` snippet (no Graph data); snippets that need a tenant stay owner | owner | owner | owner |
+| Explain a query (no Graph call; needs the workbench, which sits behind sign-in) | owner | owner | owner |
+| Open and save a `.kql` file through the native dialogs; paths come back (no suggested name, a Photino limitation) | owner | owner | owner |
+| Settings validation and the restart notice | owner | owner | owner |
+| Parameters, diagnostics, raw request tab, results tools (tabs, grid tools, export, chart, compare) against live data | owner | owner | owner |
+| `⌘ W` closes a tab in the real macOS window: Photino's menu may take it before the page sees it | owner | n/a | n/a |
+| Row menus, column, copy and export menus and the save dialog: a click on an item lands (WebKit doesn't focus buttons on mousedown) | owner (WKWebView) | owner (WebView2) | owner (WebKitGTK) |
+| Native open and save dialogs open and return paths | owner | owner | owner |
+| Drag a `.kql` file from Finder or Explorer into the window: opens exactly one tab | owner | owner | owner |
+| `crypto.randomUUID` on the macOS `app://` origin: log `window.isSecureContext` in a dev build; if false, the `getRandomValues` fallback covers it | owner | n/a (`https://kustodian.invalid` is a secure context) | owner |
+| monaco-kusto completion in the web view (owner-only since Plan 1) | owner (WKWebView) | owner (WebView2) | owner (WebKitGTK) |
+
 ## Notes
 
 - macOS launch check: the window title was "Kustodian". It showed a signed-in account because of an earlier owner sign-in cached
