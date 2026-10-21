@@ -45,10 +45,11 @@ A path's value is empty, or `least=<schemes>` when the permission is the least-p
 
 `GraphPermissions.ReadDelegated` inverts the file into path to permissions:
 
-- only path sets whose `methods` are exactly `["GET"]` and whose `schemeKeys` include a `Delegated*` scheme count. A read-write
-  permission is marked least-privileged on a path set that also lists `POST`; that is least-privileged for writing, not listing,
-  so it is skipped;
-- a path counts when its value is `least=` naming a `Delegated*` scheme;
+- only the `DelegatedWork` scheme counts (work and school accounts; `DelegatedPersonal` and `Application` do not): the path set's
+  `schemeKeys` must include it and the path's value must be `least=` naming it;
+- path sets whose `methods` are exactly `["GET"]` win. A read-write permission is marked least-privileged on a path set that also
+  lists `POST`; that is least-privileged for writing, not listing. A path that no GET-only set lists falls back to the sets that
+  include `GET` among other methods;
 - paths are compared case-insensitively with a leading `/`, and every `{...}` placeholder is one segment (`{}`).
 
 A table's `Permissions` are the entries for `/{table.Path}`, sorted and distinct. Many tables get none (Microsoft marks no

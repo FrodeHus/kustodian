@@ -28,7 +28,7 @@ public sealed class GraphPermissionsTests
     }
 
     [Fact]
-    public void ReadDelegated_skips_path_sets_that_also_write_and_application_only_least()
+    public void ReadDelegated_prefers_get_only_sets_over_read_write_ones_and_ignores_application_only_least()
     {
         // Application.ReadWrite.All is least-privileged (delegated) on /applications only for GET plus POST;
         // Application.ReadWrite.OwnedBy is application-only.
@@ -36,6 +36,36 @@ public sealed class GraphPermissionsTests
 
         Assert.DoesNotContain("Application.ReadWrite.All", permissions["/applications"]);
         Assert.DoesNotContain("Application.ReadWrite.OwnedBy", permissions["/applications"]);
+    }
+
+    [Fact]
+    public void ReadDelegated_falls_back_to_mixed_method_sets_when_no_get_only_set_lists_the_path()
+    {
+        var permissions = Read("""
+            {"permissions":{
+              "Only.ReadWrite":{"pathSets":[{"schemeKeys":["DelegatedWork"],"methods":["GET","POST"],
+                "paths":{"/mixed":"least=DelegatedWork","/both":"least=DelegatedWork"}}]},
+              "Both.Read":{"pathSets":[{"schemeKeys":["DelegatedWork"],"methods":["GET"],"paths":{"/both":"least=DelegatedWork"}}]},
+              "Write.Only":{"pathSets":[{"schemeKeys":["DelegatedWork"],"methods":["POST"],"paths":{"/writeonly":"least=DelegatedWork"}}]}}}
+            """);
+
+        Assert.Equal(["Only.ReadWrite"], permissions["/mixed"]);
+        Assert.Equal(["Both.Read"], permissions["/both"]);
+        Assert.False(permissions.ContainsKey("/writeonly"));
+    }
+
+    [Fact]
+    public void ReadDelegated_counts_only_the_DelegatedWork_scheme()
+    {
+        var permissions = Read("""
+            {"permissions":{
+              "Personal.Read":{"pathSets":[{"schemeKeys":["DelegatedPersonal"],"methods":["GET"],"paths":{"/p":"least=DelegatedPersonal"}}]},
+              "Work.Read":{"pathSets":[{"schemeKeys":["DelegatedWork","DelegatedPersonal"],"methods":["GET"],
+                "paths":{"/p":"least=DelegatedWork,DelegatedPersonal","/q":"least=DelegatedPersonal,Application"}}]}}}
+            """);
+
+        Assert.Equal(["Work.Read"], permissions["/p"]);
+        Assert.False(permissions.ContainsKey("/q"));
     }
 
     [Fact]

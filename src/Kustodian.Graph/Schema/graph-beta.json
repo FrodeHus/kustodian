@@ -1,6 +1,6 @@
 {
   "source": "msgraph-metadata@8c562525694550601a232cb54014e48c6c7f6da0; permissions https://raw.githubusercontent.com/microsoftgraph/microsoft-graph-devx-content/master/permissions/new/permissions.json",
-  "generatedAt": "2026-10-21T05:37:03.574093+00:00",
+  "generatedAt": "2026-10-21T05:38:29.905214+00:00",
   "tables": [
     {
       "name": "accessReviewDecisions",
@@ -822,6 +822,9 @@
       "entityType": "microsoft.graph.teamsApp",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/teamsapp?view=graph-rest-beta",
+      "permissions": [
+        "AppCatalog.Submit"
+      ],
       "columns": [
         {
           "name": "id",
@@ -12386,6 +12389,9 @@
       "entityType": "microsoft.graph.dataSharingConsent",
       "description": "Data sharing consent information.",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/datasharingconsent?view=graph-rest-beta",
+      "permissions": [
+        "DeviceManagementServiceConfig.ReadWrite.All"
+      ],
       "columns": [
         {
           "name": "id",
@@ -13319,6 +13325,9 @@
       "entityType": "microsoft.graph.deviceHealthScript",
       "description": "Intune will provide customer the ability to run their Powershell Health scripts (remediation + detection) on the enrolled windows 10 Azure Active Directory joined devices.",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/devicehealthscript?view=graph-rest-beta",
+      "permissions": [
+        "DeviceManagementConfiguration.Read.All"
+      ],
       "columns": [
         {
           "name": "id",
@@ -24249,6 +24258,9 @@
       "entityType": "microsoft.graph.externalConnectors.externalConnection",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/externalconnectors.externalconnection?view=graph-rest-beta",
+      "permissions": [
+        "ExternalConnection.ReadWrite.OwnedBy"
+      ],
       "columns": [
         {
           "name": "id",
@@ -26362,6 +26374,9 @@
       "entityType": "microsoft.graph.identityApiConnector",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/identityapiconnector?view=graph-rest-beta",
+      "permissions": [
+        "APIConnectors.ReadWrite.All"
+      ],
       "columns": [
         {
           "name": "id",
@@ -26893,6 +26908,9 @@
       "entityType": "microsoft.graph.threatAssessmentRequest",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/threatassessmentrequest?view=graph-rest-beta",
+      "permissions": [
+        "ThreatAssessment.ReadWrite.All"
+      ],
       "columns": [
         {
           "name": "id",
@@ -31028,6 +31046,9 @@
       "entityType": "microsoft.graph.privilegedRoleAssignment",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/privilegedroleassignment?view=graph-rest-beta",
+      "permissions": [
+        "Directory.AccessAsUser.All"
+      ],
       "columns": [
         {
           "name": "id",
@@ -32730,6 +32751,9 @@
       "entityType": "microsoft.graph.search.acronym",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/search.acronym?view=graph-rest-beta",
+      "permissions": [
+        "SearchConfiguration.Read.All"
+      ],
       "columns": [
         {
           "name": "id",
@@ -32788,6 +32812,9 @@
       "entityType": "microsoft.graph.search.bookmark",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/search.bookmark?view=graph-rest-beta",
+      "permissions": [
+        "SearchConfiguration.Read.All"
+      ],
       "columns": [
         {
           "name": "id",
@@ -32908,6 +32935,9 @@
       "entityType": "microsoft.graph.search.qna",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/search.qna?view=graph-rest-beta",
+      "permissions": [
+        "SearchConfiguration.Read.All"
+      ],
       "columns": [
         {
           "name": "id",
@@ -34896,6 +34926,9 @@
       "entityType": "microsoft.graph.tiIndicator",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/tiindicator?view=graph-rest-beta",
+      "permissions": [
+        "ThreatIndicators.ReadWrite.OwnedBy"
+      ],
       "columns": [
         {
           "name": "id",
