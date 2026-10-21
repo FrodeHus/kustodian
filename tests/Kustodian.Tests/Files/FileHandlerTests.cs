@@ -199,6 +199,36 @@ public sealed class FileHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task Filters_reach_the_dialogs_only_with_plain_extensions()
+    {
+        const string filters = """
+            {"filters":[
+              {"name":"Bad","extensions":["x/../../.zshrc","k\u0000ql"]},
+              {"name":"KQL","extensions":["*.kql",".txt","a/b"]},
+              {"name":"All","extensions":["*"]}]}
+            """;
+        await CallAsync("file.open", filters);
+        await CallAsync("file.saveAs", filters.Replace("{\"filters\"", "{\"content\":\"x\",\"filters\"", StringComparison.Ordinal));
+
+        foreach (var seen in new[] { _dialogs.OpenFilters!, _dialogs.SaveFilters! })
+        {
+            Assert.Equal(["KQL", "All"], seen.Select(f => f.Name));
+            Assert.Equal(["kql", "txt"], seen[0].Extensions);
+            Assert.Equal(["*"], seen[1].Extensions);
+        }
+    }
+
+    [Fact]
+    public async Task Allowed_paths_are_compared_case_sensitively()
+    {
+        var path = Path.Combine(_dir, "Q.kql");
+        _allowed.Add(path);
+
+        Assert.True(await _allowed.ContainsAsync(path));
+        Assert.False(await _allowed.ContainsAsync(Path.Combine(_dir, "q.kql")));
+    }
+
+    [Fact]
     public async Task Save_does_not_double_the_dot_of_a_name_ending_in_one()
     {
         _dialogs.Save = Path.Combine(_dir, "foo.");
@@ -344,6 +374,8 @@ public sealed class FileHandlerTests : IDisposable
 
         public IReadOnlyList<FileFilter>? OpenFilters { get; private set; }
 
+        public IReadOnlyList<FileFilter>? SaveFilters { get; private set; }
+
         public int SaveCalls { get; private set; }
 
         public string? SavedName { get; private set; }
@@ -357,6 +389,7 @@ public sealed class FileHandlerTests : IDisposable
         public Task<string?> SaveAsync(string title, string suggestedName, IReadOnlyList<FileFilter> filters)
         {
             SaveCalls++;
+            SaveFilters = filters;
             SavedName = suggestedName;
             return Task.FromResult(Save);
         }

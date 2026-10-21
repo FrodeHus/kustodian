@@ -26,7 +26,7 @@ public sealed class FileHandler(IFileDialogs dialogs, AllowedFilePaths allowed)
 
     private async Task<object?> OpenAsync(OpenParams request, CancellationToken ct)
     {
-        var path = await dialogs.OpenAsync(request.Title ?? "Open", request.Filters ?? []);
+        var path = await dialogs.OpenAsync(request.Title ?? "Open", Safe(request.Filters));
         if (path is null)
         {
             return BridgeNull.Value;
@@ -81,7 +81,7 @@ public sealed class FileHandler(IFileDialogs dialogs, AllowedFilePaths allowed)
         }
         else
         {
-            var filters = request.Filters ?? [];
+            var filters = Safe(request.Filters);
             path = await dialogs.SaveAsync(request.Title ?? "Save", request.SuggestedName ?? "", filters);
             if (path is null)
             {
@@ -110,6 +110,30 @@ public sealed class FileHandler(IFileDialogs dialogs, AllowedFilePaths allowed)
         return new SaveAnswer(path, Path.GetFileName(path));
     }
 
+    /// <summary>The page's filters as the native dialogs may see them: each extension without its leading <c>*.</c> or <c>.</c>, and
+    /// only if it is 1 to 16 ASCII letters or digits (or the single wildcard <c>*</c>, which Photino treats as every file). Other
+    /// extensions are dropped, and so is a filter left with none, because some platforms append the selected filter's extension
+    /// to the name the user types.</summary>
+    private static List<FileFilter> Safe(IReadOnlyList<FileFilter>? filters)
+    {
+        var safe = new List<FileFilter>();
+        foreach (var filter in filters ?? [])
+        {
+            var extensions = (filter?.Extensions ?? [])
+                .Select(e => e == "*" ? e : (e ?? "").TrimStart('*', '.'))
+                .Where(e => e == "*" || IsPlainExtension(e))
+                .ToList();
+            if (extensions.Count > 0)
+            {
+                safe.Add(new FileFilter(filter!.Name ?? "", extensions));
+            }
+        }
+
+        return safe;
+    }
+
+    private static bool IsPlainExtension(string extension) => extension.Length is >= 1 and <= 16 && extension.All(char.IsAsciiLetterOrDigit);
+
     /// <summary>The chosen <paramref name="path"/> with the first filter's first extension added when it has none. The filters come
     /// from the page, so an extension is used only if it is 1 to 16 letters or digits; anything else (a separator, a NUL) adds
     /// nothing. As a second guard the result must stay in the folder the user chose.</summary>
@@ -122,7 +146,7 @@ public sealed class FileHandler(IFileDialogs dialogs, AllowedFilePaths allowed)
         }
 
         var extension = (filters[0].Extensions[0] ?? "").TrimStart('*', '.');
-        if (extension.Length is < 1 or > 16 || !extension.All(char.IsAsciiLetterOrDigit))
+        if (!IsPlainExtension(extension))
         {
             return path;
         }
