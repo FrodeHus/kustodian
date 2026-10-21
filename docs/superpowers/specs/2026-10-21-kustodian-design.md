@@ -212,8 +212,9 @@ against live tenants comes along. The rules below come from bugs found there, so
   them (**My call**: keep them out for v1).
 - **Not listable:** `Edm.Stream` columns, such as an application's `logo`. Selecting one makes IIS return an HTML 404 through
   Graph.
-- **Permissions per table** (**My call**): the schema tool reads a second input, Microsoft's permissions data in the same
-  `msgraph-metadata` repository (permissions by API path). It records the least-privileged delegated permissions for listing each
+- **Permissions per table** (**My call**): the schema tool reads a second input, Microsoft's permissions data in
+  `microsoftgraph/microsoft-graph-devx-content`, `permissions/new/permissions.json` (keyed by permission, with paths per
+  permission; the tool inverts it to permissions by API path). It records the least-privileged delegated permissions for listing each
   table. Explain's "Permissions this uses", the No permission error and the sign-in chips name these.
 - **Columns have no permission data.** Microsoft doesn't publish column-level rules. A denied column shows "Graph refused this
   column (403); it may need a higher permission or role" and links to the table's docs. A small hand-kept list in the schema
