@@ -174,10 +174,10 @@ production tenant), because creating an app, adding an owner and granting admin 
 | Check | Result |
 | --- | --- |
 | `dotnet build -warnaserror` | ok, 0 warnings, 0 errors |
-| `dotnet test` | ok, 1366 passed, 0 failed, 0 skipped |
+| `dotnet test` | ok, 1376 passed, 0 failed, 0 skipped |
 | `npm --prefix web run lint` | ok, 1 warning, the known `react(incompatible-library)` on TanStack Table in `result-grid.tsx` |
 | `npm --prefix web run typecheck` | ok, clean |
-| `npm --prefix web test` | ok, 378 tests in 48 files |
+| `npm --prefix web test` | ok, 380 tests in 48 files |
 | `npm --prefix web run build` | ok, only Vite's chunk-size note for the Monaco chunk (`kql-editor`, 3,647 kB) |
 
 ### Features (owner, test tenant)
