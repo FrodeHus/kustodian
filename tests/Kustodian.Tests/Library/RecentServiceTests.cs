@@ -25,7 +25,7 @@ public sealed class RecentServiceTests : IDisposable
 
     private string RecentPath => Path.Combine(_dir, "recent.json");
 
-    private static RecentRun Run(int n) => new($"run-{n}", "graph", $"users | take {n}", new Dictionary<string, string> { ["n"] = $"{n}" },
+    private static RecentRun Run(int n) => new($"run-{n}", "graph", $"users | take {n}", [new ParameterValue("n", "number", $"{n}", true)],
         new DateTimeOffset(2026, 10, 21, 8, 0, 0, TimeSpan.Zero).AddMinutes(n), 120 + n, n, "ok");
 
     [Fact]
@@ -58,7 +58,7 @@ public sealed class RecentServiceTests : IDisposable
         Assert.Equal(Run(7).StartedAt, run.StartedAt);
         Assert.Equal(127, run.DurationMs);
         Assert.Equal(7, run.Rows);
-        Assert.Equal("7", run.Parameters["n"]);
+        Assert.Equal(new ParameterValue("n", "number", "7", true), Assert.Single(run.Parameters));
 
         await service.ClearAsync(Ct);
 
@@ -70,11 +70,14 @@ public sealed class RecentServiceTests : IDisposable
     public async Task Recent_run_missing_fields_loads_with_their_defaults()
     {
         await File.WriteAllTextAsync(Directory.CreateDirectory(_dir).FullName + "/recent.json", """
-            {"version":1,"runs":[{"id":"a","source":"graph","text":"users","startedAt":"2026-10-21T08:00:00+00:00","outcome":"ok"}]}
+            {"version":1,"runs":[{"id":"a","source":"graph","text":"users","startedAt":"2026-10-21T08:00:00+00:00","outcome":"ok"},
+             {"id":"b","parameters":[{"name":"days","value":"7"}]}]}
             """, Ct);
 
-        var run = Assert.Single(await NewService().ListAsync(Ct));
+        var runs = await NewService().ListAsync(Ct);
+        var run = runs[0];
 
+        Assert.Equal(new ParameterValue("days", "text", "7", false), Assert.Single(runs[1].Parameters));
         Assert.Equal(0, run.DurationMs);
         Assert.Equal(0, run.Rows);
         Assert.NotNull(run.Parameters);
@@ -88,6 +91,8 @@ public sealed class RecentServiceTests : IDisposable
     [InlineData("""{"version":1,"runs":[5]}""")]
     [InlineData("""{"version":1,"runs":[{"rows":"many"}]}""")]
     [InlineData("""{"version":2,"runs":[]}""")]
+    [InlineData("""{"version":1,"runs":[{"parameters":[null]}]}""")]
+    [InlineData("""{"version":1,"runs":[{"parameters":{"n":"1"}}]}""")]
     public async Task Recent_file_that_cannot_be_read_is_moved_aside_and_starts_empty(string content)
     {
         await File.WriteAllTextAsync(Directory.CreateDirectory(_dir).FullName + "/recent.json", content, Ct);
@@ -129,7 +134,7 @@ public sealed class RecentServiceTests : IDisposable
         Assert.Equal("queryError", run.Outcome);
         Assert.Equal(250, run.DurationMs);
         Assert.Equal(42, run.Rows);
-        Assert.Equal("1", run.Parameters["n"]);
+        Assert.Equal([new ParameterValue("n", "number", "1", true), new ParameterValue("n", "number", "2", false)], run.Parameters);
         Assert.True(Guid.TryParseExact(run.Id, "D", out _));
     }
 

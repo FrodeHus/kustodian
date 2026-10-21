@@ -120,14 +120,7 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
 
         try
         {
-            // Recent keeps each parameter's value by name; the first of a repeated name wins, as in the run.
-            var values = new Dictionary<string, string>(StringComparer.Ordinal);
-            foreach (var parameter in p.Parameters ?? [])
-            {
-                values.TryAdd(parameter.Name, parameter.Value);
-            }
-
-            var run = new RecentRun(Guid.NewGuid().ToString("D"), p.Source!, p.Kql!, values,
+            var run = new RecentRun(Guid.NewGuid().ToString("D"), p.Source!, p.Kql!, p.Parameters ?? [],
                 started, (long)Math.Round(result.Duration.TotalMilliseconds), result.Total,
                 JsonNamingPolicy.CamelCase.ConvertName(result.Outcome.ToString()));
             await recent.AddAsync(run, CancellationToken.None);
@@ -138,7 +131,8 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
         }
     }
 
-    /// <summary>A <c>query.run</c>'s params, each parameter's missing fields taken from <see cref="DefaultParameter"/>.</summary>
+    /// <summary>A <c>query.run</c>'s params, each parameter's missing fields taken from <see cref="DefaultParameter"/>. A
+    /// parameter that isn't an object is a <c>bad_request</c>.</summary>
     private static RunParams ReadRun(JsonElement p)
     {
         if (p.ValueKind != JsonValueKind.Object)
@@ -148,7 +142,13 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
 
         var defaults = JsonSerializer.SerializeToNode(DefaultParameter, BridgeJson.Options)!.AsObject();
         var filled = JsonDefaults.FillElements(JsonObject.Create(p)!, nameof(RunParams.Parameters), defaults);
-        return BridgeJson.Params<RunParams>(JsonSerializer.SerializeToElement(filled, BridgeJson.Options));
+        var run = BridgeJson.Params<RunParams>(JsonSerializer.SerializeToElement(filled, BridgeJson.Options));
+        if (run.Parameters?.Any(parameter => parameter is null) == true)
+        {
+            throw new BridgeException(BridgeErrorCodes.BadRequest, "The request's params are not valid.");
+        }
+
+        return run;
     }
 
     private void Cancel(CancelParams p)

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Kustodian.Graph.Query;
 using Kustodian.Storage;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -7,21 +8,23 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Kustodian.Library;
 
 /// <summary>One finished run, as Recent lists it (spec 6.6): what was run and how it went, but no rows. <see cref="Outcome"/> is
-/// the run's outcome as the UI names it (<c>ok</c>, <c>queryError</c>, ...).</summary>
-public sealed record RecentRun(string Id, string Source, string Text, IReadOnlyDictionary<string, string> Parameters,
+/// the run's outcome as the UI names it (<c>ok</c>, <c>queryError</c>, ...). <see cref="Parameters"/> are the values it ran with,
+/// typed, so a run opened again from Recent has them as they were.</summary>
+public sealed record RecentRun(string Id, string Source, string Text, IReadOnlyList<ParameterValue> Parameters,
     DateTimeOffset StartedAt, long DurationMs, int Rows, string Outcome);
 
 /// <summary>
 /// Owns <c>recent.json</c>, <c>{version:1, runs:[...]}</c>: the last <see cref="Capacity"/> runs, newest first. A run missing a
-/// field in the file takes that field's default (<see cref="JsonDefaults.Fill"/>, per run), so a missing number is 0 and a
-/// missing map is empty. A file that is corrupt, or holds a run of the wrong shape, is moved aside and Recent starts empty.
+/// field in the file takes that field's default (<see cref="JsonDefaults.Fill"/>, per run and per parameter), so a missing number
+/// is 0 and missing parameters are none. A file that is corrupt, or holds a run of the wrong shape, is moved aside and Recent starts empty.
 /// </summary>
 public sealed class RecentService(JsonFileStore store, ILogger<RecentService>? logger = null)
 {
     public const string FileName = "recent.json";
     public const int Capacity = 100;
 
-    private static readonly RecentRun DefaultRun = new("", "graph", "", new Dictionary<string, string>(), default, 0, 0, "");
+    private static readonly RecentRun DefaultRun = new("", "graph", "", [], default, 0, 0, "");
+    private static readonly ParameterValue DefaultParameter = new("", "text", "", false);
 
     private readonly UserDataFile<RecentFile> _file = new(store, FileName, () => new RecentFile(1, []), IsValid);
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -98,7 +101,10 @@ public sealed class RecentService(JsonFileStore store, ILogger<RecentService>? l
         try
         {
             var defaults = JsonSerializer.SerializeToNode(DefaultRun, JsonFileStore.Options)!.AsObject();
-            return JsonDefaults.Fill(value, defaults).Deserialize<RecentRun>(JsonFileStore.Options);
+            var parameterDefaults = JsonSerializer.SerializeToNode(DefaultParameter, JsonFileStore.Options)!.AsObject();
+            var run = JsonDefaults.FillElements(JsonDefaults.Fill(value, defaults), nameof(RecentRun.Parameters), parameterDefaults)
+                .Deserialize<RecentRun>(JsonFileStore.Options);
+            return run is null || run.Parameters.Any(p => p is null) ? null : run;
         }
         catch (JsonException)
         {

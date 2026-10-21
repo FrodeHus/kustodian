@@ -215,6 +215,27 @@ public class BridgeTests
         Assert.Equal("bad_request", reply.GetProperty("error").GetProperty("code").GetString());
     }
 
+    [Theory]
+    [InlineData("""[null]""")]
+    [InlineData("""[{"name":"n"},null]""")]
+    [InlineData("""["n"]""")]
+    [InlineData("""[{"name":"n","value":5}]""")]
+    public async Task Run_with_a_parameter_that_is_not_an_object_returns_bad_request(string parameters)
+    {
+        var called = false;
+        var bridge = NewBridge((_, _, _, _, _, _) =>
+        {
+            called = true;
+            return Task.FromResult(Ok());
+        });
+
+        var reply = Parse(await bridge.HandleAsync(
+            """{"id":"1","method":"query.run","params":{"tabId":"t","source":"graph","kql":"x","parameters":""" + parameters + "}}"));
+
+        Assert.Equal("bad_request", reply.GetProperty("error").GetProperty("code").GetString());
+        Assert.False(called);
+    }
+
     [Fact]
     public async Task Run_with_unknown_source_returns_bad_request()
     {

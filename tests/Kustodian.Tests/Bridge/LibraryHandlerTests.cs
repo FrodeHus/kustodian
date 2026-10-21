@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Kustodian.Graph.Query;
 using Kustodian.Library;
 using Kustodian.Messaging.Handlers;
 using Kustodian.Storage;
@@ -101,7 +102,7 @@ public sealed class LibraryHandlerTests : IDisposable
     [Fact]
     public async Task Recent_list_and_clear_over_the_bridge()
     {
-        await _recent.AddAsync(new RecentRun("a", "graph", "users", new Dictionary<string, string>(),
+        await _recent.AddAsync(new RecentRun("a", "graph", "users", [new ParameterValue("days", "timespan", "7d", true)],
             new DateTimeOffset(2026, 10, 21, 8, 0, 0, TimeSpan.Zero), 10, 3, "ok"), TestContext.Current.CancellationToken);
 
         var runs = (await CallAsync("recent.list", "{}")).GetProperty("result").GetProperty("runs");
@@ -109,6 +110,11 @@ public sealed class LibraryHandlerTests : IDisposable
         Assert.Equal("users", runs[0].GetProperty("text").GetString());
         Assert.Equal(10, runs[0].GetProperty("durationMs").GetInt64());
         Assert.Equal(3, runs[0].GetProperty("rows").GetInt32());
+        var parameter = runs[0].GetProperty("parameters")[0];
+        Assert.Equal("days", parameter.GetProperty("name").GetString());
+        Assert.Equal("timespan", parameter.GetProperty("type").GetString());
+        Assert.Equal("7d", parameter.GetProperty("value").GetString());
+        Assert.True(parameter.GetProperty("required").GetBoolean());
 
         var cleared = await CallAsync("recent.clear", "{}");
         Assert.False(cleared.TryGetProperty("error", out _));

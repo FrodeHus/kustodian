@@ -130,7 +130,8 @@ public sealed class ParameterSubstitutionTests
 
     [Theory]
     [InlineData("30", "30")]
-    [InlineData(" -7 ", "-7")]
+    [InlineData(" -7 ", "long(-7)")]
+    [InlineData("-2.5", "real(-2.5)")]
     [InlineData("+7", "7")]
     [InlineData("2.5", "2.5")]
     [InlineData("5.0", "5.0")]
@@ -321,6 +322,102 @@ public sealed class ParameterSubstitutionTests
 
         Assert.Equal("print 1\n| take 1", result.Text);
         Assert.Equal((2, 4), result.MapBack(2, 4));
+    }
+
+    public static TheoryData<string> RawLiteralPrefixes =>
+        ["long", "int", "int64", "real", "double", "decimal", "bool", "date", "datetime", "time", "timespan", "guid"];
+
+    [Theory]
+    [MemberData(nameof(RawLiteralPrefixes))]
+    public void Placeholder_inside_a_raw_literal_is_refused_never_substituted(string prefix)
+    {
+        var template = $"applications | project displayName | where displayName == {prefix}({{v}}) | take 5";
+        var hostile = new[]
+        {
+            Value("v", "text", "x), y = 1 //"),
+            Value("v", "text", "x) | take 1 //"),
+            Value("v", "list", "a\"\nb), y = (1"),
+            Value("v", "datetime", "2026-10-01"),
+            Value("v", "number", "5"),
+        };
+
+        Assert.Empty(ParameterSubstitution.Find(template));
+        foreach (var value in hostile)
+        {
+            var result = Apply(template, value);
+            Assert.Null(result.Text);
+            Assert.Equal(new ParameterError("v", "v: the value doesn't fit where the placeholder is."), result.Error);
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(RawLiteralPrefixes))]
+    public void Raw_literal_beside_a_placeholder_leaves_the_value_one_literal(string prefix)
+    {
+        // The raw literal ends at its own ')': the placeholder after it is a placeholder, and its value stays one literal.
+        var template = $"applications | project displayName | where displayName == strcat(tostring({prefix}(null)), {{v}}) | take 5";
+
+        Assert.Equal(["v"], ParameterSubstitution.Find(template));
+        AssertSameStructure(template, Value("v", "text", "x), y = 1 //"), Value("v", "text", "x"));
+        AssertSameStructure(template, Value("v", "text", "x) | take 1 //"), Value("v", "text", "x"));
+    }
+
+    [Fact]
+    public void Datetime_value_inside_datetime_is_a_clear_error()
+    {
+        var result = Apply("applications | where createdDateTime > datetime({start})", Value("start", "datetime", "2026-10-01"));
+
+        Assert.Null(result.Text);
+        Assert.Equal(new ParameterError("start", "start: the value doesn't fit where the placeholder is."), result.Error);
+    }
+
+    [Theory]
+    [InlineData("print x = ~~~{v}~~~")]
+    [InlineData("print x = ~~~a\n{v}\n~~~")]
+    [InlineData("print x = guid(\"), y = \"{v}\"")]
+    [InlineData("print x = bool(\"), y = \"{v}\"")]
+    [InlineData("print x = h'{v}'")]
+    [InlineData("print x = 1 // \"{v}\"")]
+    public void Placeholder_inside_a_string_kusto_lexes_is_left_as_written(string template)
+    {
+        Assert.Empty(ParameterSubstitution.Find(template));
+        var result = Apply(template, Value("v", "text", "~~~, y = 1 //\", z = 1 //"));
+
+        Assert.Equal(template, result.Text);
+    }
+
+    [Fact]
+    public void Placeholder_named_like_a_keyword_is_a_placeholder()
+    {
+        Assert.Equal(["where", "limit"], ParameterSubstitution.Find("print {where}, {limit}"));
+        Assert.Equal("print \"a\"", Apply("print {where}", Value("where", "text", "a")).Text);
+    }
+
+    [Fact]
+    public void Fits_needs_exactly_the_literal_tokens_the_value_was_written_as()
+    {
+        static ParameterSubstitution.Segment At(string text, string literal, ParameterSubstitution.Form form = ParameterSubstitution.Form.Scalar,
+            int items = 1)
+        {
+            var start = text.IndexOf(literal, StringComparison.Ordinal);
+            return new ParameterSubstitution.Segment("v", 0, 0, start, literal.Length, start, literal.Length, new(form, items));
+        }
+
+        Assert.True(ParameterSubstitution.Fits("print x = \"a\"", At("print x = \"a\"", "\"a\"")));
+        Assert.True(ParameterSubstitution.Fits("print x = long(-7)", At("print x = long(-7)", "long(-7)")));
+        // Swallowed by a raw literal, cut short by a verbatim string, or not one token.
+        Assert.False(ParameterSubstitution.Fits("print x = bool(\"a\")", At("print x = bool(\"a\")", "\"a\"")));
+        Assert.False(ParameterSubstitution.Fits("print x = @\"a\\\" or 1==1 //\"", At("print x = @\"a\\\" or 1==1 //\"", "\"a\\\" or 1==1 //\"")));
+        Assert.False(ParameterSubstitution.Fits("print x = -7", At("print x = -7", "-7")));
+        Assert.False(ParameterSubstitution.Fits("print x = a", At("print x = a", "a")));
+        // Lists: only literals and commas, in the form they were written.
+        const string tuple = "print 1 in (\"a\", -2)";
+        Assert.True(ParameterSubstitution.Fits(tuple, At(tuple, "(\"a\", -2)", ParameterSubstitution.Form.Tuple, 2)));
+        Assert.False(ParameterSubstitution.Fits(tuple, At(tuple, "(\"a\", -2)", ParameterSubstitution.Form.Tuple, 1)));
+        const string injected = "print 1 in (\"a\", y)";
+        Assert.False(ParameterSubstitution.Fits(injected, At(injected, "(\"a\", y)", ParameterSubstitution.Form.Tuple, 2)));
+        const string dynamic = "print dynamic([\"a\", 1])";
+        Assert.True(ParameterSubstitution.Fits(dynamic, At(dynamic, "dynamic([\"a\", 1])", ParameterSubstitution.Form.Dynamic, 2)));
     }
 
     /// <summary>The literal expressions of <paramref name="kql"/>'s parse.</summary>
