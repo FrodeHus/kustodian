@@ -44,41 +44,63 @@ Known open warnings, not failures: oxlint `react(incompatible-library)` for TanS
 
 ## Plan 2 workbench (2026-10-21)
 
-Run by the builder with no sign-in and no typing into any app window. Why most rows are "owner": the builder has no
-Accessibility permission on macOS, so synthetic keys can't reach the window, and there is no screenshot tool for a single macOS
-window. The macOS app was not launched, because this Mac's token cache holds the owner's account and a Run there is not allowed.
-On the Windows VM the app has no account, so it stops at the sign-in screen; the workbench (tabs, palette, Explain, file dialogs)
-is only reachable after signing in, so those rows are "owner" there too. A Windows click (`click.ps1`) reached the page (the
-settings gear took its hover state) but opened no panel while signed out.
+Run by the builder with no sign-in and no typing into any app window. Every app-level row stays "owner", with its reason in the
+cell. The builder has no Accessibility permission on macOS, so synthetic keys and clicks cannot reach the window. On the Windows
+VM the app has no account, so it stops at the sign-in screen, and the workbench (tabs, palette, Explain, file dialogs) is behind
+that. This Mac's token cache holds the owner's account; the builder never pressed Run or Send. On Windows, one synthetic click
+(`vm.sh click` on the settings gear) gave the gear a hover state but opened no panel while signed out.
 
 ### Automated gate
 
 | Check | macOS | Windows | Linux |
 | --- | --- | --- | --- |
-| `npm ci`, lint, typecheck, test, build in `web/` | ok (240 web tests; lint shows only the known TanStack Table warning, now at `src/results/result-grid.tsx`; build only the Vite chunk-size note) | - (no Node in the VM) | - (not run) |
-| `dotnet build Kustodian.slnx -warnaserror`, 0 warnings | ok | ok (VM, Debug) | ok (Ubuntu 24.04 container with `libwebkit2gtk-4.1-dev` and `libsecret-1-dev`) |
+| `npm ci`, lint, typecheck, test, build in `web/` | ok (240 web tests; lint shows only the known TanStack Table warning, now at `src/results/result-grid.tsx`; build only the Vite chunk-size note) | - (no Node in the VM) | ok (Ubuntu 24.04 arm64 container, Node 22.12.0: 240 tests, lint only the known warning, tsc clean, build only the chunk-size note) |
+| `dotnet build Kustodian.slnx -warnaserror`, 0 warnings | ok | ok (run on the VM as `dotnet build Kustodian.slnx -warnaserror`, default Debug configuration) | ok (Ubuntu 24.04 container with `libwebkit2gtk-4.1-dev` and `libsecret-1-dev`) |
 | `dotnet test --solution Kustodian.slnx` | ok, 885 passed | ok, 881 passed, 4 skipped | ok, 885 passed |
-| Window opens and renders the UI from its origin | owner (not launched, see above) | ok (4112x2436 physical px; sign-in screen, "Not signed in", settings gear in the header; captured with `PrintWindow` on the Kustodian window only) | - (headless container) |
+| Window opens and renders the UI from its origin | ok (Debug build launched; the window rendered the workbench with the owner's cached account, 436 schema tables, Run and Explain in the toolbar, status bar "Dark"; captured with `screencapture -l`, see notes; nothing pressed) | ok (4112x2436 physical px; sign-in screen, "Not signed in", settings gear in the header; captured with `PrintWindow` on the Kustodian window only) | - (headless container) |
 
 ### Plan 2 features
+
+Cell reasons: macOS "owner" = the builder cannot type or click in the window; Windows "owner" = no account on the VM, workbench
+behind sign-in; Linux "owner" = headless container.
 
 | Check | macOS | Windows | Linux |
 | --- | --- | --- | --- |
 | Restart with two unsaved tabs: both come back | owner | owner | owner |
-| Theme: light, dark, system | owner | owner (dark seen on the sign-in screen only) | owner |
+| Theme: light | owner | owner | owner |
+| Theme: dark | owner (status bar showed "Dark" in the launch screenshot; the setting was not switched) | owner (the sign-in screen rendered dark; only that screen was seen and the setting was not read) | owner |
+| Theme: system follows the OS | owner | owner | owner |
 | Palette opens with the platform shortcut (`⌘ K` on macOS, `Ctrl K` elsewhere) | owner | owner | owner |
 | Save a query, restart, open it from Saved | owner | owner | owner |
+| Recent panel lists runs and re-runs from Recent | owner | owner | owner |
+| Clear recent | owner | owner | owner |
+| Snippets: insert at cursor | owner | owner | owner |
+| Snippets: open in a new tab | owner | owner | owner |
+| Snippets: save your own | owner | owner | owner |
+| Snippets: delete your own; a built-in snippet can't be deleted | owner | owner | owner |
 | Run a `datatable` snippet (no Graph data); snippets that need a tenant stay owner | owner | owner | owner |
-| Explain a query (no Graph call; needs the workbench, which sits behind sign-in) | owner | owner | owner |
-| Open and save a `.kql` file through the native dialogs; paths come back (no suggested name, a Photino limitation) | owner | owner | owner |
+| Clear cache | owner | owner | owner |
+| Explain a query (no Graph call) | owner (the Explain button is visible in the launch screenshot; not pressed) | owner | owner |
+| Parameters form: placeholders found, typed values, a run with them | owner | owner | owner |
+| Diagnostics: requests, status and sizes listed; no tokens or `Authorization` headers | owner | owner | owner |
+| Raw request tab: send | owner | owner | owner |
+| Raw request tab: next page | owner | owner | owner |
+| Raw request tab: open the array as a KQL tab | owner | owner | owner |
+| Results: chart | owner | owner | owner |
+| Results: JSON tab | owner | owner | owner |
+| Results: grid tools (sort, filter, columns) | owner | owner | owner |
+| Results: row details | owner | owner | owner |
+| Results: copy | owner | owner | owner |
+| Results: export | owner | owner | owner |
+| Results: compare | owner | owner | owner |
 | Settings validation and the restart notice | owner | owner | owner |
-| Parameters, diagnostics, raw request tab, results tools (tabs, grid tools, export, chart, compare) against live data | owner | owner | owner |
-| `⌘ W` closes a tab in the real macOS window: Photino's menu may take it before the page sees it | owner | n/a | n/a |
-| Row menus, column, copy and export menus and the save dialog: a click on an item lands (WebKit doesn't focus buttons on mousedown) | owner (WKWebView) | owner (WebView2) | owner (WebKitGTK) |
-| Native open and save dialogs open and return paths | owner | owner | owner |
+| Native open dialog opens and returns a path | owner | owner | owner |
+| Native save dialog opens and returns a path (no suggested name, a Photino limitation) | owner | owner | owner |
 | Drag a `.kql` file from Finder or Explorer into the window: opens exactly one tab | owner | owner | owner |
-| `crypto.randomUUID` on the macOS `app://` origin: log `window.isSecureContext` in a dev build; if false, the `getRandomValues` fallback covers it | owner | n/a (`https://kustodian.invalid` is a secure context) | owner |
-| monaco-kusto completion in the web view (owner-only since Plan 1) | owner (WKWebView) | owner (WebView2) | owner (WebKitGTK) |
+| Close tab with the shortcut; closing a tab is a command on every platform. macOS: `⌘ W`, and Photino's menu may take it before the page sees it | owner | owner (`Ctrl W`; not checked, workbench behind sign-in) | owner (`Ctrl W`; not checked, headless) |
+| Row, column, copy and export menus and the save dialog: a click on an item lands (WebKit doesn't focus buttons on mousedown) | owner (WKWebView) | owner (WebView2) | owner (WebKitGTK) |
+| `crypto.randomUUID` works, or the `getRandomValues` fallback covers it; log `window.isSecureContext` in a dev build | owner (the `app://` origin may not be a secure context; not logged) | owner (`https://kustodian.invalid` is probably a secure context; not checked) | owner |
+| monaco-kusto completion in the web view (owner-only since Plan 1) | owner (WKWebView; the launch screenshot happened to show a completion list for `ta` in a restored tab, but the builder did not type it and can't reproduce it) | owner (WebView2) | owner (WebKitGTK) |
 
 ## Notes
 
@@ -112,6 +134,14 @@ settings gear took its hover state) but opened no panel while signed out.
   WKWebView in the app (see the completion row).
 - Schema panel: the "N columns" count and the tags no longer shrink or wrap (`flex-shrink: 0; white-space: nowrap`); long table
   names truncate with an ellipsis. Seen in the macOS app (for example "agentRegistry_agentC… 21 columns" on one line).
+- macOS screenshot attempt (Task 13, fix round): `screencapture -l <windowid>` works without extra permissions here. No Python
+  `Quartz` module is installed, so a small Swift script called `CGWindowListCopyWindowInfo` (option `.optionAll`) and listed the
+  windows whose owner name contains "Kustodian"; one of them was the 1440x900-point main window. `screencapture -x -o -l <id>`
+  of that id gave a 2880x1800 PNG of that window only. The first id picked (an unnamed Kustodian window) captured something
+  else, so pick the one with the 1440x900 bounds. The shot showed the workbench with a restored "Query 1" tab (unsaved dot),
+  the owner's cached account, 436 schema tables, Run, Cancel, Format and Explain, and "Dark" in the status bar. Nothing was
+  pressed. Typing and clicking still need Accessibility permission, so the rows stay owner. After the shot, SIGTERM did not stop
+  the app within 8 s (the Plan 1 note says it did); it was killed with SIGKILL, and nothing was left running.
 - Linux: only build and tests could be run (container, no display). The monaco-kusto-in-WebKitGTK question (spec 14, risk 2) is
   still open and needs a machine with a display.
 
