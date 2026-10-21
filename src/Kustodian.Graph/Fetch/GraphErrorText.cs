@@ -68,12 +68,31 @@ public static partial class GraphErrorText
         }
     }
 
-    /// <summary>Whether the answer is a 401 whose <c>WWW-Authenticate</c> says <c>error="invalid_token"</c>: the token is
-    /// bad (expired, revoked), not a permission missing.</summary>
-    internal static bool IsInvalidToken(HttpResponseMessage response)
-        => response.StatusCode == HttpStatusCode.Unauthorized
-            && response.Headers.TryGetValues("WWW-Authenticate", out var values)
-            && values.Any(v => v.Contains("error=\"invalid_token\"", StringComparison.OrdinalIgnoreCase));
+    /// <summary>Whether the answer is a 401 that rejects the token itself (expired, revoked), not a missing permission:
+    /// <c>WWW-Authenticate</c> says <c>error="invalid_token"</c>, or Graph's error code is <c>InvalidAuthenticationToken</c>, or
+    /// there is no Graph error body. A 401 with another code (<c>Authorization_RequestDenied</c>) is a permission refusal.</summary>
+    internal static bool IsTokenRejected(HttpResponseMessage response, byte[] body)
+    {
+        if (response.StatusCode != HttpStatusCode.Unauthorized)
+            return false;
+        if (response.Headers.TryGetValues("WWW-Authenticate", out var values)
+            && values.Any(v => v.Contains("error=\"invalid_token\"", StringComparison.OrdinalIgnoreCase)))
+            return true;
+        var code = ErrorCode(body);
+        return code is null || string.Equals(code, "InvalidAuthenticationToken", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? ErrorCode(byte[] body)
+    {
+        try
+        {
+            return JsonNode.Parse(body)?["error"]?["code"]?.GetValue<string>();
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            return null;
+        }
+    }
 
     private static string? Plain(Match match)
     {

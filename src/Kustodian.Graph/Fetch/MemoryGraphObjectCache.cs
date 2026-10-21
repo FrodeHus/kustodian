@@ -31,7 +31,14 @@ public sealed class MemoryGraphObjectCache(TimeProvider time, TimeSpan? ttl = nu
 
     public ValueTask SetAsync(string accountKey, string path, IReadOnlyList<string> columns, string id, string json, CancellationToken ct)
     {
-        _entries[KeyOf(accountKey, path, columns, id)] = new GraphCachedValues(json, time.GetUtcNow());
+        var now = time.GetUtcNow();
+        // Expired entries are dropped as new ones come in, so a long session doesn't keep growing.
+        foreach (var (key, entry) in _entries)
+        {
+            if (now - entry.ReadAt >= _ttl)
+                _entries.TryRemove(new KeyValuePair<Key, GraphCachedValues>(key, entry));
+        }
+        _entries[KeyOf(accountKey, path, columns, id)] = new GraphCachedValues(json, now);
         return ValueTask.CompletedTask;
     }
 
@@ -41,6 +48,9 @@ public sealed class MemoryGraphObjectCache(TimeProvider time, TimeSpan? ttl = nu
             _entries.TryRemove(key, out _);
         return ValueTask.CompletedTask;
     }
+
+    /// <summary>How many entries are held, expired ones not yet swept included.</summary>
+    internal int Count => _entries.Count;
 
     /// <summary>Forgets everything, of every account.</summary>
     public void Clear() => _entries.Clear();

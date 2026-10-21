@@ -40,6 +40,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
     public const int MaxSelectRetries = 5;
     /// <summary>Probes spent finding the columns a backend can't serve in a list (one for <c>id</c> alone, then halves).</summary>
     public const int MaxProbes = 16;
+    private const string GraphHost = "graph.microsoft.com";
     private const int PageSize = 999;
     private const int DefaultRetryAfterSeconds = 60;
 
@@ -187,9 +188,8 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
 
             if (!response.IsSuccessStatusCode)
             {
-                // A 401 is the token's, not a permission's, when Graph says so or when only id was asked for: sign in again.
-                if (response.StatusCode == HttpStatusCode.Unauthorized
-                    && (GraphErrorText.IsInvalidToken(response) || select.All(c => c == "id")))
+                // A 401 that rejects the token itself (not a permission) means sign in again.
+                if (GraphErrorText.IsTokenRejected(response, body))
                     throw SignInNeeded();
                 var raw = GraphErrorText.Extract(body);
                 var message = raw is null ? null : GraphErrorText.Describe((int)response.StatusCode, raw);
@@ -223,8 +223,12 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                     $"{fetch.Table.Name} has more than 50,000 objects. Add a `where` Graph can filter on (see the schema list).");
 
             // The account's token goes with every request: a next link is only followed back to Graph itself.
-            next = root?["@odata.nextLink"]?.GetValue<string>() is { } link && Uri.TryCreate(link, UriKind.Absolute, out var uri)
-                && uri.Scheme == Uri.UriSchemeHttps && uri.Host == http.BaseAddress!.Host
+            var linkNode = root?["@odata.nextLink"];
+            string? link = null;
+            if (linkNode is not null && !(linkNode is JsonValue linkValue && linkValue.TryGetValue(out link)))
+                throw new GraphReadException(GraphReadFailure.Failed, "Graph sent a next link that isn't text");
+            next = link is not null && Uri.TryCreate(link, UriKind.Absolute, out var uri)
+                && uri.Scheme == Uri.UriSchemeHttps && string.Equals(uri.Host, GraphHost, StringComparison.OrdinalIgnoreCase)
                 ? uri
                 : null;
         }
@@ -302,10 +306,10 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
             using var response = await http.SendAsync(request, ct);
             if (response.IsSuccessStatusCode)
                 return ProbeAnswer.Reads;
-            // The token is refused, not a column: sign in again (also for id alone, which no permission could refuse).
-            if (response.StatusCode == HttpStatusCode.Unauthorized && (GraphErrorText.IsInvalidToken(response) || group.Count == 0))
-                throw SignInNeeded();
             var body = await response.Content.ReadAsByteArrayAsync(ct);
+            // The token is refused, not a column: sign in again.
+            if (GraphErrorText.IsTokenRejected(response, body))
+                throw SignInNeeded();
             var raw = GraphErrorText.Extract(body);
             // With id alone refused, the table itself is: that is the answer, not a column's.
             // Graph answers a property it won't serve in many ways (a 404 web page, a 400 "Invalid object identifier", a 401):

@@ -77,11 +77,11 @@ public sealed class GraphBatchReader(HttpClient http)
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, new Uri("$batch", UriKind.Relative)) { Content = JsonContent.Create(batch) };
             using var response = await http.SendAsync(request, ct);
-            if (GraphErrorText.IsInvalidToken(response))
+            body = await response.Content.ReadAsByteArrayAsync(ct);
+            if (GraphErrorText.IsTokenRejected(response, body))
                 throw new GraphReadException(GraphReadFailure.SignInNeeded, GraphErrorText.SignInMessage);
             if (!response.IsSuccessStatusCode)
                 return new Sent(chunk.Length, [], 0);
-            body = await response.Content.ReadAsByteArrayAsync(ct);
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException && !ct.IsCancellationRequested)
         {

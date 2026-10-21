@@ -25,6 +25,7 @@ public sealed class GraphBatchReaderTests
         private int _inFlight;
         public int MaxInFlight { get; private set; }
         public int Lists { get; private set; }
+        public bool Unauthorized { get; init; }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
@@ -46,6 +47,12 @@ public sealed class GraphBatchReaderTests
                 await Task.Delay(10, cancellationToken);
                 var batch = JsonNode.Parse(await request.Content!.ReadAsStringAsync(cancellationToken))!.AsObject();
                 Batches.Enqueue(batch);
+                if (Unauthorized)
+                {
+                    var rejected = Json(HttpStatusCode.Unauthorized, "{\"error\":{\"code\":\"InvalidAuthenticationToken\",\"message\":\"expired\"}}");
+                    rejected.Headers.WwwAuthenticate.ParseAdd("Bearer error=\"invalid_token\"");
+                    return rejected;
+                }
                 if (Item("batch", 0).Status == 500)
                     return Json(HttpStatusCode.InternalServerError, "{}");
                 var responses = batch["requests"]!.AsArray().Select(r =>
@@ -116,6 +123,19 @@ public sealed class GraphBatchReaderTests
     private static GraphFetch Publishing() => Fetch(["id", "onPremisesPublishing"], ["onPremisesPublishing"]);
 
     private static string? Auth(JsonObject o) => o["onPremisesPublishing"]?["externalAuthenticationType"]?.GetValue<string>();
+
+    [Fact]
+    public async Task A_batch_answered_with_401_invalid_token_is_sign_in_needed()
+    {
+        var graph = new Directory(5)
+        {
+            Unauthorized = true,
+        };
+
+        var failed = await Assert.ThrowsAsync<GraphReadException>(() => Read(graph, Publishing()));
+
+        Assert.Equal(GraphReadFailure.SignInNeeded, failed.Failure);
+    }
 
     [Fact]
     public async Task A_named_column_graph_refuses_in_a_list_is_read_one_object_at_a_time()

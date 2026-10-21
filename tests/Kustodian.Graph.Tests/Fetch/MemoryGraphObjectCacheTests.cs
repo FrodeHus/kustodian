@@ -49,6 +49,21 @@ public sealed class MemoryGraphObjectCacheTests
     }
 
     [Fact]
+    public async Task Setting_an_entry_sweeps_the_expired_ones()
+    {
+        var time = new FakeTimeProvider();
+        var cache = new MemoryGraphObjectCache(time, TimeSpan.FromMinutes(1));
+        await cache.SetAsync("acc", "applications", Columns, "old", "{}", CancellationToken.None);
+        time.Advance(TimeSpan.FromSeconds(30));
+        await cache.SetAsync("acc", "applications", Columns, "mid", "{}", CancellationToken.None);
+        time.Advance(TimeSpan.FromSeconds(31));
+
+        await cache.SetAsync("acc", "applications", Columns, "new", "{}", CancellationToken.None);
+
+        Assert.Equal(2, cache.Count);
+    }
+
+    [Fact]
     public async Task Clear_removes_everything()
     {
         var cache = new MemoryGraphObjectCache(new FakeTimeProvider());

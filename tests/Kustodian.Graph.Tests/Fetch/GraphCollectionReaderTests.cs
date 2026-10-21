@@ -481,9 +481,7 @@ public sealed class GraphCollectionReaderTests
     [Fact]
     public async Task A_table_graph_refuses_whatever_is_selected_is_still_no_permission()
     {
-        var handler = new Scripted((_, _) => Json(HttpStatusCode.Forbidden, Error("Authorization_RequestDenied", "Unauthorized Access.")));
-
-        var failed = await Fails(Read(Reader(handler), Fetch(["appId", "displayName", "id"])));
+        var failed = await Fails(Read(Reader(new Scripted((_, _) => Unauthorized())), Fetch(["appId", "displayName", "id"])));
 
         Assert.Equal(GraphReadFailure.NoPermission, failed.Failure);
         Assert.Equal("Unauthorized Access.", failed.Message);
@@ -508,7 +506,7 @@ public sealed class GraphCollectionReaderTests
     [Fact]
     public async Task Probe_401_invalid_token_throws_sign_in_needed()
     {
-        // The list is refused by something column-specific (a 400 on the first page), then the first probe is told the token is bad.
+        // The list answers 404 with a web page (a selected column), then the first probe is told the token is bad.
         var handler = new Scripted((r, _) => r.RequestUri!.OriginalString.Contains("$top=999", StringComparison.Ordinal)
             ? Json(HttpStatusCode.NotFound, Error("UnknownError", "<html><title>404</title></html>"))
             : InvalidToken());
@@ -520,21 +518,75 @@ public sealed class GraphCollectionReaderTests
     }
 
     [Fact]
-    public async Task First_page_401_with_only_id_throws_sign_in_needed()
+    public async Task First_page_401_with_invalid_authentication_token_code_throws_sign_in_needed()
     {
-        var failed = await Fails(Read(Reader(new Scripted((_, _) => Unauthorized())), Fetch(["id"])));
+        var handler = new Scripted((_, _) => Json(HttpStatusCode.Unauthorized, Error("InvalidAuthenticationToken", "Access token is empty.")));
+
+        var failed = await Fails(Read(Reader(handler), Fetch(["id"])));
 
         Assert.Equal(GraphReadFailure.SignInNeeded, failed.Failure);
     }
 
     [Fact]
-    public async Task A_probe_of_id_alone_answering_401_throws_sign_in_needed()
+    public async Task First_page_401_without_a_graph_error_body_throws_sign_in_needed()
     {
-        // No permission can refuse id alone: the token is what Graph refused.
-        var failed = await Fails(Read(Reader(new Scripted((_, _) => Unauthorized())), Fetch(["appId", "displayName", "id"])));
+        var failed = await Fails(Read(Reader(new Scripted((_, _) => Json(HttpStatusCode.Unauthorized, ""))), Fetch(["id"])));
 
         Assert.Equal(GraphReadFailure.SignInNeeded, failed.Failure);
-        Assert.Equal(2, failed.Requests.Count);
+    }
+
+    [Fact]
+    public async Task First_page_401_request_denied_with_only_id_is_no_permission()
+    {
+        var failed = await Fails(Read(Reader(new Scripted((_, _) => Unauthorized())), Fetch(["id"])));
+
+        Assert.Equal(GraphReadFailure.NoPermission, failed.Failure);
+    }
+
+    [Fact]
+    public async Task Probe_of_a_column_group_answering_401_invalid_token_throws_sign_in_needed_not_denied()
+    {
+        // The list fails with a web page and id alone reads, then a column group's probe is told the token is bad.
+        var handler = new Scripted((r, _) =>
+        {
+            var columns = SelectOf(r).Split(',').Where(c => c != "id").ToList();
+            if (r.RequestUri!.OriginalString.Contains("$top=999", StringComparison.Ordinal))
+                return WebPage404();
+            return columns.Count == 0 ? Json(HttpStatusCode.OK, Page(0, 1)) : InvalidToken();
+        });
+
+        var failed = await Fails(Read(Reader(handler), Fetch(["appId", "displayName", "id"])));
+
+        Assert.Equal(GraphReadFailure.SignInNeeded, failed.Failure);
+        Assert.Equal(3, failed.Requests.Count);
+    }
+
+    [Fact]
+    public async Task A_next_link_is_followed_only_to_graph_microsoft_com_whatever_the_base_address()
+    {
+        var handler = new Scripted((_, n) => Json(HttpStatusCode.OK, n == 0 ? Page(0, 1, Next + "a") : Page(1, 1)));
+        var reader = new GraphCollectionReader(new HttpClient(handler) { BaseAddress = new Uri("https://example.test/beta/") },
+            new GraphFetchBudget(), NoGraphObjectCache.Instance);
+
+        var result = await Read(reader, Fetch());
+
+        Assert.Equal(2, result.Objects.Count);
+        Assert.Equal(2, handler.Calls);
+        var other = new Scripted((_, _) => Json(HttpStatusCode.OK, Page(0, 1, "https://example.test/beta/applications?x=1")));
+        var otherReader = new GraphCollectionReader(new HttpClient(other) { BaseAddress = new Uri("https://example.test/beta/") },
+            new GraphFetchBudget(), NoGraphObjectCache.Instance);
+        await Read(otherReader, Fetch());
+        Assert.Equal(1, other.Calls);
+    }
+
+    [Fact]
+    public async Task A_next_link_that_is_not_text_fails_the_read()
+    {
+        var handler = new Scripted((_, _) => Json(HttpStatusCode.OK, "{\"@odata.nextLink\":42,\"value\":[{\"id\":\"1\"}]}"));
+
+        var failed = await Fails(Read(Reader(handler), Fetch()));
+
+        Assert.Equal(GraphReadFailure.Failed, failed.Failure);
     }
 
     [Fact]
