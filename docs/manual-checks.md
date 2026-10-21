@@ -151,4 +151,6 @@ behind sign-in; Linux "owner" = headless container.
 
 - Windows: Photino.Native 4.0.22 has no `WM_DPICHANGED` handler, so a window dragged to a monitor with a different DPI keeps its
   physical size (too big or too small there). It needs handling in Photino or a native hook in the host.
-- Possible shutdown regression: SIGTERM didn't stop the macOS app (owner look).
+- SIGTERM didn't stop the macOS app in one Plan 2 check. .NET 10 managed code can't block SIGTERM, so check how it was launched
+  (inherited ignored signal, job control, or the wrong PID): run `ps -o pid,ppid,stat,sigignore,sigcatch,command -p <pid>` on
+  the apphost PID, then `kill -TERM`.
