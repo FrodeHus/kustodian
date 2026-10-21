@@ -48,7 +48,8 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
     /// <summary>A lease on this reader's process budget, for the reads of one run.</summary>
     public GraphFetchLease Lease() => budget.Lease();
 
-    /// <summary>Reads the collection. <paramref name="accountKey"/> keys the cache. <paramref name="refresh"/>: per-object reads skip the cache (and refill it). Throws
+    /// <summary>Reads the collection. <paramref name="accountKey"/> keys the cache and goes on every request
+    /// (<see cref="GraphRequestAccount"/>), so each is sent with that account's token. <paramref name="refresh"/>: per-object reads skip the cache (and refill it). Throws
     /// <see cref="GraphReadException"/> for every failure that isn't the caller cancelling; a <see cref="SignInRequiredException"/>
     /// from the HTTP pipeline (also wrapped in an <see cref="HttpRequestException"/>) passes through.</summary>
     public async Task<GraphCollection> ReadAsync(string accountKey, GraphFetch fetch, GraphFetchLease lease, bool refresh,
@@ -70,7 +71,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
             while (true)
             {
                 objects.Clear();
-                var retry = await ReadPagesAsync(fetch, select, filter, lease, requests, objects, ct);
+                var retry = await ReadPagesAsync(accountKey, fetch, select, filter, lease, requests, objects, ct);
                 if (retry is null)
                     return await ReadPerObjectAsync(accountKey, fetch, lease, requests,
                         new GraphCollection(objects, requests, unfiltered, unreadable) { Denied = denied }, refresh, ct);
@@ -81,7 +82,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                     if (probed)
                         throw original;
                     probed = true;
-                    if (await FindUnreadableAsync(fetch, [.. select.Where(c => c != "id")], requests, ct) is not { Count: > 0 } found)
+                    if (await FindUnreadableAsync(accountKey, fetch, [.. select.Where(c => c != "id")], requests, ct) is not { Count: > 0 } found)
                         throw original;
                     foreach (var column in found.NotListed)
                     {
@@ -154,7 +155,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         if (misses.Count > 0)
         {
             requests.Add(GraphBatchReader.Template(path, columns));
-            var answered = await new GraphBatchReader(http).ReadAsync(path, misses, columns, lease, ct);
+            var answered = await new GraphBatchReader(http).ReadAsync(accountKey, path, misses, columns, lease, ct);
             failed = answered.Failed;
             foreach (var o in answered.Read)
             {
@@ -175,7 +176,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
     private static string? Id(JsonObject o) => o["id"] is JsonValue v && v.TryGetValue<string>(out var id) ? id : null;
 
     /// <summary>One run through the pages. Returns null when done, or what to change when Graph refused the first page.</summary>
-    private async Task<Retry?> ReadPagesAsync(GraphFetch fetch, List<string> select, string? filter,
+    private async Task<Retry?> ReadPagesAsync(string accountKey, GraphFetch fetch, List<string> select, string? filter,
         GraphFetchLease lease, List<string> requests, List<JsonObject> objects, CancellationToken ct)
     {
         var url = fetch.Table.Path + "?$select=" + Uri.EscapeDataString(string.Join(",", select))
@@ -185,7 +186,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         for (var page = 0; next is not null; page++)
         {
             requests.Add(Relative(next));
-            using var request = new HttpRequestMessage(HttpMethod.Get, next);
+            using var request = new HttpRequestMessage(HttpMethod.Get, next).ForAccount(accountKey);
             using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
             var body = await response.Content.ReadAsByteArrayAsync(ct);
 
@@ -295,7 +296,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
     /// no filter) until each failing half is down to one column. Null when <c>id</c> alone fails (the collection itself does)
     /// or the probes run out (<see cref="MaxProbes"/>). Every probe is recorded with the requests.
     /// </summary>
-    private async Task<Probed?> FindUnreadableAsync(GraphFetch fetch, List<string> columns, List<string> requests,
+    private async Task<Probed?> FindUnreadableAsync(string accountKey, GraphFetch fetch, List<string> columns, List<string> requests,
         CancellationToken ct)
     {
         var probes = 0;
@@ -305,7 +306,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                 return ProbeAnswer.OutOfProbes;
             var url = fetch.Table.Path + "?$select=" + Uri.EscapeDataString(string.Join(",", group.Prepend("id"))) + "&$top=1";
             requests.Add(url);
-            using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(url, UriKind.Relative));
+            using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(url, UriKind.Relative)).ForAccount(accountKey);
             using var response = await http.SendAsync(request, ct);
             if (response.IsSuccessStatusCode)
                 return ProbeAnswer.Reads;

@@ -35,7 +35,7 @@ public sealed class GraphBatchReader(HttpClient http)
     /// <summary>Reads <paramref name="columns"/> of every object in <paramref name="objects"/> (by its <c>id</c>) and sets them
     /// on the object. Returns how many objects couldn't be read, and the objects that were. The answers count against
     /// <paramref name="lease"/>.</summary>
-    public async Task<GraphBatchRead> ReadAsync(string path, IReadOnlyList<JsonObject> objects, IReadOnlyList<string> columns,
+    public async Task<GraphBatchRead> ReadAsync(string accountKey, string path, IReadOnlyList<JsonObject> objects, IReadOnlyList<string> columns,
         GraphFetchLease lease, CancellationToken ct)
     {
         var targets = objects.Where(o => o["id"] is JsonValue v && v.TryGetValue<string>(out _)).ToList();
@@ -45,11 +45,11 @@ public sealed class GraphBatchReader(HttpClient http)
         var options = new ParallelOptions { MaxDegreeOfParallelism = BatchesInFlight, CancellationToken = ct };
         await Parallel.ForEachAsync(targets.Chunk(BatchSize), options, async (chunk, token) =>
         {
-            var left = await SendAsync(path, select, chunk, columns, lease, read, token);
+            var left = await SendAsync(accountKey, path, select, chunk, columns, lease, read, token);
             if (left.Throttled.Count > 0)
             {
                 await Task.Delay(TimeSpan.FromSeconds(Math.Clamp(left.RetryAfterSeconds, 0, MaxRetryAfterSeconds)), token);
-                var again = await SendAsync(path, select, [.. left.Throttled], columns, lease, read, token);
+                var again = await SendAsync(accountKey, path, select, [.. left.Throttled], columns, lease, read, token);
                 Interlocked.Add(ref failed, again.Failed + again.Throttled.Count);
             }
             Interlocked.Add(ref failed, left.Failed);
@@ -61,7 +61,7 @@ public sealed class GraphBatchReader(HttpClient http)
 
     /// <summary>One <c>$batch</c> of reads; the objects read are added to <paramref name="read"/>. A batch Graph doesn't answer
     /// counts every item as failed.</summary>
-    private async Task<Sent> SendAsync(string path, string select, JsonObject[] chunk, IReadOnlyList<string> columns,
+    private async Task<Sent> SendAsync(string accountKey, string path, string select, JsonObject[] chunk, IReadOnlyList<string> columns,
         GraphFetchLease lease, ConcurrentBag<JsonObject> read, CancellationToken ct)
     {
         var batch = new JsonObject
@@ -76,7 +76,8 @@ public sealed class GraphBatchReader(HttpClient http)
         byte[] body;
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, new Uri("$batch", UriKind.Relative)) { Content = JsonContent.Create(batch) };
+            using var request = new HttpRequestMessage(HttpMethod.Post, new Uri("$batch", UriKind.Relative)) { Content = JsonContent.Create(batch) }
+                .ForAccount(accountKey);
             using var response = await http.SendAsync(request, ct);
             body = await response.Content.ReadAsByteArrayAsync(ct);
             if (GraphErrorText.IsTokenRejected(response, body))

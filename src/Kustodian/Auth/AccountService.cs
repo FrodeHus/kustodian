@@ -7,11 +7,9 @@ namespace Kustodian.Auth;
 
 public interface ITokenSource
 {
-    /// <summary>Key of the account tokens are fetched for, or null when nobody is signed in.</summary>
-    string? ActiveAccountKey { get; }
-
-    /// <exception cref="SignInRequiredException">There is no active account, or it has to sign in again.</exception>
-    Task<string> GetTokenAsync(Audience audience, CancellationToken ct);
+    /// <summary>A token for the account <paramref name="accountKey"/>, whether or not it is the active one.</summary>
+    /// <exception cref="SignInRequiredException">That account is not signed in (or was signed out), or has to sign in again.</exception>
+    Task<string> GetTokenAsync(string accountKey, Audience audience, CancellationToken ct);
 }
 
 /// <summary>What the UI shows about a signed-in account. Holds no tokens. <see cref="Scopes"/> is the <c>scp</c> claim of the last
@@ -119,14 +117,14 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
         }
     }
 
-    public async Task<string> GetTokenAsync(Audience audience, CancellationToken ct)
+    public async Task<string> GetTokenAsync(string accountKey, Audience audience, CancellationToken ct)
     {
         await _gate.WaitAsync(ct);
         try
         {
             var state = await LoadAsync(ct);
-            var stored = state.Accounts.FirstOrDefault(a => a.Info.Key == state.ActiveKey)
-                ?? throw new SignInRequiredException("No account is signed in.");
+            var stored = state.Accounts.FirstOrDefault(a => a.Info.Key == accountKey)
+                ?? throw new SignInRequiredException("That account is not signed in.");
 
             MsalToken token;
             try

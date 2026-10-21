@@ -149,8 +149,6 @@ public class HostTests
 
     private sealed class NoTokens : ITokenSource
     {
-        public string? ActiveAccountKey => null;
-
-        public Task<string> GetTokenAsync(Audience audience, CancellationToken ct) => throw new NotSupportedException();
+        public Task<string> GetTokenAsync(string accountKey, Audience audience, CancellationToken ct) => throw new NotSupportedException();
     }
 }

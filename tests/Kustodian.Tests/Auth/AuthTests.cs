@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Kustodian.Auth;
+using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Run;
 using Kustodian.Storage;
 using Microsoft.Extensions.Logging;
@@ -46,15 +47,64 @@ public class AuthTests : IDisposable
         var inner = new RecordingHandler();
         using var client = new HttpClient(new GraphAuthHandler(new FixedTokens("tok-123")) { InnerHandler = inner });
 
-        await client.GetAsync("https://graph.microsoft.com/beta/security/runHuntingQuery", TestContext.Current.CancellationToken);
-        await client.GetAsync("https://example.com/x", TestContext.Current.CancellationToken);
-        await client.GetAsync("https://graph.microsoft.com.evil.example/x", TestContext.Current.CancellationToken);
-        await client.GetAsync("http://graph.microsoft.com/beta/x", TestContext.Current.CancellationToken);
+        await SendForAccountAsync(client, "https://graph.microsoft.com/beta/security/runHuntingQuery");
+        await SendForAccountAsync(client, "https://example.com/x");
+        await SendForAccountAsync(client, "https://graph.microsoft.com.evil.example/x");
+        await SendForAccountAsync(client, "http://graph.microsoft.com/beta/x");
 
         Assert.Equal("Bearer tok-123", inner.Seen[0].Authorization);
         Assert.Null(inner.Seen[1].Authorization);
         Assert.Null(inner.Seen[2].Authorization);
         Assert.Null(inner.Seen[3].Authorization);
+    }
+
+    [Fact]
+    public async Task Handler_asks_for_the_token_of_the_account_the_request_names()
+    {
+        var tokens = new FixedTokens("tok-123");
+        using var client = new HttpClient(new GraphAuthHandler(tokens) { InnerHandler = new RecordingHandler() });
+
+        await SendForAccountAsync(client, "https://graph.microsoft.com/beta/x", "account-a");
+
+        Assert.Equal(["account-a"], tokens.AskedFor);
+    }
+
+    [Fact]
+    public async Task Handler_refuses_a_graph_request_that_names_no_account_and_never_falls_back()
+    {
+        var tokens = new FixedTokens("tok-123");
+        var inner = new RecordingHandler();
+        using var client = new HttpClient(new GraphAuthHandler(tokens) { InnerHandler = inner });
+
+        await Assert.ThrowsAsync<SignInRequiredException>(() =>
+            client.GetAsync("https://graph.microsoft.com/beta/x", TestContext.Current.CancellationToken));
+
+        Assert.Empty(tokens.AskedFor);
+        Assert.Empty(inner.Seen);
+    }
+
+    [Fact]
+    public async Task GetToken_is_for_the_named_account_not_the_active_one()
+    {
+        var msal = new FakeMsal();
+        var service = NewService(msal);
+        var first = await service.SignInInteractiveAsync(ClientConfig.AzureCli, TestContext.Current.CancellationToken);
+        msal.Next = ("home-2", "bob@fabrikam.com", "tenant-2");
+        var second = await service.SignInInteractiveAsync(ClientConfig.AzureCli, TestContext.Current.CancellationToken);
+
+        Assert.Equal(second.Key, service.ActiveAccountKey);
+        Assert.Equal("tok-1", await service.GetTokenAsync(first.Key, Audience.Graph, TestContext.Current.CancellationToken));
+        Assert.Equal("tok-2", await service.GetTokenAsync(second.Key, Audience.Graph, TestContext.Current.CancellationToken));
+
+        await service.SignOutAsync(first.Key);
+        await Assert.ThrowsAsync<SignInRequiredException>(() =>
+            service.GetTokenAsync(first.Key, Audience.Graph, TestContext.Current.CancellationToken));
+    }
+
+    private static async Task SendForAccountAsync(HttpClient client, string url, string account = "k")
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, url).ForAccount(account);
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -77,7 +127,7 @@ public class AuthTests : IDisposable
         var logger = new CapturingLogger<GraphAuthHandler>();
         using var client = new HttpClient(new GraphAuthHandler(new FixedTokens(token), logger) { InnerHandler = new RecordingHandler() });
 
-        await client.GetAsync("https://graph.microsoft.com/beta/x", TestContext.Current.CancellationToken);
+        await SendForAccountAsync(client, "https://graph.microsoft.com/beta/x");
 
         Assert.NotEmpty(logger.Lines);
         Assert.DoesNotContain(logger.Lines, l => l.Contains(token, StringComparison.Ordinal));
@@ -106,7 +156,7 @@ public class AuthTests : IDisposable
     {
         var service = NewService(new FakeMsal());
 
-        await Assert.ThrowsAsync<SignInRequiredException>(() => service.GetTokenAsync(Audience.Graph, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<SignInRequiredException>(() => service.GetTokenAsync("nobody", Audience.Graph, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -114,10 +164,10 @@ public class AuthTests : IDisposable
     {
         var msal = new FakeMsal();
         var service = NewService(msal);
-        await service.SignInInteractiveAsync(ClientConfig.AzureCli, TestContext.Current.CancellationToken);
+        var account = await service.SignInInteractiveAsync(ClientConfig.AzureCli, TestContext.Current.CancellationToken);
         msal.SilentNeedsUi = true;
 
-        await Assert.ThrowsAsync<SignInRequiredException>(() => service.GetTokenAsync(Audience.Graph, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<SignInRequiredException>(() => service.GetTokenAsync(account.Key, Audience.Graph, TestContext.Current.CancellationToken));
 
         Assert.True((await service.ListAccountsAsync()).Single().Expired);
     }
@@ -136,7 +186,7 @@ public class AuthTests : IDisposable
         Assert.False(account.Expired);
         Assert.Equal(["ThreatHunting.Read.All", "User.Read"], account.Scopes);
         Assert.Equal(account.Key, service.ActiveAccountKey);
-        Assert.Equal("tok-1", await service.GetTokenAsync(Audience.Graph, TestContext.Current.CancellationToken));
+        Assert.Equal("tok-1", await service.GetTokenAsync(account.Key, Audience.Graph, TestContext.Current.CancellationToken));
 
         var json = await File.ReadAllTextAsync(Path.Combine(_dir, "accounts.json"), TestContext.Current.CancellationToken);
         Assert.DoesNotContain(msal.LastJwt, json, StringComparison.Ordinal);
@@ -154,7 +204,7 @@ public class AuthTests : IDisposable
         var account = Assert.Single(await restarted.ListAccountsAsync());
         Assert.True(account.Expired);
         Assert.Equal(first.ActiveAccountKey, account.Key);
-        await Assert.ThrowsAsync<SignInRequiredException>(() => restarted.GetTokenAsync(Audience.Graph, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<SignInRequiredException>(() => restarted.GetTokenAsync(account.Key, Audience.Graph, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -197,14 +247,14 @@ public class AuthTests : IDisposable
     {
         var msal = new FakeMsal();
         var service = NewService(msal);
-        await service.SignInInteractiveAsync(ClientConfig.AzureCli, TestContext.Current.CancellationToken);
+        var signedIn = await service.SignInInteractiveAsync(ClientConfig.AzureCli, TestContext.Current.CancellationToken);
         msal.Block = new TaskCompletionSource();
         msal.Next = ("home-2", "bob@fabrikam.com", "tenant-2");
 
         var pending = service.SignInInteractiveAsync(ClientConfig.AzureCli, TestContext.Current.CancellationToken);
         Assert.False(pending.IsCompleted);
 
-        var token = service.GetTokenAsync(Audience.Graph, TestContext.Current.CancellationToken);
+        var token = service.GetTokenAsync(signedIn.Key, Audience.Graph, TestContext.Current.CancellationToken);
         var list = service.ListAccountsAsync();
         var done = await Task.WhenAny(Task.WhenAll(token, list), Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
         Assert.True(token.IsCompletedSuccessfully && list.IsCompletedSuccessfully, "calls were stalled by the sign-in");
@@ -268,9 +318,13 @@ public class AuthTests : IDisposable
 
     private sealed class FixedTokens(string token) : ITokenSource
     {
-        public string? ActiveAccountKey => "k";
+        public List<string> AskedFor { get; } = [];
 
-        public Task<string> GetTokenAsync(Audience audience, CancellationToken ct) => Task.FromResult(token);
+        public Task<string> GetTokenAsync(string accountKey, Audience audience, CancellationToken ct)
+        {
+            AskedFor.Add(accountKey);
+            return Task.FromResult(token);
+        }
     }
 
     private sealed class RecordingHandler : HttpMessageHandler
@@ -355,7 +409,8 @@ public class AuthTests : IDisposable
                 throw new Microsoft.Identity.Client.MsalUiRequiredException("ui_required", "sign in again");
             }
 
-            return Task.FromResult(new MsalToken("tok-1", DateTimeOffset.UtcNow.AddHours(1)));
+            // One token per account: home-1 gets tok-1, home-2 tok-2.
+            return Task.FromResult(new MsalToken(homeAccountId.Replace("home", "tok", StringComparison.Ordinal), DateTimeOffset.UtcNow.AddHours(1)));
         }
 
         public Task<IReadOnlyList<MsalAccount>> GetAccountsAsync() =>
