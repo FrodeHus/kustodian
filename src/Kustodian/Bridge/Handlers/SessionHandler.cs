@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Kustodian.Files;
 using Kustodian.Sessions;
 
 namespace Kustodian.Messaging.Handlers;
@@ -7,7 +8,7 @@ namespace Kustodian.Messaging.Handlers;
 /// <summary><c>session.get</c> answers <c>{session, corrupt}</c> (<c>corrupt</c>: the file was moved aside and the session is
 /// empty); <c>session.save</c> takes <c>{session}</c> and answers <c>{dropped}</c>, how many tabs went over a cap and were left
 /// out. Fields missing from the saved session, its tabs or their parameters take their defaults, as a file read does.</summary>
-public sealed class SessionHandler(SessionService sessions)
+public sealed class SessionHandler(SessionService sessions, AllowedFilePaths allowed)
 {
     public void Register(Bridge bridge)
     {
@@ -16,7 +17,21 @@ public sealed class SessionHandler(SessionService sessions)
             var read = await sessions.GetAsync(ct);
             return new GetAnswer(read.Value, read.Corrupt);
         });
-        bridge.Register("session.save", async (p, ct) => new SaveAnswer(await sessions.SaveAsync(Wanted(p), ct)));
+        bridge.Register("session.save", async (p, ct) => new SaveAnswer(await sessions.SaveAsync(await Approved(Wanted(p)), ct)));
+    }
+
+    /// <summary>The session with each tab's file path kept only if the user chose that file in a dialog this session (or it was
+    /// already in the saved session), so the page can't write a path that the next start would trust.</summary>
+    private async Task<Session> Approved(Session session)
+    {
+        var tabs = new List<SessionTab>(session.Tabs.Count);
+        foreach (var tab in session.Tabs)
+        {
+            var keep = tab.FilePath is { Length: > 0 } path && await allowed.ContainsAsync(path);
+            tabs.Add(keep ? tab : tab with { FilePath = null });
+        }
+
+        return session with { Tabs = tabs };
     }
 
     private static Session Wanted(JsonElement p)

@@ -10,11 +10,12 @@ public sealed class SessionSnippetHandlerTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "kustodian-tests-" + Guid.NewGuid().ToString("N"));
     private readonly Messaging.Bridge _bridge = new(_ => { });
+    private readonly Kustodian.Files.AllowedFilePaths _allowed = new();
 
     public SessionSnippetHandlerTests()
     {
         var store = new JsonFileStore(_dir);
-        new SessionHandler(new SessionService(store)).Register(_bridge);
+        new SessionHandler(new SessionService(store), _allowed).Register(_bridge);
         new SnippetHandler(new SnippetService(store)).Register(_bridge);
     }
 
@@ -46,6 +47,20 @@ public sealed class SessionSnippetHandlerTests : IDisposable
         Assert.Equal("users", tab.GetProperty("text").GetString());
         Assert.Equal("graph", tab.GetProperty("source").GetString());
         Assert.Equal(0, tab.GetProperty("parameters").GetArrayLength());
+    }
+
+    [Fact]
+    public async Task Session_save_keeps_only_approved_file_paths()
+    {
+        var approved = Path.Combine(_dir, "ok.kql");
+        _allowed.Add(approved);
+        var tabs = $$$"""[{"id":"a","filePath":{{{JsonSerializer.Serialize(approved)}}}},{"id":"b","filePath":"/etc/passwd"}]""";
+
+        await CallAsync("session.save", $$$"""{"session":{"tabs":{{{tabs}}}}}""");
+        var got = (await CallAsync("session.get", "{}")).GetProperty("result").GetProperty("session").GetProperty("tabs");
+
+        Assert.Equal(approved, got[0].GetProperty("filePath").GetString());
+        Assert.Equal(JsonValueKind.Null, got[1].GetProperty("filePath").ValueKind);
     }
 
     [Fact]

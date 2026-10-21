@@ -86,7 +86,7 @@ public sealed class AppServices : IAsyncDisposable
         new SchemaHandler(_schema).Register(bridge);
         new QueryHandler(_schema, ActiveAccountAsync, Runner.RunAsync, _recent, _time, new StderrLogger<QueryHandler>()).Register(bridge);
         new LibraryHandler(_library, _recent).Register(bridge);
-        new SessionHandler(_session).Register(bridge);
+        new SessionHandler(_session, _allowedFiles).Register(bridge);
         new SnippetHandler(_snippets).Register(bridge);
         new FileHandler(new PhotinoFileDialogs(Window), _allowedFiles).Register(bridge);
         new AccountHandler(_accounts, _tokenCache, Objects).Register(bridge);
