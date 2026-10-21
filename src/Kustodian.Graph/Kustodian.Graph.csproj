@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <PackageReference Include="Microsoft.Azure.Kusto.Language" />
+  </ItemGroup>
+
+  <ItemGroup>
     <EmbeddedResource Include="Schema/graph-beta.json" LogicalName="graph-beta.json" />
   </ItemGroup>
 
