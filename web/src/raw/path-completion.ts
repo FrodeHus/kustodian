@@ -18,10 +18,13 @@ const startsWith = (prefix: string) => (name: string) => name.toLowerCase().star
 export function tableForPath(schema: SchemaView, path: string): SchemaTable | undefined {
   const typed = path.toLowerCase();
   let best: SchemaTable | undefined;
+  let bestLength = -1;
   for (const table of schema.tables) {
-    const own = table.path.toLowerCase();
-    if ((typed === own || typed.startsWith(`${own}/`)) && own.length > (best?.path.length ?? -1)) {
+    // Only Graph's tables have a path.
+    const own = table.path?.toLowerCase();
+    if (own !== undefined && (typed === own || typed.startsWith(`${own}/`)) && own.length > bestLength) {
       best = table;
+      bestLength = own.length;
     }
   }
   return best;
@@ -40,7 +43,8 @@ export function completePath(schema: SchemaView | null, path: string, caret: num
   }
   const query = before.indexOf('?');
   if (query < 0) {
-    return { from: 0, items: schema.tables.map((t) => t.path).filter(startsWith(before)).sort().slice(0, MAX_ITEMS) };
+    const paths = schema.tables.flatMap((t) => (t.path === null ? [] : [t.path]));
+    return { from: 0, items: paths.filter(startsWith(before)).sort().slice(0, MAX_ITEMS) };
   }
 
   const partStart = Math.max(before.lastIndexOf('&'), query) + 1;

@@ -1,0 +1,13 @@
+{
+  "_source": "https://learn.microsoft.com/graph/api/security-security-runhuntingquery?view=graph-rest-1.0 (Example 1 response; no tenant data)",
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#microsoft.graph.security.huntingQueryResults",
+  "schema": [
+    { "name": "Timestamp", "type": "DateTime" },
+    { "name": "FileName", "type": "String" },
+    { "name": "InitiatingProcessFileName", "type": "String" }
+  ],
+  "results": [
+    { "Timestamp": "2024-03-26T09:39:50.7688641Z", "FileName": "cmd.exe", "InitiatingProcessFileName": "powershell.exe" },
+    { "Timestamp": "2024-03-26T09:39:49.4353788Z", "FileName": "cmd.exe", "InitiatingProcessFileName": "powershell.exe" }
+  ]
+}

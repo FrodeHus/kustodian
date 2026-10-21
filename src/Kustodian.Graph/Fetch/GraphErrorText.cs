@@ -71,7 +71,7 @@ public static partial class GraphErrorText
     /// <summary>Whether the answer is a 401 that rejects the token itself (expired, revoked), not a missing permission:
     /// <c>WWW-Authenticate</c> says <c>error="invalid_token"</c>, or Graph's error code is <c>InvalidAuthenticationToken</c>, or
     /// there is no Graph error body. A 401 with another code (<c>Authorization_RequestDenied</c>) is a permission refusal.</summary>
-    internal static bool IsTokenRejected(HttpResponseMessage response, byte[] body)
+    public static bool IsTokenRejected(HttpResponseMessage response, byte[] body)
     {
         if (response.StatusCode != HttpStatusCode.Unauthorized)
             return false;

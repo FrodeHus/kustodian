@@ -1,0 +1,12 @@
+{
+  "_source": "Graph's error envelope (https://learn.microsoft.com/graph/errors) with the CPU quota text from https://learn.microsoft.com/defender-xdr/advanced-hunting-errors. The test sends it with Retry-After: 720.",
+  "error": {
+    "code": "TooManyRequests",
+    "message": "You have exceeded processing resources allocated to this tenant. You can run queries again in 00:12:00.",
+    "innerError": {
+      "date": "2026-10-21T08:00:00",
+      "request-id": "00000000-0000-0000-0000-000000000000",
+      "client-request-id": "00000000-0000-0000-0000-000000000000"
+    }
+  }
+}

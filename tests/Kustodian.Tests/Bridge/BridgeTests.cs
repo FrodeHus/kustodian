@@ -253,12 +253,15 @@ public class BridgeTests
     public async Task Schema_get_graph_returns_tables_with_permissions()
     {
         var bridge = NewBridge();
-        new SchemaHandler(GraphSchemaCatalog.Beta).Register(bridge);
+        SchemaHandlerTests.Handler(null).Register(bridge);
 
         var reply = Parse(await bridge.HandleAsync("""{"id":"s","method":"schema.get","params":{"source":"graph"}}"""));
 
         var view = reply.GetProperty("result");
         Assert.Equal(GraphSchemaCatalog.Beta.Source, view.GetProperty("source").GetString());
+        Assert.Equal("builtIn", view.GetProperty("origin").GetString());
+        Assert.Equal(JsonValueKind.Null, view.GetProperty("fallbackReason").ValueKind);
+        Assert.Empty(view.GetProperty("functions").EnumerateArray());
         Assert.Equal(JsonValueKind.String, view.GetProperty("generatedAt").ValueKind);
         Assert.Equal(JsonValueKind.Object, view.GetProperty("complexTypes").ValueKind);
         var tables = view.GetProperty("tables").EnumerateArray().ToList();
@@ -285,7 +288,7 @@ public class BridgeTests
     public async Task Schema_get_unknown_source_returns_bad_request()
     {
         var bridge = NewBridge();
-        new SchemaHandler(GraphSchemaCatalog.Beta).Register(bridge);
+        SchemaHandlerTests.Handler(null).Register(bridge);
 
         var reply = Parse(await bridge.HandleAsync("""{"id":"s","method":"schema.get","params":{"source":"arg"}}"""));
 

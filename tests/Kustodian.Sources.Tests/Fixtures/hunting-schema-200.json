@@ -1,0 +1,50 @@
+{
+  "_source": "https://learn.microsoft.com/graph/api/security-security-gethuntingschema?view=graph-rest-beta (example response; no tenant data). Built-in functions describe themselves in documentation, saved ones in description.",
+  "tables": [
+    {
+      "name": "DeviceProcessEvents",
+      "description": "Process creation and related events",
+      "columns": [
+        { "name": "Timestamp", "dataType": "DateTime", "description": "Date and time when the record was generated" },
+        { "name": "DeviceId", "dataType": "String", "description": "Unique identifier for the device in the service" },
+        { "name": "DeviceName", "dataType": "String", "description": "Fully qualified domain name (FQDN) of the device" }
+      ]
+    },
+    {
+      "name": "DeviceNetworkEvents",
+      "description": "Network connection and related events",
+      "columns": [
+        { "name": "Timestamp", "dataType": "DateTime", "description": "Date and time when the record was generated" },
+        { "name": "DeviceId", "dataType": "String", "description": "Unique identifier for the device in the service" }
+      ]
+    }
+  ],
+  "functions": {
+    "builtInFunctions": [
+      {
+        "huntingFunctionId": 1,
+        "name": "FileProfile",
+        "path": "Built-in",
+        "documentation": "Enriches query results with file information such as file name, size, and hash.",
+        "inputParameters": [ { "name": "SHA1", "cslType": "string", "defaultValue": null } ],
+        "outputColumns": [
+          { "name": "SHA1", "dataType": "String", "description": "SHA-1 hash of the file" },
+          { "name": "SHA256", "dataType": "String", "description": "SHA-256 hash of the file" }
+        ]
+      }
+    ],
+    "savedFunctions": [
+      {
+        "huntingFunctionId": 100,
+        "name": "MyCustomQuery",
+        "path": "Shared",
+        "description": "A custom query that filters device events by severity.",
+        "createdBy": "user@contoso.com",
+        "lastModifiedBy": "user@contoso.com",
+        "lastModifiedDateTime": "2026-04-15T10:30:00Z",
+        "inputParameters": [],
+        "outputColumns": [ { "name": "DeviceId", "dataType": "String", "description": "Unique identifier for the device" } ]
+      }
+    ]
+  }
+}

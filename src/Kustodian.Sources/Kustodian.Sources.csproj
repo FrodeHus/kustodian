@@ -4,6 +4,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Hunting/hunting-schema.json" LogicalName="hunting-schema.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="Kustodian.Sources.Tests" />
   </ItemGroup>
 

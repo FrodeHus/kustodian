@@ -3,24 +3,33 @@
 /** `raw` is the raw Graph request tab (Task 12); it never runs KQL. */
 export type Source = 'graph' | 'hunting' | 'arg' | 'raw';
 
+/** A column. `filterable`, `listable` and `complexType` are Graph's; other sources send null. */
 export interface SchemaColumn {
   name: string;
   type: string;
   description: string;
-  filterable: boolean;
-  listable: boolean;
+  filterable: boolean | null;
+  listable: boolean | null;
   complexType: string | null;
   collection: boolean;
 }
 
+/** A table. `path`, `docsUrl` and `permissions` are Graph's; other sources send null. */
 export interface SchemaTable {
   name: string;
   /** The Graph collection relative to the version (`auditLogs/signIns` for `auditLogs_signIns`). */
-  path: string;
+  path: string | null;
   description: string;
-  docsUrl: string;
-  permissions: string[];
+  docsUrl: string | null;
+  permissions: string[] | null;
   columns: SchemaColumn[];
+}
+
+/** A function a source offers (advanced hunting's built-in and saved functions). */
+export interface SchemaFunction {
+  name: string;
+  description: string;
+  parameters: { name: string; type: string }[];
 }
 
 export interface SchemaField {
@@ -31,11 +40,15 @@ export interface SchemaField {
   description: string;
 }
 
-/** `schema.get`'s answer. `source` says where the schema came from. */
+/** `schema.get`'s answer. `source` says where the schema came from. `origin` is `tenant` (read for the account) or `builtIn`
+ * (bundled; Graph's always is), and `fallbackReason` says why a tenant's schema isn't shown. */
 export interface SchemaView {
   source: string;
+  origin: 'tenant' | 'builtIn';
+  fallbackReason: string | null;
   generatedAt: string;
   tables: SchemaTable[];
+  functions: SchemaFunction[];
   complexTypes: Record<string, SchemaField[]>;
 }
 

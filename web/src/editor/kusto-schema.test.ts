@@ -4,7 +4,10 @@ import { toKustoSchema } from './kusto-schema';
 
 const view: SchemaView = {
   source: 'graph',
+  origin: 'builtIn',
+  fallbackReason: null,
   generatedAt: '2026-10-21T05:38:29Z',
+  functions: [],
   complexTypes: {},
   tables: [
     {

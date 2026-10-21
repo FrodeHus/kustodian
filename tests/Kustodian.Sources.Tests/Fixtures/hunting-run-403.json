@@ -1,0 +1,12 @@
+{
+  "_source": "Graph's error envelope (https://learn.microsoft.com/graph/errors). The message is illustrative, not recorded from a tenant.",
+  "error": {
+    "code": "Forbidden",
+    "message": "Missing role permissions on the request. API requires one of 'ThreatHunting.Read.All'.",
+    "innerError": {
+      "date": "2026-10-21T08:00:00",
+      "request-id": "00000000-0000-0000-0000-000000000000",
+      "client-request-id": "00000000-0000-0000-0000-000000000000"
+    }
+  }
+}

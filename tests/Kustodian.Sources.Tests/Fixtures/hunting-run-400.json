@@ -1,0 +1,12 @@
+{
+  "_source": "NOT RECORDED from runHuntingQuery. Microsoft Learn documents no 400 body that carries a position (https://learn.microsoft.com/defender-xdr/advanced-hunting-errors lists position-less texts such as \"'project' operator: Failed to resolve scalar expression named 'x'\"). HuntingClient parses Kusto's \"on line [L,C]\" form and \"line L, column C\" (also \"position\"/\"pos\"). The test fills in {line} and {column}.",
+  "error": {
+    "code": "BadRequest",
+    "message": "Syntax error: Query could not be parsed at 'whre' on line [{line},{column}]",
+    "innerError": {
+      "date": "2026-10-21T08:00:00",
+      "request-id": "00000000-0000-0000-0000-000000000000",
+      "client-request-id": "00000000-0000-0000-0000-000000000000"
+    }
+  }
+}

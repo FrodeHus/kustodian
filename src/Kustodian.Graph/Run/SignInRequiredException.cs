@@ -17,7 +17,7 @@ public sealed class SignInRequiredException : Exception
     }
 
     /// <summary>Whether <paramref name="ex"/> is, or wraps (inner exceptions, aggregates), a <see cref="SignInRequiredException"/>.</summary>
-    internal static bool IsIn(Exception? ex) => ex switch
+    public static bool IsIn(Exception? ex) => ex switch
     {
         null => false,
         SignInRequiredException => true,

@@ -12,6 +12,7 @@ using Kustodian.Sessions;
 using Kustodian.Settings;
 using Kustodian.Snippets;
 using Kustodian.Sources;
+using Kustodian.Sources.Hunting;
 using Kustodian.Storage;
 
 namespace Kustodian.App;
@@ -19,7 +20,7 @@ namespace Kustodian.App;
 /// <summary>
 /// The host's services, built once from the settings the app started with: the fetch budget, the object cache, the reader, the
 /// runner and the engine pool all take their limits from <c>startup</c>, and keep them until the app restarts. Disposing stops
-/// the engine workers and closes the Graph and ARM HTTP clients (<see cref="ArmHttp"/>).
+/// the engine workers and closes the Graph, hunting and ARM HTTP clients (<see cref="ArmHttp"/>).
 /// </summary>
 public sealed class AppServices : IAsyncDisposable
 {
@@ -30,6 +31,8 @@ public sealed class AppServices : IAsyncDisposable
     private readonly TokenCacheStatus _tokenCache;
     private readonly HttpClient _http;
     private readonly HttpClient _arm;
+    private readonly HttpClient _hunting;
+    private readonly HuntingSchemaSource _huntingSchema;
     private readonly LibraryService _library;
     private readonly RecentService _recent;
     private readonly SessionService _session;
@@ -57,6 +60,9 @@ public sealed class AppServices : IAsyncDisposable
         Pool = new GraphEnginePool(options, new StderrLogger<GraphEnginePool>(), time);
         _http = GraphHttp.CreateClient(accounts, new StderrLogger<GraphAuthHandler>());
         _arm = ArmHttp.CreateClient(accounts, new StderrLogger<ArmAuthHandler>());
+        // Graph's chain, with a timeout past advanced hunting's own 3 minutes.
+        _hunting = GraphHttp.CreateClient(accounts, new StderrLogger<GraphAuthHandler>(), HuntingClient.Timeout);
+        _huntingSchema = new HuntingSchemaSource(_http, time);
         Budget = new GraphFetchBudget(Limits.FetchBudgetBytes);
         Objects = new MemoryGraphObjectCache(time, Limits);
         Runner = new GraphRunner(_schema, new GraphCollectionReader(_http, Budget, Objects, Limits), Budget, Pool, Limits, time,
@@ -87,7 +93,7 @@ public sealed class AppServices : IAsyncDisposable
     {
         new AppHandler(Objects).Register(bridge);
         new SettingsHandler(_settings, _startup.Limits).Register(bridge);
-        new SchemaHandler(_schema).Register(bridge);
+        new SchemaHandler(_schema, _huntingSchema, ActiveAccountAsync).Register(bridge);
         new QueryHandler(_schema, ActiveAccountAsync, Sources(), _recent, _time, new StderrLogger<QueryHandler>(), Limits)
             .Register(bridge);
         new LibraryHandler(_library, _recent).Register(bridge);
@@ -101,7 +107,11 @@ public sealed class AppServices : IAsyncDisposable
     /// <summary>The query sources by the name <c>query.run</c> gives them.</summary>
     private Dictionary<string, IQuerySource> Sources()
     {
-        IQuerySource[] sources = [new GraphQuerySource(Runner)];
+        IQuerySource[] sources =
+        [
+            new GraphQuerySource(Runner),
+            new HuntingQuerySource(new HuntingClient(_hunting), _time, new StderrLogger<HuntingQuerySource>()),
+        ];
         return sources.ToDictionary(s => s.Name, StringComparer.Ordinal);
     }
 
@@ -109,6 +119,7 @@ public sealed class AppServices : IAsyncDisposable
     {
         _http.Dispose();
         _arm.Dispose();
+        _hunting.Dispose();
         await Pool.DisposeAsync();
     }
 

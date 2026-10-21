@@ -1,0 +1,12 @@
+{
+  "_source": "https://learn.microsoft.com/graph/api/security-security-runhuntingquery?view=graph-rest-1.0 (Example 2 response; no tenant data). Its result keys are camelCased while the schema names are not, so rows are matched to columns ignoring case, then by position.",
+  "schema": [
+    { "name": "Timestamp", "type": "DateTime" },
+    { "name": "FileName", "type": "String" },
+    { "name": "InitiatingProcessFileName", "type": "String" }
+  ],
+  "results": [
+    { "timestamp": "2020-08-30T06:38:35.7664356Z", "fileName": "conhost.exe", "initiatingProcessFileName": "powershell.exe" },
+    { "timestamp": "2020-08-30T06:38:30.5163363Z", "fileName": "conhost.exe", "initiatingProcessFileName": "powershell.exe" }
+  ]
+}
