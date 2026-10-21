@@ -128,10 +128,19 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
         };
     }
 
+    /// <summary>Any one of the table's permissions will do; read permissions (<c>*.Read*</c> without <c>Write</c>) are named
+    /// first, as the least a user needs to ask for.</summary>
     private static string NoPermissionMessage(GraphTable table)
         => table.Permissions.Count > 0
-            ? $"You don't have permission to read {table.Name}. It needs {string.Join(", ", table.Permissions)}."
+            ? $"You don't have permission to read {table.Name}. It needs one of: {string.Join(", ", ReadFirst(table.Permissions))}."
             : $"You don't have permission to read {table.Name}. {table.DocsUrl}";
+
+    /// <summary><paramref name="permissions"/> with the read-only ones first, otherwise in their order.</summary>
+    private static IEnumerable<string> ReadFirst(IEnumerable<string> permissions)
+        => permissions.OrderBy(p => IsReadOnly(p) ? 0 : 1);
+
+    private static bool IsReadOnly(string permission)
+        => permission.Contains(".Read", StringComparison.Ordinal) && !permission.Contains("Write", StringComparison.Ordinal);
 
     /// <summary>Whether the failure is, or was caused by, the account needing to sign in again.</summary>
     private static bool IsSignIn(Exception? ex) => SignInRequiredException.IsIn(ex) || ex switch

@@ -318,16 +318,17 @@ public sealed class GraphRunnerTests
         await using var h = NewHost();
         h.Graph.Answer = (_, _) => Task.FromResult(
             FakeGraph.Error(HttpStatusCode.Forbidden, "Authorization_RequestDenied", "Insufficient privileges."));
-        var table = GraphSchemaCatalog.Beta.Tables.Single(t => t.Name == "applications");
+        // The schema lists groups' write permission before its read one.
+        Assert.Equal(["Group-NestingSupport.ReadWrite.All", "Group.ReadBasic.All"],
+            GraphSchemaCatalog.Beta.Tables.Single(t => t.Name == "groups").Permissions);
 
-        var r = await h.RunAsync("applications | project id", ct: Ct);
+        var r = await h.RunAsync("groups | project id", ct: Ct);
 
         Assert.Equal(RunOutcome.NoPermission, r.Outcome);
-        var expected = table.Permissions.Count > 0
-            ? $"You don't have permission to read applications. It needs {string.Join(", ", table.Permissions)}."
-            : $"You don't have permission to read applications. {table.DocsUrl}";
-        Assert.Equal(expected, r.Message);
-        Assert.Equal("applications", Assert.Single(r.Tables).Table);
+        // Any one will do, and the read permission comes first: the least to ask an admin for.
+        Assert.Equal("You don't have permission to read groups. It needs one of: Group.ReadBasic.All, Group-NestingSupport.ReadWrite.All.",
+            r.Message);
+        Assert.Equal("groups", Assert.Single(r.Tables).Table);
     }
 
     [Fact]
