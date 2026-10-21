@@ -18,7 +18,8 @@ public sealed record CreateRequest(string Name, IReadOnlyList<PlannedPermission>
 public enum CreateStep { LookUp, CreateApp, AddOwner, CreateServicePrincipal }
 
 /// <summary>What a create made. <paramref name="ServicePrincipalId"/> is null when step 4 did not finish, with
-/// <paramref name="ServicePrincipalMessage"/> saying why; <paramref name="OwnerMessage"/> is set when the owner was not added.</summary>
+/// <paramref name="ServicePrincipalMessage"/> saying why; <paramref name="AdminScopes"/> names the kept permissions that need
+/// admin consent (the tenant's own type, else the bundled flag); <paramref name="OwnerMessage"/> is set when the owner was not added.</summary>
 public sealed record CreateResult(
     string AppId,
     string ObjectId,
@@ -27,7 +28,8 @@ public sealed record CreateResult(
     bool OwnerAdded,
     string? OwnerMessage,
     IReadOnlyList<string> Dropped,
-    string? ServicePrincipalMessage);
+    string? ServicePrincipalMessage,
+    IReadOnlyList<string> AdminScopes);
 
 /// <summary>The scopes granted tenant-wide to an app, and the admin scopes still missing.</summary>
 public sealed record ConsentStatus(IReadOnlyList<string> Granted, IReadOnlyList<string> Missing);
@@ -93,7 +95,7 @@ public sealed class EntraAppClient(HttpClient graph, TimeProvider time)
         string accountKey, EntraTenant tenant, CreateRequest request, Action<CreateStep> onStep, CancellationToken ct)
     {
         onStep(CreateStep.LookUp);
-        var (access, dropped) = await ResolveAccessAsync(accountKey, request.Permissions, ct);
+        var (access, dropped, adminScopes) = await ResolveAccessAsync(accountKey, request.Permissions, ct);
 
         onStep(CreateStep.CreateApp);
         var (appId, objectId) = await CreateApplicationAsync(accountKey, request.Name, access, ct);
@@ -104,7 +106,7 @@ public sealed class EntraAppClient(HttpClient graph, TimeProvider time)
         onStep(CreateStep.CreateServicePrincipal);
         var (spId, spMessage) = await CreateServicePrincipalAsync(accountKey, appId, ct);
 
-        return new CreateResult(appId, objectId, spId, tenant.Id, ownerAdded, ownerMessage, dropped, spMessage);
+        return new CreateResult(appId, objectId, spId, tenant.Id, ownerAdded, ownerMessage, dropped, spMessage, adminScopes);
     }
 
     /// <summary>Retries step 4 only, for an app that exists without a service principal.</summary>
@@ -181,8 +183,8 @@ public sealed class EntraAppClient(HttpClient graph, TimeProvider time)
     {
         var url = $"https://login.microsoftonline.com/{Uri.EscapeDataString(tenantId)}/v2.0/adminconsent"
             + $"?client_id={Uri.EscapeDataString(appId)}"
-            + "&scope=https://graph.microsoft.com/.default"
-            + "&redirect_uri=https://login.microsoftonline.com/common/oauth2/nativeclient";
+            + $"&scope={Uri.EscapeDataString("https://graph.microsoft.com/.default")}"
+            + $"&redirect_uri={Uri.EscapeDataString("https://login.microsoftonline.com/common/oauth2/nativeclient")}";
         if (state is not null)
         {
             url += $"&state={Uri.EscapeDataString(state)}";
@@ -191,11 +193,12 @@ public sealed class EntraAppClient(HttpClient graph, TimeProvider time)
         return new Uri(url);
     }
 
-    private async Task<(JsonArray Access, List<string> Dropped)> ResolveAccessAsync(
+    private async Task<(JsonArray Access, List<string> Dropped, List<string> AdminScopes)> ResolveAccessAsync(
         string accountKey, IReadOnlyList<PlannedPermission> permissions, CancellationToken ct)
     {
         var access = new JsonArray();
         var dropped = new List<string>();
+        var adminScopes = new List<string>();
         foreach (var group in permissions.GroupBy(p => p.ResourceAppId))
         {
             var resource = group.First().Resource;
@@ -208,21 +211,26 @@ public sealed class EntraAppClient(HttpClient graph, TimeProvider time)
                     Join($"Kustodian couldn't read {whose} permission list in your tenant.", reply.ErrorMessage), true);
             }
 
-            var ids = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var ids = new Dictionary<string, (string Id, string? Type)>(StringComparer.OrdinalIgnoreCase);
             foreach (var scope in reply.Body?["oauth2PermissionScopes"]?.AsArray() ?? [])
             {
                 if ((string?)scope?["value"] is { } name && (string?)scope["id"] is { } id)
                 {
-                    ids[name] = id;
+                    ids[name] = (id, (string?)scope["type"]);
                 }
             }
 
             var entries = new JsonArray();
             foreach (var permission in group.DistinctBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
             {
-                if (ids.TryGetValue(permission.Name, out var id))
+                if (ids.TryGetValue(permission.Name, out var found))
                 {
-                    entries.Add(new JsonObject { ["id"] = id, ["type"] = "Scope" });
+                    entries.Add(new JsonObject { ["id"] = found.Id, ["type"] = "Scope" });
+                    var admin = found.Type is null ? permission.AdminConsent : found.Type.Equals("Admin", StringComparison.OrdinalIgnoreCase);
+                    if (admin)
+                    {
+                        adminScopes.Add(permission.Name);
+                    }
                 }
                 else
                 {
@@ -236,7 +244,7 @@ public sealed class EntraAppClient(HttpClient graph, TimeProvider time)
             }
         }
 
-        return (access, dropped);
+        return (access, dropped, adminScopes);
     }
 
     private async Task<(string AppId, string ObjectId)> CreateApplicationAsync(

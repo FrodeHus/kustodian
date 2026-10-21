@@ -276,13 +276,14 @@ public sealed class EntraAppClientTests
     public async Task Retrying_the_service_principal_only_repeats_that_step()
     {
         var (client, handler, _) = New(Happy);
-        var partial = new CreateResult("app-1", "obj-1", null, "tenant-1", true, null, ["X"], "gone");
+        var partial = new CreateResult("app-1", "obj-1", null, "tenant-1", true, null, ["X"], "gone", ["A.Read"]);
 
         var result = await client.RetryServicePrincipalAsync(Account, partial, TestContext.Current.CancellationToken);
 
         Assert.Equal("sp-new", result.ServicePrincipalId);
         Assert.Null(result.ServicePrincipalMessage);
         Assert.Equal(["X"], result.Dropped);
+        Assert.Equal(["A.Read"], result.AdminScopes);
         var only = handler.Requests.Single();
         Assert.Equal("https://graph.microsoft.com/v1.0/servicePrincipals", only.Uri);
         Assert.Equal("app-1", (string?)JsonNode.Parse(only.Body!)!["appId"]);
@@ -397,11 +398,34 @@ public sealed class EntraAppClientTests
     [Fact]
     public void ConsentUrl_is_exact()
     {
-        const string Base = "https://login.microsoftonline.com/t-1/v2.0/adminconsent?client_id=a-1"
-            + "&scope=https://graph.microsoft.com/.default&redirect_uri=https://login.microsoftonline.com/common/oauth2/nativeclient";
+        static string E(string v) => Uri.EscapeDataString(v);
+        var baseUrl = "https://login.microsoftonline.com/t-1/v2.0/adminconsent?client_id=a-1"
+            + $"&scope={E("https://graph.microsoft.com/.default")}"
+            + $"&redirect_uri={E("https://login.microsoftonline.com/common/oauth2/nativeclient")}";
 
-        Assert.Equal(Base, EntraAppClient.ConsentUrl("t-1", "a-1", null).ToString());
-        Assert.Equal(Base + "&state=s%201", EntraAppClient.ConsentUrl("t-1", "a-1", "s 1").AbsoluteUri);
+        Assert.Equal(baseUrl, EntraAppClient.ConsentUrl("t-1", "a-1", null).AbsoluteUri);
+        Assert.Equal(baseUrl + "&state=s%201", EntraAppClient.ConsentUrl("t-1", "a-1", "s 1").AbsoluteUri);
+
+        var query = System.Web.HttpUtility.ParseQueryString(EntraAppClient.ConsentUrl("t-1", "a-1", null).Query);
+        Assert.Equal("https://graph.microsoft.com/.default", query["scope"]);
+        Assert.Equal("https://login.microsoftonline.com/common/oauth2/nativeclient", query["redirect_uri"]);
+        Assert.Equal("a-1", query["client_id"]);
+    }
+
+    [Fact]
+    public async Task Admin_scopes_follow_the_tenant_type_and_fall_back_to_the_bundled_flag()
+    {
+        var (client, _, _) = New(s => s.Uri.Contains($"appId='{Graph}'")
+            ? (HttpStatusCode.OK, SpWithScopes("sp-graph",
+                ("Bundled.Admin.TenantUser", "i1", "User"), ("Bundled.User.TenantAdmin", "i2", "Admin"), ("Both.Admin", "i3", "Admin")))
+            : Happy(s));
+
+        var result = await client.CreateAsync(Account, Tenant,
+            Request(Perm("Bundled.Admin.TenantUser", admin: true), Perm("Bundled.User.TenantAdmin", admin: false), Perm("Both.Admin"), Perm("Gone.Read")),
+            _ => { }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["Bundled.User.TenantAdmin", "Both.Admin"], result.AdminScopes);
+        Assert.Equal(["Gone.Read"], result.Dropped);
     }
 
     [Fact]
