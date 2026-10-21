@@ -1,7 +1,7 @@
 namespace Kustodian.Graph.Fetch;
 
 /// <summary>Why a collection couldn't be read. <see cref="TooLarge"/>: Graph's answers would pass the fetch budget's bytes;
-/// <see cref="TooManyObjects"/>: the collection has more objects than <see cref="GraphCollectionReader.MaxObjects"/>.</summary>
+/// <see cref="TooManyObjects"/>: the collection has more objects than <see cref="Run.GraphLimits.ObjectsPerTable"/>.</summary>
 public enum GraphReadFailure { NoPermission, Throttled, TooLarge, TooManyObjects, NotFound, Busy, Failed, SignInNeeded }
 
 /// <summary>A collection read that failed, with a message fit to show the user. <see cref="GraphReadFailure.SignInNeeded"/> means

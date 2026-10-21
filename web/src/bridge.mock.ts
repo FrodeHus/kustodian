@@ -49,17 +49,40 @@ const runResult = {
   droppedValues: 0,
 };
 
+const defaultSettings = {
+  version: 1,
+  theme: 'dark',
+  rawDefaultVersion: 'beta',
+  signIn: { clientId: null, tenant: null },
+  limits: {
+    graphObjectsPerTable: 50000,
+    fetchBudgetMb: 512,
+    engineTimeoutSeconds: 120,
+    engineHeapMb: 1024,
+    engineWorkers: 2,
+    perObjectReadsPerTable: 2000,
+    perObjectCacheMinutes: 30,
+    graphRowsPerRun: 50000,
+  },
+};
+
 const RUN_DELAY_MS = 400;
 
 interface MockRequest {
   id?: string;
   method?: string;
-  params?: { tabId?: string };
+  params?: { tabId?: string; settings?: typeof defaultSettings };
 }
 
 export function createMockTransport(): Transport {
   let receive: (message: string) => void = () => undefined;
   const runs = new Map<string, { id: string; timer: ReturnType<typeof setTimeout> }>();
+  let settings = defaultSettings;
+  const settingsAnswer = () => ({
+    settings,
+    limitsAppliedAt: 'startup',
+    restartNeeded: JSON.stringify(settings.limits) !== JSON.stringify(defaultSettings.limits),
+  });
 
   const reply = (id: string, result: unknown) => receive(JSON.stringify({ id, result: result ?? null }));
   const fail = (id: string, code: string, message: string) => receive(JSON.stringify({ id, error: { code, message } }));
@@ -81,6 +104,16 @@ export function createMockTransport(): Transport {
     switch (method) {
       case 'app.info':
         reply(id, { version: '0.0.0-mock', platform: 'macos' });
+        break;
+      case 'settings.get':
+        reply(id, settingsAnswer());
+        break;
+      case 'settings.set':
+        settings = { ...(params?.settings ?? settings), version: 1 };
+        reply(id, settingsAnswer());
+        break;
+      case 'cache.clear':
+        reply(id, {});
         break;
       case 'schema.get':
         reply(id, schema);

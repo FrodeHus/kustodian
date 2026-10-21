@@ -1,17 +1,19 @@
 using System.Collections.Concurrent;
+using Kustodian.Graph.Run;
 
 namespace Kustodian.Graph.Fetch;
 
 /// <summary>
-/// <see cref="IGraphObjectCache"/> in the process's memory, for <paramref name="ttl"/> (30 minutes by default) after Graph sent
-/// the values. An entry is one object of one table of one account, for one set of columns (in any order).
+/// <see cref="IGraphObjectCache"/> in the process's memory, for <see cref="GraphLimits.PerObjectCacheTtl"/> of
+/// <paramref name="limits"/> (30 minutes by default) after Graph sent the values. An entry is one object of one table of one
+/// account, for one set of columns (in any order).
 /// </summary>
-public sealed class MemoryGraphObjectCache(TimeProvider time, TimeSpan? ttl = null) : IGraphObjectCache
+public sealed class MemoryGraphObjectCache(TimeProvider time, GraphLimits? limits = null) : IGraphObjectCache
 {
     private readonly record struct Key(string Account, string Path, string Columns, string Id);
 
     private readonly ConcurrentDictionary<Key, GraphCachedValues> _entries = new();
-    private readonly TimeSpan _ttl = ttl ?? TimeSpan.FromMinutes(30);
+    private readonly TimeSpan _ttl = (limits ?? GraphLimits.Default).PerObjectCacheTtl;
 
     private static Key KeyOf(string accountKey, string path, IReadOnlyList<string> columns, string id)
         => new(accountKey, path, string.Join(",", columns.Order(StringComparer.Ordinal)), id);

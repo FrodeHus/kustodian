@@ -40,7 +40,8 @@ public sealed class GraphRunnerTests
         var graph = new FakeGraph();
         var budget = new GraphFetchBudget(budgetBytes);
         var engine = new GraphEnginePool(options, NullLogger<GraphEnginePool>.Instance, TimeProvider.System);
-        return new Host(graph, budget, engine, new GraphRunner(GraphSchemaCatalog.Beta, graph.Reader(budget), budget, engine, TimeProvider.System));
+        return new Host(graph, budget, engine, new GraphRunner(GraphSchemaCatalog.Beta, graph.Reader(budget), budget, engine, GraphLimits.Default,
+            TimeProvider.System));
     }
 
     private static object App(string name) => new { id = Guid.NewGuid().ToString(), displayName = name };

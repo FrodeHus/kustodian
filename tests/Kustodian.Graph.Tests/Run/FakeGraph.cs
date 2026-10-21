@@ -3,6 +3,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Kustodian.Graph.Fetch;
+using Kustodian.Graph.Run;
 
 namespace Kustodian.Graph.Tests.Run;
 
@@ -18,7 +19,8 @@ public sealed class FakeGraph : HttpMessageHandler
 
     /// <summary>A reader over this fake, with the cache off.</summary>
     public GraphCollectionReader Reader(GraphFetchBudget budget)
-        => new(new HttpClient(this) { BaseAddress = new Uri("https://graph.microsoft.com/beta/") }, budget, NoGraphObjectCache.Instance);
+        => new(new HttpClient(this) { BaseAddress = new Uri("https://graph.microsoft.com/beta/") }, budget, NoGraphObjectCache.Instance,
+            GraphLimits.Default);
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {

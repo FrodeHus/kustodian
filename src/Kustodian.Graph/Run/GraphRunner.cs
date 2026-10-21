@@ -16,10 +16,11 @@ namespace Kustodian.Graph.Run;
 /// exception, except that the caller cancelling throws <see cref="OperationCanceledException"/>.
 /// </summary>
 public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader, GraphFetchBudget budget, GraphEnginePool engine,
-    TimeProvider time, ILogger<GraphRunner>? logger = null)
+    GraphLimits limits, TimeProvider time, ILogger<GraphRunner>? logger = null)
 {
-    /// <summary>The most rows the engine sends back; <see cref="RunResult.Total"/> counts them all.</summary>
-    public const int MaxRows = 50_000;
+    /// <summary>The limits this runner runs within. The engine sends back at most <see cref="GraphLimits.RowsPerRun"/> rows;
+    /// <see cref="RunResult.Total"/> counts them all.</summary>
+    public GraphLimits Limits => limits;
     private readonly ILogger<GraphRunner> _log = logger ?? NullLogger<GraphRunner>.Instance;
     public const string SignInMessage = "Sign in again to run this query.";
     public const string Unexpected = "The query couldn't be run because of an unexpected error. Try again.";
@@ -68,7 +69,7 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
 
             progress?.Report(new RunEvent("engine", "Running the query"));
             var tables = fetches.Select((f, i) => Table(f.Table, collections[i]!.Objects)).ToList();
-            var answer = await engine.RunAsync(new EngineRequest(kql, now, tables, MaxRows), Guid.NewGuid().ToString("N"), ct);
+            var answer = await engine.RunAsync(new EngineRequest(kql, now, tables, limits.RowsPerRun), Guid.NewGuid().ToString("N"), ct);
             if (answer.Error is { } engineError)
                 return End(RunOutcome.Failed, engineError);
             if (answer.Refusal is { } engineRefusal)

@@ -17,10 +17,11 @@ public sealed record GraphBatchRead(int Failed, IReadOnlyList<JsonObject> Read);
 /// at once), and merges the values into the objects. An item that fails leaves its object's values empty and is counted; an
 /// item Graph throttles is sent once more after its <c>Retry-After</c>. The HttpClient's handler adds the account's token.
 /// </summary>
-public sealed class GraphBatchReader(HttpClient http)
+public sealed class GraphBatchReader(HttpClient http, GraphLimits limits)
 {
-    /// <summary>The most objects per table read one at a time; over it the columns stay empty.</summary>
-    public const int MaxObjects = 2_000;
+    /// <summary>The most objects per table read one at a time (<see cref="GraphLimits.PerObjectReadsPerTable"/>); over it the
+    /// columns stay empty.</summary>
+    public int MaxObjects => limits.PerObjectReadsPerTable;
     public const int BatchSize = 20;
     public const int BatchesInFlight = 4;
     /// <summary>The longest a throttled item's <c>Retry-After</c> is waited for before it is sent again.</summary>

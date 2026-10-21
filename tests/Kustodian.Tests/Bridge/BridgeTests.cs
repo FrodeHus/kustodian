@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Run;
 using Kustodian.Graph.Schema;
 using Kustodian.Messaging;
@@ -258,12 +259,29 @@ public class BridgeTests
     public async Task App_info_returns_version_and_platform()
     {
         var bridge = NewBridge();
-        new AppHandler().Register(bridge);
+        new AppHandler(new MemoryGraphObjectCache(TimeProvider.System)).Register(bridge);
 
         var result = Parse(await bridge.HandleAsync("""{"id":"a","method":"app.info","params":{}}""")).GetProperty("result");
 
         Assert.False(string.IsNullOrEmpty(result.GetProperty("version").GetString()));
         Assert.Contains(result.GetProperty("platform").GetString(), new[] { "windows", "macos", "linux" });
+    }
+
+    [Fact]
+    public async Task Cache_clear_empties_object_cache()
+    {
+        var bridge = NewBridge();
+        var objects = new MemoryGraphObjectCache(TimeProvider.System);
+        new AppHandler(objects).Register(bridge);
+        await objects.SetAsync("account-1", "applications", ["a"], "1", "{}", CancellationToken.None);
+        await objects.SetAsync("account-2", "groups", ["b"], "2", "{}", CancellationToken.None);
+
+        var reply = Parse(await bridge.HandleAsync("""{"id":"c","method":"cache.clear","params":{}}"""));
+
+        Assert.Equal(JsonValueKind.Object, reply.GetProperty("result").ValueKind);
+        Assert.Empty(reply.GetProperty("result").EnumerateObject());
+        Assert.Null(await objects.GetAsync("account-1", "applications", ["a"], "1", CancellationToken.None));
+        Assert.Null(await objects.GetAsync("account-2", "groups", ["b"], "2", CancellationToken.None));
     }
 
     private Messaging.Bridge NewBridge() => new(message =>

@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Query;
+using Kustodian.Graph.Run;
 using Kustodian.Graph.Schema;
 
 namespace Kustodian.Graph.Tests;
@@ -43,7 +44,7 @@ public sealed class GraphCollectionReaderTests
 
     private static GraphCollectionReader Reader(HttpMessageHandler handler, GraphFetchBudget? budget = null)
         => new(new HttpClient(handler) { BaseAddress = new Uri("https://graph.microsoft.com/beta/") }, budget ?? new GraphFetchBudget(),
-            NoGraphObjectCache.Instance);
+            NoGraphObjectCache.Instance, GraphLimits.Default);
 
     private static Task<GraphCollection> Read(GraphCollectionReader reader, GraphFetch fetch, GraphFetchLease? lease = null)
         => reader.ReadAsync(Account, fetch, lease ?? new GraphFetchBudget().Lease(), refresh: false,
@@ -571,7 +572,7 @@ public sealed class GraphCollectionReaderTests
     {
         var handler = new Scripted((_, n) => Json(HttpStatusCode.OK, n == 0 ? Page(0, 1, Next + "a") : Page(1, 1)));
         var reader = new GraphCollectionReader(new HttpClient(handler) { BaseAddress = new Uri("https://example.test/beta/") },
-            new GraphFetchBudget(), NoGraphObjectCache.Instance);
+            new GraphFetchBudget(), NoGraphObjectCache.Instance, GraphLimits.Default);
 
         var result = await Read(reader, Fetch());
 
@@ -579,7 +580,7 @@ public sealed class GraphCollectionReaderTests
         Assert.Equal(2, handler.Calls);
         var other = new Scripted((_, _) => Json(HttpStatusCode.OK, Page(0, 1, "https://example.test/beta/applications?x=1")));
         var otherReader = new GraphCollectionReader(new HttpClient(other) { BaseAddress = new Uri("https://example.test/beta/") },
-            new GraphFetchBudget(), NoGraphObjectCache.Instance);
+            new GraphFetchBudget(), NoGraphObjectCache.Instance, GraphLimits.Default);
         var failed = await Fails(Read(otherReader, Fetch()));
         Assert.Equal(GraphReadFailure.Failed, failed.Failure);
         Assert.Equal(1, other.Calls);

@@ -91,7 +91,7 @@ public class HostTests
     [Fact]
     public void Embedded_assets_serve_index_for_root_and_nothing_for_unknown_files()
     {
-        var assets = new EmbeddedAssets(typeof(EmbeddedAssets).Assembly, AppOrigin.For(windows: false));
+        var assets = new EmbeddedAssets(typeof(EmbeddedAssets).Assembly, AppOrigin.For(windows: false, "dark"));
 
         using var root = assets.Open("app://localhost/", out var rootType);
         using var index = assets.Open("app://localhost/index.html?x=1", out var indexType);

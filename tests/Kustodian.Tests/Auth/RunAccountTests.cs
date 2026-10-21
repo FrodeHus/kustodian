@@ -88,8 +88,8 @@ public sealed class RunAccountTests : IAsyncDisposable
     {
         var http = new HttpClient(new GraphAuthHandler(service) { InnerHandler = graph }) { BaseAddress = GraphHttp.BaseAddress };
         var budget = new GraphFetchBudget();
-        return new GraphRunner(GraphSchemaCatalog.Beta, new GraphCollectionReader(http, budget, NoGraphObjectCache.Instance), budget,
-            _engine, TimeProvider.System);
+        return new GraphRunner(GraphSchemaCatalog.Beta, new GraphCollectionReader(http, budget, NoGraphObjectCache.Instance,
+            GraphLimits.Default), budget, _engine, GraphLimits.Default, TimeProvider.System);
     }
 
     /// <summary>Two pages of applications. The first is held until <see cref="Release"/>; its token was already attached, so

@@ -1,4 +1,5 @@
 using Kustodian.Graph.Fetch;
+using Kustodian.Graph.Run;
 using Microsoft.Extensions.Time.Testing;
 
 namespace Kustodian.Graph.Tests;
@@ -6,6 +7,7 @@ namespace Kustodian.Graph.Tests;
 public sealed class MemoryGraphObjectCacheTests
 {
     private static readonly string[] Columns = ["b", "a"];
+    private static readonly GraphLimits OneMinute = GraphLimits.Default with { PerObjectCacheTtl = TimeSpan.FromMinutes(1) };
 
     [Fact]
     public async Task Entries_expire_after_30_minutes()
@@ -28,7 +30,7 @@ public sealed class MemoryGraphObjectCacheTests
     public async Task Entries_use_the_ttl_given()
     {
         var time = new FakeTimeProvider();
-        var cache = new MemoryGraphObjectCache(time, TimeSpan.FromMinutes(1));
+        var cache = new MemoryGraphObjectCache(time, OneMinute);
         await cache.SetAsync("acc", "applications", Columns, "1", "{}", CancellationToken.None);
 
         time.Advance(TimeSpan.FromMinutes(1));
@@ -52,7 +54,7 @@ public sealed class MemoryGraphObjectCacheTests
     public async Task Setting_an_entry_sweeps_the_expired_ones()
     {
         var time = new FakeTimeProvider();
-        var cache = new MemoryGraphObjectCache(time, TimeSpan.FromMinutes(1));
+        var cache = new MemoryGraphObjectCache(time, OneMinute);
         await cache.SetAsync("acc", "applications", Columns, "old", "{}", CancellationToken.None);
         time.Advance(TimeSpan.FromSeconds(30));
         await cache.SetAsync("acc", "applications", Columns, "mid", "{}", CancellationToken.None);

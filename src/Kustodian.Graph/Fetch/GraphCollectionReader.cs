@@ -12,7 +12,7 @@ namespace Kustodian.Graph.Fetch;
 /// was read; <c>Unreadable</c> are the properties Graph won't serve in a list and that are missing from the objects.
 /// <see cref="PerObject"/> are such properties read one object at a time instead, <see cref="PerObjectFailed"/> the objects
 /// whose read failed (their values are empty), and <see cref="PerObjectCapped"/> says the collection had more objects than
-/// <see cref="GraphBatchReader.MaxObjects"/> to read, so its named properties stayed unread. <see cref="PerObjectCached"/> are
+/// <see cref="GraphLimits.PerObjectReadsPerTable"/> to read, so its named properties stayed unread. <see cref="PerObjectCached"/> are
 /// the objects whose such properties came from the cache (<see cref="IGraphObjectCache"/>) instead, and
 /// <see cref="PerObjectCachedAt"/> when the oldest of them was read from Graph.</summary>
 public sealed record GraphCollection(IReadOnlyList<JsonObject> Objects, IReadOnlyList<string> Requests, bool Unfiltered,
@@ -29,21 +29,26 @@ public sealed record GraphCollection(IReadOnlyList<JsonObject> Objects, IReadOnl
 }
 
 /// <summary>
-/// Reads one Graph collection for the signed-in account, page by page, within the object and byte budgets. The HttpClient's
+/// Reads one Graph collection for the signed-in account, page by page, within the object cap
+/// (<see cref="GraphLimits.ObjectsPerTable"/>) and the byte budget. The HttpClient's
 /// handler adds the account's token. The
 /// properties the query names that Graph won't serve in a list are then read one object at a time
-/// (<see cref="GraphBatchReader"/>), for at most <see cref="GraphBatchReader.MaxObjects"/> objects: those whose values are in
+/// (<see cref="GraphBatchReader"/>), for at most <see cref="GraphLimits.PerObjectReadsPerTable"/> objects: those whose values are in
 /// <paramref name="cache"/> take them from there, and only the others are read and then kept.
 /// </summary>
-public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budget, IGraphObjectCache cache)
+public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budget, IGraphObjectCache cache, GraphLimits limits)
 {
-    public const int MaxObjects = 50_000;
     public const int MaxSelectRetries = 5;
     /// <summary>Probes spent finding the columns a backend can't serve in a list (one for <c>id</c> alone, then halves).</summary>
     public const int MaxProbes = 16;
     private const string GraphHost = "graph.microsoft.com";
     private const int PageSize = 999;
     private const int DefaultRetryAfterSeconds = 60;
+
+    private readonly GraphBatchReader _perObject = new(http, limits);
+
+    /// <summary>The limits this reader reads within.</summary>
+    public GraphLimits Limits => limits;
 
     /// <summary>A lease on this reader's process budget, for the reads of one run.</summary>
     public GraphFetchLease Lease() => budget.Lease();
@@ -122,7 +127,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
 
     /// <summary>The collection with the properties the query names that the list left out read one object at a time: from the
     /// cache where it has them (unless <paramref name="refresh"/>), else from Graph, unless more objects than
-    /// <see cref="GraphBatchReader.MaxObjects"/> are left to read. What Graph returned is kept in the cache; a failed read isn't.</summary>
+    /// <see cref="GraphLimits.PerObjectReadsPerTable"/> are left to read. What Graph returned is kept in the cache; a failed read isn't.</summary>
     private async Task<GraphCollection> ReadPerObjectAsync(string accountKey, GraphFetch fetch, GraphFetchLease lease, List<string> requests,
         GraphCollection read, bool refresh, CancellationToken ct)
     {
@@ -140,7 +145,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                 misses.Add(o);
         }
         // Over the cap nothing is merged: a column with some objects' values and not others' would read as if it were whole.
-        if (misses.Count > GraphBatchReader.MaxObjects)
+        if (misses.Count > _perObject.MaxObjects)
             return read with { PerObjectCapped = true };
 
         foreach (var (target, values) in hits)
@@ -155,7 +160,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         if (misses.Count > 0)
         {
             requests.Add(GraphBatchReader.Template(path, columns));
-            var answered = await new GraphBatchReader(http).ReadAsync(accountKey, path, misses, columns, lease, ct);
+            var answered = await _perObject.ReadAsync(accountKey, path, misses, columns, lease, ct);
             failed = answered.Failed;
             foreach (var o in answered.Read)
             {
@@ -222,9 +227,9 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
             var root = JsonNode.Parse(body) as JsonObject;
             if (root?["value"] is JsonArray value)
                 objects.AddRange(value.OfType<JsonObject>());
-            if (objects.Count > MaxObjects)
-                throw new GraphReadException(GraphReadFailure.TooManyObjects,
-                    $"{fetch.Table.Name} has more than 50,000 objects. Add a `where` Graph can filter on (see the schema list).");
+            if (objects.Count > limits.ObjectsPerTable)
+                throw new GraphReadException(GraphReadFailure.TooManyObjects, string.Create(CultureInfo.InvariantCulture,
+                    $"{fetch.Table.Name} has more than {limits.ObjectsPerTable:N0} objects. Add a `where` Graph can filter on (see the schema list)."));
 
             // The account's token goes with every request: a next link is only followed back to Graph itself.
             var linkNode = root?["@odata.nextLink"];

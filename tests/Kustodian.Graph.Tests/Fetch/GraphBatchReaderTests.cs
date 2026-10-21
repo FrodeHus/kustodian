@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Query;
+using Kustodian.Graph.Run;
 using Kustodian.Graph.Schema;
 
 namespace Kustodian.Graph.Tests;
@@ -106,9 +107,11 @@ public sealed class GraphBatchReaderTests
                 JsonSerializer.Serialize(new { onPremisesPublishing = new { externalAuthenticationType = auth } }), at);
     }
 
+    private static readonly int PerObjectCap = GraphLimits.Default.PerObjectReadsPerTable;
+
     private static GraphCollectionReader Reader(HttpMessageHandler handler, IGraphObjectCache? cache = null)
         => new(new HttpClient(handler) { BaseAddress = new Uri("https://graph.microsoft.com/beta/") }, new GraphFetchBudget(),
-            cache ?? NoGraphObjectCache.Instance);
+            cache ?? NoGraphObjectCache.Instance, GraphLimits.Default);
 
     private static GraphFetch Fetch(string[] select, string[] named, string[]? unreadable = null)
         => new(new GraphTable("applications", "applications", "microsoft.graph.application", "", "https://learn.microsoft.com/x", []), select, null)
@@ -189,12 +192,12 @@ public sealed class GraphBatchReaderTests
     [Fact]
     public async Task Over_the_object_cap_the_columns_stay_empty_and_the_cap_is_reported()
     {
-        var graph = new Directory(GraphBatchReader.MaxObjects + 1);
+        var graph = new Directory(PerObjectCap + 1);
 
         var result = await Read(graph, Fetch(["id", "onPremisesPublishing"], ["onPremisesPublishing"]));
 
         Assert.Empty(graph.Batches);
-        Assert.Equal(GraphBatchReader.MaxObjects + 1, result.Objects.Count);
+        Assert.Equal(PerObjectCap + 1, result.Objects.Count);
         Assert.True(result.PerObjectCapped);
         Assert.Equal(["onPremisesPublishing"], result.Unreadable);
         Assert.Empty(result.PerObject);
@@ -204,12 +207,12 @@ public sealed class GraphBatchReaderTests
     [Fact]
     public async Task At_the_object_cap_every_object_is_read()
     {
-        var graph = new Directory(GraphBatchReader.MaxObjects);
+        var graph = new Directory(PerObjectCap);
 
         var result = await Read(graph, Fetch(["id", "onPremisesPublishing"], ["onPremisesPublishing"]));
 
         Assert.False(result.PerObjectCapped);
-        Assert.Equal(GraphBatchReader.MaxObjects / GraphBatchReader.BatchSize, graph.Batches.Count);
+        Assert.Equal(PerObjectCap / GraphBatchReader.BatchSize, graph.Batches.Count);
         Assert.All(result.Objects, o => Assert.NotNull(Auth(o)));
     }
 
@@ -331,12 +334,12 @@ public sealed class GraphBatchReaderTests
         var cache = new Cache();
         foreach (var i in Enumerable.Range(0, 10))
             cache.Put(i.ToString(), "cached", cache.Now);
-        var graph = new Directory(GraphBatchReader.MaxObjects + 10);
+        var graph = new Directory(PerObjectCap + 10);
 
         var result = await Read(graph, Publishing(), cache);
 
         Assert.False(result.PerObjectCapped);
-        Assert.Equal(GraphBatchReader.MaxObjects / GraphBatchReader.BatchSize, graph.Batches.Count);
+        Assert.Equal(PerObjectCap / GraphBatchReader.BatchSize, graph.Batches.Count);
         Assert.Equal(10, result.PerObjectCached);
         Assert.All(result.Objects, o => Assert.NotNull(Auth(o)));
     }
@@ -346,7 +349,7 @@ public sealed class GraphBatchReaderTests
     {
         var cache = new Cache();
         cache.Put("0", "cached", cache.Now);
-        var graph = new Directory(GraphBatchReader.MaxObjects + 2);
+        var graph = new Directory(PerObjectCap + 2);
 
         var result = await Read(graph, Publishing(), cache);
 
