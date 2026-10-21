@@ -282,6 +282,35 @@ public class BridgeTests
     }
 
     [Fact]
+    public async Task Schema_listed_by_default_gives_the_active_accounts_default_columns_by_table_name()
+    {
+        var bridge = NewBridge();
+        var probes = new MemoryGraphProbeCache(TimeProvider.System);
+        await probes.SetDefaultsAsync("account-1", "auditLogs/signIns", ["id", "createdDateTime"], CancellationToken.None);
+        await probes.SetDefaultsAsync("account-2", "users", ["id", "displayName"], CancellationToken.None);
+        new SchemaHandler(GraphSchemaCatalog.Beta, () => Task.FromResult<string?>("account-1"), probes).Register(bridge);
+
+        var reply = Parse(await bridge.HandleAsync("""{"id":"s","method":"schema.listedByDefault","params":{"source":"graph"}}"""));
+
+        var tables = reply.GetProperty("result").GetProperty("tables");
+        Assert.Equal(["auditLogs_signIns"], tables.EnumerateObject().Select(p => p.Name));
+        Assert.Equal(["id", "createdDateTime"], tables.GetProperty("auditLogs_signIns").EnumerateArray().Select(c => c.GetString()));
+    }
+
+    [Fact]
+    public async Task Schema_listed_by_default_without_an_account_is_empty()
+    {
+        var bridge = NewBridge();
+        var probes = new MemoryGraphProbeCache(TimeProvider.System);
+        await probes.SetDefaultsAsync("account-1", "users", ["id"], CancellationToken.None);
+        new SchemaHandler(GraphSchemaCatalog.Beta, () => Task.FromResult<string?>(null), probes).Register(bridge);
+
+        var reply = Parse(await bridge.HandleAsync("""{"id":"s","method":"schema.listedByDefault","params":{"source":"graph"}}"""));
+
+        Assert.Empty(reply.GetProperty("result").GetProperty("tables").EnumerateObject());
+    }
+
+    [Fact]
     public async Task Schema_get_unknown_source_returns_bad_request()
     {
         var bridge = NewBridge();

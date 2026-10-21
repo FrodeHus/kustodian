@@ -88,7 +88,7 @@ public sealed class AppServices : IAsyncDisposable
     {
         new AppHandler(Objects, Probes).Register(bridge);
         new SettingsHandler(_settings, _startup.Limits).Register(bridge);
-        new SchemaHandler(_schema).Register(bridge);
+        new SchemaHandler(_schema, ActiveAccountAsync, Probes).Register(bridge);
         new QueryHandler(_schema, ActiveAccountAsync, Runner.RunAsync, _recent, _time, new StderrLogger<QueryHandler>(), Limits)
             .Register(bridge);
         new LibraryHandler(_library, _recent).Register(bridge);

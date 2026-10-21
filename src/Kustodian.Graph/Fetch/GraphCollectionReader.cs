@@ -38,8 +38,10 @@ public sealed record GraphCollection(IReadOnlyList<JsonObject> Objects, IReadOnl
 /// handler adds the account's token. The
 /// properties the query names that Graph won't serve in a list are then read one object at a time
 /// (<see cref="GraphBatchReader"/>), for at most <see cref="GraphLimits.PerObjectReadsPerTable"/> objects: those whose values are in
-/// <paramref name="cache"/> take them from there, and only the others are read and then kept. The columns probing finds a table
-/// can't serve in a list are kept in <paramref name="probes"/> (none when not given), so the next run leaves them out at once.
+/// <paramref name="cache"/> take them from there, and only the others are read and then kept. With <paramref name="probes"/>,
+/// the first read of a table for an account learns the columns Graph lists by default (one object, without <c>$select</c>),
+/// and the list then selects only those and the columns the query names; the columns probing finds a table can't serve in a
+/// list are kept there too, so the next run leaves them out at once. Without it neither is learnt nor kept.
 /// A request Graph throttles (429) is sent once more after its <c>Retry-After</c> (at most <see cref="MaxRetryWait"/>, on
 /// <paramref name="time"/>).
 /// </summary>
@@ -58,6 +60,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
     private static readonly TimeSpan NoRetryAfterWait = TimeSpan.FromSeconds(10);
 
     private readonly IGraphProbeCache _probes = probes ?? NoGraphProbeCache.Instance;
+    private readonly bool _learnsDefaults = probes is not null;
     private readonly TimeProvider _time = time ?? TimeProvider.System;
 
     private readonly GraphBatchReader _perObject = new(http, limits);
@@ -74,7 +77,8 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
 
     /// <summary>Reads the collection. <paramref name="accountKey"/> keys the caches and goes on every request
     /// (<see cref="GraphRequestAccount"/>), so each is sent with that account's token. <paramref name="refresh"/>: per-object reads
-    /// skip the cache (and refill it), and the columns probing found earlier are selected again (and probed again if refused).
+    /// skip the cache (and refill it), the columns Graph lists by default are read again, and the columns probing found earlier
+    /// are selected again (and probed again if refused).
     /// <paramref name="diagnostics"/>, when given, goes on every request too (<see cref="RunDiagnosticsRequest.ForRun"/>), and
     /// gets the read's steps: columns dropped and why, throttling, per-object reads and cache hits. Throws
     /// <see cref="GraphReadException"/> for every failure that isn't the caller cancelling; a <see cref="SignInRequiredException"/>
@@ -98,6 +102,18 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
 
         try
         {
+            if (_learnsDefaults && await DefaultColumnsAsync(accountKey, fetch, refresh, lease, requests, diagnostics, ct) is { } defaults)
+            {
+                // A column outside the default set is selected only when the query names it.
+                var keep = defaults.Concat(fetch.Named).Append("id").ToHashSet(StringComparer.Ordinal);
+                var others = select.Where(c => !keep.Contains(c)).ToList();
+                if (others.Count > 0)
+                {
+                    select.RemoveAll(others.Contains);
+                    Log(diagnostics, DiagnosticKinds.Probe, $"{fetch.Table.Name}: selected the columns Graph lists by default; left out "
+                        + string.Join(", ", others) + " (the query doesn't name them)");
+                }
+            }
             var earlier = await _probes.GetAsync(accountKey, path, ct);
             // Kept as found: what a refresh doesn't select again stays as it was.
             var notListed = earlier?.NotListed.Where(c => !refresh || !select.Contains(c)).ToList() ?? [];
@@ -246,6 +262,56 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
             PerObjectCached = hits.Count,
             PerObjectCachedAt = hits.Count == 0 ? null : hits.Min(h => h.Values.ReadAt),
         };
+    }
+
+    /// <summary>The columns Graph lists by default for the table in this account: kept from an earlier run (unless
+    /// <paramref name="refresh"/>), else read now, as the properties of the one object a list read without <c>$select</c>
+    /// returns, and kept. Null when they can't be known: Graph refused the read (but for throttling or the token, which fail the
+    /// read as the list would), or returned no object.</summary>
+    private async Task<IReadOnlyList<string>?> DefaultColumnsAsync(string accountKey, GraphFetch fetch, bool refresh, GraphFetchLease lease,
+        List<string> requests, RunDiagnostics? diagnostics, CancellationToken ct)
+    {
+        var path = fetch.Table.Path;
+        var table = fetch.Table.Name;
+        if (!refresh && await _probes.GetDefaultsAsync(accountKey, path, ct) is { } kept)
+            return kept.Columns;
+        var url = path + "?$top=1";
+        requests.Add(url);
+        using var sent = await SendAsync(accountKey, new Uri(url, UriKind.Relative), DiagnosticKinds.Probe, table, diagnostics, ct);
+        var (response, body) = (sent.Response, sent.Body);
+        if (!response.IsSuccessStatusCode)
+        {
+            if (GraphErrorText.IsTokenRejected(response, body))
+                throw SignInNeeded();
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                throw Failure(response, null);
+            Log(diagnostics, DiagnosticKinds.Probe, $"{table}: the columns Graph lists by default couldn't be read; selecting as before",
+                (int)response.StatusCode);
+            return null;
+        }
+        await lease.AddAsync(body.Length, ct);
+        JsonNode? root;
+        try
+        {
+            root = JsonNode.Parse(body);
+        }
+        catch (JsonException)
+        {
+            root = null;
+        }
+        // Annotations (@odata.type, tags@odata.type) aren't columns.
+        var columns = root?["value"] is JsonArray { Count: > 0 } value && value[0] is JsonObject first
+            ? first.Select(p => p.Key).Where(k => !k.Contains('@', StringComparison.Ordinal)).ToList()
+            : [];
+        if (columns.Count == 0)
+        {
+            Log(diagnostics, DiagnosticKinds.Probe, $"{table}: no object to learn the columns Graph lists by default from; selecting as before");
+            return null;
+        }
+        await _probes.SetDefaultsAsync(accountKey, path, columns, ct);
+        Log(diagnostics, DiagnosticKinds.Probe, string.Create(CultureInfo.InvariantCulture,
+            $"{table}: Graph lists {columns.Count} columns by default: {string.Join(", ", columns)}"));
+        return columns;
     }
 
     /// <summary>Leaves the selected columns probing found <paramref name="earlier"/> out of <paramref name="select"/>, as probing

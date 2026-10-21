@@ -7,10 +7,15 @@ namespace Kustodian.Graph.Fetch;
 /// in a list, the columns it refuses for permission, and when they were found.</summary>
 public sealed record GraphProbeFindings(IReadOnlyList<string> NotListed, IReadOnlyList<string> Denied, DateTimeOffset FoundAt);
 
+/// <summary>The columns Graph lists by default for one table of one account: the properties of an object in its answer to a
+/// list read without <c>$select</c>, and when that was read.</summary>
+public sealed record GraphDefaultColumns(IReadOnlyList<string> Columns, DateTimeOffset ReadAt);
+
 /// <summary>
-/// The columns probing found a table can't serve in a list, kept for a while (<see cref="GraphLimits.ProbeCacheTtl"/>), so a run soon after
-/// another selects without them straight away instead of probing again: some collections (sign-in logs) throttle hard. An
-/// entry is one table (its path) of one account.
+/// What the reader learnt about how a table lists for an account, kept for a while (<see cref="GraphLimits.ProbeCacheTtl"/>), so a
+/// run soon after another needn't ask again: some collections (sign-in logs) throttle hard. The columns probing found a table
+/// can't serve in a list are left out straight away instead of probed again, and the columns Graph lists by default are what a
+/// query that names no other column selects. An entry is one table (its path) of one account.
 /// </summary>
 public interface IGraphProbeCache
 {
@@ -21,10 +26,19 @@ public interface IGraphProbeCache
     /// any earlier ones. With both empty the table has none.</summary>
     ValueTask SetAsync(string accountKey, string path, IReadOnlyList<string> notListed, IReadOnlyList<string> denied, CancellationToken ct);
 
-    /// <summary>Forgets every finding of the account.</summary>
+    /// <summary>The columns Graph lists by default for the table, or null when they haven't been read (or have expired).</summary>
+    ValueTask<GraphDefaultColumns?> GetDefaultsAsync(string accountKey, string path, CancellationToken ct);
+
+    /// <summary>Keeps <paramref name="columns"/> as the columns Graph lists by default for the table, read now.</summary>
+    ValueTask SetDefaultsAsync(string accountKey, string path, IReadOnlyList<string> columns, CancellationToken ct);
+
+    /// <summary>The columns Graph lists by default for every table of the account that has them, by path.</summary>
+    ValueTask<IReadOnlyDictionary<string, GraphDefaultColumns>> DefaultsOfAsync(string accountKey, CancellationToken ct);
+
+    /// <summary>Forgets everything of the account.</summary>
     ValueTask RemoveAccountAsync(string accountKey, CancellationToken ct);
 
-    /// <summary>Forgets every finding, of every account.</summary>
+    /// <summary>Forgets everything, of every account.</summary>
     ValueTask ClearAsync(CancellationToken ct);
 }
 
@@ -39,16 +53,26 @@ public sealed class NoGraphProbeCache : IGraphProbeCache
     public ValueTask SetAsync(string accountKey, string path, IReadOnlyList<string> notListed, IReadOnlyList<string> denied, CancellationToken ct)
         => ValueTask.CompletedTask;
 
+    public ValueTask<GraphDefaultColumns?> GetDefaultsAsync(string accountKey, string path, CancellationToken ct)
+        => ValueTask.FromResult<GraphDefaultColumns?>(null);
+
+    public ValueTask SetDefaultsAsync(string accountKey, string path, IReadOnlyList<string> columns, CancellationToken ct)
+        => ValueTask.CompletedTask;
+
+    public ValueTask<IReadOnlyDictionary<string, GraphDefaultColumns>> DefaultsOfAsync(string accountKey, CancellationToken ct)
+        => ValueTask.FromResult<IReadOnlyDictionary<string, GraphDefaultColumns>>(new Dictionary<string, GraphDefaultColumns>());
+
     public ValueTask RemoveAccountAsync(string accountKey, CancellationToken ct) => ValueTask.CompletedTask;
 
     public ValueTask ClearAsync(CancellationToken ct) => ValueTask.CompletedTask;
 }
 
 /// <summary><see cref="IGraphProbeCache"/> in the process's memory, for <see cref="GraphLimits.ProbeCacheTtl"/> of
-/// <paramref name="limits"/> (7 days by default) after the findings were found.</summary>
+/// <paramref name="limits"/> (7 days by default) after the findings were found or the defaults read.</summary>
 public sealed class MemoryGraphProbeCache(TimeProvider time, GraphLimits? limits = null) : IGraphProbeCache
 {
     private readonly ConcurrentDictionary<(string Account, string Path), GraphProbeFindings> _entries = new();
+    private readonly ConcurrentDictionary<(string Account, string Path), GraphDefaultColumns> _defaults = new();
     private readonly TimeSpan _ttl = (limits ?? GraphLimits.Default).ProbeCacheTtl;
 
     public ValueTask<GraphProbeFindings?> GetAsync(string accountKey, string path, CancellationToken ct)
@@ -72,16 +96,45 @@ public sealed class MemoryGraphProbeCache(TimeProvider time, GraphLimits? limits
         return ValueTask.CompletedTask;
     }
 
+    public ValueTask<GraphDefaultColumns?> GetDefaultsAsync(string accountKey, string path, CancellationToken ct)
+    {
+        if (!_defaults.TryGetValue((accountKey, path), out var entry))
+            return ValueTask.FromResult<GraphDefaultColumns?>(null);
+        if (time.GetUtcNow() - entry.ReadAt >= _ttl)
+        {
+            _defaults.TryRemove(new KeyValuePair<(string, string), GraphDefaultColumns>((accountKey, path), entry));
+            return ValueTask.FromResult<GraphDefaultColumns?>(null);
+        }
+        return ValueTask.FromResult<GraphDefaultColumns?>(entry);
+    }
+
+    public ValueTask SetDefaultsAsync(string accountKey, string path, IReadOnlyList<string> columns, CancellationToken ct)
+    {
+        _defaults[(accountKey, path)] = new GraphDefaultColumns([.. columns], time.GetUtcNow());
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask<IReadOnlyDictionary<string, GraphDefaultColumns>> DefaultsOfAsync(string accountKey, CancellationToken ct)
+    {
+        var now = time.GetUtcNow();
+        return ValueTask.FromResult<IReadOnlyDictionary<string, GraphDefaultColumns>>(_defaults
+            .Where(e => e.Key.Account == accountKey && now - e.Value.ReadAt < _ttl)
+            .ToDictionary(e => e.Key.Path, e => e.Value, StringComparer.Ordinal));
+    }
+
     public ValueTask RemoveAccountAsync(string accountKey, CancellationToken ct)
     {
         foreach (var key in _entries.Keys.Where(k => k.Account == accountKey))
             _entries.TryRemove(key, out _);
+        foreach (var key in _defaults.Keys.Where(k => k.Account == accountKey))
+            _defaults.TryRemove(key, out _);
         return ValueTask.CompletedTask;
     }
 
     public ValueTask ClearAsync(CancellationToken ct)
     {
         _entries.Clear();
+        _defaults.Clear();
         return ValueTask.CompletedTask;
     }
 }

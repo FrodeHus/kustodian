@@ -26,6 +26,21 @@ public sealed class MemoryGraphProbeCacheTests
     }
 
     [Fact]
+    public async Task Default_columns_are_kept_for_the_ttl_and_listed_per_account()
+    {
+        var time = new FakeTimeProvider();
+        var cache = new MemoryGraphProbeCache(time);
+        await cache.SetDefaultsAsync("a", "users", ["id", "displayName"], Ct);
+        await cache.SetDefaultsAsync("b", "groups", ["id"], Ct);
+
+        Assert.Equal(["id", "displayName"], (await cache.GetDefaultsAsync("a", "users", Ct))!.Columns);
+        Assert.Equal(["users"], (await cache.DefaultsOfAsync("a", Ct)).Keys);
+        time.Advance(GraphLimits.Default.ProbeCacheTtl);
+        Assert.Null(await cache.GetDefaultsAsync("a", "users", Ct));
+        Assert.Empty(await cache.DefaultsOfAsync("a", Ct));
+    }
+
+    [Fact]
     public async Task Setting_nothing_forgets_the_table()
     {
         var cache = new MemoryGraphProbeCache(new FakeTimeProvider());

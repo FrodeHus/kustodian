@@ -20,7 +20,7 @@ public sealed class FakeGraph : HttpMessageHandler
     /// <summary>A reader over this fake, with the caches off, whose waits for a throttled request pass at once.</summary>
     public GraphCollectionReader Reader(GraphFetchBudget budget)
         => new(new HttpClient(this) { BaseAddress = new Uri("https://graph.microsoft.com/beta/") }, budget, NoGraphObjectCache.Instance,
-            GraphLimits.Default, NoGraphProbeCache.Instance, new InstantTime());
+            GraphLimits.Default, time: new InstantTime());
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {

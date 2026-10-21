@@ -47,7 +47,7 @@ public sealed class GraphCollectionReaderTests
     private static GraphCollectionReader Reader(HttpMessageHandler handler, GraphFetchBudget? budget = null, IGraphProbeCache? probes = null,
         TimeProvider? time = null)
         => new(new HttpClient(handler) { BaseAddress = new Uri("https://graph.microsoft.com/beta/") }, budget ?? new GraphFetchBudget(),
-            NoGraphObjectCache.Instance, GraphLimits.Default, probes ?? NoGraphProbeCache.Instance, time ?? new InstantTime());
+            NoGraphObjectCache.Instance, GraphLimits.Default, probes, time ?? new InstantTime());
 
     private static Task<GraphCollection> Read(GraphCollectionReader reader, GraphFetch fetch, GraphFetchLease? lease = null,
         bool refresh = false, RunDiagnostics? diagnostics = null)
@@ -485,11 +485,123 @@ public sealed class GraphCollectionReaderTests
 
     private static bool IsProbe(string request) => request.EndsWith("&$top=1", StringComparison.Ordinal);
 
+    /// <summary>A probe cache that already knows Graph lists every column of applications by default (for
+    /// <paramref name="accounts"/>), so the default set doesn't narrow what the tests of probing select.</summary>
+    private static async Task<MemoryGraphProbeCache> ListingEverything(params string[] accounts)
+    {
+        var probes = new MemoryGraphProbeCache(new FakeTimeProvider());
+        foreach (var account in accounts.Append(Account))
+            await probes.SetDefaultsAsync(account, "applications", ["appId", "displayName", "windows", "onPremisesPublishing", "tags", "id"],
+                CancellationToken.None);
+        return probes;
+    }
+
+    private const string DefaultRead = "applications?$top=1";
+
+    /// <summary>Graph answering <paramref name="respond"/>, and listing every column of applications by default.</summary>
+    private static Scripted EveryColumnByDefault(Func<HttpRequestMessage, int, HttpResponseMessage> respond) => new((r, n) =>
+        r.RequestUri!.PathAndQuery == "/beta/" + DefaultRead
+            ? Json(HttpStatusCode.OK, "{\"value\":[{\"id\":\"1\",\"appId\":\"a\",\"displayName\":\"d\",\"windows\":null,\"onPremisesPublishing\":null,\"tags\":[]}]}")
+            : respond(r, n));
+
+    /// <summary>Graph as it lists applications by default: id, appId and displayName (and an annotation), and a 404 web page for
+    /// a list that selects windows.</summary>
+    private static Scripted ListsByDefault(string defaultAnswer = "{\"value\":[{\"id\":\"1\",\"appId\":\"a\",\"displayName\":\"d\",\"tags@odata.type\":\"#Collection(String)\"}]}")
+        => new((r, _) => r.RequestUri!.PathAndQuery == "/beta/" + DefaultRead
+            ? Json(HttpStatusCode.OK, defaultAnswer)
+            : SelectOf(r).Split(',').Contains("windows") ? WebPage404() : Json(HttpStatusCode.OK, Page(0, 2)));
+
+    // A bare table: one read without $select learns the columns Graph lists by default, and the list selects only those, so
+    // the column Graph won't list is never selected and nothing is probed.
+    [Fact]
+    public async Task A_bare_table_reads_the_default_columns_once_and_selects_only_them()
+    {
+        var probes = new MemoryGraphProbeCache(new FakeTimeProvider());
+        var handler = ListsByDefault();
+        var diagnostics = new RunDiagnostics(TimeProvider.System);
+
+        var result = await Read(Reader(handler, probes: probes), Fetch(["appId", "displayName", "windows", "tags", "id"]), diagnostics: diagnostics);
+
+        Assert.Equal(DefaultRead, result.Requests[0]);
+        Assert.Equal(2, result.Requests.Count);
+        Assert.Equal(["appId", "displayName", "id"], SelectOfUrl(result.Requests[1]).Split(','));
+        Assert.DoesNotContain(result.Requests, IsProbe);
+        Assert.Empty(result.Unreadable);
+        Assert.Equal(2, result.Objects.Count);
+        Assert.Equal(["id", "appId", "displayName"], (await probes.GetDefaultsAsync(Account, "applications", CancellationToken.None))!.Columns);
+        Assert.Equal(["applications: Graph lists 3 columns by default: id, appId, displayName",
+            "applications: selected the columns Graph lists by default; left out windows, tags (the query doesn't name them)"],
+            OfKind(diagnostics, DiagnosticKinds.Probe).Select(e => e.Detail));
+    }
+
+    private static string SelectOfUrl(string url) => Uri.UnescapeDataString(url).Split("$select=")[1].Split('&')[0];
+
+    [Fact]
+    public async Task A_second_run_does_not_read_the_default_columns_again()
+    {
+        var probes = new MemoryGraphProbeCache(new FakeTimeProvider());
+        var fetch = Fetch(["appId", "displayName", "windows", "id"]);
+        await Read(Reader(ListsByDefault(), probes: probes), fetch);
+
+        var second = ListsByDefault();
+        var result = await Read(Reader(second, probes: probes), fetch);
+
+        Assert.Equal(1, second.Calls);
+        Assert.DoesNotContain(DefaultRead, result.Requests);
+        Assert.Equal(["appId", "displayName", "id"], SelectOfUrl(result.Requests[0]).Split(','));
+    }
+
+    // A column outside the default set is selected when the query names it: then Graph may refuse it, and probing finds it.
+    [Fact]
+    public async Task A_named_column_outside_the_default_set_is_still_selected()
+    {
+        var probes = new MemoryGraphProbeCache(new FakeTimeProvider());
+        var handler = ListsByDefault();
+        var fetch = Fetch(["appId", "displayName", "tags", "windows", "id"]) with { Named = ["tags", "windows"] };
+
+        var result = await Read(Reader(handler, probes: probes), fetch);
+
+        var list = result.Requests.Last(q => q.EndsWith("$top=999", StringComparison.Ordinal));
+        Assert.Contains("tags", SelectOfUrl(list).Split(','));
+        Assert.Contains("appId", SelectOfUrl(list).Split(','));
+        // Graph refused it in the list: probing found it, and as the query names it, it was read one object at a time.
+        Assert.Equal(["windows"], result.PerObject);
+        Assert.Contains(result.Requests, IsProbe);
+    }
+
+    // No object, no names: nothing is kept, and the list selects as it did before.
+    [Theory]
+    [InlineData("{\"value\":[]}")]
+    [InlineData("{}")]
+    [InlineData("null")]
+    public async Task An_empty_default_read_keeps_nothing_and_selects_as_before(string answer)
+    {
+        var probes = new MemoryGraphProbeCache(new FakeTimeProvider());
+        var handler = ListsByDefault(answer);
+
+        var result = await Read(Reader(handler, probes: probes), Fetch(["appId", "displayName", "tags", "id"]));
+
+        Assert.Null(await probes.GetDefaultsAsync(Account, "applications", CancellationToken.None));
+        Assert.Equal(["appId", "displayName", "tags", "id"], SelectOfUrl(result.Requests[^1]).Split(','));
+    }
+
+    [Fact]
+    public async Task Refresh_reads_the_default_columns_again()
+    {
+        var probes = new MemoryGraphProbeCache(new FakeTimeProvider());
+        var fetch = Fetch(["appId", "displayName", "id"]);
+        await Read(Reader(ListsByDefault(), probes: probes), fetch);
+
+        var result = await Read(Reader(ListsByDefault(), probes: probes), fetch, refresh: true);
+
+        Assert.Equal(DefaultRead, result.Requests[0]);
+    }
+
     // What probing found is kept per account and table: the next run selects without those columns at once, and says so.
     [Fact]
     public async Task A_second_run_leaves_out_what_probing_found_without_probing_again()
     {
-        var probes = new MemoryGraphProbeCache(new FakeTimeProvider());
+        var probes = await ListingEverything();
         var fetch = Fetch(["appId", "windows", "onPremisesPublishing", "id"]);
         var first = new Scripted((r, _) => SelectOf(r).Split(',') switch
         {
@@ -519,7 +631,7 @@ public sealed class GraphCollectionReaderTests
     [Fact]
     public async Task Findings_are_kept_per_account_and_table()
     {
-        var probes = new MemoryGraphProbeCache(new FakeTimeProvider());
+        var probes = await ListingEverything("account-2");
         var fetch = Fetch(["appId", "windows", "id"]);
         await Read(Reader(WindowsNotListed(), probes: probes), fetch);
 
@@ -535,11 +647,11 @@ public sealed class GraphCollectionReaderTests
     [Fact]
     public async Task Refresh_probes_again_and_keeps_what_it_finds_now()
     {
-        var probes = new MemoryGraphProbeCache(new FakeTimeProvider());
+        var probes = await ListingEverything();
         var fetch = Fetch(["appId", "windows", "tags", "id"]);
         await Read(Reader(WindowsNotListed(), probes: probes), fetch);
 
-        var now = new Scripted((r, _) => SelectOf(r).Split(',').Contains("tags") ? WebPage404() : Json(HttpStatusCode.OK, Page(0, 2)));
+        var now = EveryColumnByDefault((r, _) => SelectOf(r).Split(',').Contains("tags") ? WebPage404() : Json(HttpStatusCode.OK, Page(0, 2)));
         var result = await Read(Reader(now, probes: probes), fetch, refresh: true);
 
         Assert.Contains(result.Requests, IsProbe);
@@ -551,11 +663,11 @@ public sealed class GraphCollectionReaderTests
     [Fact]
     public async Task Refresh_that_reads_every_column_forgets_the_findings()
     {
-        var probes = new MemoryGraphProbeCache(new FakeTimeProvider());
+        var probes = await ListingEverything();
         var fetch = Fetch(["appId", "windows", "id"]);
         await Read(Reader(WindowsNotListed(), probes: probes), fetch);
 
-        var result = await Read(Reader(new Scripted((_, _) => Json(HttpStatusCode.OK, Page(0, 2))), probes: probes), fetch, refresh: true);
+        var result = await Read(Reader(EveryColumnByDefault((_, _) => Json(HttpStatusCode.OK, Page(0, 2))), probes: probes), fetch, refresh: true);
 
         Assert.Empty(result.Unreadable);
         Assert.Null(await probes.GetAsync(Account, "applications", CancellationToken.None));
@@ -565,7 +677,7 @@ public sealed class GraphCollectionReaderTests
     [Fact]
     public async Task New_findings_are_added_to_those_found_earlier()
     {
-        var probes = new MemoryGraphProbeCache(new FakeTimeProvider());
+        var probes = await ListingEverything();
         await Read(Reader(WindowsNotListed(), probes: probes), Fetch(["appId", "windows", "id"]));
 
         var both = new Scripted((r, _) => SelectOf(r).Split(',').Any(c => c is "windows" or "tags") ? WebPage404() : Json(HttpStatusCode.OK, Page(0, 2)));
@@ -604,7 +716,7 @@ public sealed class GraphCollectionReaderTests
         new { error = new { code = "UnknownError", message = "<!DOCTYPE html><html><head><title>404 - File or directory not found.</title></head></html>" } }));
 
     private static string SelectOf(HttpRequestMessage request)
-        => Uri.UnescapeDataString(request.RequestUri!.OriginalString).Split("$select=")[1].Split('&')[0];
+        => Uri.UnescapeDataString(request.RequestUri!.OriginalString).Split("$select=") is [_, var select] ? select.Split('&')[0] : "";
 
     // Some properties make a backend behind Graph answer 404 with a web page in some tenants. The reader finds them by probing
     // halves of the $select, leaves them out, reads the collection, and says which columns couldn't be read.
