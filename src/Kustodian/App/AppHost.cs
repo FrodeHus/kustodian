@@ -28,7 +28,7 @@ public static class AppHost
 
         var engineCommand = EngineCommand.Resolve(Environment.ProcessPath,
             Assembly.GetEntryAssembly()?.Location is { Length: > 0 } entry ? entry : typeof(AppHost).Assembly.Location);
-        var services = AppServices.Build(startup, settings, accounts, cache, engineCommand, TimeProvider.System);
+        var services = AppServices.Build(startup, settings, accounts, cache, engineCommand, store, TimeProvider.System);
         try
         {
             AppWindow.Run(new EmbeddedAssets(typeof(AppHost).Assembly, AppOrigin.Current(startup.Theme)), services.Register,

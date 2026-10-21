@@ -275,7 +275,7 @@ public sealed class SettingsServiceTests : IDisposable
         var startup = await settings.GetAsync(Ct);
         var accounts = new AccountService(_ => throw new InvalidOperationException("No sign-in in this test."), store);
         await using var services = AppServices.Build(startup, settings, accounts, new MemoryOnly("test"),
-            new EngineCommand("worker", []), TimeProvider.System);
+            new EngineCommand("worker", []), store, TimeProvider.System);
         var bridge = new Messaging.Bridge(_ => { });
         services.Register(bridge);
 

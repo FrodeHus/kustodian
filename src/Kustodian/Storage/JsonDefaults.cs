@@ -32,4 +32,25 @@ public static class JsonDefaults
 
         return filled;
     }
+
+    /// <summary>A new object: <paramref name="value"/> with each object in its array <paramref name="property"/> (named ignoring
+    /// case) filled from <paramref name="elementDefaults"/> (<see cref="Fill"/>), so a field missing from an element takes its
+    /// default. Elements that aren't objects, and a missing or non-array property, are kept as they are.</summary>
+    public static JsonObject FillElements(JsonObject value, string property, JsonObject elementDefaults)
+    {
+        var filled = value.DeepClone().AsObject();
+        var key = filled.Select(p => p.Key).FirstOrDefault(k => string.Equals(k, property, StringComparison.OrdinalIgnoreCase));
+        if (key is not null && filled[key] is JsonArray elements)
+        {
+            for (var i = 0; i < elements.Count; i++)
+            {
+                if (elements[i] is JsonObject element)
+                {
+                    elements[i] = Fill(element, elementDefaults);
+                }
+            }
+        }
+
+        return filled;
+    }
 }

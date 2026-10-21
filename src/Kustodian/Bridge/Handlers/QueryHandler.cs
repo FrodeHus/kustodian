@@ -1,6 +1,10 @@
+using System.Text.Json;
 using Kustodian.Graph.Query;
 using Kustodian.Graph.Run;
 using Kustodian.Graph.Schema;
+using Kustodian.Library;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Kustodian.Messaging.Handlers;
 
@@ -9,11 +13,15 @@ public delegate Task<RunResult> GraphRun(string accountKey, string kql, bool ref
 
 /// <summary><c>query.complete</c>, <c>query.run</c> and <c>query.cancel</c>. Each tab has at most one run: a new run on a tab
 /// cancels the one before, and <c>query.cancel</c> cancels it. A cancelled run answers with the error code
-/// <c>cancelled</c>.</summary>
-public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeAccount, GraphRun run)
+/// <c>cancelled</c>. Every run that finishes is added to <paramref name="recent"/> (when given); a cancelled run is not, and
+/// a failure to write Recent is logged and never fails the run.</summary>
+public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeAccount, GraphRun run, RecentService? recent = null,
+    TimeProvider? time = null, ILogger<QueryHandler>? logger = null)
 {
     private const string GraphSource = "graph";
 
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
+    private readonly ILogger<QueryHandler> _log = logger ?? NullLogger<QueryHandler>.Instance;
     private readonly Lock _gate = new();
     private readonly Dictionary<string, CancellationTokenSource> _runs = new(StringComparer.Ordinal);
 
@@ -77,7 +85,10 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
 
             cts.Token.ThrowIfCancellationRequested();
             var progress = new TabProgress(bridge, tabId);
-            return await run(account, p.Kql, p.Refresh, progress, cts.Token);
+            var started = _time.GetUtcNow();
+            var result = await run(account, p.Kql, p.Refresh, progress, cts.Token);
+            await RecordAsync(p, started, result);
+            return result;
         }
         finally
         {
@@ -90,6 +101,28 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
             }
 
             cts.Dispose();
+        }
+    }
+
+    /// <summary>Adds a finished run to Recent. Recent is a convenience: if it can't be written, that is logged and the run's
+    /// result still goes out.</summary>
+    private async Task RecordAsync(RunParams p, DateTimeOffset started, RunResult result)
+    {
+        if (recent is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var run = new RecentRun(Guid.NewGuid().ToString("D"), p.Source!, p.Kql!, p.Parameters ?? new Dictionary<string, string>(),
+                started, (long)Math.Round(result.Duration.TotalMilliseconds), result.Total,
+                JsonNamingPolicy.CamelCase.ConvertName(result.Outcome.ToString()));
+            await recent.AddAsync(run, CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _log.LogWarning(ex, "The run could not be added to Recent");
         }
     }
 
@@ -145,7 +178,8 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
 
     private sealed record CompleteParams(string? Source, string? Kql, int Position);
 
-    private sealed record RunParams(string? TabId, string? Source, string? Kql, bool Refresh);
+    private sealed record RunParams(string? TabId, string? Source, string? Kql, bool Refresh,
+        IReadOnlyDictionary<string, string>? Parameters = null);
 
     private sealed record CancelParams(string? TabId);
 }

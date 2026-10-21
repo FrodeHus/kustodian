@@ -3,9 +3,11 @@ using Kustodian.Graph.Engine;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Run;
 using Kustodian.Graph.Schema;
+using Kustodian.Library;
 using Kustodian.Messaging;
 using Kustodian.Messaging.Handlers;
 using Kustodian.Settings;
+using Kustodian.Storage;
 
 namespace Kustodian.App;
 
@@ -17,19 +19,25 @@ namespace Kustodian.App;
 public sealed class AppServices : IAsyncDisposable
 {
     private readonly AppSettings _startup;
+    private readonly TimeProvider _time;
     private readonly SettingsService _settings;
     private readonly AccountService _accounts;
     private readonly TokenCacheStatus _tokenCache;
     private readonly HttpClient _http;
+    private readonly LibraryService _library;
+    private readonly RecentService _recent;
     private readonly GraphSchema _schema = GraphSchemaCatalog.Beta;
 
     private AppServices(AppSettings startup, SettingsService settings, AccountService accounts, TokenCacheStatus tokenCache,
-        EngineCommand engine, TimeProvider time)
+        EngineCommand engine, JsonFileStore store, TimeProvider time)
     {
         _startup = startup;
+        _time = time;
         _settings = settings;
         _accounts = accounts;
         _tokenCache = tokenCache;
+        _library = new LibraryService(store, time, new StderrLogger<LibraryService>());
+        _recent = new RecentService(store, new StderrLogger<RecentService>());
         Limits = SettingsService.ToGraphLimits(startup.Limits);
 
         var options = new GraphEngineOptions { WorkerPath = engine.WorkerPath, WorkerArgs = engine.WorkerArgs };
@@ -55,7 +63,8 @@ public sealed class AppServices : IAsyncDisposable
 
     /// <summary>Builds the services from <paramref name="startup"/>, the settings as read once when the app starts.</summary>
     public static AppServices Build(AppSettings startup, SettingsService settings, AccountService accounts, TokenCacheStatus tokenCache,
-        EngineCommand engine, TimeProvider time) => new(startup, settings, accounts, tokenCache, engine, time);
+        EngineCommand engine, JsonFileStore store, TimeProvider time) =>
+        new(startup, settings, accounts, tokenCache, engine, store, time);
 
     /// <summary>Registers every bridge method.</summary>
     public void Register(Bridge bridge)
@@ -63,7 +72,8 @@ public sealed class AppServices : IAsyncDisposable
         new AppHandler(Objects).Register(bridge);
         new SettingsHandler(_settings, _startup.Limits).Register(bridge);
         new SchemaHandler(_schema).Register(bridge);
-        new QueryHandler(_schema, ActiveAccountAsync, Runner.RunAsync).Register(bridge);
+        new QueryHandler(_schema, ActiveAccountAsync, Runner.RunAsync, _recent, _time, new StderrLogger<QueryHandler>()).Register(bridge);
+        new LibraryHandler(_library, _recent).Register(bridge);
         new AccountHandler(_accounts, _tokenCache, Objects).Register(bridge);
     }
 

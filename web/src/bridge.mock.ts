@@ -71,7 +71,26 @@ const RUN_DELAY_MS = 400;
 interface MockRequest {
   id?: string;
   method?: string;
-  params?: { tabId?: string; settings?: typeof defaultSettings };
+  params?: { tabId?: string; settings?: typeof defaultSettings; query?: SavedQueryInput; id?: string };
+}
+
+interface SavedQueryInput {
+  id?: string | null;
+  name: string;
+  folder?: string | null;
+  source?: string;
+  text?: string;
+  parameters?: unknown[];
+}
+
+interface SavedQuery extends SavedQueryInput {
+  version: number;
+  id: string;
+  source: string;
+  text: string;
+  parameters: unknown[];
+  createdAt: string;
+  modifiedAt: string;
 }
 
 export function createMockTransport(): Transport {
@@ -84,6 +103,9 @@ export function createMockTransport(): Transport {
     restartNeeded: JSON.stringify(settings.limits) !== JSON.stringify(defaultSettings.limits),
     corrupt: false,
   });
+
+  const saved = new Map<string, SavedQuery>();
+  let savedCounter = 0;
 
   const reply = (id: string, result: unknown) => receive(JSON.stringify({ id, result: result ?? null }));
   const fail = (id: string, code: string, message: string) => receive(JSON.stringify({ id, error: { code, message } }));
@@ -112,6 +134,45 @@ export function createMockTransport(): Transport {
       case 'settings.set':
         settings = { ...(params?.settings ?? settings), version: 1 };
         reply(id, settingsAnswer());
+        break;
+      case 'library.list': {
+        const queries = [...saved.values()].sort((a, b) => a.name.localeCompare(b.name));
+        const folders = [...new Set(queries.map((q) => q.folder).filter((f): f is string => !!f))].sort();
+        reply(id, { queries, folders, skipped: 0 });
+        break;
+      }
+      case 'library.save': {
+        const input = params?.query;
+        if (!input) {
+          fail(id, 'bad_request', 'The request has no query.');
+          break;
+        }
+        const now = new Date().toISOString();
+        const key = input.id ?? `00000000-0000-0000-0000-${String(++savedCounter).padStart(12, '0')}`;
+        const query: SavedQuery = {
+          version: 1,
+          id: key,
+          name: input.name,
+          folder: input.folder ?? null,
+          source: input.source ?? 'graph',
+          text: input.text ?? '',
+          parameters: input.parameters ?? [],
+          createdAt: saved.get(key)?.createdAt ?? now,
+          modifiedAt: now,
+        };
+        saved.set(key, query);
+        reply(id, query);
+        break;
+      }
+      case 'library.delete':
+        saved.delete(params?.id ?? '');
+        reply(id, null);
+        break;
+      case 'recent.list':
+        reply(id, { runs: [] });
+        break;
+      case 'recent.clear':
+        reply(id, null);
         break;
       case 'cache.clear':
         reply(id, {});
