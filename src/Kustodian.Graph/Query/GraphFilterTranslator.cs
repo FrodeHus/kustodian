@@ -15,33 +15,47 @@ public static partial class GraphFilterTranslator
     /// <summary>The <c>$filter</c> for <paramref name="leadingWherePredicates"/>, or null when nothing can be pushed. Each
     /// top-level <c>and</c> conjunct is pushed or left out on its own; an <c>or</c> only when every branch can be.</summary>
     /// <param name="now">The run's time, for <c>now()</c> and <c>ago()</c>.</param>
-    public static string? Translate(GraphTable table, IReadOnlyList<Expression> leadingWherePredicates, DateTimeOffset now)
-        => Explain(table, leadingWherePredicates, now).Filter;
+    /// <param name="complexTypes">The schema's complex types, for conditions on a nested property; without them none is pushed.</param>
+    public static string? Translate(GraphTable table, IReadOnlyList<Expression> leadingWherePredicates, DateTimeOffset now,
+        IReadOnlyDictionary<string, IReadOnlyList<GraphField>>? complexTypes = null)
+        => Explain(table, leadingWherePredicates, now, complexTypes).Filter;
 
     /// <summary>What <see cref="Translate"/> sends, with each top-level <c>and</c> conjunct of
     /// <paramref name="leadingWherePredicates"/> either pushed or kept local with the rule that keeps it
-    /// (<see cref="PushdownReasons"/>).</summary>
+    /// (<see cref="PushdownReasons"/>). A column Graph filters on only alone (<see cref="PushdownReasons.Alone"/>) wins: once a
+    /// condition on it is pushed, the conditions on other columns run locally.</summary>
     /// <param name="now">The run's time, for <c>now()</c> and <c>ago()</c>.</param>
-    public static FilterExplanation Explain(GraphTable table, IReadOnlyList<Expression> leadingWherePredicates, DateTimeOffset now)
+    /// <param name="complexTypes">The schema's complex types, for conditions on a nested property.</param>
+    public static FilterExplanation Explain(GraphTable table, IReadOnlyList<Expression> leadingWherePredicates, DateTimeOffset now,
+        IReadOnlyDictionary<string, IReadOnlyList<GraphField>>? complexTypes = null)
     {
-        var context = new Context(table, now.UtcDateTime);
-        var filters = new List<string>();
+        var context = new Context(table, now.UtcDateTime, complexTypes ?? new Dictionary<string, IReadOnlyList<GraphField>>());
+        var results = leadingWherePredicates.SelectMany(Conjuncts).Select(c => (Conjunct: c, Result: context.Translate(c))).ToList();
+        var alone = results.Select(r => r.Result).FirstOrDefault(r => r.Filter is not null && r.Alone is not null).Alone;
+
+        var clauses = new List<FilterClause>();
         var pushed = new List<string>();
         var local = new List<LocalCondition>();
-        foreach (var conjunct in leadingWherePredicates.SelectMany(Conjuncts))
+        var exact = true;
+        foreach (var (conjunct, result) in results)
         {
-            var result = context.Translate(conjunct);
-            if (result.Filter is { } filter)
+            if (result.Filter is { } filter && (alone is null || result.Alone == alone))
             {
-                filters.Add(filter);
+                clauses.Add(new FilterClause(filter, result.Feature, result.Advanced));
                 pushed.Add(Text(conjunct));
+                exact &= result.Exact;
             }
             else
             {
-                local.Add(new LocalCondition(Text(conjunct), result.Reason!));
+                local.Add(new LocalCondition(Text(conjunct), result.Reason ?? PushdownReasons.Alone(alone!)));
+                exact = false;
             }
         }
-        return new FilterExplanation(filters.Count == 0 ? null : string.Join(" and ", filters), pushed, local);
+        return new FilterExplanation(clauses.Count == 0 ? null : string.Join(" and ", clauses.Select(c => c.OData)), pushed, local)
+        {
+            Clauses = clauses,
+            Exact = exact,
+        };
     }
 
     /// <summary>An expression as written, on one line, with its comments and runs of white space each read as one space.</summary>
@@ -62,14 +76,29 @@ public static partial class GraphFilterTranslator
 
     private enum Kind { String, DateTime, Number, Bool }
 
-    /// <summary>An expression as OData (<see cref="Filter"/>), or why it can't be pushed (<see cref="Reason"/>).</summary>
-    private readonly record struct Pushdown(string? Filter, string? Reason)
+    /// <summary>An expression as OData (<see cref="Filter"/>), or why it can't be pushed (<see cref="Reason"/>).
+    /// <see cref="Exact"/>: Graph keeps exactly the rows the KQL keeps. <see cref="Feature"/> and <see cref="Advanced"/> are as
+    /// in <see cref="FilterClause"/>; <see cref="Alone"/> is the column Graph filters on only alone, when the expression is on
+    /// it.</summary>
+    private readonly record struct Pushdown(string? Filter, string? Reason, bool Exact = false, string? Feature = null,
+        bool Advanced = false, string? Alone = null)
     {
-        public static Pushdown Push(string filter) => new(filter, null);
         public static Pushdown Keep(string reason) => new(null, reason);
     }
 
-    private sealed partial class Context(GraphTable table, DateTime now)
+    /// <summary>A function of a column the translator reads through: <c>tolower()</c>, <c>toupper()</c>.</summary>
+    private enum Fold { None, Lower, Upper }
+
+    /// <summary>What a condition's left side filters on: <see cref="Path"/> as OData (<c>signInActivity/lastSignInDateTime</c>),
+    /// <see cref="Name"/> as the query names it, the operators Graph allows on it, and its kind. <see cref="Nested"/>: a
+    /// property of a complex column. <see cref="Alone"/>: the column Graph filters on only alone.</summary>
+    private sealed record Target(string Path, string Name, IReadOnlyList<string> Filter, Kind Kind, string Type, bool Nested,
+        string? Alone, Fold Fold);
+
+    [GeneratedRegex(@"not with any other filterable propert", RegexOptions.IgnoreCase)]
+    private static partial Regex AloneText();
+
+    private sealed partial class Context(GraphTable table, DateTime now, IReadOnlyDictionary<string, IReadOnlyList<GraphField>> complexTypes)
     {
         /// <summary>The whole expression as OData, or why it can't be pushed: no part of it is pushed unless all of it is.</summary>
         public Pushdown Translate(Expression expression)
@@ -83,22 +112,26 @@ public static partial class GraphFilterTranslator
                     if (left.Filter is null)
                         return left;
                     var right = Translate(and.Right);
-                    return right.Filter is null ? right : Pushdown.Push($"{left.Filter} and {right.Filter}");
+                    return right.Filter is null ? right : Combine(left, right, $"{left.Filter} and {right.Filter}");
                 }
                 case BinaryExpression { Kind: SyntaxKind.OrExpression } or:
-                    return Translate(or.Left).Filter is { } l && Translate(or.Right).Filter is { } r
-                        ? Pushdown.Push($"({l} or {r})")
+                    return Translate(or.Left) is { Filter: { } l } first && Translate(or.Right) is { Filter: { } r } second
+                        ? Combine(first, second, $"({l} or {r})")
                         : Pushdown.Keep(PushdownReasons.OrSide);
                 case BinaryExpression binary:
                     return Comparison(binary);
+                case BetweenExpression between:
+                    return Between(between);
                 case InExpression { Kind: SyntaxKind.InExpression or SyntaxKind.InCsExpression } @in:
                     return In(@in);
                 case InExpression other:
-                    return Column(other.Left) is var (column, _)
-                        ? Pushdown.Keep(PushdownReasons.Operator(column.Name))
+                    return Resolve(other.Left) is { } target
+                        ? Pushdown.Keep(target.Fold == Fold.None ? PushdownReasons.Operator(target.Name) : PushdownReasons.Folded)
                         : NotAColumn(other.Left);
                 case FunctionCallExpression call when call.ReferencedSymbol == Functions.Not:
                     return Pushdown.Keep(PushdownReasons.Not);
+                case FunctionCallExpression call when call.ReferencedSymbol == Functions.SetHasElement && call.ArgumentList.Expressions.Count == 2:
+                    return HasElement(call);
                 case FunctionCallExpression call when call.ArgumentList.Expressions.Count == 1:
                     return NullCheck(call);
                 // A bare column (a bool used as the condition) names it; any other condition the translator doesn't know is
@@ -108,38 +141,81 @@ public static partial class GraphFilterTranslator
             }
         }
 
+        /// <summary>Two pushed parts joined as <paramref name="filter"/>: exact only if both are, and never a column Graph
+        /// filters on only alone mixed with anything else.</summary>
+        private static Pushdown Combine(Pushdown left, Pushdown right, string filter)
+        {
+            if (left.Alone != right.Alone)
+                return Pushdown.Keep(PushdownReasons.Alone(left.Alone ?? right.Alone!));
+            var features = new[] { left.Feature, right.Feature }.OfType<string>().SelectMany(f => f.Split(", ")).Distinct().ToList();
+            return new Pushdown(filter, null, left.Exact && right.Exact, features.Count == 0 ? null : string.Join(", ", features),
+                left.Advanced || right.Advanced, left.Alone);
+        }
+
+        /// <summary>A pushed condition on <paramref name="target"/>: a nested property is a feature of its own (its path), and
+        /// carries the column Graph filters on only alone.</summary>
+        private static Pushdown Push(Target target, string filter, bool exact, string? feature = null, bool advanced = false)
+        {
+            var features = new[] { target.Nested ? target.Path : null, feature }.OfType<string>().ToList();
+            return new Pushdown(filter, null, exact, features.Count == 0 ? null : string.Join(", ", features), advanced, target.Alone);
+        }
+
         private Pushdown Comparison(BinaryExpression binary)
         {
-            if (Column(binary.Left) is not var (column, kind))
-                return NotAColumn(binary.Left);
+            if (Resolve(binary.Left) is not { } target)
+            {
+                return binary.Kind is SyntaxKind.HasExpression or SyntaxKind.HasCsExpression or SyntaxKind.ContainsExpression
+                        or SyntaxKind.ContainsCsExpression && CollectionColumn(binary.Left) is not null
+                    ? Pushdown.Keep(PushdownReasons.WordsInArray)
+                    : NotAColumn(binary.Left);
+            }
+            if (target.Fold != Fold.None)
+                return Folded(binary, target);
+            var kind = target.Kind;
 
             if (binary.Kind is SyntaxKind.StartsWithExpression or SyntaxKind.StartsWithCsExpression)
             {
                 // KQL's startswith ignores case; startswith_cs is kept to the same tables for simplicity.
-                if (kind != Kind.String || !Allows(column, "startsWith"))
-                    return Pushdown.Keep(PushdownReasons.Operator(column.Name));
+                if (kind != Kind.String || !Allows(target, "startsWith"))
+                    return Pushdown.Keep(PushdownReasons.Operator(target.Name));
                 if (!table.DirectoryObject)
                     return Pushdown.Keep(PushdownReasons.CaseInsensitive);
-                return Value(binary.Right, kind, Rounding.Exact, prefix => $"startswith({column.Name},{prefix})");
+                return Value(binary.Right, kind, Rounding.Exact,
+                    prefix => Push(target, $"startswith({target.Path},{prefix})", binary.Kind == SyntaxKind.StartsWithExpression));
             }
 
-            var (op, rounding) = binary.Kind switch
+            if (binary.Kind is SyntaxKind.EndsWithExpression or SyntaxKind.EndsWithCsExpression)
             {
-                SyntaxKind.EqualExpression => ("eq", Rounding.Exact),
+                // Microsoft documents endswith only on directory objects, in advanced query mode, where it ignores case as
+                // KQL's endswith does; endswith_cs keeps fewer rows than Graph's, so it is pushed too.
+                if (kind != Kind.String || !Allows(target, "endsWith"))
+                    return Pushdown.Keep(PushdownReasons.Operator(target.Name));
+                if (!table.DirectoryObject)
+                    return Pushdown.Keep(PushdownReasons.DirectoryOnly);
+                return Value(binary.Right, kind, Rounding.Exact,
+                    suffix => Push(target, $"endswith({target.Path},{suffix})", binary.Kind == SyntaxKind.EndsWithExpression,
+                        $"endswith({target.Path})", advanced: true));
+            }
+
+            // Exact: Graph keeps exactly what KQL keeps. A string eq isn't (Graph ignores case on directory objects, and isn't
+            // known not to elsewhere); a strict datetime bound sent inclusive isn't.
+            var (op, rounding, exact) = binary.Kind switch
+            {
+                SyntaxKind.EqualExpression => ("eq", Rounding.Exact, kind != Kind.String),
                 // Graph's string eq ignores case on directory objects, so there it keeps at least what =~ keeps. Elsewhere it
                 // may not.
-                SyntaxKind.EqualTildeExpression when kind == Kind.String && table.DirectoryObject => ("eq", Rounding.Exact),
+                SyntaxKind.EqualTildeExpression when kind == Kind.String && table.DirectoryObject => ("eq", Rounding.Exact, true),
                 // Graph's string ne ignores case too, so on strings it would keep fewer than != keeps. On directory objects
                 // ne needs advanced query mode, which Graph query doesn't use.
-                SyntaxKind.NotEqualExpression when kind != Kind.String && !table.DirectoryObject => ("ne", Rounding.Exact),
+                SyntaxKind.NotEqualExpression when kind != Kind.String && !table.DirectoryObject => ("ne", Rounding.Exact, true),
                 // Graph's datetime precision isn't known, so a strict datetime bound is sent inclusive: it only widens.
-                SyntaxKind.LessThanExpression when kind is Kind.DateTime => ("le", Rounding.Up),
-                SyntaxKind.GreaterThanExpression when kind is Kind.DateTime => ("ge", Rounding.Down),
-                SyntaxKind.LessThanExpression when kind is Kind.Number => ("lt", Rounding.Up),
-                SyntaxKind.LessThanOrEqualExpression when kind is Kind.DateTime or Kind.Number => ("le", Rounding.Up),
-                SyntaxKind.GreaterThanExpression when kind is Kind.Number => ("gt", Rounding.Down),
-                SyntaxKind.GreaterThanOrEqualExpression when kind is Kind.DateTime or Kind.Number => ("ge", Rounding.Down),
-                _ => (null, Rounding.Exact),
+                SyntaxKind.LessThanExpression when kind is Kind.DateTime => ("le", Rounding.Up, false),
+                SyntaxKind.GreaterThanExpression when kind is Kind.DateTime => ("ge", Rounding.Down, false),
+                SyntaxKind.LessThanExpression when kind is Kind.Number => ("lt", Rounding.Up, true),
+                SyntaxKind.LessThanOrEqualExpression when kind is Kind.DateTime or Kind.Number => ("le", Rounding.Up, true),
+                SyntaxKind.GreaterThanExpression when kind is Kind.Number => ("gt", Rounding.Down, true),
+                SyntaxKind.GreaterThanOrEqualExpression when kind is Kind.DateTime or Kind.Number => ("ge", Rounding.Down, true),
+                _ => (null, Rounding.Exact, false),
             };
             if (op is null)
             {
@@ -150,22 +226,61 @@ public static partial class GraphFilterTranslator
                         => PushdownReasons.AdvancedQuery,
                     SyntaxKind.NotEqualExpression or SyntaxKind.BangTildeExpression when kind == Kind.String
                         => PushdownReasons.CaseFolded,
-                    _ => PushdownReasons.Operator(column.Name),
+                    _ => PushdownReasons.Operator(target.Name),
                 });
             }
-            if (!Allows(column, op))
-                return Pushdown.Keep(PushdownReasons.Operator(column.Name));
-            return Value(binary.Right, kind, rounding, value => $"{column.Name} {op} {value}");
+            if (!Allows(target, op))
+                return Pushdown.Keep(PushdownReasons.Operator(target.Name));
+            exact &= OnWholeSecond(binary.Right, kind);
+            return Value(binary.Right, kind, rounding, value => Push(target, $"{target.Path} {op} {value}", exact));
+        }
+
+        /// <summary><c>tolower(c) == "x"</c> (or <c>=~</c>, or <c>toupper</c>) as <c>c eq 'x'</c>, on directory objects only,
+        /// where Graph's eq ignores case: it keeps every row whose value is <c>x</c> in any case, which is all KQL keeps. Exact
+        /// when the literal is already in the folded case (else KQL keeps no row at all).</summary>
+        private Pushdown Folded(BinaryExpression binary, Target target)
+        {
+            if (!table.DirectoryObject || binary.Kind is not (SyntaxKind.EqualExpression or SyntaxKind.EqualTildeExpression))
+                return Pushdown.Keep(PushdownReasons.Folded);
+            if (!Allows(target, "eq"))
+                return Pushdown.Keep(PushdownReasons.Operator(target.Name));
+            var exact = Unwrap(binary.Right) is LiteralExpression { LiteralValue: string text }
+                && (binary.Kind == SyntaxKind.EqualTildeExpression
+                    || text == (target.Fold == Fold.Lower ? text.ToLowerInvariant() : text.ToUpperInvariant()));
+            return Value(binary.Right, Kind.String, Rounding.Exact, value => Push(target, $"{target.Path} eq {value}", exact));
+        }
+
+        /// <summary><c>c between (a .. b)</c> on a datetime or number as <c>c ge a and c le b</c>: datetimes widen to the
+        /// second. <c>!between</c> isn't pushed.</summary>
+        private Pushdown Between(BetweenExpression between)
+        {
+            if (Resolve(between.Left) is not { Fold: Fold.None } target)
+                return NotAColumn(between.Left);
+            if (between.Kind != SyntaxKind.BetweenExpression || target.Kind is not (Kind.DateTime or Kind.Number)
+                || !Allows(target, "ge") || !Allows(target, "le"))
+                return Pushdown.Keep(PushdownReasons.Operator(target.Name));
+            var low = Value(between.Right.First, target.Kind, Rounding.Down, v => new Pushdown(v, null));
+            if (low.Filter is null)
+                return low;
+            var high = Value(between.Right.Second, target.Kind, Rounding.Up, v => new Pushdown(v, null));
+            if (high.Filter is null)
+                return high;
+            var exact = OnWholeSecond(between.Right.First, target.Kind) && OnWholeSecond(between.Right.Second, target.Kind);
+            return Push(target, $"{target.Path} ge {low.Filter} and {target.Path} le {high.Filter}", exact);
         }
 
         private Pushdown In(InExpression @in)
         {
-            if (Column(@in.Left) is not var (column, kind))
+            if (Resolve(@in.Left) is not { } target)
                 return NotAColumn(@in.Left);
-            if (kind is Kind.Bool || !Allows(column, "in"))
-                return Pushdown.Keep(PushdownReasons.Operator(column.Name));
+            var kind = target.Kind;
+            if (target.Fold != Fold.None)
+                return Pushdown.Keep(PushdownReasons.Folded);
+            if (kind is Kind.Bool || !Allows(target, "in"))
+                return Pushdown.Keep(PushdownReasons.Operator(target.Name));
             // in~ ignores case, which Graph's in is only known to do on directory objects.
-            if (@in.Operator.Text.Contains('~', StringComparison.Ordinal) && !table.DirectoryObject)
+            var ignoresCase = @in.Operator.Text.Contains('~', StringComparison.Ordinal);
+            if (ignoresCase && !table.DirectoryObject)
                 return Pushdown.Keep(PushdownReasons.CaseInsensitive);
             if (@in.Right is not ExpressionList list)
                 return Pushdown.Keep(PushdownReasons.FixedValue);
@@ -175,48 +290,77 @@ public static partial class GraphFilterTranslator
             var values = new List<string>();
             foreach (var element in list.Expressions)
             {
-                var value = Value(element.Element, kind, Rounding.Exact, v => v);
+                var value = Value(element.Element, kind, Rounding.Exact, v => new Pushdown(v, null));
                 if (value.Filter is null)
                     return value;
                 values.Add(value.Filter);
             }
-            return Pushdown.Push($"{column.Name} in ({string.Join(",", values)})");
+            return Push(target, $"{target.Path} in ({string.Join(",", values)})", kind != Kind.String || ignoresCase);
         }
 
-        /// <summary><c>isnull(c)</c> and <c>isnotnull(c)</c>. A string is never null in KQL, so <c>isnotnull</c> keeps every
-        /// row there and <c>ne null</c> would keep fewer: only <c>isnull</c> is pushed on strings. Neither is pushed on
-        /// directory objects, where null checks need advanced query mode.</summary>
+        /// <summary><c>set_has_element(c, "x")</c> on a column that is an array of text, as <c>c/any(p:p eq 'x')</c>: an
+        /// element equal to <c>x</c> is one Graph's eq keeps (it ignores case on directory objects, so it keeps more). Only on
+        /// directory objects, where Microsoft documents lambdas on these arrays, and in advanced query mode, which some of them
+        /// need.</summary>
+        private Pushdown HasElement(FunctionCallExpression call)
+        {
+            var array = call.ArgumentList.Expressions[0].Element;
+            if (CollectionColumn(array) is not { ComplexType: null } column)
+                return NotAColumn(array);
+            if (!Allows(column.Filter, "eq"))
+                return Pushdown.Keep(PushdownReasons.Operator(column.Name));
+            if (!table.DirectoryObject)
+                return Pushdown.Keep(PushdownReasons.DirectoryOnly);
+            return Value(call.ArgumentList.Expressions[1].Element, Kind.String, Rounding.Exact,
+                value => new Pushdown($"{column.Name}/any(p:p eq {value})", null, false, $"{column.Name}/any", true));
+        }
+
+        /// <summary><c>isnull(c)</c>, <c>isnotnull(c)</c> and <c>isnotempty(c)</c>. A string is never null in KQL, so
+        /// <c>isnotnull</c> keeps every row there and <c>ne null</c> would keep fewer: only <c>isnull</c> is pushed on strings.
+        /// Neither is pushed on directory objects, where null checks need advanced query mode. <c>isnotempty</c> keeps only
+        /// rows with a value, so <c>ne null</c> keeps at least those: it is pushed on directory objects too, in advanced query
+        /// mode.</summary>
         private Pushdown NullCheck(FunctionCallExpression call)
         {
             var argument = call.ArgumentList.Expressions[0].Element;
             var isNull = call.ReferencedSymbol == Functions.IsNull;
             var isNotNull = call.ReferencedSymbol == Functions.IsNotNull;
+            var isNotEmpty = call.ReferencedSymbol == Functions.IsNotEmpty;
             if ((isNull || isNotNull) && table.DirectoryObject)
                 return Pushdown.Keep(PushdownReasons.AdvancedQuery);
-            if (Column(argument) is not var (column, kind))
+            if (Resolve(argument) is not { Fold: Fold.None } target)
                 return NotAColumn(argument);
-            if (isNull && Allows(column, "eq"))
-                return Pushdown.Push($"{column.Name} eq null");
+            var kind = target.Kind;
+            if (isNull && Allows(target, "eq"))
+                return Push(target, $"{target.Path} eq null", kind != Kind.String);
             if (isNotNull && kind == Kind.String)
                 return Pushdown.Keep(PushdownReasons.IsNotNullOnText);
-            if (isNotNull && Allows(column, "ne"))
-                return Pushdown.Push($"{column.Name} ne null");
-            return Pushdown.Keep(PushdownReasons.Operator(column.Name));
+            if (isNotNull && Allows(target, "ne"))
+                return Push(target, $"{target.Path} ne null", true);
+            // On directory objects every property that takes eq takes ne in advanced query mode.
+            if (isNotEmpty && table.DirectoryObject && (Allows(target, "eq") || Allows(target, "ne")))
+                return Push(target, $"{target.Path} ne null", kind != Kind.String, $"{target.Path} ne null", advanced: true);
+            if (isNotEmpty && Allows(target, "ne"))
+                return Push(target, $"{target.Path} ne null", kind != Kind.String);
+            return Pushdown.Keep(PushdownReasons.Operator(target.Name));
         }
 
         /// <summary><paramref name="expression"/> as a literal of the column's kind, formatted; else why not: an empty string
         /// is never pushed, a value that isn't fixed (a column, a function of one) can't be compared with, and a fixed value
         /// Graph can't represent faithfully (a datetime that isn't on a whole second for an exact match) isn't compared
         /// exactly.</summary>
-        private Pushdown Value(Expression expression, Kind kind, Rounding rounding, Func<string, string> format)
+        private Pushdown Value(Expression expression, Kind kind, Rounding rounding, Func<string, Pushdown> format)
         {
             if (Literal(expression, kind, rounding) is { } value)
-                return Pushdown.Push(format(value));
+                return format(value);
             expression = Unwrap(expression);
             if (kind == Kind.String && expression is LiteralExpression { LiteralValue: string { Length: 0 } })
                 return Pushdown.Keep(PushdownReasons.EmptyString);
             return Pushdown.Keep(Fixed(expression) ? PushdownReasons.Inexact : PushdownReasons.FixedValue);
         }
+
+        /// <summary>Whether the value needs no rounding to go to Graph: anything but a datetime off a whole second.</summary>
+        private bool OnWholeSecond(Expression expression, Kind kind) => kind != Kind.DateTime || Literal(expression, kind, Rounding.Exact) is not null;
 
         /// <summary>A literal, or <c>now()</c>/<c>ago()</c> of literals: a value that doesn't depend on the row.</summary>
         private static bool Fixed(Expression expression) => Unwrap(expression) switch
@@ -236,26 +380,81 @@ public static partial class GraphFilterTranslator
                 ? PushdownReasons.Operator(symbol.Name)
                 : PushdownReasons.FixedValue);
 
-        /// <summary>A top-level column of the table with a type that can be pushed. Nested fields and functions of columns
-        /// are not columns.</summary>
-        private (GraphColumn Column, Kind Kind)? Column(Expression expression)
+        /// <summary>A column of the table that is an array.</summary>
+        private GraphColumn? CollectionColumn(Expression expression) =>
+            Unwrap(expression) is NameReference { ReferencedSymbol: ColumnSymbol symbol }
+                && table.Columns.FirstOrDefault(c => c.Name == symbol.Name) is { Collection: true } column
+                ? column
+                : null;
+
+        /// <summary>What the left side filters on: a top-level column of the table with a type that can be pushed; a property
+        /// of a complex column Graph filters on (<c>signInActivity.lastSignInDateTime</c>, also inside a conversion to its own
+        /// type, <c>todatetime(...)</c>); or <c>tolower()</c>/<c>toupper()</c> of a text column. Anything else (another function
+        /// of a column, an array) is not.</summary>
+        private Target? Resolve(Expression expression)
         {
-            if (Unwrap(expression) is not NameReference { ReferencedSymbol: ColumnSymbol symbol })
-                return null;
-            if (table.Columns.FirstOrDefault(c => c.Name == symbol.Name) is not { Collection: false } column)
-                return null;
-            Kind? kind = column.Type switch
+            expression = Unwrap(expression);
+            switch (expression)
             {
-                "string" => Kind.String,
-                "datetime" => Kind.DateTime,
-                "int" or "long" or "real" => Kind.Number,
-                "bool" => Kind.Bool,
-                _ => null,
-            };
-            return kind is { } k ? (column, k) : null;
+                case FunctionCallExpression { ArgumentList.Expressions.Count: 1 } call
+                    when call.ReferencedSymbol == Functions.ToLower || call.ReferencedSymbol == Functions.ToUpper:
+                    return Resolve(call.ArgumentList.Expressions[0].Element) is { Kind: Kind.String, Fold: Fold.None, Nested: false } text
+                        ? text with { Fold = call.ReferencedSymbol == Functions.ToLower ? Fold.Lower : Fold.Upper }
+                        : null;
+                case FunctionCallExpression { ArgumentList.Expressions.Count: 1 } call
+                    when Unwrap(call.ArgumentList.Expressions[0].Element) is PathExpression path:
+                    // A conversion that changes no value of the property's type: toint of a real would.
+                    return Nested(path) is { } nested && Converts(call.ReferencedSymbol, nested.Type) ? nested : null;
+                case PathExpression path:
+                    return Nested(path);
+                case NameReference { ReferencedSymbol: ColumnSymbol symbol }:
+                    if (table.Columns.FirstOrDefault(c => c.Name == symbol.Name) is not { Collection: false } column
+                        || KindOf(column.Type) is not { } kind)
+                        return null;
+                    return new Target(column.Name, column.Name, column.Filter, kind, column.Type, false, null, Fold.None);
+                default:
+                    return null;
+            }
         }
 
-        private static bool Allows(GraphColumn column, string op) => column.Filter.Contains(op, StringComparer.OrdinalIgnoreCase);
+        /// <summary>A property of a complex column, when the column documents <c>$filter</c> (its operators are the
+        /// property's: Graph documents them on the column) and the property has a type that can be pushed.</summary>
+        private Target? Nested(PathExpression path)
+        {
+            if (Unwrap(path.Expression) is not NameReference { ReferencedSymbol: ColumnSymbol symbol } || path.Selector is not NameReference selector)
+                return null;
+            if (table.Columns.FirstOrDefault(c => c.Name == symbol.Name) is not { Collection: false, ComplexType: { } complex, Filter.Count: > 0 } column)
+                return null;
+            if (complexTypes.GetValueOrDefault(complex)?.FirstOrDefault(f => f.Name == selector.SimpleName) is not { Collection: false, ComplexType: null } field
+                || KindOf(field.Type) is not { } kind)
+                return null;
+            return new Target($"{column.Name}/{field.Name}", $"{column.Name}.{field.Name}", column.Filter, kind, field.Type, true,
+                AloneText().IsMatch(column.Description) ? column.Name : null, Fold.None);
+        }
+
+        private static Kind? KindOf(string type) => type switch
+        {
+            "string" => Kind.String,
+            "datetime" => Kind.DateTime,
+            "int" or "long" or "real" => Kind.Number,
+            "bool" => Kind.Bool,
+            _ => null,
+        };
+
+        private static bool Converts(Symbol? function, string type) => type switch
+        {
+            "string" => function == Functions.ToString,
+            "datetime" => function == Functions.ToDateTime,
+            "bool" => function == Functions.ToBool || function == Functions.ToBoolean,
+            "int" => function == Functions.ToInt || function == Functions.ToLong || function == Functions.ToReal || function == Functions.ToDouble,
+            "long" => function == Functions.ToLong || function == Functions.ToReal || function == Functions.ToDouble,
+            "real" => function == Functions.ToReal || function == Functions.ToDouble,
+            _ => false,
+        };
+
+        private static bool Allows(Target target, string op) => Allows(target.Filter, op);
+
+        private static bool Allows(IReadOnlyList<string> filter, string op) => filter.Contains(op, StringComparer.OrdinalIgnoreCase);
 
         private enum Rounding { Exact, Down, Up }
 

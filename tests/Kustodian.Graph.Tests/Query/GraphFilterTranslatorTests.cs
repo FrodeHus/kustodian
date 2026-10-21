@@ -93,7 +93,7 @@ public sealed class GraphFilterTranslatorTests
     [InlineData("applications | where displayName contains 'x'")]
     [InlineData("applications | where displayName matches regex 'x'")]
     [InlineData("applications | where onPremisesPublishing.externalAuthenticationType == 'passthru'")]
-    [InlineData("applications | where tolower(displayName) == 'x'")]
+    [InlineData("applications | where tolower(displayName) startswith 'x'")]
     [InlineData("applications | where appId == displayName")]
     [InlineData("applications | where not(appId == 'a')")]
     [InlineData("applications | where appId startswith 'a'")]
