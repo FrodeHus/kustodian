@@ -1,6 +1,7 @@
 using Kustodian.Graph.Query;
 using Kustodian.Graph.Schema;
 using Kusto.Language;
+using Kusto.Language.Editor;
 using Kusto.Language.Symbols;
 using Kustodian.Library;
 using Kustodian.Snippets;
@@ -68,7 +69,7 @@ public sealed class SnippetServiceTests : IDisposable
             Assert.True(substituted.Text is not null, $"{snippet.Name}: {substituted.Missing}{substituted.Error?.Message}");
 
             var errors = KustoCode.ParseAndAnalyze(substituted.Text, globals).GetDiagnostics()
-                .Where(d => d.Severity == "Error").Select(d => d.Message).ToList();
+                .Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Message).ToList();
 
             Assert.True(errors.Count == 0, $"{snippet.Name}: {string.Join("; ", errors)}");
         }

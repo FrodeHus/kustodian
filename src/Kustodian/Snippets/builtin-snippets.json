@@ -9,17 +9,7 @@
       "text": "union\n    (applications | mv-expand cred = passwordCredentials | extend credKind = \"secret\"),\n    (applications | mv-expand cred = keyCredentials | extend credKind = \"certificate\")\n| where todatetime(cred.endDateTime) < now() - {graceDays}\n| summarize expired = count(), kinds = make_set(credKind) by displayName, appId\n| order by expired desc",
       "group": "Identity checks",
       "parameters": [
-        {
-          "name": "graceDays",
-          "type": "timespan",
-          "value": "0d",
-          "required": false,
-          "choices": [
-            "0d",
-            "7d",
-            "30d"
-          ]
-        }
+        { "name": "graceDays", "type": "timespan", "value": "0d", "required": false, "choices": ["0d", "7d", "30d"] }
       ]
     },
     {
@@ -39,17 +29,7 @@
       "text": "users\n| where userType == \"Guest\"\n| extend lastSignIn = todatetime(signInActivity.lastSuccessfulSignInDateTime)\n| where isnull(lastSignIn) or lastSignIn < ago({days})\n| project displayName, userPrincipalName, mail, createdDateTime, lastSignIn\n| order by lastSignIn asc",
       "group": "Identity checks",
       "parameters": [
-        {
-          "name": "days",
-          "type": "timespan",
-          "value": "90d",
-          "required": false,
-          "choices": [
-            "30d",
-            "90d",
-            "180d"
-          ]
-        }
+        { "name": "days", "type": "timespan", "value": "90d", "required": false, "choices": ["30d", "90d", "180d"] }
       ]
     },
     {
@@ -65,27 +45,12 @@
       "id": "5f0e6a6e-6d0a-4a55-9a53-0b7e3a1c0005",
       "source": "hunting",
       "name": "Sign-ins from TOR exit nodes",
-      "description": "Successful sign-ins from addresses in a threat feed, such as TOR exit nodes. Put one address per line in ips.",
+      "description": "Successful sign-ins from addresses in a threat feed, such as TOR exit nodes. Put one address per line in ips. The default addresses are samples: replace them with a current exit-node list.",
       "text": "AADSignInEventsBeta\n| where Timestamp > ago({lookback}) and ErrorCode == 0\n| where IPAddress in ({ips})\n| project Timestamp, AccountUpn, Application, IPAddress, Country\n| order by Timestamp desc",
       "group": "Threat hunting",
       "parameters": [
-        {
-          "name": "lookback",
-          "type": "timespan",
-          "value": "7d",
-          "required": false,
-          "choices": [
-            "1d",
-            "7d",
-            "30d"
-          ]
-        },
-        {
-          "name": "ips",
-          "type": "list",
-          "value": "185.220.101.44\n45.155.205.12",
-          "required": true
-        }
+        {"name": "lookback", "type": "timespan", "value": "7d", "required": false, "choices": ["1d", "7d", "30d"]},
+        {"name": "ips", "type": "list", "value": "185.220.101.44\n45.155.205.12", "required": true}
       ]
     },
     {
@@ -96,35 +61,15 @@
       "text": "DeviceProcessEvents\n| where Timestamp > ago({lookback})\n| summarize launches = count(), devices = dcount(DeviceId), firstSeen = min(Timestamp), lastSeen = max(Timestamp) by FileName, FolderPath\n| where launches <= {maxLaunches}\n| order by launches asc, devices asc, lastSeen desc\n| take 200",
       "group": "Threat hunting",
       "parameters": [
-        {
-          "name": "lookback",
-          "type": "timespan",
-          "value": "7d",
-          "required": false,
-          "choices": [
-            "1d",
-            "7d",
-            "30d"
-          ]
-        },
-        {
-          "name": "maxLaunches",
-          "type": "number",
-          "value": "3",
-          "required": false,
-          "choices": [
-            "1",
-            "3",
-            "10"
-          ]
-        }
+        {"name": "lookback", "type": "timespan", "value": "7d", "required": false, "choices": ["1d", "7d", "30d"]},
+        {"name": "maxLaunches", "type": "number", "value": "3", "required": false, "choices": ["1", "3", "10"]}
       ]
     },
     {
       "id": "5f0e6a6e-6d0a-4a55-9a53-0b7e3a1c0007",
       "source": "arg",
       "name": "Public storage accounts",
-      "description": "Storage accounts that allow public blob access or accept traffic from any network.",
+      "description": "Storage accounts that allow public blob access or accept traffic from any network. publicNetworkAccess set to Disabled is not considered, so the list may include accounts that can't actually be reached.",
       "text": "Resources\n| where type =~ \"microsoft.storage/storageaccounts\"\n| where properties.allowBlobPublicAccess == true or properties.networkAcls.defaultAction == \"Allow\"\n| project name, resourceGroup, subscriptionId, location, publicBlob = properties.allowBlobPublicAccess",
       "group": "Azure posture",
       "parameters": []
@@ -132,8 +77,8 @@
     {
       "id": "5f0e6a6e-6d0a-4a55-9a53-0b7e3a1c0008",
       "source": "arg",
-      "name": "VMs without disk encryption",
-      "description": "Virtual machines with neither encryption at host nor a disk encryption set on the OS disk, so only the platform's default storage encryption applies.",
+      "name": "VMs without host encryption or a disk encryption set",
+      "description": "Virtual machines with neither encryption at host nor a disk encryption set on the OS disk, so only the platform's default storage encryption applies. Limits: Azure Disk Encryption (the extension) is not detected, so VMs encrypted with it are listed; only the OS disk is checked; customer-managed keys set directly on a disk are not seen.",
       "text": "Resources\n| where type =~ \"microsoft.compute/virtualmachines\"\n| extend osDisk = properties.storageProfile.osDisk\n| where isempty(tostring(osDisk.managedDisk.diskEncryptionSet.id)) and tostring(properties.securityProfile.encryptionAtHost) != \"true\"\n| project name, resourceGroup, subscriptionId, location, osType = tostring(osDisk.osType), vmSize = tostring(properties.hardwareProfile.vmSize)",
       "group": "Azure posture",
       "parameters": []
@@ -142,21 +87,11 @@
       "id": "5f0e6a6e-6d0a-4a55-9a53-0b7e3a1c0009",
       "source": "arg",
       "name": "Role assignments at subscription scope",
-      "description": "Role assignments made on a whole subscription, for the chosen kind of principal.",
+      "description": "Role assignments made directly on a whole subscription, for the chosen kind of principal. Assignments inherited from management groups are not listed.",
       "text": "AuthorizationResources\n| where type =~ \"microsoft.authorization/roleassignments\"\n| extend scope = tostring(properties.scope), principalType = tostring(properties.principalType)\n| where scope matches regex \"^/subscriptions/[0-9a-fA-F-]{36}$\"\n| where principalType =~ {principalType}\n| project subscriptionId, scope, principalId = tostring(properties.principalId), principalType, roleDefinitionId = tostring(properties.roleDefinitionId), createdOn = todatetime(properties.createdOn)",
       "group": "Azure posture",
       "parameters": [
-        {
-          "name": "principalType",
-          "type": "text",
-          "value": "User",
-          "required": false,
-          "choices": [
-            "User",
-            "Group",
-            "ServicePrincipal"
-          ]
-        }
+        {"name": "principalType", "type": "text", "value": "User", "required": false, "choices": ["User", "Group", "ServicePrincipal"]}
       ]
     }
   ]
