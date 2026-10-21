@@ -38,9 +38,13 @@ public sealed record GraphCollection(IReadOnlyList<JsonObject> Objects, IReadOnl
 /// handler adds the account's token. The
 /// properties the query names that Graph won't serve in a list are then read one object at a time
 /// (<see cref="GraphBatchReader"/>), for at most <see cref="GraphLimits.PerObjectReadsPerTable"/> objects: those whose values are in
-/// <paramref name="cache"/> take them from there, and only the others are read and then kept.
+/// <paramref name="cache"/> take them from there, and only the others are read and then kept. The columns probing finds a table
+/// can't serve in a list are kept in <paramref name="probes"/> (none when not given), so the next run leaves them out at once.
+/// A request Graph throttles (429) is sent once more after its <c>Retry-After</c> (at most <see cref="MaxRetryWait"/>, on
+/// <paramref name="time"/>).
 /// </summary>
-public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budget, IGraphObjectCache cache, GraphLimits limits)
+public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budget, IGraphObjectCache cache, GraphLimits limits,
+    IGraphProbeCache? probes = null, TimeProvider? time = null)
 {
     public const int MaxSelectRetries = 5;
     /// <summary>Probes spent finding the columns a backend can't serve in a list (one for <c>id</c> alone, then halves).</summary>
@@ -48,6 +52,13 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
     private const string GraphHost = "graph.microsoft.com";
     private const int PageSize = 999;
     private const int DefaultRetryAfterSeconds = 60;
+    /// <summary>The longest a throttled request waits before it is sent once more.</summary>
+    public static readonly TimeSpan MaxRetryWait = TimeSpan.FromSeconds(30);
+    /// <summary>The wait before a throttled request is sent once more when Graph sends no <c>Retry-After</c>.</summary>
+    private static readonly TimeSpan NoRetryAfterWait = TimeSpan.FromSeconds(10);
+
+    private readonly IGraphProbeCache _probes = probes ?? NoGraphProbeCache.Instance;
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
 
     private readonly GraphBatchReader _perObject = new(http, limits);
 
@@ -61,8 +72,9 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
     public Task<GraphCollection> ReadAsync(string accountKey, GraphFetch fetch, GraphFetchLease lease, bool refresh, CancellationToken ct)
         => ReadAsync(accountKey, fetch, lease, refresh, null, ct);
 
-    /// <summary>Reads the collection. <paramref name="accountKey"/> keys the cache and goes on every request
-    /// (<see cref="GraphRequestAccount"/>), so each is sent with that account's token. <paramref name="refresh"/>: per-object reads skip the cache (and refill it).
+    /// <summary>Reads the collection. <paramref name="accountKey"/> keys the caches and goes on every request
+    /// (<see cref="GraphRequestAccount"/>), so each is sent with that account's token. <paramref name="refresh"/>: per-object reads
+    /// skip the cache (and refill it), and the columns probing found earlier are selected again (and probed again if refused).
     /// <paramref name="diagnostics"/>, when given, goes on every request too (<see cref="RunDiagnosticsRequest.ForRun"/>), and
     /// gets the read's steps: columns dropped and why, throttling, per-object reads and cache hits. Throws
     /// <see cref="GraphReadException"/> for every failure that isn't the caller cancelling; a <see cref="SignInRequiredException"/>
@@ -82,9 +94,17 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         var requests = new List<string>();
         var objects = new List<JsonObject>();
         var unfiltered = false;
+        var path = fetch.Table.Path;
 
         try
         {
+            var earlier = await _probes.GetAsync(accountKey, path, ct);
+            // Kept as found: what a refresh doesn't select again stays as it was.
+            var notListed = earlier?.NotListed.Where(c => !refresh || !select.Contains(c)).ToList() ?? [];
+            var deniedFound = earlier?.Denied.Where(c => !refresh || !select.Contains(c)).ToList() ?? [];
+            if (!refresh && earlier is not null && LeaveOut(select, earlier, unreadable, denied) is { Length: > 0 } leftOut)
+                Log(diagnostics, DiagnosticKinds.Probe, $"{fetch.Table.Name}: left out (found earlier) {leftOut}");
+
             while (true)
             {
                 objects.Clear();
@@ -93,11 +113,16 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                 var retry = await ReadPagesAsync(accountKey, fetch, select, filter, lease, requests, objects, diagnostics,
                     optional.Count > 0, unlicensedReason is not null, ct);
                 if (retry is null)
+                {
+                    // A refresh that read without probing found nothing in what it selected.
+                    if (refresh && !probed && earlier is not null)
+                        await _probes.SetAsync(accountKey, path, notListed, deniedFound, ct);
                     return await ReadPerObjectAsync(accountKey, fetch, lease, requests,
                         new GraphCollection(objects, requests, unfiltered, unreadable)
                         {
                             Denied = denied, Unlicensed = unlicensed, UnlicensedReason = unlicensedReason,
                         }, refresh, diagnostics, ct);
+                }
 
                 if (retry.License)
                 {
@@ -117,9 +142,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                     probed = true;
                     if (await FindUnreadableAsync(accountKey, fetch, [.. select.Where(c => c != "id")], requests, diagnostics, ct) is not { Count: > 0 } found)
                         throw original;
-                    Log(diagnostics, DiagnosticKinds.Probe, $"{fetch.Table.Name}: dropped " + string.Join(", ",
-                        found.NotListed.Select(c => c + " (Graph won't serve it in a list)")
-                            .Concat(found.Denied.Select(c => c + " (Graph refused it for permission)"))));
+                    Log(diagnostics, DiagnosticKinds.Probe, $"{fetch.Table.Name}: dropped " + Dropped(found.NotListed, found.Denied));
                     foreach (var column in found.NotListed)
                     {
                         select.Remove(column);
@@ -130,6 +153,10 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                         select.Remove(column);
                         denied.Add(column);
                     }
+                    // Kept at once: the read that follows may still fail (throttled), and the next run needn't probe again.
+                    notListed.AddRange(found.NotListed.Except(notListed));
+                    deniedFound.AddRange(found.Denied.Except(deniedFound));
+                    await _probes.SetAsync(accountKey, path, notListed, deniedFound, ct);
                 }
                 else if (retry.Select is { } refused)
                 {
@@ -221,6 +248,28 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         };
     }
 
+    /// <summary>Leaves the selected columns probing found <paramref name="earlier"/> out of <paramref name="select"/>, as probing
+    /// would have, and returns them with why, for the log ("" when none was selected).</summary>
+    private static string LeaveOut(List<string> select, GraphProbeFindings earlier, List<string> unreadable, List<string> denied)
+    {
+        var notListed = earlier.NotListed.Where(select.Contains).ToList();
+        var refused = earlier.Denied.Where(select.Contains).ToList();
+        foreach (var column in notListed)
+        {
+            select.Remove(column);
+            unreadable.Add(column);
+        }
+        foreach (var column in refused)
+        {
+            select.Remove(column);
+            denied.Add(column);
+        }
+        return Dropped(notListed, refused);
+    }
+
+    private static string Dropped(IEnumerable<string> notListed, IEnumerable<string> denied) => string.Join(", ",
+        notListed.Select(c => c + " (Graph won't serve it in a list)").Concat(denied.Select(c => c + " (Graph refused it for permission)")));
+
     /// <summary>The selected columns a license or feature refusal may leave out: those Graph returns only on <c>$select</c>
     /// (every license-gated property is one) that the query doesn't name.</summary>
     private static List<string> Optional(GraphFetch fetch, List<string> select)
@@ -257,10 +306,8 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         for (var page = 0; next is not null; page++)
         {
             requests.Add(Relative(next));
-            using var request = new HttpRequestMessage(HttpMethod.Get, next).ForAccount(accountKey).ForRun(diagnostics);
-            using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
-            var body = await response.Content.ReadAsByteArrayAsync(ct);
-            request.RecordBytes(body.Length);
+            using var sent = await SendAsync(accountKey, next, DiagnosticKinds.Request, fetch.Table.Name, diagnostics, ct);
+            var (response, body) = (sent.Response, sent.Body);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -294,12 +341,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                 // Any other client error on the first page may be one selected property's: probe to find it, if any.
                 if (page == 0 && select.Any(c => c != "id") && IsClientError(response.StatusCode))
                     return new Retry(null, message ?? "", Failure(response, message));
-                var failure = Failure(response, message);
-                if (failure.Failure == GraphReadFailure.Throttled)
-                    Log(diagnostics, DiagnosticKinds.Throttled, fetch.Table.Name + ": Graph is throttling; " + (response.Headers.RetryAfter?.Delta is { } wait
-                        ? string.Create(CultureInfo.InvariantCulture, $"Retry-After {(long)wait.TotalSeconds} s")
-                        : "no Retry-After"), (int)response.StatusCode);
-                throw failure;
+                throw Failure(response, message);
             }
 
             await lease.AddAsync(body.Length, ct);
@@ -355,6 +397,48 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         return null;
     }
 
+    /// <summary>A GET of <paramref name="url"/>, with Graph's answer read. A 429 is logged as throttled, waited for (its
+    /// <c>Retry-After</c>, at most <see cref="MaxRetryWait"/>) and sent once more, logged as a retry; the answer to that is
+    /// returned whatever it is (a second 429 logged as throttled too).</summary>
+    private async Task<Sent> SendAsync(string accountKey, Uri url, string kind, string table, RunDiagnostics? diagnostics, CancellationToken ct)
+    {
+        for (var retried = false; ; retried = true)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, url).ForAccount(accountKey).ForRun(diagnostics, kind);
+            var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+            try
+            {
+                var body = await response.Content.ReadAsByteArrayAsync(ct);
+                request.RecordBytes(body.Length);
+                if (response.StatusCode != HttpStatusCode.TooManyRequests)
+                    return new Sent(response, body);
+                var asked = response.Headers.RetryAfter?.Delta;
+                Log(diagnostics, DiagnosticKinds.Throttled, table + ": Graph is throttling; " + (asked is { } after
+                    ? string.Create(CultureInfo.InvariantCulture, $"Retry-After {(long)after.TotalSeconds} s")
+                    : "no Retry-After"), (int)response.StatusCode);
+                if (retried)
+                    return new Sent(response, body);
+                var wait = asked ?? NoRetryAfterWait;
+                wait = wait < TimeSpan.Zero ? TimeSpan.Zero : wait > MaxRetryWait ? MaxRetryWait : wait;
+                response.Dispose();
+                await Task.Delay(wait, _time, ct);
+                Log(diagnostics, DiagnosticKinds.Retry, string.Create(CultureInfo.InvariantCulture,
+                    $"{table}: sent the request again after {(long)wait.TotalSeconds} s"));
+            }
+            catch
+            {
+                response.Dispose();
+                throw;
+            }
+        }
+    }
+
+    /// <summary>Graph's answer to a request, its body read.</summary>
+    private sealed record Sent(HttpResponseMessage Response, byte[] Body) : IDisposable
+    {
+        public void Dispose() => Response.Dispose();
+    }
+
     private static GraphReadException SignInNeeded() => new(GraphReadFailure.SignInNeeded, GraphErrorText.SignInMessage);
 
     private static GraphReadException Failure(HttpResponseMessage response, string? message)
@@ -396,13 +480,10 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                 return ProbeAnswer.OutOfProbes;
             var url = fetch.Table.Path + "?$select=" + Uri.EscapeDataString(string.Join(",", group.Prepend("id"))) + "&$top=1";
             requests.Add(url);
-            using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(url, UriKind.Relative)).ForAccount(accountKey)
-                .ForRun(diagnostics, DiagnosticKinds.Probe);
-            using var response = await http.SendAsync(request, ct);
+            using var sent = await SendAsync(accountKey, new Uri(url, UriKind.Relative), DiagnosticKinds.Probe, fetch.Table.Name, diagnostics, ct);
+            var (response, body) = (sent.Response, sent.Body);
             if (response.IsSuccessStatusCode)
                 return ProbeAnswer.Reads;
-            var body = await response.Content.ReadAsByteArrayAsync(ct);
-            request.RecordBytes(body.Length);
             // The token is refused, not a column: sign in again.
             if (GraphErrorText.IsTokenRejected(response, body))
                 throw SignInNeeded();

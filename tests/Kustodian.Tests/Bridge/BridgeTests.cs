@@ -392,7 +392,7 @@ public class BridgeTests
     public async Task App_info_returns_version_and_platform()
     {
         var bridge = NewBridge();
-        new AppHandler(new MemoryGraphObjectCache(TimeProvider.System)).Register(bridge);
+        new AppHandler(new MemoryGraphObjectCache(TimeProvider.System), NoGraphProbeCache.Instance).Register(bridge);
 
         var result = Parse(await bridge.HandleAsync("""{"id":"a","method":"app.info","params":{}}""")).GetProperty("result");
 
@@ -401,11 +401,13 @@ public class BridgeTests
     }
 
     [Fact]
-    public async Task Cache_clear_empties_object_cache()
+    public async Task Cache_clear_empties_object_cache_and_probe_findings()
     {
         var bridge = NewBridge();
         var objects = new MemoryGraphObjectCache(TimeProvider.System);
-        new AppHandler(objects).Register(bridge);
+        var probes = new MemoryGraphProbeCache(TimeProvider.System);
+        new AppHandler(objects, probes).Register(bridge);
+        await probes.SetAsync("account-1", "auditLogs/signIns", ["mfaDetail"], [], CancellationToken.None);
         await objects.SetAsync("account-1", "applications", ["a"], "1", "{}", CancellationToken.None);
         await objects.SetAsync("account-2", "groups", ["b"], "2", "{}", CancellationToken.None);
 
@@ -415,6 +417,7 @@ public class BridgeTests
         Assert.Empty(reply.GetProperty("result").EnumerateObject());
         Assert.Null(await objects.GetAsync("account-1", "applications", ["a"], "1", CancellationToken.None));
         Assert.Null(await objects.GetAsync("account-2", "groups", ["b"], "2", CancellationToken.None));
+        Assert.Null(await probes.GetAsync("account-1", "auditLogs/signIns", CancellationToken.None));
     }
 
     private Messaging.Bridge NewBridge() => new(message =>

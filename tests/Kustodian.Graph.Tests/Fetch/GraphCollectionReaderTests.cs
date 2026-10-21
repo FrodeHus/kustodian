@@ -4,6 +4,8 @@ using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Query;
 using Kustodian.Graph.Run;
 using Kustodian.Graph.Schema;
+using Kustodian.Graph.Tests.Run;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Kustodian.Graph.Tests;
 
@@ -42,12 +44,14 @@ public sealed class GraphCollectionReaderTests
         => new(new GraphTable("applications", "applications", "microsoft.graph.application", "", "https://learn.microsoft.com/x", []),
             select ?? ["id", "displayName"], filter);
 
-    private static GraphCollectionReader Reader(HttpMessageHandler handler, GraphFetchBudget? budget = null)
+    private static GraphCollectionReader Reader(HttpMessageHandler handler, GraphFetchBudget? budget = null, IGraphProbeCache? probes = null,
+        TimeProvider? time = null)
         => new(new HttpClient(handler) { BaseAddress = new Uri("https://graph.microsoft.com/beta/") }, budget ?? new GraphFetchBudget(),
-            NoGraphObjectCache.Instance, GraphLimits.Default);
+            NoGraphObjectCache.Instance, GraphLimits.Default, probes ?? NoGraphProbeCache.Instance, time ?? new InstantTime());
 
-    private static Task<GraphCollection> Read(GraphCollectionReader reader, GraphFetch fetch, GraphFetchLease? lease = null)
-        => reader.ReadAsync(Account, fetch, lease ?? new GraphFetchBudget().Lease(), refresh: false,
+    private static Task<GraphCollection> Read(GraphCollectionReader reader, GraphFetch fetch, GraphFetchLease? lease = null,
+        bool refresh = false, RunDiagnostics? diagnostics = null)
+        => reader.ReadAsync(Account, fetch, lease ?? new GraphFetchBudget().Lease(), refresh, diagnostics,
             CancellationToken.None);
 
     private static async Task<GraphReadException> Fails(Task<GraphCollection> read)
@@ -377,6 +381,198 @@ public sealed class GraphCollectionReaderTests
 
         Assert.Equal((GraphReadFailure.Throttled, 30), (with.Failure, with.RetryAfterSeconds));
         Assert.Equal((GraphReadFailure.Throttled, 60), (without.Failure, without.RetryAfterSeconds));
+    }
+
+    private static List<DiagnosticEntry> OfKind(RunDiagnostics diagnostics, string kind)
+        => [.. diagnostics.Entries.Where(e => e.Kind == kind)];
+
+    // A throttled page is sent once more after its Retry-After, and the wait shows as Throttled then Retry.
+    [Fact]
+    public async Task A_throttled_page_is_sent_again_after_its_retry_after()
+    {
+        var time = new InstantTime();
+        var handler = new Scripted((_, n) => n == 0 ? Json(HttpStatusCode.TooManyRequests, "{}", 12) : Json(HttpStatusCode.OK, Page(0, 2)));
+        var diagnostics = new RunDiagnostics(TimeProvider.System);
+
+        var result = await Read(Reader(handler, time: time), Fetch(), diagnostics: diagnostics);
+
+        Assert.Equal(2, result.Objects.Count);
+        Assert.Equal(2, handler.Calls);
+        Assert.Equal([TimeSpan.FromSeconds(12)], time.Waits);
+        Assert.Equal(("applications: Graph is throttling; Retry-After 12 s", (int?)429),
+            (Assert.Single(OfKind(diagnostics, DiagnosticKinds.Throttled)).Detail, Assert.Single(OfKind(diagnostics, DiagnosticKinds.Throttled)).Status));
+        Assert.Equal("applications: sent the request again after 12 s", Assert.Single(OfKind(diagnostics, DiagnosticKinds.Retry)).Detail);
+    }
+
+    // Twice throttled: the read fails throttled, with both 429s and the one retry counted.
+    [Fact]
+    public async Task A_page_throttled_again_after_its_retry_fails_throttled_and_both_are_counted()
+    {
+        var handler = new Scripted((_, _) => Json(HttpStatusCode.TooManyRequests, "{}", 3));
+        var diagnostics = new RunDiagnostics(TimeProvider.System);
+
+        var failed = await Fails(Read(Reader(handler), Fetch(), diagnostics: diagnostics));
+
+        Assert.Equal((GraphReadFailure.Throttled, "Graph is throttling requests, try again later"), (failed.Failure, failed.Message));
+        Assert.Equal(2, handler.Calls);
+        Assert.Equal(2, OfKind(diagnostics, DiagnosticKinds.Throttled).Count);
+        Assert.Single(OfKind(diagnostics, DiagnosticKinds.Retry));
+    }
+
+    // The wait is capped: a Retry-After past it is waited for only that long.
+    [Fact]
+    public async Task The_wait_for_a_long_retry_after_is_capped()
+    {
+        var time = new InstantTime();
+        var handler = new Scripted((_, n) => n == 0 ? Json(HttpStatusCode.TooManyRequests, "{}", 120) : Json(HttpStatusCode.OK, Page(0, 1)));
+
+        var result = await Read(Reader(handler, time: time), Fetch());
+
+        Assert.Single(result.Objects);
+        Assert.Equal([GraphCollectionReader.MaxRetryWait], time.Waits);
+    }
+
+    /// <summary>A fake clock that says when a timer has been set, so a test can advance it once the reader waits.</summary>
+    private sealed class WaitingTime : FakeTimeProvider
+    {
+        private readonly TaskCompletionSource _waiting = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task Waiting => _waiting.Task;
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = base.CreateTimer(callback, state, dueTime, period);
+            if (dueTime != Timeout.InfiniteTimeSpan)
+                _waiting.TrySetResult();
+            return timer;
+        }
+    }
+
+    // signIns: a probe Graph throttles waits its Retry-After on the clock, then is sent again, and probing goes on.
+    [Fact]
+    public async Task A_throttled_probe_waits_its_retry_after_then_is_sent_again()
+    {
+        var time = new WaitingTime();
+        var throttledOnce = 0;
+        var handler = new Scripted((r, _) =>
+        {
+            var columns = SelectOf(r).Split(',').Where(c => c != "id").ToList();
+            if (r.RequestUri!.OriginalString.Contains("$top=1", StringComparison.Ordinal) && columns.Count == 0
+                && Interlocked.Exchange(ref throttledOnce, 1) == 0)
+                return Json(HttpStatusCode.TooManyRequests, "{}", 20);
+            return columns.Contains("windows") ? WebPage404() : Json(HttpStatusCode.OK, Page(0, 2));
+        });
+        var diagnostics = new RunDiagnostics(TimeProvider.System);
+
+        var read = Read(Reader(handler, time: time), Fetch(["appId", "windows", "id"]), diagnostics: diagnostics);
+        await time.Waiting.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        var sentBeforeTheWait = handler.Calls;
+        time.Advance(TimeSpan.FromSeconds(19));
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        Assert.Equal(sentBeforeTheWait, handler.Calls);
+        time.Advance(TimeSpan.FromSeconds(1));
+        var result = await read;
+
+        Assert.Equal(["windows"], result.Unreadable);
+        Assert.Equal(2, result.Objects.Count);
+        Assert.Single(OfKind(diagnostics, DiagnosticKinds.Throttled));
+        Assert.Single(OfKind(diagnostics, DiagnosticKinds.Retry));
+    }
+
+    private static Scripted WindowsNotListed() => new((r, _) => SelectOf(r).Split(',').Contains("windows")
+        ? WebPage404()
+        : Json(HttpStatusCode.OK, Page(0, 2)));
+
+    private static bool IsProbe(string request) => request.EndsWith("&$top=1", StringComparison.Ordinal);
+
+    // What probing found is kept per account and table: the next run selects without those columns at once, and says so.
+    [Fact]
+    public async Task A_second_run_leaves_out_what_probing_found_without_probing_again()
+    {
+        var probes = new MemoryGraphProbeCache(new FakeTimeProvider());
+        var fetch = Fetch(["appId", "windows", "onPremisesPublishing", "id"]);
+        var first = new Scripted((r, _) => SelectOf(r).Split(',') switch
+        {
+            var c when c.Contains("onPremisesPublishing") => Unauthorized(),
+            var c when c.Contains("windows") => WebPage404(),
+            _ => Json(HttpStatusCode.OK, Page(0, 2)),
+        });
+        var firstRead = await Read(Reader(first, probes: probes), fetch);
+        Assert.Contains(firstRead.Requests, IsProbe);
+
+        var second = new Scripted((r, _) => SelectOf(r).Split(',').Any(c => c is "windows" or "onPremisesPublishing")
+            ? Json(HttpStatusCode.InternalServerError, "{}")
+            : Json(HttpStatusCode.OK, Page(0, 2)));
+        var diagnostics = new RunDiagnostics(TimeProvider.System);
+        var result = await Read(Reader(second, probes: probes), fetch, diagnostics: diagnostics);
+
+        Assert.Equal(1, second.Calls);
+        Assert.DoesNotContain(result.Requests, IsProbe);
+        Assert.Equal(["windows"], result.Unreadable);
+        Assert.Equal(["onPremisesPublishing"], result.Denied);
+        Assert.Equal(2, result.Objects.Count);
+        Assert.Equal("applications: left out (found earlier) windows (Graph won't serve it in a list), "
+            + "onPremisesPublishing (Graph refused it for permission)", Assert.Single(OfKind(diagnostics, DiagnosticKinds.Probe)).Detail);
+    }
+
+    // Another account, or another table, probes for itself.
+    [Fact]
+    public async Task Findings_are_kept_per_account_and_table()
+    {
+        var probes = new MemoryGraphProbeCache(new FakeTimeProvider());
+        var fetch = Fetch(["appId", "windows", "id"]);
+        await Read(Reader(WindowsNotListed(), probes: probes), fetch);
+
+        var other = WindowsNotListed();
+        var result = await Reader(other, probes: probes).ReadAsync("account-2", fetch, new GraphFetchBudget().Lease(), false, CancellationToken.None);
+
+        Assert.Contains(result.Requests, IsProbe);
+        Assert.Equal(["windows"], (await probes.GetAsync("account-2", "applications", CancellationToken.None))!.NotListed);
+        Assert.Null(await probes.GetAsync(Account, "servicePrincipals", CancellationToken.None));
+    }
+
+    // refresh doesn't trust what was found earlier: it reads with every column, probes again, and keeps what it finds now.
+    [Fact]
+    public async Task Refresh_probes_again_and_keeps_what_it_finds_now()
+    {
+        var probes = new MemoryGraphProbeCache(new FakeTimeProvider());
+        var fetch = Fetch(["appId", "windows", "tags", "id"]);
+        await Read(Reader(WindowsNotListed(), probes: probes), fetch);
+
+        var now = new Scripted((r, _) => SelectOf(r).Split(',').Contains("tags") ? WebPage404() : Json(HttpStatusCode.OK, Page(0, 2)));
+        var result = await Read(Reader(now, probes: probes), fetch, refresh: true);
+
+        Assert.Contains(result.Requests, IsProbe);
+        Assert.Equal(["tags"], result.Unreadable);
+        Assert.Equal(["tags"], (await probes.GetAsync(Account, "applications", CancellationToken.None))!.NotListed);
+    }
+
+    // A refresh whose list reads whole forgets the earlier findings.
+    [Fact]
+    public async Task Refresh_that_reads_every_column_forgets_the_findings()
+    {
+        var probes = new MemoryGraphProbeCache(new FakeTimeProvider());
+        var fetch = Fetch(["appId", "windows", "id"]);
+        await Read(Reader(WindowsNotListed(), probes: probes), fetch);
+
+        var result = await Read(Reader(new Scripted((_, _) => Json(HttpStatusCode.OK, Page(0, 2))), probes: probes), fetch, refresh: true);
+
+        Assert.Empty(result.Unreadable);
+        Assert.Null(await probes.GetAsync(Account, "applications", CancellationToken.None));
+    }
+
+    // Columns found earlier and columns this run finds are kept together.
+    [Fact]
+    public async Task New_findings_are_added_to_those_found_earlier()
+    {
+        var probes = new MemoryGraphProbeCache(new FakeTimeProvider());
+        await Read(Reader(WindowsNotListed(), probes: probes), Fetch(["appId", "windows", "id"]));
+
+        var both = new Scripted((r, _) => SelectOf(r).Split(',').Any(c => c is "windows" or "tags") ? WebPage404() : Json(HttpStatusCode.OK, Page(0, 2)));
+        var result = await Read(Reader(both, probes: probes), Fetch(["appId", "windows", "tags", "id"]));
+
+        Assert.Equal(["tags", "windows"], result.Unreadable.Order(StringComparer.Ordinal));
+        Assert.Equal(["tags", "windows"], (await probes.GetAsync(Account, "applications", CancellationToken.None))!.NotListed.Order(StringComparer.Ordinal));
     }
 
     [Fact]

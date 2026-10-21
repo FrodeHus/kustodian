@@ -56,7 +56,8 @@ public sealed class AppServices : IAsyncDisposable
         _http = GraphHttp.CreateClient(accounts, new StderrLogger<GraphAuthHandler>());
         Budget = new GraphFetchBudget(Limits.FetchBudgetBytes);
         Objects = new MemoryGraphObjectCache(time, Limits);
-        Runner = new GraphRunner(_schema, new GraphCollectionReader(_http, Budget, Objects, Limits), Budget, Pool, Limits, time,
+        Probes = new FileGraphProbeCache(store, time, Limits);
+        Runner = new GraphRunner(_schema, new GraphCollectionReader(_http, Budget, Objects, Limits, Probes, time), Budget, Pool, Limits, time,
             new StderrLogger<GraphRunner>());
     }
 
@@ -72,6 +73,9 @@ public sealed class AppServices : IAsyncDisposable
 
     public MemoryGraphObjectCache Objects { get; }
 
+    /// <summary>The columns probing found each table can't serve in a list, kept on disk.</summary>
+    public IGraphProbeCache Probes { get; }
+
     public GraphRunner Runner { get; }
 
     /// <summary>Builds the services from <paramref name="startup"/>, the settings as read once when the app starts.</summary>
@@ -82,7 +86,7 @@ public sealed class AppServices : IAsyncDisposable
     /// <summary>Registers every bridge method.</summary>
     public void Register(Bridge bridge)
     {
-        new AppHandler(Objects).Register(bridge);
+        new AppHandler(Objects, Probes).Register(bridge);
         new SettingsHandler(_settings, _startup.Limits).Register(bridge);
         new SchemaHandler(_schema).Register(bridge);
         new QueryHandler(_schema, ActiveAccountAsync, Runner.RunAsync, _recent, _time, new StderrLogger<QueryHandler>(), Limits)
@@ -91,7 +95,7 @@ public sealed class AppServices : IAsyncDisposable
         new SessionHandler(_session, _allowedFiles).Register(bridge);
         new SnippetHandler(_snippets).Register(bridge);
         new FileHandler(new PhotinoFileDialogs(Window), _allowedFiles).Register(bridge);
-        new AccountHandler(_accounts, _tokenCache, Objects).Register(bridge);
+        new AccountHandler(_accounts, _tokenCache, Objects, Probes).Register(bridge);
         new RawHandler(new RawRequestService(_http, _time), ActiveAccountAsync).Register(bridge);
     }
 

@@ -6,8 +6,8 @@ namespace Kustodian.Messaging.Handlers;
 
 /// <summary><c>account.list</c>, <c>account.signIn</c>, <c>account.use</c> and <c>account.signOut</c>. A device-code sign-in
 /// sends the code to the UI as an <c>account.deviceCode</c> event. Signing out also drops the account's cached Graph
-/// objects.</summary>
-public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cache, IGraphObjectCache objects)
+/// objects and what probing found for it.</summary>
+public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cache, IGraphObjectCache objects, IGraphProbeCache probes)
 {
     public void Register(Bridge bridge)
     {
@@ -32,6 +32,7 @@ public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cac
             var key = RequireKey(BridgeJson.Params<KeyParams>(p));
             await accounts.SignOutAsync(key);
             await objects.RemoveAccountAsync(key, ct);
+            await probes.RemoveAccountAsync(key, ct);
             return null;
         });
     }
