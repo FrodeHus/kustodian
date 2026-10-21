@@ -1,3 +1,4 @@
+using System.Drawing;
 using Kustodian.Messaging;
 using Microsoft.Extensions.Logging;
 using Photino.NET;
@@ -21,9 +22,16 @@ public static class AppWindow
             .SetTitle(Title)
             // Without this Photino ignores the size and opens at the OS default.
             .SetUseOsDefaultSize(false)
-            .SetSize(1440, 900)
-            .SetMinSize(1024, 640)
+            .SetSize(WindowSizing.Default.Width, WindowSizing.Default.Height)
+            .SetMinSize(WindowSizing.Minimum.Width, WindowSizing.Minimum.Height)
             .Center();
+
+        // On Windows those sizes reach Win32 as physical pixels, so at 200 % the page would get half of them. The monitor's DPI
+        // is only known once the native window exists, so it is resized and re-centred then, before the message loop runs.
+        if (OperatingSystem.IsWindows())
+        {
+            window.WindowCreated += (_, _) => FitToMonitor(window);
+        }
 
         // Photino's SendWebMessage marshals to the UI thread itself (through its Invoke), so replies and events produced on
         // worker threads can be sent from there. After the window closes nothing is sent.
@@ -74,5 +82,22 @@ public static class AppWindow
         Volatile.Write(ref closed, 1);
         bridge.Close();
         pump.CompleteAsync().GetAwaiter().GetResult();
+    }
+
+    /// <summary>Sizes the window for the monitor it opened on: the one holding its centre, else the first one.</summary>
+    private static void FitToMonitor(PhotinoWindow window)
+    {
+        var monitors = window.Monitors;
+        if (monitors.Count == 0)
+        {
+            return;
+        }
+
+        var centre = new Point(window.Left + (window.Width / 2), window.Top + (window.Height / 2));
+        var monitor = monitors.FirstOrDefault(m => m.MonitorArea.Contains(centre), monitors[0]);
+        var (bounds, min) = WindowSizing.ForMonitor(monitor.Scale, monitor.WorkArea);
+        window.MinSize = new Point(min.Width, min.Height);
+        window.Size = bounds.Size;
+        window.Location = bounds.Location;
     }
 }

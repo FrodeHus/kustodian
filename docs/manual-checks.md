@@ -12,7 +12,7 @@ Legend: `ok` verified, `-` not run, `owner` needs a live tenant sign-in, `n/a` n
 | --- | --- | --- | --- |
 | `npm ci`, lint, typecheck, test, build in `web/` | ok (40 web tests) | - (no Node in the VM; the web build was made on macOS and embedded) | ok (Ubuntu 24.04 arm64 container, Node 22) |
 | `dotnet build -warnaserror`, 0 warnings | ok | ok | ok |
-| `dotnet test` | ok, 445 passed (457 after the Windows origin fix) | ok, 442 passed, 3 skipped (after the fix: 457, 454 passed, 3 skipped) | ok, 445 passed |
+| `dotnet test` | ok, 445 passed (466 after the Windows origin and DPI fixes) | ok, 442 passed, 3 skipped (after the origin fix: 457, 454 passed, 3 skipped) | ok, 445 passed |
 
 Known open warnings, not failures: oxlint `react(incompatible-library)` for TanStack Table, Vite chunk-size.
 
@@ -21,6 +21,7 @@ Known open warnings, not failures: oxlint `react(incompatible-library)` for TanS
 | Check | macOS | Windows | Linux |
 | --- | --- | --- | --- |
 | Window opens and the web UI renders from its origin (`app://localhost`; `https://kustodian.invalid` on Windows) | ok (main window with an account already in the token cache; schema panel listed 438 tables, 436 on the re-check after the fix) | ok after the fix (sign-in screen: "Sign in to Microsoft Graph", "Not signed in"; see notes) | - (headless container, no display) |
+| Window opens at 1440x900 logical, never larger than the work area | ok (1440x900 points) | ok at 300 %: capped at the 4112x2436 work area, page about 1370x810 CSS px, no scrollbars (see notes) | - |
 | No `--engine` process left after closing the window (idle) | ok | - (the app was force-killed after the check, not closed) | - |
 
 ## Spec 13 checklist
@@ -54,7 +55,14 @@ Known open warnings, not failures: oxlint `react(incompatible-library)` for TanS
   to the web view. Re-check after the fix (2026-10-21): the window (1440x900 physical pixels) showed the sign-in screen, header
   "Kustodian / Microsoft Graph beta / Not signed in" and the "Sign in with your browser" button; captured with `PrintWindow`
   on the Kustodian window only. Not signed in. The app was then killed; no Kustodian process remained.
-- Windows sizing: Photino's `SetSize(1440, 900)` is in physical pixels on Windows, so at the VM's 200 % scaling the page gets
-  about 720x450 CSS pixels and shows scrollbars. Not fixed here.
+- Windows sizing: Photino passes `SetSize`/`SetMinSize` to Win32 as physical pixels. The VM runs at 300 % (288 DPI, checked
+  with `GetDpiForMonitor`; the earlier note said 200 %, which was wrong), so the first fixed run's 1440x900 window gave the page
+  only about 480x300 CSS pixels, with scrollbars. Fix: on Windows, once the native window exists, `WindowSizing.ForMonitor` scales
+  1440x900 and the 1024x640 minimum by the monitor's DPI factor, caps both at the monitor's work area and centres the window.
+  Re-check (2026-10-21, 300 %): 1440x900 logical is 4320x2700 physical, more than the 4112x2436 work area, so the window opened
+  at exactly 4112x2436 at 0,0 (not maximised). The page got about 1370x810 CSS pixels and showed the whole sign-in card with no
+  scrollbars. Captured on the Kustodian window only; not signed in; killed afterwards, no Kustodian process left. The 200 % case
+  was not run on the VM (changing its display scaling is a system setting); it is covered by `WindowSizingTests` (2880x1800,
+  minimum 2048x1280). macOS re-check: the window is still 1440x900 points (a 2880x1800 capture on Retina).
 - Linux: only build and tests could be run (container, no display). The monaco-kusto-in-WebKitGTK question (spec 14, risk 2) is
   still open and needs a machine with a display.
