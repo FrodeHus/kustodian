@@ -125,6 +125,8 @@ interface SchemaPanelProps {
   accountKey?: string;
   /** Opens sign-in, when listing the resource types needs the account to sign in again. */
   onSignIn?: () => void;
+  /** For the active account, the columns Graph lists by default for each Graph table read so far: they get a "default" tag. */
+  listedByDefault?: Record<string, string[]>;
   /** The active tab's query, for "In this query". */
   text: string;
   onInsert: (name: string) => void;
@@ -133,7 +135,8 @@ interface SchemaPanelProps {
 /** The left panel for the active tab's source (spec 6.1): the schema tree with search; descriptions show on hover. Advanced
  * hunting adds its functions and Resource Graph the account's resource types, which the search finds too. */
 export function SchemaPanel(props: SchemaPanelProps) {
-  const { source = 'graph', schema, error, resourceTypes, resourceTypesError, resourceTypesFix, accountKey, onSignIn, text, onInsert } = props;
+  const { source = 'graph', schema, error, resourceTypes, resourceTypesError, resourceTypesFix, accountKey, onSignIn, listedByDefault, text, onInsert } =
+    props;
   const [query, setQuery] = useState('');
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
   /** A new search opens every matching area again: the areas opened or closed for the last one are forgotten. */
@@ -158,6 +161,9 @@ export function SchemaPanel(props: SchemaPanelProps) {
     // A nested Graph table's path (auditLogs/signIns) follows its name in faint text and in the hover text, since a narrow
     // panel truncates it first.
     const path = table.path && table.path !== table.name ? table.path : null;
+    // Only once a run has read the table for this account: until then nothing is known, so no column is tagged.
+    const listed = source === 'graph' ? listedByDefault?.[table.name] : undefined;
+    const byDefault = listed ? new Set(listed) : null;
     return (
       <li key={key}>
         <button
@@ -180,6 +186,11 @@ export function SchemaPanel(props: SchemaPanelProps) {
               <li key={c.name}>
                 <button type="button" className="col mono" title={describe(c.name, c.description)} onClick={() => onInsert(c.name)}>
                   <span className="truncate">{c.name}</span>
+                  {byDefault?.has(c.name) && (
+                    <span className="tag" title="Graph returns this in a list without asking: selecting it needs no probing">
+                      default
+                    </span>
+                  )}
                   {c.filterable === true && (
                     <span className="tag" title="Graph filters on this">
                       filter

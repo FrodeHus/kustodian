@@ -5,10 +5,10 @@ namespace Kustodian.Storage;
 
 /// <summary>
 /// <see cref="IGraphProbeCache"/> in <c>graph-probes.json</c>, <c>{version:1, tables:[{account, path, notListed, denied,
-/// foundAt}], defaults:[{account, path, columns, readAt}], refusesTop:[{account, path, foundAt}]}</c>, for
-/// <see cref="GraphLimits.ProbeCacheTtl"/> of <paramref name="limits"/> (7 days by default), so a restarted app doesn't probe a
-/// table, read its default columns, or send it a <c>$top</c> it refused, again. A file written before <c>refusesTop</c> existed
-/// reads as refusing none.
+/// foundAt}], defaults:[{account, path, columns, readAt}], refusesTop:[{account, path, foundAt}], refused:[{account, path,
+/// clause, foundAt}]}</c>, for <see cref="GraphLimits.ProbeCacheTtl"/> of <paramref name="limits"/> (7 days by default), so a
+/// restarted app doesn't probe a table, read its default columns, or send it a <c>$top</c> or another clause it refused, again.
+/// A file written before <c>refusesTop</c> or <c>refused</c> existed reads as refusing none.
 /// The file is read on first use and written on every change; expired entries are dropped as it is written. A file that is
 /// corrupt is moved aside and reads as empty.
 /// </summary>
@@ -16,7 +16,7 @@ public sealed class FileGraphProbeCache(JsonFileStore store, TimeProvider time, 
 {
     public const string FileName = "graph-probes.json";
 
-    private readonly UserDataFile<ProbesFile> _file = new(store, FileName, () => new ProbesFile(1, [], [], []), IsValid);
+    private readonly UserDataFile<ProbesFile> _file = new(store, FileName, () => new ProbesFile(1, [], [], [], []), IsValid);
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly TimeSpan _ttl = (limits ?? GraphLimits.Default).ProbeCacheTtl;
     private Held? _held;
@@ -70,9 +70,24 @@ public sealed class FileGraphProbeCache(JsonFileStore store, TimeProvider time, 
                 held.RefusesTop.Add(new RefusedTop(accountKey, path, time.GetUtcNow()));
         }, ct);
 
+    public async ValueTask<IReadOnlySet<string>> RefusedAsync(string accountKey, string path, CancellationToken ct) =>
+        await ReadAsync<IReadOnlySet<string>>(held => held.Refused
+            .Where(t => t.Account == accountKey && t.Path == path && !Expired(t.FoundAt))
+            .Select(t => t.Clause)
+            .ToHashSet(StringComparer.Ordinal), ct);
+
+    public ValueTask SetRefusedAsync(string accountKey, string path, string clause, bool refused, CancellationToken ct) =>
+        ChangeAsync(held =>
+        {
+            held.Refused.RemoveAll(t => t.Account == accountKey && t.Path == path && t.Clause == clause);
+            if (refused)
+                held.Refused.Add(new RefusedClause(accountKey, path, clause, time.GetUtcNow()));
+        }, ct);
+
     public ValueTask RemoveAccountAsync(string accountKey, CancellationToken ct) =>
         ChangeAsync(held =>
         {
+            held.Refused.RemoveAll(t => t.Account == accountKey);
             held.Tables.RemoveAll(t => t.Account == accountKey);
             held.Defaults.RemoveAll(t => t.Account == accountKey);
             held.RefusesTop.RemoveAll(t => t.Account == accountKey);
@@ -84,6 +99,7 @@ public sealed class FileGraphProbeCache(JsonFileStore store, TimeProvider time, 
             held.Tables.Clear();
             held.Defaults.Clear();
             held.RefusesTop.Clear();
+            held.Refused.Clear();
         }, ct);
 
     private async Task<T> ReadAsync<T>(Func<Held, T> read, CancellationToken ct)
@@ -109,7 +125,8 @@ public sealed class FileGraphProbeCache(JsonFileStore store, TimeProvider time, 
             held.Tables.RemoveAll(t => Expired(t.FoundAt));
             held.Defaults.RemoveAll(t => Expired(t.ReadAt));
             held.RefusesTop.RemoveAll(t => Expired(t.FoundAt));
-            await _file.WriteAsync(new ProbesFile(1, [.. held.Tables], [.. held.Defaults], [.. held.RefusesTop]), ct);
+            held.Refused.RemoveAll(t => Expired(t.FoundAt));
+            await _file.WriteAsync(new ProbesFile(1, [.. held.Tables], [.. held.Defaults], [.. held.RefusesTop], [.. held.Refused]), ct);
         }
         finally
         {
@@ -124,7 +141,7 @@ public sealed class FileGraphProbeCache(JsonFileStore store, TimeProvider time, 
         if (_held is null)
         {
             var file = (await _file.ReadAsync(ct)).Value;
-            _held = new Held([.. file.Tables], [.. file.Defaults], [.. file.RefusesTop ?? []]);
+            _held = new Held([.. file.Tables], [.. file.Defaults], [.. file.RefusesTop ?? []], [.. file.Refused ?? []]);
         }
 
         return _held;
@@ -133,9 +150,10 @@ public sealed class FileGraphProbeCache(JsonFileStore store, TimeProvider time, 
     private static bool IsValid(ProbesFile file) => file.Version == 1 && file.Tables is not null && file.Defaults is not null
         && file.Tables.All(t => t is { Account: not null, Path: not null, NotListed: not null, Denied: not null })
         && file.Defaults.All(t => t is { Account: not null, Path: not null, Columns: not null })
-        && (file.RefusesTop ?? []).All(t => t is { Account: not null, Path: not null });
+        && (file.RefusesTop ?? []).All(t => t is { Account: not null, Path: not null })
+        && (file.Refused ?? []).All(t => t is { Account: not null, Path: not null, Clause: not null });
 
-    private sealed record Held(List<ProbedTable> Tables, List<DefaultsTable> Defaults, List<RefusedTop> RefusesTop);
+    private sealed record Held(List<ProbedTable> Tables, List<DefaultsTable> Defaults, List<RefusedTop> RefusesTop, List<RefusedClause> Refused);
 
     private sealed record ProbedTable(string Account, string Path, IReadOnlyList<string> NotListed, IReadOnlyList<string> Denied,
         DateTimeOffset FoundAt);
@@ -144,7 +162,9 @@ public sealed class FileGraphProbeCache(JsonFileStore store, TimeProvider time, 
 
     private sealed record RefusedTop(string Account, string Path, DateTimeOffset FoundAt);
 
-    /// <summary><see cref="RefusesTop"/> is null in a file written before it existed.</summary>
+    private sealed record RefusedClause(string Account, string Path, string Clause, DateTimeOffset FoundAt);
+
+    /// <summary><see cref="RefusesTop"/> and <see cref="Refused"/> are null in a file written before they existed.</summary>
     private sealed record ProbesFile(int Version, IReadOnlyList<ProbedTable> Tables, IReadOnlyList<DefaultsTable> Defaults,
-        IReadOnlyList<RefusedTop>? RefusesTop);
+        IReadOnlyList<RefusedTop>? RefusesTop, IReadOnlyList<RefusedClause>? Refused);
 }

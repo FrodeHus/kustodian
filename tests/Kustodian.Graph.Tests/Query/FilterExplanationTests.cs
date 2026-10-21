@@ -51,8 +51,8 @@ public sealed class FilterExplanationTests
     [Theory]
     [InlineData("applications | where displayName has 'x'", "displayName has 'x'", "Graph doesn't allow this operator on displayName")]
     [InlineData("applications | where weight < 2", "weight < 2", "Graph doesn't allow this operator on weight")]
-    [InlineData("applications | where tolower(displayName) == 'x'", "tolower(displayName) == 'x'",
-        "Graph can only compare a column with a fixed value")]
+    [InlineData("applications | where tolower(displayName) startswith 'x'", "tolower(displayName) startswith 'x'",
+        "tolower() and toupper() only go to Graph with == or =~, on directory objects")]
     [InlineData("applications | where onPremisesPublishing.externalAuthenticationType == 'passthru'",
         "onPremisesPublishing.externalAuthenticationType == 'passthru'", "Graph can only compare a column with a fixed value")]
     [InlineData("applications | where appId == displayName", "appId == displayName", "Graph can only compare a column with a fixed value")]
@@ -75,11 +75,11 @@ public sealed class FilterExplanationTests
     [InlineData("security_incidents | where displayName != 'x'", "displayName != 'x'", "Graph would compare this ignoring case, which could drop rows")]
     [InlineData("security_incidents | where displayName !~ 'x'", "displayName !~ 'x'", "Graph would compare this ignoring case, which could drop rows")]
     [InlineData("security_incidents | where appId != 'x'", "appId != 'x'", "Graph would compare this ignoring case, which could drop rows")]
-    [InlineData("applications | where keyCount between (1 .. 3)", "keyCount between (1 .. 3)", "Graph can only compare a column with a fixed value")]
+    [InlineData("applications | where keyCount !between (1 .. 3)", "keyCount !between (1 .. 3)", "Graph doesn't allow this operator on keyCount")]
     [InlineData("applications | where iff(keyCount > 1, true, false)", "iff(keyCount > 1, true, false)",
         "Graph can only compare a column with a fixed value")]
     [InlineData("applications | where tolower(displayName) !in ('a')", "tolower(displayName) !in ('a')",
-        "Graph can only compare a column with a fixed value")]
+        "tolower() and toupper() only go to Graph with == or =~, on directory objects")]
     [InlineData("applications | where displayName !in ('a')", "displayName !in ('a')", "Graph doesn't allow this operator on displayName")]
     [InlineData("applications | where accountEnabled", "accountEnabled", "Graph doesn't allow this operator on accountEnabled")]
     [InlineData("applications | where isnull(displayName)", "isnull(displayName)",

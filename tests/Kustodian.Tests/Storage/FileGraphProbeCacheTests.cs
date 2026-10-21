@@ -134,6 +134,41 @@ public sealed class FileGraphProbeCacheTests : IDisposable
     }
 
     [Fact]
+    public async Task Refused_clauses_outlast_the_app_until_the_ttl_or_they_are_forgotten()
+    {
+        await Cache().SetRefusedAsync("account-1", "users", "$orderby", true, Ct);
+        await Cache().SetRefusedAsync("account-1", "users", "proxyAddresses/any", true, Ct);
+
+        Assert.Equal(["$orderby", "proxyAddresses/any"], (await Cache().RefusedAsync("account-1", "users", Ct)).Order(StringComparer.Ordinal));
+        Assert.Empty(await Cache().RefusedAsync("account-2", "users", Ct));
+
+        await Cache().SetRefusedAsync("account-1", "users", "$orderby", false, Ct);
+        Assert.Equal(["proxyAddresses/any"], await Cache().RefusedAsync("account-1", "users", Ct));
+
+        var cache = Cache();
+        await cache.SetRefusedAsync("account-2", "users", "$count", true, Ct);
+        await cache.RemoveAccountAsync("account-2", Ct);
+        Assert.Empty(await Cache().RefusedAsync("account-2", "users", Ct));
+
+        _time.Advance(GraphLimits.Default.ProbeCacheTtl);
+        Assert.Empty(await Cache().RefusedAsync("account-1", "users", Ct));
+    }
+
+    // A file from before refused clauses were kept reads as refusing none.
+    [Fact]
+    public async Task A_file_without_refused_clauses_reads_as_refusing_none()
+    {
+        Directory.CreateDirectory(_dir);
+        var foundAt = _time.GetUtcNow().ToString("O", System.Globalization.CultureInfo.InvariantCulture);
+        await File.WriteAllTextAsync(Path.Combine(_dir, FileGraphProbeCache.FileName), $$"""
+            {"version":1,"tables":[],"defaults":[],"refusesTop":[{"account":"account-1","path":"users","foundAt":"{{foundAt}}"}]}
+            """, Ct);
+
+        Assert.Empty(await Cache().RefusedAsync("account-1", "users", Ct));
+        Assert.True(await Cache().RefusesTopAsync("account-1", "users", Ct));
+    }
+
+    [Fact]
     public async Task Removing_an_account_forgets_its_default_columns()
     {
         var cache = Cache();

@@ -6,7 +6,7 @@ namespace Kustodian.Graph.Schema;
 /// and collections as dynamic.</summary>
 public static partial class GraphSchemaBuilder
 {
-    private static readonly HashSet<string> FilterOperators = ["eq", "ne", "not", "ge", "le", "lt", "gt", "in", "startsWith"];
+    private static readonly HashSet<string> FilterOperators = ["eq", "ne", "not", "ge", "le", "lt", "gt", "in", "startsWith", "endsWith"];
 
     /// <summary>Singletons whose collections only exist for a signed-in user (delegated access): an application-token reader reads
     /// with an application token, so they are left out.</summary>

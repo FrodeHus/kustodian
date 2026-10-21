@@ -41,6 +41,7 @@ export function SidePanel({ panel, source: tabSource, text, onInsert, accountKey
   const resourceTypes = useSchemas((s) => s.resourceTypes);
   const resourceTypesError = useSchemas((s) => s.resourceTypesError);
   const resourceTypesFix = useSchemas((s) => s.resourceTypesFix);
+  const listedByDefault = useSchemas((s) => s.listedByDefault);
   switch (panel) {
     case 'saved':
       return <SavedPanel source={source} />;
@@ -60,6 +61,7 @@ export function SidePanel({ panel, source: tabSource, text, onInsert, accountKey
           resourceTypesFix={resourceTypesFix}
           accountKey={accountKey}
           onSignIn={onSignIn}
+          listedByDefault={listedByDefault}
           text={text}
           onInsert={onInsert}
         />

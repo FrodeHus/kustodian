@@ -167,4 +167,35 @@ describe('useSchemas', () => {
     await useSchemas.getState().load('graph');
     expect(useSchemas.getState().errors.graph).toBe('Graph is down.');
   });
+
+  it('listed_by_default_is_read_after_the_graph_schema_and_after_each_graph_run', async () => {
+    const listed = vi.fn(() => Promise.resolve({ tables: { users: ['id', 'displayName'] } }));
+    const fallback = bridge.call.getMockImplementation()!;
+    bridge.call.mockImplementation((method: string, params?: { source?: string }) =>
+      method === 'schema.listedByDefault' ? listed() : fallback(method, params),
+    );
+    const id = useTabs.getState().open('graph');
+    stop = startSchemaLoading();
+    await settle();
+    expect(listed).toHaveBeenCalledTimes(1);
+    expect(useSchemas.getState().listedByDefault).toEqual({ users: ['id', 'displayName'] });
+
+    // A Graph run that finishes may have taught the host another table's defaults: they are read again.
+    const tab = () => useTabs.getState().tabs.find((t) => t.id === id)!;
+    const run = { runId: 'r1', startedAt: 0, origin: { line: 1, column: 1 } };
+    act(() => useTabs.setState({ tabs: [{ ...tab(), run: { ...run, state: 'running' } }] }));
+    act(() => useTabs.setState({ tabs: [{ ...tab(), run: { ...run, state: 'done' } }] }));
+    await settle();
+    expect(listed).toHaveBeenCalledTimes(2);
+
+    // A finished hunting run doesn't read them.
+    act(() => useTabs.setState({ tabs: [{ ...tab(), run: { ...run, runId: 'r2', state: 'running', source: 'hunting' } }] }));
+    act(() => useTabs.setState({ tabs: [{ ...tab(), run: { ...run, runId: 'r2', state: 'done', source: 'hunting' } }] }));
+    await settle();
+    expect(listed).toHaveBeenCalledTimes(2);
+
+    // Another account forgets them.
+    act(() => useSchemas.getState().reset());
+    expect(useSchemas.getState().listedByDefault).toEqual({});
+  });
 });
