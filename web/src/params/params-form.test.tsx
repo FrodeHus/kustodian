@@ -100,6 +100,10 @@ describe('ParamsForm', () => {
   it('params_form_remember_needs_a_saved_query', () => {
     useTabs.getState().openWith({ source: 'graph', title: 'Q', text: 'print {n}' });
     render(<ShowForm onRun={() => undefined} />);
-    expect(screen.getByRole('button', { name: 'Remember as defaults for this query' })).toHaveProperty('disabled', true);
+    const remember = screen.getByRole('button', { name: 'Remember as defaults for this query' });
+    expect(remember).toHaveProperty('disabled', true);
+    // Said on screen, not only in a tooltip.
+    expect(screen.getByText('Save the query to the library first to keep defaults with it.')).toBeTruthy();
+    expect(remember.getAttribute('aria-describedby')).toBe(screen.getByText('Save the query to the library first to keep defaults with it.').id);
   });
 });

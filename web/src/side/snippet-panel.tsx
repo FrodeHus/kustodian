@@ -2,11 +2,10 @@ import { useEffect, useState } from 'react';
 import { call } from '../bridge';
 import { useRevisions } from '../library/saving';
 import { findParams, mergeParameters } from '../params/find-params';
+import { errorText } from '../shell/errors';
 import { useTabs } from '../tabs/tab-store';
 import type { Snippet } from '../wire';
 import { ConfirmDelete, RowMenu } from './row-menu';
-
-const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 function openInNewTab(s: Snippet) {
   useTabs.getState().openWith({ source: s.source, title: s.name, text: s.text, parameters: s.parameters });
@@ -14,20 +13,24 @@ function openInNewTab(s: Snippet) {
 
 /**
  * A snippet goes in at the cursor of the open query when it is for the same source, and its parameter definitions join the
- * tab's (a name the tab already has keeps the tab's); otherwise it opens in a new tab.
+ * tab's (a name the tab already has keeps the tab's); otherwise it opens in a new tab. Resolves false when the editor wasn't
+ * ready: then nothing changed, parameters included.
  */
-function choose(s: Snippet, onInsert: (text: string) => void) {
+function choose(s: Snippet, onInsert: (text: string) => boolean): boolean {
   const { tabs, activeId, setParameters } = useTabs.getState();
   const tab = tabs.find((t) => t.id === activeId);
   if (!tab || tab.source !== s.source) {
     openInNewTab(s);
-    return;
+    return true;
   }
-  onInsert(s.text);
+  if (!onInsert(s.text)) {
+    return false;
+  }
   const added = s.parameters.filter((p) => !tab.parameters.some((q) => q.name === p.name));
   if (added.length > 0) {
     setParameters(tab.id, [...tab.parameters, ...added]);
   }
+  return true;
 }
 
 /** Groups in the order they first appear: the built-in snippets by their group, then the user's own as "Mine". */
@@ -45,7 +48,7 @@ function grouped(snippets: Snippet[]): { title: string; snippets: Snippet[] }[] 
  * inserts a snippet at the cursor; its menu opens it in a new tab, or deletes one of the user's (after asking). The selected
  * text can be saved as a new snippet.
  */
-export function SnippetPanel({ onInsert }: { onInsert: (text: string) => void }) {
+export function SnippetPanel({ onInsert }: { onInsert: (text: string) => boolean }) {
   const revision = useRevisions((s) => s.snippets);
   const [snippets, setSnippets] = useState<Snippet[] | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -124,7 +127,7 @@ export function SnippetPanel({ onInsert }: { onInsert: (text: string) => void })
           className="side-open"
           aria-label={s.name}
           title={s.description ? `${s.description}\n\n${s.text}` : s.text}
-          onClick={() => choose(s, onInsert)}
+          onClick={() => setProblem(choose(s, onInsert) ? null : 'The editor isn’t ready yet. Try again in a moment.')}
         >
           <span className="truncate">{s.name}</span>
           {params.length > 0 && (

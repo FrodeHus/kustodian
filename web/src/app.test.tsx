@@ -376,6 +376,23 @@ describe('App', () => {
     expect(opened?.filePath).toBeUndefined();
   });
 
+  it('drop_on_the_editor_opens_one_tab_and_leaves_the_query_alone', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    render(<App />);
+    const editor = await screen.findByRole('textbox', { name: 'KQL query' });
+    fireEvent.change(editor, { target: { value: 'users' } });
+    const first = useTabs.getState().activeId;
+
+    const file = new File(['groups | take 3'], 'groups.kql');
+    fireEvent.dragOver(editor, { dataTransfer: { files: [file], types: ['Files'] } });
+    fireEvent.drop(editor, { dataTransfer: { files: [file], types: ['Files'] } });
+
+    expect(await screen.findByRole('tab', { name: /groups\.kql/, selected: true })).toBeTruthy();
+    const { tabs } = useTabs.getState();
+    expect(tabs).toHaveLength(2);
+    expect(tabs.find((t) => t.id === first)).toMatchObject({ text: 'users' });
+  });
+
   it('drop_of_another_file_says_only_kql_opens', async () => {
     host({ accounts: [kari], cache: 'persistent' });
     render(<App />);

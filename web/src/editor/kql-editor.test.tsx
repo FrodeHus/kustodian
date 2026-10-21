@@ -11,6 +11,7 @@ const fake = vi.hoisted(() => {
   const KeyMod = { CtrlCmd: 2048, Shift: 1024, Alt: 512, WinCtrl: 256 };
   const KeyCode = { Enter: 3, KeyK: 41, KeyP: 46, KeyT: 50, KeyW: 53 };
   const commands = new Map<number, () => void>();
+  const created = { options: null as unknown };
   const themes = { defined: [] as string[], set: [] as string[] };
   let selectionEmpty = true;
   const disposable = { dispose: () => undefined };
@@ -38,7 +39,10 @@ const fake = vi.hoisted(() => {
     KeyCode,
     Uri: { parse: (s: string) => ({ toString: () => s }) },
     editor: {
-      create: () => editor,
+      create: (_host: unknown, options: unknown) => {
+        created.options = options;
+        return editor;
+      },
       createModel: (value: string) => model(value),
       defineTheme: (name: string) => themes.defined.push(name),
       setTheme: (name: string) => themes.set.push(name),
@@ -48,6 +52,7 @@ const fake = vi.hoisted(() => {
   return {
     monaco,
     commands,
+    created,
     themes,
     setSelectionEmpty: (empty: boolean) => (selectionEmpty = empty),
     press: (keybinding: number) => commands.get(keybinding)?.(),
@@ -133,6 +138,12 @@ describe('KqlEditor', () => {
     expect(fake.commands.has(KeyMod.CtrlCmd | KeyCode.Enter)).toBe(true);
     unregisterClose();
     unregister();
+  });
+
+  it('editor_leaves_dropped_files_to_the_window', () => {
+    render(<KqlEditor schema={null} onRun={() => undefined} />);
+    // The window opens a dropped .kql in a new tab; Monaco's drop-into-editor would paste it into this one as well.
+    expect(fake.created.options).toMatchObject({ dropIntoEditor: { enabled: false } });
   });
 
   it('editor_follows_the_theme', () => {

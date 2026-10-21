@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
 import { call } from '../bridge';
-import { useRevisions } from '../library/saving';
+import { MAX_NAME_LENGTH, useRevisions } from '../library/saving';
+import { errorText } from '../shell/errors';
 import { MOD } from '../shell/keys';
 import { useTabs } from '../tabs/tab-store';
 import type { LibraryList, SavedQuery } from '../wire';
 import { ConfirmDelete, RowMenu } from './row-menu';
-
-const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** Opens a saved query in a new tab, or goes to the tab it is already open in. */
 function openSaved(q: SavedQuery) {
@@ -96,6 +95,7 @@ export function SavedPanel() {
           <input
             className="textbox h-[26px] w-full"
             aria-label={`New name for ${q.name}`}
+            maxLength={MAX_NAME_LENGTH}
             autoFocus
             value={newName}
             onChange={(e) => setNewName(e.target.value)}

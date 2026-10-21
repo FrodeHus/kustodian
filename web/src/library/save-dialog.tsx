@@ -1,10 +1,9 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { call } from '../bridge';
+import { errorText } from '../shell/errors';
 import type { Tab } from '../tabs/tab-store';
 import type { LibraryList } from '../wire';
-import { saveToFile, saveToLibrary } from './saving';
-
-const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+import { MAX_FOLDER_LENGTH, MAX_NAME_LENGTH, saveToFile, saveToLibrary } from './saving';
 
 /**
  * Save (a new tab) and Save as (spec 6.2): a name, a folder (one of the library's, or a new one typed in), then "Save to
@@ -18,6 +17,25 @@ export function SaveDialog({ tab, onClose }: { tab: Tab; onClose: () => void }) 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const id = useId();
+  const dialogRef = useRef<HTMLFormElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+  // Once closing, focus may go wherever the caller puts it.
+  const closing = useRef(false);
+  const close = () => {
+    closing.current = true;
+    onClose();
+  };
+
+  // A modal, as the palette is: focus that lands outside the dialog goes back to its name field.
+  useEffect(() => {
+    const onFocusIn = (e: FocusEvent) => {
+      if (!closing.current && (!(e.target instanceof Node) || !dialogRef.current?.contains(e.target))) {
+        nameRef.current?.focus();
+      }
+    };
+    document.addEventListener('focusin', onFocusIn);
+    return () => document.removeEventListener('focusin', onFocusIn);
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -47,7 +65,7 @@ export function SaveDialog({ tab, onClose }: { tab: Tab; onClose: () => void }) 
       (done) => {
         setBusy(false);
         if (done !== false) {
-          onClose();
+          close();
         }
       },
       (e: unknown) => {
@@ -61,8 +79,9 @@ export function SaveDialog({ tab, onClose }: { tab: Tab; onClose: () => void }) 
 
   return (
     <div className="fixed inset-0 z-20">
-      <div className="scrim" onClick={onClose} />
+      <div className="scrim" onClick={close} />
       <form
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={`${id}-title`}
@@ -70,7 +89,7 @@ export function SaveDialog({ tab, onClose }: { tab: Tab; onClose: () => void }) 
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
             e.preventDefault();
-            onClose();
+            close();
           }
         }}
         onSubmit={(e) => {
@@ -85,7 +104,13 @@ export function SaveDialog({ tab, onClose }: { tab: Tab; onClose: () => void }) 
         </b>
         <div className="field">
           <label htmlFor={`${id}-name`}>Name</label>
-          <input id={`${id}-name`} className="textbox" autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+          <input
+            ref={nameRef}
+            id={`${id}-name`}
+            className="textbox"
+            maxLength={MAX_NAME_LENGTH}
+            autoFocus
+            value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <div className="field">
           <label htmlFor={`${id}-folder`}>Folder</label>
@@ -93,6 +118,7 @@ export function SaveDialog({ tab, onClose }: { tab: Tab; onClose: () => void }) 
             id={`${id}-folder`}
             className="textbox"
             list={`${id}-folders`}
+            maxLength={MAX_FOLDER_LENGTH}
             placeholder="No folder"
             value={folder}
             onChange={(e) => setFolder(e.target.value)}
@@ -109,7 +135,7 @@ export function SaveDialog({ tab, onClose }: { tab: Tab; onClose: () => void }) 
           </span>
         )}
         <div className="flex justify-end gap-2">
-          <button type="button" className="btn ghost" onClick={onClose}>
+          <button type="button" className="btn ghost" onClick={close}>
             Cancel
           </button>
           <button type="button" className="btn" disabled={busy || !trimmed} onClick={() => attempt(() => saveToFile(tab.id, { name: trimmed }))}>

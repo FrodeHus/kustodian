@@ -60,7 +60,7 @@ beforeEach(() => {
 
 describe('SnippetPanel', () => {
   it('snippet_click_inserts_at_cursor', async () => {
-    const onInsert = vi.fn();
+    const onInsert = vi.fn(() => true);
     render(<SnippetPanel onInsert={onInsert} />);
 
     expect(await screen.findByRole('heading', { name: 'Built in · Identity checks' })).toBeTruthy();
@@ -73,8 +73,17 @@ describe('SnippetPanel', () => {
     expect(useTabs.getState().tabs[0]?.parameters).toEqual(builtIn.parameters);
   });
 
+  it('snippet_click_before_the_editor_is_ready_changes_nothing', async () => {
+    render(<SnippetPanel onInsert={() => false} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Expired app credentials' }));
+
+    expect(screen.getByRole('alert').textContent).toBe('The editor isn’t ready yet. Try again in a moment.');
+    expect(useTabs.getState().tabs).toHaveLength(1);
+    expect(useTabs.getState().tabs[0]?.parameters).toEqual([]);
+  });
+
   it('snippet_open_in_new_tab_uses_its_parameters', async () => {
-    render(<SnippetPanel onInsert={() => undefined} />);
+    render(<SnippetPanel onInsert={() => true} />);
     fireEvent.click(await screen.findByRole('button', { name: 'More for Expired app credentials' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Open in new tab' }));
 
@@ -84,7 +93,7 @@ describe('SnippetPanel', () => {
   });
 
   it('snippet_search_filters', async () => {
-    render(<SnippetPanel onInsert={() => undefined} />);
+    render(<SnippetPanel onInsert={() => true} />);
     await screen.findByRole('button', { name: 'Owners of an app' });
     fireEvent.change(screen.getByRole('searchbox', { name: 'Find a snippet' }), { target: { value: 'owner' } });
     expect(screen.queryByRole('button', { name: 'Expired app credentials' })).toBeNull();
@@ -95,7 +104,7 @@ describe('SnippetPanel', () => {
     const id = useTabs.getState().activeId!;
     useTabs.getState().setText(id, 'users | where id == {userId}');
     useTabs.getState().setParameters(id, [{ name: 'userId', type: 'text', value: 'abc', required: true, choices: null }]);
-    render(<SnippetPanel onInsert={() => undefined} />);
+    render(<SnippetPanel onInsert={() => true} />);
     const save = await screen.findByRole('button', { name: 'Save the selection as a snippet' });
     expect(save).toHaveProperty('disabled', true);
 
@@ -123,7 +132,7 @@ describe('SnippetPanel', () => {
   });
 
   it('snippet_delete_of_mine_asks_first', async () => {
-    render(<SnippetPanel onInsert={() => undefined} />);
+    render(<SnippetPanel onInsert={() => true} />);
     fireEvent.click(await screen.findByRole('button', { name: 'More for Owners of an app' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
     fireEvent.click(within(screen.getByRole('group', { name: 'Delete “Owners of an app”?' })).getByRole('button', { name: 'Delete' }));

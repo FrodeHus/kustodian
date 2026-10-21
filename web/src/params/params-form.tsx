@@ -1,11 +1,10 @@
 import { useId, useState } from 'react';
 import { call } from '../bridge';
 import { findSaved, useRevisions } from '../library/saving';
+import { errorText } from '../shell/errors';
 import { useTabs, type Tab } from '../tabs/tab-store';
 import type { ParameterDef, SavedQuery } from '../wire';
 import { PARAMETER_TYPES, findParams, mergeParameters, previewText } from './find-params';
-
-const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** Choices as kept: each line trimmed, blank ones dropped; null when there are none. */
 const cleanChoices = (choices: string[] | null | undefined) => {
@@ -90,6 +89,7 @@ export function ParamsForm({ tab, query, onRun }: { tab: Tab; query: string; onR
   const [status, setStatus] = useState<{ text: string; bad: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const previewId = useId();
+  const hintId = useId();
   const defs = mergeParameters(findParams(tab.text), tab.parameters);
 
   const change = (name: string, patch: Partial<ParameterDef>) => {
@@ -136,7 +136,7 @@ export function ParamsForm({ tab, query, onRun }: { tab: Tab; query: string; onR
           type="button"
           className="btn ghost"
           disabled={!tab.savedId || busy}
-          title={tab.savedId ? undefined : 'Save the query to the library first.'}
+          aria-describedby={tab.savedId ? undefined : hintId}
           onClick={() => {
             setBusy(true);
             remember().then(
@@ -153,6 +153,11 @@ export function ParamsForm({ tab, query, onRun }: { tab: Tab; query: string; onR
         >
           Remember as defaults for this query
         </button>
+        {!tab.savedId && (
+          <span id={hintId} className="faint text-[12px]">
+            Save the query to the library first to keep defaults with it.
+          </span>
+        )}
         {status && (
           <span role={status.bad ? 'alert' : 'status'} className={`text-[12px] ${status.bad ? 'text-bad' : 'text-ok'}`}>
             {status.text}

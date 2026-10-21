@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { BridgeError, call, on } from '../bridge';
 import { blockAt } from '../editor/block-at';
+import { findParams, mergeParameters } from '../params/find-params';
 import { newId } from '../shell/ids';
 import type { ParameterDef, ParameterValue, RunProgress, RunResult, Session, Source } from '../wire';
 
@@ -86,8 +87,11 @@ interface TabsState {
   /** Replaces the open tabs with a saved session's, unsaved text included. */
   restore(session: Session): void;
   setTitle(id: string, title: string): void;
-  /** The tab was saved (to the library, a file, or both): it takes the new name and is no longer dirty. */
-  markSaved(id: string, saved: { savedId?: string; filePath?: string; title: string }): void;
+  /**
+   * The tab was saved to the library or to a file: it takes the new name, and where it was saved is where the next Save goes
+   * (`null` forgets the other place). It is no longer dirty unless its text changed after `text`, the text that was saved.
+   */
+  markSaved(id: string, saved: { savedId?: string | null; filePath?: string | null; title: string; text: string }): void;
   setParameters(id: string, parameters: ParameterDef[]): void;
   /** Keeps the tab's current result to compare with. */
   pin(id: string): void;
@@ -167,8 +171,13 @@ export const useTabs = create<TabsState>()((set, get) => {
       update(id, () => ({ title }));
     },
 
-    markSaved(id, { savedId, filePath, title }) {
-      update(id, (t) => ({ title, dirty: false, savedId: savedId ?? t.savedId, filePath: filePath ?? t.filePath }));
+    markSaved(id, { savedId, filePath, title, text }) {
+      update(id, (t) => ({
+        title,
+        dirty: t.text !== text,
+        savedId: savedId === null ? undefined : (savedId ?? t.savedId),
+        filePath: filePath === null ? undefined : (filePath ?? t.filePath),
+      }));
     },
 
     setParameters(id, parameters) {
@@ -241,7 +250,13 @@ export const useTabs = create<TabsState>()((set, get) => {
       // Ruling 19: the page names the run, so progress for an older run of this tab can be told apart from the first event.
       const runId = newId();
       update(id, () => ({ run: { state: 'running', runId, startedAt, origin } }));
-      const parameters: ParameterValue[] = tab.parameters.map(({ name, type, value, required }) => ({ name, type, value, required }));
+      // Every placeholder in the tab, as the parameters form shows it: the tab's definition, or an optional text one.
+      const parameters: ParameterValue[] = mergeParameters(findParams(tab.text), tab.parameters).map(({ name, type, value, required }) => ({
+        name,
+        type,
+        value,
+        required,
+      }));
 
       let run: TabRun;
       try {

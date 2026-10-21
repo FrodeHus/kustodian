@@ -78,6 +78,21 @@ describe('SaveDialog', () => {
     expect(tab()).toMatchObject({ title: 'stale.kql', filePath: '/tmp/stale.kql', dirty: false });
   });
 
+  it('save_dialog_keeps_focus_inside_it', async () => {
+    render(
+      <>
+        <button type="button">Behind</button>
+        <SaveDialog tab={tab()} onClose={() => undefined} />
+      </>,
+    );
+    const name = screen.getByRole('textbox', { name: 'Name' });
+    await waitFor(() => expect(document.activeElement).toBe(name));
+
+    screen.getByRole('button', { name: 'Behind' }).focus();
+
+    expect(document.activeElement).toBe(name);
+  });
+
   it('save_dialog_shows_why_the_host_refused', async () => {
     bridge.call.mockImplementation((method: string) =>
       method === 'library.save'

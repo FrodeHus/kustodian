@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { call } from '../bridge';
+import { errorText } from '../shell/errors';
 import { useTabs } from '../tabs/tab-store';
 import type { RecentRun } from '../wire';
-
-const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 const OUTCOMES: Record<string, string> = {
   ok: 'OK',

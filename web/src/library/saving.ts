@@ -6,6 +6,10 @@ import type { FileFilter, LibraryList, OpenedFile, SavedFile, SavedQuery } from 
 /** The filter for every `.kql` dialog. */
 export const KQL_FILTERS: FileFilter[] = [{ name: 'KQL', extensions: ['kql'] }];
 
+/** The longest name and folder the library takes (the host's `LibraryService` limits). */
+export const MAX_NAME_LENGTH = 200;
+export const MAX_FOLDER_LENGTH = 80;
+
 /** Files over this size aren't opened (the host's limit for `file.open`). */
 export const MAX_OPEN_BYTES = 5 * 1024 * 1024;
 
@@ -31,10 +35,12 @@ export async function saveToLibrary(tabId: string, name: string, folder: string 
   if (!tab) {
     throw new Error('The tab is no longer open.');
   }
+  const text = tab.text;
   const saved = await call<SavedQuery>('library.save', {
-    query: { id: asNew ? null : (tab.savedId ?? null), name, folder, source: tab.source, text: tab.text, parameters: tab.parameters },
+    query: { id: asNew ? null : (tab.savedId ?? null), name, folder, source: tab.source, text, parameters: tab.parameters },
   });
-  useTabs.getState().markSaved(tabId, { savedId: saved.id, title: saved.name });
+  // The next Save goes to the library, not to a file the tab came from.
+  useTabs.getState().markSaved(tabId, { savedId: saved.id, filePath: null, title: saved.name, text });
   useRevisions.getState().bump('library');
   return saved;
 }
@@ -42,7 +48,8 @@ export async function saveToLibrary(tabId: string, name: string, folder: string 
 const withExtension = (name: string) => (/\.kql$/i.test(name) ? name : `${name}.kql`);
 
 /**
- * Writes the tab to a `.kql` file; resolves whether it was written (false: the dialog was cancelled). With `toItsFile` the
+ * Writes the tab to a `.kql` file; resolves whether it was written (false: the dialog was cancelled). The tab then saves to
+ * that file, and no longer to the library. With `toItsFile` the
  * tab's own file is offered to the host, which writes it without a dialog when the user chose that file earlier.
  */
 export async function saveToFile(tabId: string, opts: { name?: string; toItsFile?: boolean } = {}): Promise<boolean> {
@@ -50,7 +57,8 @@ export async function saveToFile(tabId: string, opts: { name?: string; toItsFile
   if (!tab) {
     throw new Error('The tab is no longer open.');
   }
-  const params: Record<string, unknown> = { suggestedName: withExtension(opts.name ?? tab.title), filters: KQL_FILTERS, content: tab.text };
+  const text = tab.text;
+  const params: Record<string, unknown> = { suggestedName: withExtension(opts.name ?? tab.title), filters: KQL_FILTERS, content: text };
   if (opts.toItsFile && tab.filePath) {
     params.path = tab.filePath;
   }
@@ -58,7 +66,8 @@ export async function saveToFile(tabId: string, opts: { name?: string; toItsFile
   if (!file) {
     return false;
   }
-  useTabs.getState().markSaved(tabId, { filePath: file.path, title: file.name });
+  // The next Save writes this file, not the library query the tab came from.
+  useTabs.getState().markSaved(tabId, { filePath: file.path, savedId: null, title: file.name, text });
   return true;
 }
 

@@ -1,4 +1,5 @@
 import { call } from '../bridge';
+import { errorText } from '../shell/errors';
 import { useTabs } from '../tabs/tab-store';
 import type { Session, SessionAnswer } from '../wire';
 
@@ -10,8 +11,6 @@ export const RETRY_MS = 5000;
 export const READ_RETRIES = 3;
 
 export const UNREADABLE_MESSAGE = 'Couldn’t read your last session; changes won’t be saved until it can be read.';
-
-const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** What `session.json` keeps of the open tabs: never runs or results. */
 function snapshot(): Session {

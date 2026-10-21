@@ -145,16 +145,28 @@ describe('tab store', () => {
     expect(useTabs.getState().activeId).toBe('c');
   });
 
-  it('markSaved_clears_dirty', () => {
+  it('markSaved_clears_dirty_and_the_next_save_goes_where_it_last_saved', () => {
     const id = useTabs.getState().open('graph');
     useTabs.getState().setText(id, 'users');
     expect(useTabs.getState().tabs[0]?.dirty).toBe(true);
 
-    useTabs.getState().markSaved(id, { savedId: 's9', title: 'All users' });
+    useTabs.getState().markSaved(id, { savedId: 's9', filePath: null, title: 'All users', text: 'users' });
 
     expect(useTabs.getState().tabs[0]).toMatchObject({ dirty: false, savedId: 's9', title: 'All users', filePath: undefined });
-    useTabs.getState().markSaved(id, { filePath: '/u.kql', title: 'u.kql' });
-    expect(useTabs.getState().tabs[0]).toMatchObject({ savedId: 's9', filePath: '/u.kql', title: 'u.kql' });
+    // Saved to a file: the library query is no longer where Save goes.
+    useTabs.getState().markSaved(id, { filePath: '/u.kql', savedId: null, title: 'u.kql', text: 'users' });
+    expect(useTabs.getState().tabs[0]).toMatchObject({ savedId: undefined, filePath: '/u.kql', title: 'u.kql' });
+  });
+
+  it('markSaved_keeps_a_tab_dirty_that_changed_while_it_was_saved', () => {
+    const id = useTabs.getState().open('graph');
+    useTabs.getState().setText(id, 'users');
+    // Typed while the save was out.
+    useTabs.getState().setText(id, 'users | take 1');
+
+    useTabs.getState().markSaved(id, { savedId: 's9', title: 'All users', text: 'users' });
+
+    expect(useTabs.getState().tabs[0]).toMatchObject({ dirty: true, savedId: 's9', title: 'All users' });
   });
 
   it('stale_progress_from_superseded_run_is_ignored', async () => {
@@ -197,6 +209,30 @@ describe('tab store', () => {
         parameters: [{ name: 'days', type: 'timespan', value: '7d', required: true }],
         runId: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
       },
+      expect.any(AbortSignal),
+    );
+  });
+
+  it('run_sends_a_placeholder_without_a_definition_as_optional_text', async () => {
+    bridge.call.mockResolvedValue(ok);
+    const id = useTabs.getState().open('graph');
+    useTabs.getState().setText(id, 'print {x}, {days}, "{inString}"');
+    useTabs.getState().setParameters(id, [
+      { name: 'days', type: 'timespan', value: '7d', required: true, choices: null },
+      { name: 'gone', type: 'text', value: 'old', required: false, choices: null },
+    ]);
+
+    await useTabs.getState().run(id, 'all');
+
+    // The same definitions the parameters form previews: every placeholder, in order, and nothing else.
+    expect(bridge.call).toHaveBeenCalledWith(
+      'query.run',
+      expect.objectContaining({
+        parameters: [
+          { name: 'x', type: 'text', value: '', required: false },
+          { name: 'days', type: 'timespan', value: '7d', required: true },
+        ],
+      }),
       expect.any(AbortSignal),
     );
   });

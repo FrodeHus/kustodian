@@ -130,8 +130,8 @@ const complete = (kql: string, position: number, signal: AbortSignal) =>
 export interface KqlEditorHandle {
   format(): void;
   focus(): void;
-  /** Puts text where the cursor is, replacing the selection. */
-  insert(text: string): void;
+  /** Puts text where the cursor is, replacing the selection; false when the editor isn't ready and nothing was inserted. */
+  insert(text: string): boolean;
 }
 
 interface KqlEditorProps {
@@ -179,6 +179,8 @@ export default function KqlEditor({ schema, onRun, ref }: KqlEditorProps) {
       renderLineHighlight: 'line',
       fixedOverflowWidgets: true,
       'semanticHighlighting.enabled': true,
+      // A file dropped on the window opens in a tab of its own (app.tsx); the editor must not also paste it in.
+      dropIntoEditor: { enabled: false },
     });
     editorRef.current = editor;
     const allModels = models.current;
@@ -310,10 +312,11 @@ export default function KqlEditor({ schema, onRun, ref }: KqlEditorProps) {
         const editor = editorRef.current;
         const selection = editor?.getSelection();
         if (!editor || !selection) {
-          return;
+          return false;
         }
         editor.executeEdits('schema-panel', [{ range: selection, text, forceMoveMarkers: true }]);
         editor.focus();
+        return true;
       },
     }),
     [],

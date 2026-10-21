@@ -10,6 +10,7 @@ import { ResultGrid } from './results/result-grid';
 import { RunStatus } from './results/run-status';
 import { startSessionSync } from './session/session-sync';
 import { bindGlobalKeys, registerCommands, type Command } from './shell/commands';
+import { errorText } from './shell/errors';
 import { MOD } from './shell/keys';
 import { Palette } from './shell/palette';
 import { chooseTheme, useTheme, type Theme } from './shell/theme';
@@ -44,8 +45,6 @@ function formatDate(iso: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
-
-const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 const activeTab = (): Tab | undefined => {
   const { tabs, activeId } = useTabs.getState();
@@ -276,7 +275,7 @@ export function App() {
         <TabStrip />
         <div className="panes">
           <Rail panel={panel} onChoose={setPanel} />
-          <SidePanel panel={panel} schema={schema} text={active?.text ?? ''} onInsert={(text) => editor.current?.insert(text)} />
+          <SidePanel panel={panel} schema={schema} text={active?.text ?? ''} onInsert={(text) => editor.current?.insert(text) ?? false} />
           <main className="workspace">
             {active ? (
               <>

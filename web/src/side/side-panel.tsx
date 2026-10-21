@@ -23,8 +23,8 @@ interface SidePanelProps {
   schema: SchemaView | null;
   /** The active tab's query, for the schema's "In this query". */
   text: string;
-  /** Puts text at the editor's cursor. */
-  onInsert: (text: string) => void;
+  /** Puts text at the editor's cursor; false when the editor isn't ready. */
+  onInsert: (text: string) => boolean;
 }
 
 /** The side panel the rail chose. */
