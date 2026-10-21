@@ -177,6 +177,7 @@ export function createMockTransport(): Transport {
     limitsAppliedAt: 'startup',
     restartNeeded: JSON.stringify(settings.limits) !== JSON.stringify(defaultSettings.limits),
     corrupt: false,
+    unreadable: false,
   });
 
   const saved = new Map<string, SavedQuery>();

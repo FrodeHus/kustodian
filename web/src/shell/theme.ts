@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { call } from '../bridge';
-import type { SettingsAnswer, Theme } from '../wire';
+import { writeSettings } from '../settings/settings-writes';
+import type { Theme } from '../wire';
 
 export type { Theme } from '../wire';
 
@@ -36,10 +36,9 @@ export function initialTheme(search: string): Theme {
   return theme === 'light' || theme === 'system' ? theme : 'dark';
 }
 
-/** Applies a theme and keeps it in the settings, leaving the other settings as they are. */
+/** Applies a theme and keeps it in the settings, leaving the other settings as they are: the write waits for any other write
+ * of the settings that is out (`writeSettings`), so neither undoes the other. */
 export async function chooseTheme(theme: Theme): Promise<void> {
   applyTheme(theme);
-  // `settings.set` fills what it isn't sent with defaults, so it gets the stored settings with only the theme changed.
-  const { settings } = await call<SettingsAnswer>('settings.get');
-  await call<SettingsAnswer>('settings.set', { settings: { ...settings, theme } });
+  await writeSettings((settings) => ({ ...settings, theme }));
 }

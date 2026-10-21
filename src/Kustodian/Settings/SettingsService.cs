@@ -33,7 +33,9 @@ public sealed class SettingsRejectedException(string message) : Exception(messag
 /// <summary>
 /// Owns <c>settings.json</c>: reads it (the defaults when it is missing; a corrupt or invalid file is moved aside, the defaults
 /// are used and a warning is logged) and writes it after checking every value is in range. <see cref="MovedAside"/> says a read
-/// found the file corrupt; it stays true for the rest of the session, so the UI can say the defaults are in use.
+/// found the file corrupt; it stays true for the rest of the session, so the UI can say the defaults are in use. A file that
+/// can't be opened or moved aside at all (an I/O error, no permission) reads as the defaults too, never an error, so the app
+/// still starts; <see cref="Unreadable"/> says so for the rest of the session.
 /// </summary>
 public sealed class SettingsService(JsonFileStore store, ILogger<SettingsService>? logger = null)
 {
@@ -60,14 +62,30 @@ public sealed class SettingsService(JsonFileStore store, ILogger<SettingsService
     private readonly UserDataFile<AppSettings> _file = new(store, FileName, () => AppSettings.Default, s => Problem(s) is null);
     private readonly ILogger<SettingsService> _log = logger ?? NullLogger<SettingsService>.Instance;
     private volatile bool _movedAside;
+    private volatile bool _unreadable;
 
     /// <summary>Whether a read this session found <c>settings.json</c> corrupt and moved it aside. The app reads the settings
     /// first at startup, so this is true from then on when the file it started with was corrupt.</summary>
     public bool MovedAside => _movedAside;
 
+    /// <summary>Whether a read this session couldn't open <c>settings.json</c>, or couldn't move a corrupt one aside, so the
+    /// defaults were used.</summary>
+    public bool Unreadable => _unreadable;
+
     public async Task<AppSettings> GetAsync(CancellationToken ct = default)
     {
-        var read = await _file.ReadAsync(ct);
+        UserDataRead<AppSettings> read;
+        try
+        {
+            read = await _file.ReadAsync(ct);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _unreadable = true;
+            _log.LogWarning("{File} could not be read ({Error}); the default settings are used", FileName, ex.GetType().Name);
+            return AppSettings.Default;
+        }
+
         if (read.Corrupt)
         {
             _movedAside = true;

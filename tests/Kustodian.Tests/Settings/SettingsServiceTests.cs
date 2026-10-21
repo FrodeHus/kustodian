@@ -151,7 +151,7 @@ public sealed class SettingsServiceTests : IDisposable
             AppSettings.Default with { Limits = LimitSettings.Default with { EngineWorkers = 4 } }))).GetProperty("result");
         var got = Parse(await bridge.HandleAsync("""{"id":"c","method":"settings.get","params":{}}""")).GetProperty("result");
 
-        Assert.Equal(["settings", "limitsAppliedAt", "restartNeeded", "corrupt"], unchanged.EnumerateObject().Select(p => p.Name));
+        Assert.Equal(["settings", "limitsAppliedAt", "restartNeeded", "corrupt", "unreadable"], unchanged.EnumerateObject().Select(p => p.Name));
         Assert.False(unchanged.GetProperty("corrupt").GetBoolean());
         Assert.False(got.GetProperty("corrupt").GetBoolean());
         Assert.Equal("system", unchanged.GetProperty("settings").GetProperty("theme").GetString());
@@ -181,6 +181,32 @@ public sealed class SettingsServiceTests : IDisposable
         Assert.True(set.GetProperty("corrupt").GetBoolean());
         Assert.Equal("light", after.GetProperty("settings").GetProperty("theme").GetString());
         Assert.True(after.GetProperty("corrupt").GetBoolean());
+    }
+
+    [Fact]
+    public async Task A_settings_file_that_cant_be_opened_starts_with_the_defaults_and_says_so()
+    {
+        Directory.CreateDirectory(_dir);
+        await File.WriteAllTextAsync(SettingsPath, """{"version":1,"theme":"light"}""", Ct);
+        var service = NewService();
+        AppSettings startup;
+        // Held open exclusively: opening it to read fails with an IOException, on every platform .NET locks files on.
+        await using (new FileStream(SettingsPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+            startup = await service.GetAsync(Ct);
+        }
+
+        var bridge = new Messaging.Bridge(_ => { });
+        new SettingsHandler(service, startup.Limits).Register(bridge);
+        var got = Parse(await bridge.HandleAsync("""{"id":"a","method":"settings.get","params":{}}""")).GetProperty("result");
+
+        Assert.Equal(AppSettings.Default, startup);
+        Assert.True(service.Unreadable);
+        Assert.False(service.MovedAside);
+        Assert.True(got.GetProperty("unreadable").GetBoolean());
+        Assert.False(got.GetProperty("corrupt").GetBoolean());
+        // Once it can be read again it is: nothing was moved aside or overwritten.
+        Assert.Equal("light", got.GetProperty("settings").GetProperty("theme").GetString());
     }
 
     [Fact]

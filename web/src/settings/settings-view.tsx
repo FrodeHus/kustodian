@@ -1,9 +1,10 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BridgeError, call } from '../bridge';
 import { RAW_VERSIONS } from '../raw/raw-request';
 import { errorText } from '../shell/errors';
 import { chooseTheme } from '../shell/theme';
 import type { AppSettings, SettingsAnswer, Theme } from '../wire';
+import { writeSettings } from './settings-writes';
 
 /**
  * The limits as the settings screen shows them, with the ranges the host allows. The host (`SettingsService`) checks them and
@@ -76,6 +77,10 @@ export function SettingsView({ onClose, onChange }: SettingsViewProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<{ tone: 'ok' | 'bad'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const back = useRef<HTMLButtonElement>(null);
+
+  // The view takes focus as it opens, so Esc closes it straight away.
+  useEffect(() => back.current?.focus(), []);
 
   useEffect(() => {
     call<SettingsAnswer>('settings.get').then(
@@ -119,8 +124,7 @@ export function SettingsView({ onClose, onChange }: SettingsViewProps) {
     if (Object.keys(wrong).length > 0) {
       return;
     }
-    const settings: AppSettings = {
-      ...stored.settings,
+    const edited: Omit<AppSettings, 'version'> = {
       theme,
       rawDefaultVersion: draft.rawDefaultVersion,
       signIn: { clientId: draft.clientId.trim() || null, tenant: draft.tenant.trim() || null },
@@ -128,7 +132,8 @@ export function SettingsView({ onClose, onChange }: SettingsViewProps) {
     };
     setBusy(true);
     try {
-      const answer = await call<SettingsAnswer>('settings.set', { settings });
+      // After any theme write that is out, and over what it stored.
+      const answer = await writeSettings((current) => ({ ...current, ...edited, limits: { ...current.limits, ...limits } }));
       setStored(answer);
       setDraft(draftOf(answer.settings));
       setStatus({ tone: 'ok', text: 'Settings saved.' });
@@ -164,7 +169,7 @@ export function SettingsView({ onClose, onChange }: SettingsViewProps) {
       }}
     >
       <div>
-        <button type="button" className="btn ghost" onClick={onClose}>
+        <button ref={back} type="button" className="btn ghost" onClick={onClose}>
           ← Back to queries
         </button>
       </div>
@@ -177,6 +182,11 @@ export function SettingsView({ onClose, onChange }: SettingsViewProps) {
       {stored?.corrupt && (
         <div className="card border-warn p-4 text-[12px] text-warn" role="note">
           The settings file couldn’t be read, so it was set aside and the defaults are in use. Saving writes a new one.
+        </div>
+      )}
+      {stored?.unreadable && !stored.corrupt && (
+        <div className="card border-warn p-4 text-[12px] text-warn" role="note">
+          The settings file couldn’t be read, so the defaults are in use. Saving writes over it.
         </div>
       )}
       {stored && draft && (

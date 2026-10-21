@@ -72,7 +72,7 @@ describe('theme', () => {
   it('choosing_a_theme_applies_it_and_keeps_the_other_settings', async () => {
     const settings = { version: 1, theme: 'dark', rawDefaultVersion: 'v1.0', signIn: { clientId: 'c', tenant: 't' }, limits: { fetchBudgetMb: 64 } };
     bridge.call.mockImplementation((method: string, params?: { settings: unknown }) =>
-      Promise.resolve({ settings: method === 'settings.set' ? params?.settings : settings, restartNeeded: false, corrupt: false }),
+      Promise.resolve({ settings: method === 'settings.set' ? params?.settings : settings, restartNeeded: false, corrupt: false, unreadable: false }),
     );
 
     await chooseTheme('light');

@@ -231,11 +231,13 @@ export interface AppSettings {
   limits: Record<string, number>;
 }
 
-/** `settings.get`'s and `settings.set`'s answer. */
+/** `settings.get`'s and `settings.set`'s answer. `corrupt`: the settings file was set aside as corrupt this session;
+ * `unreadable`: it couldn't be read (or set aside) at all. Either way the defaults are in use. */
 export interface SettingsAnswer {
   settings: AppSettings;
   restartNeeded: boolean;
   corrupt: boolean;
+  unreadable: boolean;
 }
 
 /** One run as `recent.list` keeps it (newest first): no rows. `outcome` is a {@link RunOutcome}, or another the host added. */
