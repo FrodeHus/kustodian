@@ -1,4 +1,5 @@
 using Kustodian.Auth;
+using Kustodian.Auth.EntraApp;
 using Kustodian.Files;
 using Kustodian.Graph.Engine;
 using Kustodian.Graph.Fetch;
@@ -113,6 +114,7 @@ public sealed class AppServices : IAsyncDisposable
         new AccountHandler(_accounts, _tokenCache, Objects, Probes, _huntingSchema, _armDirectory).Register(bridge);
         new RawHandler(new RawRequestService(_http, _time), ActiveAccountAsync).Register(bridge);
         new ArmHandler(_armDirectory, ActiveAccountAsync).Register(bridge);
+        new EntraAppHandler(new EntraAppClient(_http, _time), ActiveAccountInfoAsync, new SystemBrowser()).Register(bridge);
     }
 
     /// <summary>The query sources by the name <c>query.run</c> gives them.</summary>
@@ -145,5 +147,12 @@ public sealed class AppServices : IAsyncDisposable
         }
 
         return _accounts.ActiveAccountKey;
+    }
+
+    /// <summary>The active account with its details (client, expiry, scopes), or null when nobody is signed in.</summary>
+    private async Task<AccountInfo?> ActiveAccountInfoAsync()
+    {
+        var accounts = await _accounts.ListAccountsAsync();
+        return accounts.FirstOrDefault(a => a.Active);
     }
 }
