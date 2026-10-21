@@ -49,6 +49,25 @@ const runResult = {
   droppedValues: 0,
 };
 
+const explainView = {
+  error: null,
+  refusal: null,
+  tables: [
+    {
+      table: 'applications',
+      url: "applications?$select=displayName%2CappId%2CcreatedDateTime%2Cid&$filter=displayName%20eq%20'Payroll'&$top=999",
+      select: ['displayName', 'appId', 'createdDateTime', 'id'],
+      filter: "displayName eq 'Payroll'",
+      pushed: ["displayName == 'Payroll'"],
+      local: [{ condition: "appId has 'abc'", reason: "Graph doesn't allow this operator on appId" }],
+      perObject: [],
+      permissions: ['Application.Read.All'],
+      docsUrl: 'https://learn.microsoft.com/graph/api/resources/application?view=graph-rest-beta',
+    },
+  ],
+  limits: { objectsPerTable: 50000, fetchBudgetMb: 512, perObjectReadsPerTable: 2000 },
+};
+
 const defaultSettings = {
   version: 1,
   theme: 'dark',
@@ -236,6 +255,9 @@ export function createMockTransport(): Transport {
         break;
       case 'query.complete':
         reply(id, []);
+        break;
+      case 'query.explain':
+        reply(id, explainView);
         break;
       case 'query.run': {
         const tabId = params?.tabId ?? '';

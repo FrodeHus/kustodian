@@ -14,19 +14,21 @@ namespace Kustodian.Messaging.Handlers;
 public delegate Task<RunResult> GraphRun(string accountKey, string kql, IReadOnlyList<ParameterValue> parameters, bool refresh,
     IProgress<RunEvent>? progress, CancellationToken ct);
 
-/// <summary><c>query.complete</c>, <c>query.run</c> and <c>query.cancel</c>. Each tab has at most one run: a new run on a tab
-/// cancels the one before, and <c>query.cancel</c> cancels it. A cancelled run answers with the error code
-/// <c>cancelled</c>. Every run that finishes is added to <paramref name="recent"/> (when given); a cancelled run is not, and
-/// a failure to write Recent is logged and never fails the run. A run's <c>parameters</c> are a list of
-/// <see cref="ParameterValue"/>; fields missing from (or null in) one take their defaults.</summary>
+/// <summary><c>query.complete</c>, <c>query.explain</c>, <c>query.run</c> and <c>query.cancel</c>. Each tab has at most one
+/// run: a new run on a tab cancels the one before, and <c>query.cancel</c> cancels it. A cancelled run answers with the error
+/// code <c>cancelled</c>. Every run that finishes is added to <paramref name="recent"/> (when given); a cancelled run is not,
+/// and a failure to write Recent is logged and never fails the run. A run's (and an explain's) <c>parameters</c> are a list of
+/// <see cref="ParameterValue"/>; fields missing from (or null in) one take their defaults. <c>query.explain</c> describes what
+/// a run would send, within <paramref name="limits"/> (<see cref="GraphExplain"/>): it needs no account and sends nothing.</summary>
 public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeAccount, GraphRun run, RecentService? recent = null,
-    TimeProvider? time = null, ILogger<QueryHandler>? logger = null)
+    TimeProvider? time = null, ILogger<QueryHandler>? logger = null, GraphLimits? limits = null)
 {
     private const string GraphSource = "graph";
     private static readonly ParameterValue DefaultParameter = new("", "text", "", false);
 
     private readonly TimeProvider _time = time ?? TimeProvider.System;
     private readonly ILogger<QueryHandler> _log = logger ?? NullLogger<QueryHandler>.Instance;
+    private readonly GraphLimits _limits = limits ?? GraphLimits.Default;
     private readonly Lock _gate = new();
     private readonly Dictionary<string, CancellationTokenSource> _runs = new(StringComparer.Ordinal);
 
@@ -38,7 +40,13 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
             var request = BridgeJson.Params<CompleteParams>(p);
             return Task.Run<object?>(() => Complete(request));
         });
-        bridge.Register("query.run", async (p, ct) => await RunAsync(bridge, ReadRun(p), ct));
+        // Explain plans the query as a run does (CPU work, off the dispatching thread) and stops there.
+        bridge.Register("query.explain", (p, _) =>
+        {
+            var request = ReadWithParameters<ExplainParams>(p);
+            return Task.Run<object?>(() => Explain(request));
+        });
+        bridge.Register("query.run", async (p, ct) => await RunAsync(bridge, ReadWithParameters<RunParams>(p), ct));
         bridge.Register("query.cancel", (p, _) =>
         {
             Cancel(BridgeJson.Params<CancelParams>(p));
@@ -55,6 +63,17 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
         }
 
         return GraphCompletion.Complete(schema, p.Kql, p.Position);
+    }
+
+    private ExplainView Explain(ExplainParams p)
+    {
+        RequireGraph(p.Source);
+        if (p.Kql is null)
+        {
+            throw new BridgeException(BridgeErrorCodes.BadRequest, "Explain needs kql.");
+        }
+
+        return GraphExplain.Explain(schema, p.Kql, p.Parameters ?? [], _time.GetUtcNow(), _limits);
     }
 
     private async Task<RunResult> RunAsync(Bridge bridge, RunParams p, CancellationToken closing)
@@ -131,24 +150,25 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
         }
     }
 
-    /// <summary>A <c>query.run</c>'s params, each parameter's missing fields taken from <see cref="DefaultParameter"/>. A
-    /// parameter that isn't an object is a <c>bad_request</c>.</summary>
-    private static RunParams ReadRun(JsonElement p)
+    /// <summary>A <c>query.run</c>'s or <c>query.explain</c>'s params, each parameter's missing fields taken from
+    /// <see cref="DefaultParameter"/>. A parameter that isn't an object is a <c>bad_request</c>.</summary>
+    private static T ReadWithParameters<T>(JsonElement p)
+        where T : class, IHasParameters
     {
         if (p.ValueKind != JsonValueKind.Object)
         {
-            return BridgeJson.Params<RunParams>(p);
+            return BridgeJson.Params<T>(p);
         }
 
         var defaults = JsonSerializer.SerializeToNode(DefaultParameter, BridgeJson.Options)!.AsObject();
-        var filled = JsonDefaults.FillElements(JsonObject.Create(p)!, nameof(RunParams.Parameters), defaults);
-        var run = BridgeJson.Params<RunParams>(JsonSerializer.SerializeToElement(filled, BridgeJson.Options));
-        if (run.Parameters?.Any(parameter => parameter is null) == true)
+        var filled = JsonDefaults.FillElements(JsonObject.Create(p)!, nameof(IHasParameters.Parameters), defaults);
+        var request = BridgeJson.Params<T>(JsonSerializer.SerializeToElement(filled, BridgeJson.Options));
+        if (request.Parameters?.Any(parameter => parameter is null) == true)
         {
             throw new BridgeException(BridgeErrorCodes.BadRequest, "The request's params are not valid.");
         }
 
-        return run;
+        return request;
     }
 
     private void Cancel(CancelParams p)
@@ -203,8 +223,16 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
 
     private sealed record CompleteParams(string? Source, string? Kql, int Position);
 
+    /// <summary>A request that carries query parameters.</summary>
+    private interface IHasParameters
+    {
+        IReadOnlyList<ParameterValue>? Parameters { get; }
+    }
+
     private sealed record RunParams(string? TabId, string? Source, string? Kql, bool Refresh,
-        IReadOnlyList<ParameterValue>? Parameters = null);
+        IReadOnlyList<ParameterValue>? Parameters = null) : IHasParameters;
+
+    private sealed record ExplainParams(string? Source, string? Kql, IReadOnlyList<ParameterValue>? Parameters = null) : IHasParameters;
 
     private sealed record CancelParams(string? TabId);
 }

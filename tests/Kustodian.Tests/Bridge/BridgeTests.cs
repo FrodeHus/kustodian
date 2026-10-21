@@ -303,6 +303,64 @@ public class BridgeTests
     }
 
     [Fact]
+    public async Task Explain_needs_no_account()
+    {
+        var bridge = NewBridge(
+            (_, _, _, _, _, _) => throw new InvalidOperationException("Explain must not run the query."),
+            () => throw new InvalidOperationException("Explain must not look up the account."));
+
+        var reply = Parse(await bridge.HandleAsync(JsonSerializer.Serialize(new
+        {
+            id = "e",
+            method = "query.explain",
+            @params = new
+            {
+                source = "graph",
+                kql = "applications | where displayName == {name} | project displayName",
+                parameters = new[] { new { name = "name", type = "text", value = "Payroll" } },
+            },
+        })));
+
+        var view = reply.GetProperty("result");
+        Assert.Equal(JsonValueKind.Null, view.GetProperty("error").ValueKind);
+        Assert.Equal(JsonValueKind.Null, view.GetProperty("refusal").ValueKind);
+        var table = Assert.Single(view.GetProperty("tables").EnumerateArray().ToList());
+        Assert.Equal(
+            ["table", "url", "select", "filter", "pushed", "local", "perObject", "permissions", "docsUrl"],
+            table.EnumerateObject().Select(p => p.Name));
+        Assert.Equal("applications", table.GetProperty("table").GetString());
+        Assert.Equal("displayName eq 'Payroll'", table.GetProperty("filter").GetString());
+        Assert.StartsWith("applications?$select=", table.GetProperty("url").GetString(), StringComparison.Ordinal);
+        Assert.Equal(GraphLimits.Default.ObjectsPerTable, view.GetProperty("limits").GetProperty("objectsPerTable").GetInt32());
+    }
+
+    [Fact]
+    public async Task Explain_returns_the_error_with_its_position()
+    {
+        var bridge = NewBridge((_, _, _, _, _, _) => Task.FromResult(Ok()));
+
+        var reply = Parse(await bridge.HandleAsync(
+            """{"id":"e","method":"query.explain","params":{"source":"graph","kql":"users\n| where nope == 1"}}"""));
+
+        var error = reply.GetProperty("result").GetProperty("error");
+        Assert.Equal(2, error.GetProperty("line").GetInt32());
+        Assert.Equal(9, error.GetProperty("column").GetInt32());
+    }
+
+    [Theory]
+    [InlineData("""{"source":"hunting","kql":"x"}""")]
+    [InlineData("""{"source":"graph"}""")]
+    [InlineData("""{"source":"graph","kql":"x","parameters":[null]}""")]
+    public async Task Explain_with_a_bad_request_returns_bad_request(string parameters)
+    {
+        var bridge = NewBridge((_, _, _, _, _, _) => Task.FromResult(Ok()));
+
+        var reply = Parse(await bridge.HandleAsync("""{"id":"e","method":"query.explain","params":""" + parameters + "}"));
+
+        Assert.Equal("bad_request", reply.GetProperty("error").GetProperty("code").GetString());
+    }
+
+    [Fact]
     public void Emit_sends_event_envelope()
     {
         var bridge = NewBridge();

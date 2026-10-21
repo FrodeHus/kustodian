@@ -26,6 +26,9 @@ public sealed record GraphFetch(GraphTable Table, IReadOnlyList<string> Select, 
 /// <summary>A parse or bind error at a 1-based line and column.</summary>
 public sealed record GraphQueryError(int Line, int Column, string Message);
 
+/// <summary>A plan and, for each of its fetches in order, how its <c>$filter</c> came about (for Explain).</summary>
+internal sealed record ExplainedPlan(GraphQueryPlan Plan, IReadOnlyList<FilterExplanation> Filters);
+
 /// <summary>Reads a query with Kusto.Language against the Graph schema and works out which tables and columns it touches.
 /// Pure: nothing is fetched.</summary>
 public static class GraphQueryPlanner
@@ -37,7 +40,12 @@ public static class GraphQueryPlanner
     private static readonly HashSet<string> AllowedPlugins = new(StringComparer.Ordinal) { "bag_unpack", "narrow", "pivot" };
 
     /// <param name="now">The run's time, for <c>now()</c> and <c>ago()</c> in a pushed-down filter.</param>
-    public static GraphQueryPlan Plan(GraphSchema schema, string kql, DateTimeOffset now)
+    public static GraphQueryPlan Plan(GraphSchema schema, string kql, DateTimeOffset now) => PlanExplained(schema, kql, now).Plan;
+
+    /// <summary>The plan with, for each of its fetches (in the same order), how its <c>$filter</c> came about: the leading
+    /// <c>where</c> conditions pushed and kept local (<see cref="GraphFilterTranslator.Explain"/>), then every later
+    /// <c>where</c> on the table's pipe as local (<see cref="PushdownReasons.NotLeading"/>).</summary>
+    internal static ExplainedPlan PlanExplained(GraphSchema schema, string kql, DateTimeOffset now)
     {
         var globals = GraphGlobals.Plain(schema);
         var code = KustoCode.ParseAndAnalyze(kql, globals);
@@ -45,19 +53,19 @@ public static class GraphQueryPlanner
         // Refusals come before errors: an attempt to reach outside the Graph tables is refused (and audited) even when it
         // doesn't bind, for example a plugin Kusto.Language doesn't know.
         if (Refusal(code) is { } refusal)
-            return new GraphQueryPlan([], null, refusal);
+            return new ExplainedPlan(new GraphQueryPlan([], null, refusal), []);
 
         // Structural errors before bind errors: an unknown database or cluster would otherwise show as Kusto's "not found".
         if (StructureError(code.Syntax) is { } structure)
         {
             var (line, column) = Position(kql, structure.Node.TextStart);
-            return new GraphQueryPlan([], new GraphQueryError(line, column, structure.Message), null);
+            return new ExplainedPlan(new GraphQueryPlan([], new GraphQueryError(line, column, structure.Message), null), []);
         }
 
         if (code.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).OrderBy(d => d.Start).FirstOrDefault() is { } error)
         {
             var (line, column) = Position(kql, error.Start);
-            return new GraphQueryPlan([], new GraphQueryError(line, column, error.Message), null);
+            return new ExplainedPlan(new GraphQueryPlan([], new GraphQueryError(line, column, error.Message), null), []);
         }
 
         var databaseTables = globals.Database.Tables.ToHashSet<TableSymbol>(ReferenceEqualityComparer.Instance);
@@ -85,6 +93,7 @@ public static class GraphQueryPlanner
         var everyColumn = UsesColumnsImplicitly(code.Syntax);
 
         var fetches = new List<GraphFetch>();
+        var filters = new List<FilterExplanation>();
         foreach (var symbol in tableSymbols)
         {
             if (schema.Find(symbol.Name) is not { } table)
@@ -106,10 +115,43 @@ public static class GraphQueryPlanner
                 .ToList();
             var unreadable = named.Where(getOnly.Contains).ToList();
             // A table read more than once (a self-join) is never filtered: one fetch has to serve every use.
-            var filter = LeadingPredicates(code, symbol) is { } predicates ? GraphFilterTranslator.Translate(table, predicates, now) : null;
-            fetches.Add(new GraphFetch(table, select, filter) { Unreadable = unreadable, Named = named });
+            var explanation = LeadingPredicates(code, symbol) is { } predicates
+                ? GraphFilterTranslator.Explain(table, predicates, now)
+                : new FilterExplanation(null, [], []);
+            var later = LaterPredicates(code, symbol)
+                .Select(p => new LocalCondition(GraphFilterTranslator.Text(p), PushdownReasons.NotLeading));
+            filters.Add(explanation with { Local = [.. explanation.Local, .. later] });
+            fetches.Add(new GraphFetch(table, select, explanation.Filter) { Unreadable = unreadable, Named = named });
         }
-        return new GraphQueryPlan(fetches, null, null);
+        return new ExplainedPlan(new GraphQueryPlan(fetches, null, null), filters);
+    }
+
+    /// <summary>The conditions of the <c>where</c> operators on <paramref name="table"/>'s pipe that
+    /// <see cref="LeadingPredicates"/> doesn't return: those after another operator, and, when the table is used more than
+    /// once, all of them. Each where's whole condition, in the order written.</summary>
+    internal static IReadOnlyList<Expression> LaterPredicates(KustoCode code, TableSymbol table)
+    {
+        var uses = TableUses(code).Where(u => ReferenceEquals(u.Table, table)).ToList();
+        var predicates = new List<Expression>();
+        foreach (var use in uses)
+        {
+            var leading = uses.Count == 1;
+            SyntaxNode node = use.Node;
+            while (node.Parent is PipeExpression pipe && ReferenceEquals(pipe.Expression, node))
+            {
+                if (pipe.Operator is FilterOperator where)
+                {
+                    if (!leading)
+                        predicates.Add(where.Condition);
+                }
+                else
+                {
+                    leading = false;
+                }
+                node = pipe;
+            }
+        }
+        return predicates;
     }
 
     /// <summary>The predicates of the <c>where</c> operators directly after <paramref name="table"/>'s reference, before any

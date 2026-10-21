@@ -180,14 +180,19 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
 
     private static string? Id(JsonObject o) => o["id"] is JsonValue v && v.TryGetValue<string>(out var id) ? id : null;
 
+    /// <summary>The first page's URL relative to the Graph version, as a list read sends it: the <c>$select</c>, the
+    /// <c>$filter</c> when there is one, and the page size. Explain shows the same URL
+    /// (<see cref="GraphExplain"/>).</summary>
+    public static string FirstPageUrl(string path, IReadOnlyList<string> select, string? filter) =>
+        path + "?$select=" + Uri.EscapeDataString(string.Join(",", select))
+            + (string.IsNullOrEmpty(filter) ? "" : "&$filter=" + Uri.EscapeDataString(filter))
+            + "&$top=" + PageSize.ToString(CultureInfo.InvariantCulture);
+
     /// <summary>One run through the pages. Returns null when done, or what to change when Graph refused the first page.</summary>
     private async Task<Retry?> ReadPagesAsync(string accountKey, GraphFetch fetch, List<string> select, string? filter,
         GraphFetchLease lease, List<string> requests, List<JsonObject> objects, CancellationToken ct)
     {
-        var url = fetch.Table.Path + "?$select=" + Uri.EscapeDataString(string.Join(",", select))
-            + (string.IsNullOrEmpty(filter) ? "" : "&$filter=" + Uri.EscapeDataString(filter))
-            + "&$top=" + PageSize.ToString(CultureInfo.InvariantCulture);
-        Uri? next = new(url, UriKind.Relative);
+        Uri? next = new(FirstPageUrl(fetch.Table.Path, select, filter), UriKind.Relative);
         for (var page = 0; next is not null; page++)
         {
             requests.Add(Relative(next));
