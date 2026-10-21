@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { call } from '../bridge';
-import { useTabs } from '../tabs/tab-store';
+import { insertSnippet, openSaved, openSnippetInNewTab } from '../library/open-library';
 import type { LibraryList, SavedQuery, Snippet } from '../wire';
 import { allCommands, formatShortcut, matchScore } from './commands';
 
@@ -14,35 +14,41 @@ interface Row {
   choose: (newTab: boolean) => void;
 }
 
+/** A saved query goes to the tab it is already open in, or opens in a new one, as from the Saved panel. */
 function savedRow(q: SavedQuery): Row {
   return {
     key: `saved:${q.id}`,
     title: `Saved: ${q.folder ? `${q.folder} / ` : ''}${q.name}`,
     group: 'Saved',
     disabled: false,
-    choose: () => {
-      useTabs.getState().openWith({ source: q.source, title: q.name, text: q.text, savedId: q.id, parameters: q.parameters });
-    },
+    choose: () => openSaved(q),
   };
 }
 
-function snippetRow(s: Snippet, onInsert: (text: string) => void): Row {
-  const openIt = () => useTabs.getState().openWith({ source: s.source, title: s.name, text: s.text, parameters: s.parameters });
+/** A snippet goes in at the cursor with its parameter definitions, as from the Snippets panel; with Shift+Enter it opens in a
+ * new tab. */
+function snippetRow(s: Snippet, onInsert: (text: string) => boolean, onProblem: (text: string) => void): Row {
   return {
     key: `snippet:${s.id}`,
     title: `Snippet: ${s.name}`,
     group: 'Snippets',
     disabled: false,
     choose: (newTab) => {
-      const { tabs, activeId } = useTabs.getState();
-      // A snippet goes into the open query only when it is for the same source.
-      if (!newTab && tabs.find((t) => t.id === activeId)?.source === s.source) {
-        onInsert(s.text);
-      } else {
-        openIt();
+      if (newTab) {
+        openSnippetInNewTab(s);
+      } else if (!insertSnippet(s, onInsert)) {
+        onProblem('The editor isn’t ready yet. Try again in a moment.');
       }
     },
   };
+}
+
+interface PaletteProps {
+  onClose: () => void;
+  /** Puts text in at the editor's cursor; false when it couldn't (no editor yet, or a raw tab). */
+  onInsert: (text: string) => boolean;
+  /** Something chosen couldn't be done; said once the palette has closed. */
+  onProblem?: (text: string) => void;
 }
 
 /**
@@ -50,7 +56,7 @@ function snippetRow(s: Snippet, onInsert: (text: string) => void): Row {
  * in order. Arrow keys move, Enter chooses, Esc closes. A saved query opens in a new tab; a snippet goes in at the cursor, or
  * in a new tab with Shift+Enter.
  */
-export function Palette({ onClose, onInsert }: { onClose: () => void; onInsert: (text: string) => void }) {
+export function Palette({ onClose, onInsert, onProblem = () => undefined }: PaletteProps) {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(0);
   const [saved, setSaved] = useState<SavedQuery[]>([]);
@@ -99,14 +105,14 @@ export function Palette({ onClose, onInsert }: { onClose: () => void; onInsert: 
         choose: () => c.run(),
       })),
       ...saved.map(savedRow),
-      ...snippets.map((s) => snippetRow(s, onInsert)),
+      ...snippets.map((s) => snippetRow(s, onInsert, onProblem)),
     ];
     return all
       .map((row, order) => ({ row, order, score: matchScore(query, row.title) }))
       .filter((r): r is { row: Row; order: number; score: number } => r.score !== null)
       .sort((a, b) => a.score - b.score || a.order - b.order)
       .map((r) => r.row);
-  }, [query, saved, snippets, onInsert]);
+  }, [query, saved, snippets, onInsert, onProblem]);
 
   const current = Math.min(selected, rows.length - 1);
 

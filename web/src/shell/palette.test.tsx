@@ -66,7 +66,7 @@ const titles = () => rows().map((r) => r.querySelector('[data-title]')?.textCont
 describe('Palette', () => {
   it('palette_filters_by_subsequence_and_runs_on_enter', async () => {
     const onClose = vi.fn();
-    render(<Palette onClose={onClose} onInsert={() => undefined} />);
+    render(<Palette onClose={onClose} onInsert={() => false} />);
     const input = screen.getByRole('combobox', { name: 'Type a command' });
     await screen.findByText('Snippet: Expired app credentials');
 
@@ -87,7 +87,7 @@ describe('Palette', () => {
   });
 
   it('palette_lists_shortcuts', async () => {
-    render(<Palette onClose={() => undefined} onInsert={() => undefined} />);
+    render(<Palette onClose={() => undefined} onInsert={() => false} />);
     await screen.findByText('Saved: Stale guests');
 
     const explainRow = rows().find((r) => r.textContent?.includes('Explain the query'))!;
@@ -102,7 +102,7 @@ describe('Palette', () => {
 
   it('escape_closes_and_arrow_keys_move', async () => {
     const onClose = vi.fn();
-    render(<Palette onClose={onClose} onInsert={() => undefined} />);
+    render(<Palette onClose={onClose} onInsert={() => false} />);
     const input = screen.getByRole('combobox', { name: 'Type a command' });
     await screen.findByText('Saved: Stale guests');
 
@@ -114,7 +114,7 @@ describe('Palette', () => {
   });
 
   it('a_saved_query_opens_in_a_new_tab', async () => {
-    render(<Palette onClose={() => undefined} onInsert={() => undefined} />);
+    render(<Palette onClose={() => undefined} onInsert={() => false} />);
     const input = screen.getByRole('combobox', { name: 'Type a command' });
     await screen.findByText('Saved: Stale guests');
 
@@ -142,10 +142,53 @@ describe('Palette', () => {
     expect(useTabs.getState().tabs[1]).toMatchObject({ title: 'Expired app credentials', text: expiredCreds.text, savedId: undefined });
   });
 
+  it('a_saved_query_already_open_switches_to_its_tab', async () => {
+    const open = useTabs.getState().openWith({ source: 'graph', title: 'Stale guests', text: 'edited', savedId: 's1' });
+    useTabs.getState().open('graph');
+    render(<Palette onClose={() => undefined} onInsert={() => false} />);
+    const input = screen.getByRole('combobox', { name: 'Type a command' });
+    await screen.findByText('Saved: Stale guests');
+
+    fireEvent.change(input, { target: { value: 'stale' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    const { tabs, activeId } = useTabs.getState();
+    expect(tabs).toHaveLength(3);
+    expect(activeId).toBe(open);
+    expect(tabs.find((t) => t.id === open)?.text).toBe('edited');
+  });
+
+  it('a_snippet_merges_its_parameters_only_when_it_went_in', async () => {
+    const withParams: Snippet = {
+      ...expiredCreds,
+      text: 'applications | where createdDateTime > ago({days})',
+      parameters: [{ name: 'days', type: 'timespan', value: '30d', required: true, choices: null }],
+    };
+    bridge.call.mockImplementation((method: string) =>
+      Promise.resolve(method === 'library.list' ? { queries: [], folders: [], skipped: 0 } : { snippets: [withParams] }),
+    );
+    const onInsert = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
+    const onProblem = vi.fn();
+    render(<Palette onClose={() => undefined} onInsert={onInsert} onProblem={onProblem} />);
+    const input = screen.getByRole('combobox', { name: 'Type a command' });
+    await screen.findByText('Snippet: Expired app credentials');
+    const tab = () => useTabs.getState().tabs[0]!;
+
+    // The editor wasn't ready: nothing went in, so no parameters either, and the palette says so.
+    fireEvent.change(input, { target: { value: 'expired' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(tab().parameters).toEqual([]);
+    expect(onProblem).toHaveBeenCalledWith('The editor isn’t ready yet. Try again in a moment.');
+
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onInsert).toHaveBeenCalledTimes(2);
+    expect(tab().parameters).toEqual(withParams.parameters);
+  });
+
   it('palette_is_modal_and_keeps_focus', async () => {
     const outside = document.createElement('button');
     document.body.append(outside);
-    render(<Palette onClose={() => undefined} onInsert={() => undefined} />);
+    render(<Palette onClose={() => undefined} onInsert={() => false} />);
     const dialog = screen.getByRole('dialog', { name: 'Command palette' });
     const input = screen.getByRole('combobox', { name: 'Type a command' });
     await screen.findByText('Saved: Stale guests');
@@ -170,7 +213,7 @@ describe('Palette', () => {
   it('closing_lets_focus_go_where_the_caller_puts_it', async () => {
     const editor = document.createElement('textarea');
     document.body.append(editor);
-    render(<Palette onClose={() => editor.focus()} onInsert={() => undefined} />);
+    render(<Palette onClose={() => editor.focus()} onInsert={() => false} />);
     await screen.findByText('Saved: Stale guests');
 
     fireEvent.keyDown(screen.getByRole('combobox', { name: 'Type a command' }), { key: 'Escape' });

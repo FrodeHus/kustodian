@@ -64,6 +64,7 @@ const settings: SettingsAnswer = {
   settings: { version: 1, theme: 'dark', rawDefaultVersion: 'beta', signIn: { clientId: null, tenant: null }, limits: {} },
   restartNeeded: false,
   corrupt: false,
+  unreadable: false,
 };
 
 /** Answers for methods a test sets up itself, consulted before {@link host}'s own. */
@@ -531,5 +532,128 @@ describe('App', () => {
 
     await waitFor(() => expect(screen.getByLabelText('Client ID')).toHaveProperty('value', 'c-1'));
     expect(screen.getByLabelText('Tenant')).toHaveProperty('value', 't-1');
+  });
+
+  it('app_settings_open_from_the_sign_in_screen_and_prefill_on_return', async () => {
+    host({ accounts: [], cache: 'persistent' });
+    const limits = {
+      graphObjectsPerTable: 50000,
+      fetchBudgetMb: 512,
+      engineTimeoutSeconds: 120,
+      engineHeapMb: 1024,
+      engineWorkers: 2,
+      perObjectReadsPerTable: 2000,
+      perObjectCacheMinutes: 30,
+      graphRowsPerRun: 50000,
+    };
+    answers['settings.get'] = () => ({ ...settings, settings: { ...settings.settings, limits } });
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'Sign in to Microsoft Graph' })).toBeTruthy();
+
+    // The title bar's Settings button works on the sign-in screen, and settings cover it.
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Sign in to Microsoft Graph' })).toBeNull();
+    fireEvent.change(await screen.findByLabelText('Default client ID'), { target: { value: 'c-2' } });
+    fireEvent.change(screen.getByLabelText('Default tenant'), { target: { value: 't-2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Settings saved.')).toBeTruthy();
+
+    // Back on the sign-in screen, which starts with what was just saved.
+    fireEvent.click(screen.getByRole('button', { name: '← Back to queries' }));
+    expect(screen.getByRole('heading', { name: 'Sign in to Microsoft Graph' })).toBeTruthy();
+    expect(screen.getByLabelText('Client ID')).toHaveProperty('value', 'c-2');
+    expect(screen.getByLabelText('Tenant')).toHaveProperty('value', 't-2');
+
+    // The account pill closes settings.
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Not signed in' }));
+    expect(screen.queryByRole('heading', { name: 'Settings' })).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Sign in to Microsoft Graph' })).toBeTruthy();
+  });
+
+  it('app_failed_run_with_diagnostics_shows_them', async () => {
+    host({ accounts: [kari], cache: 'persistent' }, {
+      ...rows,
+      outcome: 'throttled',
+      message: 'Graph is throttling requests. Try again in a minute.',
+      rows: [],
+      columns: [],
+      total: 0,
+      diagnostics: [{ atMs: 5, kind: 'throttled', detail: 'GET applications?$top=999', status: 429, durationMs: 80, bytes: 120 }],
+    });
+    render(<App />);
+
+    fireEvent.change(await screen.findByRole('textbox', { name: 'KQL query' }), { target: { value: 'applications' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Run all Shift Enter' }));
+
+    const diagnostics = await screen.findByRole('region', { name: 'Diagnostics' });
+    expect(within(diagnostics).getByRole('region', { name: 'Run statistics' })).toBeTruthy();
+    expect(within(diagnostics).getByText('GET applications?$top=999')).toBeTruthy();
+    expect(screen.queryByRole('tab', { name: /^Rows/ })).toBeNull();
+  });
+
+  it('app_announces_a_settings_file_that_could_not_be_read_at_startup', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    answers['settings.get'] = () => ({ ...settings, corrupt: true });
+    const view = render(<App />);
+    expect(await screen.findByText('The settings file couldn’t be read, so it was set aside and the defaults are in use.')).toBeTruthy();
+    view.unmount();
+
+    answers['settings.get'] = () => ({ ...settings, unreadable: true });
+    render(<App />);
+    expect(await screen.findByText('The settings file couldn’t be read, so the defaults are in use.')).toBeTruthy();
+  });
+
+  it('app_palette_command_is_disabled_while_the_palette_is_open', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+    expect(runCommand('palette')).toBe(true);
+    const input = await screen.findByRole('combobox', { name: 'Type a command' });
+
+    fireEvent.change(input, { target: { value: 'command palette' } });
+    const option = screen.getAllByRole('option').find((o) => o.textContent?.includes('Command palette'));
+    expect(option?.getAttribute('aria-disabled')).toBe('true');
+    expect(runCommand('palette')).toBe(false);
+  });
+
+  it('app_shortcuts_are_off_while_the_close_confirmation_is_open', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    render(<App />);
+    fireEvent.change(await screen.findByRole('textbox', { name: 'KQL query' }), { target: { value: 'users' } });
+
+    fireEvent.keyDown(window, { key: 'w', code: 'KeyW', ctrlKey: true });
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.keyDown(window, { key: 't', code: 'KeyT', ctrlKey: true });
+    fireEvent.keyDown(window, { key: 'k', code: 'KeyK', ctrlKey: true });
+
+    expect(useTabs.getState().tabs).toHaveLength(1);
+    expect(screen.queryByRole('dialog', { name: 'Command palette' })).toBeNull();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Keep it open' }));
+    fireEvent.keyDown(window, { key: 't', code: 'KeyT', ctrlKey: true });
+    expect(await screen.findByRole('tab', { name: /Query 2/, selected: true })).toBeTruthy();
+  });
+
+  it('app_says_for_good_when_the_session_cannot_be_read', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      host({ accounts: [kari], cache: 'persistent' });
+      answers['session.get'] = () => Promise.reject(new BridgeError('failed', 'The file is locked.'));
+      render(<App />);
+      await act(() => vi.advanceTimersByTimeAsync(3 * 5000));
+
+      const notice = screen.getByText('Your session couldn’t be read; changes in this window won’t be saved.');
+      expect(notice.getAttribute('role')).toBe('alert');
+      expect(within(notice).queryByRole('button')).toBeNull();
+      // Other notices still come and go below it.
+      for (const dismiss of screen.queryAllByRole('button', { name: 'Dismiss' })) {
+        fireEvent.click(dismiss);
+      }
+      expect(screen.getByText('Your session couldn’t be read; changes in this window won’t be saved.')).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

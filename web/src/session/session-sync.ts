@@ -12,6 +12,8 @@ export const RETRY_MS = 5000;
 export const READ_RETRIES = 3;
 
 export const UNREADABLE_MESSAGE = 'Couldn’t read your last session; changes won’t be saved until it can be read.';
+/** Said, and kept, once reading has given up: nothing this window does will be saved. */
+export const GAVE_UP_MESSAGE = 'Your session couldn’t be read; changes in this window won’t be saved.';
 
 /** What `session.json` keeps of the open tabs: never runs or results, and of a raw tab's headers only those it could send (the
  * host drops the others too), so a typed `Authorization` header never reaches the file. */
@@ -37,15 +39,17 @@ function snapshot(): Session {
 /**
  * Restores the last session's tabs, unsaved text included (spec 6.1), or opens one empty Graph tab when there is none, and
  * then writes the session {@link SAVE_DELAY_MS} after each change to the tabs and at once when the page goes away. Returns the
- * function that stops it. `notify` is told when the session couldn't be read, couldn't be saved, or tabs were too big to keep.
+ * function that stops it. `notify` is told when the session couldn't be read, couldn't be saved, or tabs were too big to keep;
+ * `sticky` is told {@link GAVE_UP_MESSAGE} when reading gives up, a notice for the rest of the window's life.
  *
  * - A session that can't be read (an I/O error, a lock; not a corrupt file, which the host has already moved aside) is never
  *   overwritten: nothing is saved while it is unreadable. It is read again every {@link RETRY_MS}, up to {@link READ_RETRIES}
- *   times; when a retry reads it, it is restored, with any tab typed into meanwhile kept after it.
+ *   times; when a retry reads it, it is restored, with any tab typed into meanwhile kept after it. When the last retry fails
+ *   too, reading gives up and `sticky` says so.
  * - One `session.save` is in flight at a time; changes while it is out are written by one save after it answers.
  * - A save that fails is tried again after {@link RETRY_MS}, without waiting for another change.
  */
-export function startSessionSync(notify?: (message: string) => void): () => void {
+export function startSessionSync(notify?: (message: string) => void, sticky?: (message: string) => void): () => void {
   let stopped = false;
   let syncing = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -179,6 +183,8 @@ export function startSessionSync(notify?: (message: string) => void): () => void
         }
         if (attempt < READ_RETRIES) {
           readTimer = setTimeout(() => read(attempt + 1), RETRY_MS);
+        } else {
+          sticky?.(GAVE_UP_MESSAGE);
         }
       },
     );

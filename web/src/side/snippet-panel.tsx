@@ -1,37 +1,12 @@
 import { useEffect, useState } from 'react';
 import { call } from '../bridge';
+import { insertSnippet, openSnippetInNewTab } from '../library/open-library';
 import { useRevisions } from '../library/saving';
 import { findParams, mergeParameters } from '../params/find-params';
 import { errorText } from '../shell/errors';
 import { useTabs } from '../tabs/tab-store';
 import type { Snippet } from '../wire';
 import { ConfirmDelete, RowMenu } from './row-menu';
-
-function openInNewTab(s: Snippet) {
-  useTabs.getState().openWith({ source: s.source, title: s.name, text: s.text, parameters: s.parameters });
-}
-
-/**
- * A snippet goes in at the cursor of the open query when it is for the same source, and its parameter definitions join the
- * tab's (a name the tab already has keeps the tab's); otherwise it opens in a new tab. Resolves false when the editor wasn't
- * ready: then nothing changed, parameters included.
- */
-function choose(s: Snippet, onInsert: (text: string) => boolean): boolean {
-  const { tabs, activeId, setParameters } = useTabs.getState();
-  const tab = tabs.find((t) => t.id === activeId);
-  if (!tab || tab.source !== s.source) {
-    openInNewTab(s);
-    return true;
-  }
-  if (!onInsert(s.text)) {
-    return false;
-  }
-  const added = s.parameters.filter((p) => !tab.parameters.some((q) => q.name === p.name));
-  if (added.length > 0) {
-    setParameters(tab.id, [...tab.parameters, ...added]);
-  }
-  return true;
-}
 
 /** Groups in the order they first appear: the built-in snippets by their group, then the user's own as "Mine". */
 function grouped(snippets: Snippet[]): { title: string; snippets: Snippet[] }[] {
@@ -127,7 +102,7 @@ export function SnippetPanel({ onInsert }: { onInsert: (text: string) => boolean
           className="side-open"
           aria-label={s.name}
           title={s.description ? `${s.description}\n\n${s.text}` : s.text}
-          onClick={() => setProblem(choose(s, onInsert) ? null : 'The editor isn’t ready yet. Try again in a moment.')}
+          onClick={() => setProblem(insertSnippet(s, onInsert) ? null : 'The editor isn’t ready yet. Try again in a moment.')}
         >
           <span className="truncate">{s.name}</span>
           {params.length > 0 && (
@@ -139,7 +114,7 @@ export function SnippetPanel({ onInsert }: { onInsert: (text: string) => boolean
         <RowMenu
           name={s.name}
           actions={[
-            { label: 'Open in new tab', run: () => openInNewTab(s) },
+            { label: 'Open in new tab', run: () => openSnippetInNewTab(s) },
             ...(s.builtIn ? [] : [{ label: 'Delete', run: () => setDeleting(s.id) }]),
           ]}
         />

@@ -21,14 +21,21 @@ function SourceBadge({ source, titled = false }: { source: Source; titled?: bool
   );
 }
 
-/** The open queries (spec 6.1): a tab each with its source badge and a dot while it has unsaved changes, and `+` for a new one. */
-export function TabStrip() {
+/** The open queries (spec 6.1): a tab each with its source badge and a dot while it has unsaved changes, and `+` for a new one.
+ * `onDialog` is told when the close confirmation opens and closes: while it is open it is a modal dialog, so the window's
+ * shortcuts are off. */
+export function TabStrip({ onDialog }: { onDialog?: (open: boolean) => void } = {}) {
   const tabs = useTabs((s) => s.tabs);
   const activeId = useTabs((s) => s.activeId);
   const { open, close, activate } = useTabs.getState();
   const [menu, setMenu] = useState(false);
   const [closing, setClosing] = useState<Tab | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const confirming = closing !== null;
+
+  useEffect(() => {
+    onDialog?.(confirming);
+  }, [confirming, onDialog]);
 
   // Closing from the keyboard asks first too, so the command lives with the confirmation.
   useEffect(
@@ -149,18 +156,41 @@ export function TabStrip() {
   );
 }
 
+/** Asks before closing a tab with unsaved changes. A modal: Tab and Shift+Tab go round its two buttons, and focus that lands
+ * outside it (a click on the page behind) goes back to "Keep it open". */
 function ConfirmClose({ tab, onKeep, onClose }: { tab: Tab; onKeep: () => void; onClose: () => void }) {
+  const dialog = useRef<HTMLDivElement>(null);
+  const keep = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    keep.current?.focus();
+    const onFocusIn = (e: FocusEvent) => {
+      if (!(e.target instanceof Node) || !dialog.current?.contains(e.target)) {
+        keep.current?.focus();
+      }
+    };
+    document.addEventListener('focusin', onFocusIn);
+    return () => document.removeEventListener('focusin', onFocusIn);
+  }, []);
+
   return (
     <div className="fixed inset-0 z-10">
       <div className="scrim" onClick={onKeep} />
       <div
+        ref={dialog}
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-close-title"
         className="card absolute top-1/3 left-1/2 flex w-[420px] -translate-x-1/2 flex-col gap-3 p-5"
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
+            e.preventDefault();
             onKeep();
+          } else if (e.key === 'Tab') {
+            const buttons = [...(dialog.current?.querySelectorAll<HTMLButtonElement>('button') ?? [])];
+            const at = buttons.findIndex((b) => b === document.activeElement);
+            e.preventDefault();
+            buttons[(at + (e.shiftKey ? -1 : 1) + buttons.length) % buttons.length]?.focus();
           }
         }}
       >
@@ -169,7 +199,7 @@ function ConfirmClose({ tab, onKeep, onClose }: { tab: Tab; onKeep: () => void; 
         </b>
         <span className="muted">It has changes that aren’t saved. Closing it loses them.</span>
         <div className="flex justify-end gap-2">
-          <button type="button" className="btn" autoFocus onClick={onKeep}>
+          <button ref={keep} type="button" className="btn" onClick={onKeep}>
             Keep it open
           </button>
           <button type="button" className="btn primary" onClick={onClose}>

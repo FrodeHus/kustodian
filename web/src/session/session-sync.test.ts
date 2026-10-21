@@ -177,8 +177,16 @@ describe('session sync', () => {
   it('reading_gives_up_after_3_retries', async () => {
     vi.useFakeTimers();
     host(new BridgeError('failed', 'Access denied.'));
-    stop = startSessionSync();
-    await vi.waitFor(() => expect(useTabs.getState().tabs).toHaveLength(1));
+    const sticky = vi.fn();
+    stop = startSessionSync(undefined, sticky);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useTabs.getState().tabs).toHaveLength(1);
+
+    // Not while retries are left: the 3rd retry is the last, and only its failure gives up.
+    await vi.advanceTimersByTimeAsync(3 * 5000 - 1);
+    expect(sticky).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(sticky).toHaveBeenCalledExactlyOnceWith('Your session couldn’t be read; changes in this window won’t be saved.');
 
     await vi.advanceTimersByTimeAsync(60_000);
     useTabs.getState().setText(useTabs.getState().tabs[0]!.id, 'users');

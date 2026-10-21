@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { act } from 'react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { runCommand } from '../shell/commands';
 import { useTabs } from './tab-store';
 import { TabStrip } from './tab-strip';
@@ -59,6 +59,42 @@ describe('TabStrip', () => {
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Close without saving' }));
     expect(useTabs.getState().tabs).toEqual([]);
     expect(clean).not.toBe(dirty);
+  });
+
+  it('confirm_close_is_a_modal_that_traps_focus_and_says_when_it_is_open', () => {
+    const { open, setText } = useTabs.getState();
+    const dirty = open('graph');
+    setText(dirty, 'users');
+    const onDialog = vi.fn();
+    render(
+      <>
+        <TabStrip onDialog={onDialog} />
+        <button type="button">Behind</button>
+      </>,
+    );
+    expect(onDialog).toHaveBeenLastCalledWith(false);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close Query 1' }));
+    expect(onDialog).toHaveBeenLastCalledWith(true);
+    const keep = screen.getByRole('button', { name: 'Keep it open' });
+    const discard = screen.getByRole('button', { name: 'Close without saving' });
+    expect(document.activeElement).toBe(keep);
+
+    // Tab and Shift+Tab go round the two buttons.
+    fireEvent.keyDown(keep, { key: 'Tab' });
+    expect(document.activeElement).toBe(discard);
+    fireEvent.keyDown(discard, { key: 'Tab' });
+    expect(document.activeElement).toBe(keep);
+    fireEvent.keyDown(keep, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(discard);
+
+    // Focus that gets out comes back.
+    act(() => screen.getByRole('button', { name: 'Behind' }).focus());
+    expect(document.activeElement).toBe(keep);
+
+    fireEvent.keyDown(keep, { key: 'Escape' });
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(onDialog).toHaveBeenLastCalledWith(false);
   });
 
   it('close_command_closes_a_clean_tab_and_asks_for_a_dirty_one', () => {

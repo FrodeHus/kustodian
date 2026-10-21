@@ -7,6 +7,7 @@ import { SaveDialog } from './library/save-dialog';
 import { openDroppedFile, openKqlFile, save, saveToFile } from './library/saving';
 import { findParams } from './params/find-params';
 import { ParamsForm } from './params/params-form';
+import { DiagnosticsView } from './results/diagnostics-view';
 import { EXPORT_FORMATS, EXPORT_NAMES, exportResult } from './results/export';
 import { ResultPanel } from './results/result-panel';
 import { RunStatus } from './results/run-status';
@@ -96,6 +97,14 @@ function cycleTab(step: number) {
 
 const THEME_NAMES: Record<Theme, string> = { dark: 'Dark', light: 'Light', system: 'System' };
 
+/** What the window says at startup when the settings file couldn't be used, or null when it could. */
+function settingsNotice(answer: SettingsAnswer): string | null {
+  if (answer.corrupt) {
+    return 'The settings file couldn’t be read, so it was set aside and the defaults are in use.';
+  }
+  return answer.unreadable ? 'The settings file couldn’t be read, so the defaults are in use.' : null;
+}
+
 /** Reads the accounts; resolves whether that worked. A failure is reported as the sign-in screen's error line. */
 function readAccounts(onList: (list: AccountList) => void, onError: (text: string | null) => void): Promise<boolean> {
   return call<AccountList>('account.list').then(
@@ -116,6 +125,8 @@ export function App() {
   const [accounts, setAccounts] = useState<AccountList | null>(null);
   const [schema, setSchema] = useState<SchemaView | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  /** A notice that stays for the rest of the window's life: it has no Dismiss. */
+  const [lasting, setLasting] = useState<string | null>(null);
   const [accountsOpen, setAccountsOpen] = useState(false);
   const [accountsError, setAccountsError] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -125,6 +136,9 @@ export function App() {
   const [saving, setSaving] = useState<string | null>(null);
   const [settings, setSettings] = useState<SettingsAnswer | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** The tab strip's close confirmation is open: a modal dialog. */
+  const [confirming, setConfirming] = useState(false);
+  const paletteShown = useRef(false);
   /** The tab Explain is showing for, what it explains, and the run it was opened after: a later run shows its result instead. */
   const [explain, setExplain] = useState<{ tabId: string; request: ExplainRequest; runId: string | undefined } | null>(null);
   const editor = useRef<KqlEditorHandle>(null);
@@ -144,13 +158,21 @@ export function App() {
     );
     // The raw tab's default version and sign-in's default client; without them the built-in defaults apply.
     call<SettingsAnswer | null>('settings.get').then(
-      (answer) => answer?.settings && setSettings(answer),
+      (answer) => {
+        if (answer?.settings) {
+          setSettings(answer);
+          const notice = settingsNotice(answer);
+          if (notice) {
+            setProblem(notice);
+          }
+        }
+      },
       (e: unknown) => setProblem(`The settings couldn’t be read: ${errorText(e)}`),
     );
   }, []);
 
   // The last session's tabs come back, or one empty Graph tab.
-  useEffect(() => startSessionSync(setProblem), []);
+  useEffect(() => startSessionSync(setProblem, setLasting), []);
 
   useEffect(() => {
     const fail = (what: string) => (e: unknown) => setProblem(`${what}: ${errorText(e)}`);
@@ -192,7 +214,15 @@ export function App() {
       enabled: hasResult,
     }));
     const commands: Command[] = [
-      { id: 'palette', title: 'Command palette', group: 'Window', shortcut: 'Mod+K, Mod+Shift+P', run: () => setPaletteOpen(true) },
+      {
+        id: 'palette',
+        title: 'Command palette',
+        group: 'Window',
+        shortcut: 'Mod+K, Mod+Shift+P',
+        run: () => setPaletteOpen(true),
+        // It lists itself: chosen from the open palette it would only open it again.
+        enabled: () => !paletteShown.current,
+      },
       { id: 'tab.new', title: 'New Microsoft Graph query', group: 'Tabs', shortcut: 'Mod+T', run: () => useTabs.getState().open('graph') },
       { id: 'tab.newRaw', title: 'New raw Graph request', group: 'Tabs', run: () => openRaw() },
       { id: 'tab.next', title: 'Next tab', group: 'Tabs', shortcut: 'Ctrl+Tab', run: () => cycleTab(1), enabled: () => useTabs.getState().tabs.length > 1 },
@@ -267,11 +297,12 @@ export function App() {
   // Unreadable accounts also mean sign-in: it shows why, and signing in reads them again.
   const signingIn = accountsError !== null || (accounts !== null && (!account || accountsOpen));
 
-  // The window's shortcuts act on the workspace, so none fires while sign-in covers it or the palette is open (it handles
-  // its own keys, Esc included).
+  // The window's shortcuts act on the workspace, so none fires while sign-in or settings covers it, or a dialog is open (the
+  // palette, the save dialog or the close confirmation, which handle their own keys, Esc included).
   const shortcutsOn = useRef(false);
   useEffect(() => {
-    shortcutsOn.current = !signingIn && !settingsOpen && !paletteOpen && saving === null;
+    shortcutsOn.current = !signingIn && !settingsOpen && !paletteOpen && saving === null && !confirming;
+    paletteShown.current = paletteOpen;
   });
   useEffect(() => bindGlobalKeys(() => shortcutsOn.current), []);
 
@@ -314,7 +345,20 @@ export function App() {
 
   return (
     <div className="flex h-full flex-col">
-      <TitleBar account={account} onAccount={() => setAccountsOpen(true)} onSettings={() => setSettingsOpen(true)} />
+      <TitleBar
+        account={account}
+        onAccount={() => {
+          // The accounts are shown over everything else: settings close.
+          setSettingsOpen(false);
+          setAccountsOpen(true);
+        }}
+        onSettings={() => setSettingsOpen(true)}
+      />
+      {lasting && (
+        <div className="border-b border-line bg-bad-soft px-3 py-1.5 text-[12px] text-bad" role="alert">
+          {lasting}
+        </div>
+      )}
       {problem && (
         <div className="flex items-center gap-3 border-b border-line bg-bad-soft px-3 py-1.5 text-[12px] text-bad" role="alert">
           {problem}
@@ -324,7 +368,8 @@ export function App() {
           </button>
         </div>
       )}
-      {signingIn && (
+      {/* Settings can be opened from sign-in too (the title bar's button): they cover it until they close. */}
+      {signingIn && !settingsOpen && (
         <SignIn
           list={accounts}
           error={accountsError}
@@ -340,18 +385,20 @@ export function App() {
           defaults={settings?.settings.signIn}
         />
       )}
-      {settingsOpen && !signingIn && (
+      {settingsOpen && (
         <SettingsView
           onClose={() => {
             setSettingsOpen(false);
-            editor.current?.focus();
+            if (!signingIn) {
+              editor.current?.focus();
+            }
           }}
           onChange={setSettings}
         />
       )}
       {/* Hidden rather than unmounted while signing in, so the editor keeps each tab's undo history. */}
       <div className="flex min-h-0 flex-1 flex-col" hidden={signingIn || settingsOpen}>
-        <TabStrip />
+        <TabStrip onDialog={setConfirming} />
         <div className="panes">
           <Rail panel={panel} onChoose={setPanel} />
           <SidePanel panel={panel} schema={schema} text={active?.text ?? ''} onInsert={insert} />
@@ -398,7 +445,7 @@ export function App() {
                     {explaining ? (
                       <ExplainView request={explaining} onOpenRaw={(url) => openRaw({ path: url, version: 'beta' })} />
                     ) : (
-                      <Results tab={active} dialogOpen={paletteOpen || saving !== null} />
+                      <Results tab={active} dialogOpen={paletteOpen || saving !== null || confirming} />
                     )}
                   </>
                 )}
@@ -445,6 +492,7 @@ export function App() {
             editor.current?.focus();
           }}
           onInsert={insert}
+          onProblem={setProblem}
         />
       )}
     </div>
@@ -502,6 +550,14 @@ function Toolbar({ tab, onRun, onFormat, paramCount, paramsOpen, onParams, expla
 
 function Results({ tab, dialogOpen }: { tab: Tab; dialogOpen: boolean }) {
   const result = tab.run?.state === 'done' ? tab.run.result : undefined;
+  // A run that failed after reaching Graph or the engine: its log says what happened (the status line above says why it failed).
+  if (result && result.outcome !== 'ok' && result.diagnostics.length > 0) {
+    return (
+      <section aria-label="Diagnostics" className="flex min-h-0 flex-1 flex-col">
+        <DiagnosticsView result={result} />
+      </section>
+    );
+  }
   if (!result || result.outcome !== 'ok') {
     return (
       <div className="flex flex-1 items-center justify-center">

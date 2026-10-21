@@ -1,22 +1,12 @@
 import { useEffect, useState } from 'react';
 import { call } from '../bridge';
+import { openSaved } from '../library/open-library';
 import { MAX_NAME_LENGTH, useRevisions } from '../library/saving';
 import { errorText } from '../shell/errors';
 import { MOD } from '../shell/keys';
 import { useTabs } from '../tabs/tab-store';
 import type { LibraryList, SavedQuery } from '../wire';
 import { ConfirmDelete, RowMenu } from './row-menu';
-
-/** Opens a saved query in a new tab, or goes to the tab it is already open in. */
-function openSaved(q: SavedQuery) {
-  const { tabs, activate, openWith } = useTabs.getState();
-  const open = tabs.find((t) => t.savedId === q.id);
-  if (open) {
-    activate(open.id);
-  } else {
-    openWith({ source: q.source, title: q.name, text: q.text, savedId: q.id, parameters: q.parameters });
-  }
-}
 
 function skippedText(n: number): string {
   return n === 1 ? '1 saved query couldn’t be read and was moved aside.' : `${n} saved queries couldn’t be read and were moved aside.`;
