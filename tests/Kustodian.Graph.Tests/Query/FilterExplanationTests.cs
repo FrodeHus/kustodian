@@ -62,13 +62,26 @@ public sealed class FilterExplanationTests
     [InlineData("applications | where createdDateTime == datetime(2026-01-01 10:00:00.5)", "createdDateTime == datetime(2026-01-01 10:00:00.5)",
         "Graph can't compare this value exactly")]
     [InlineData("applications | where createdDateTime in (datetime(2026-01-01 10:00:00.5))", "createdDateTime in (datetime(2026-01-01 10:00:00.5))",
-        "Graph can't compare this value exactly")]    [InlineData("security_incidents | where displayName =~ 'x'", "displayName =~ 'x'",
+        "Graph can't compare this value exactly")]
+    [InlineData("security_incidents | where displayName =~ 'x'", "displayName =~ 'x'",
         "Case-insensitive comparison only goes to Graph for directory objects")]
     [InlineData("security_incidents | where appId in~ ('a')", "appId in~ ('a')",
         "Case-insensitive comparison only goes to Graph for directory objects")]
     [InlineData("security_incidents | where displayName startswith 'x'", "displayName startswith 'x'",
         "Case-insensitive comparison only goes to Graph for directory objects")]
     [InlineData("applications | where keyCount != 3", "keyCount != 3", "Graph needs advanced queries for ne and null checks on directory objects")]
+    [InlineData("applications | where displayName != 'x'", "displayName != 'x'", "Graph needs advanced queries for ne and null checks on directory objects")]
+    [InlineData("applications | where displayName !~ 'x'", "displayName !~ 'x'", "Graph needs advanced queries for ne and null checks on directory objects")]
+    [InlineData("security_incidents | where displayName != 'x'", "displayName != 'x'", "Graph would compare this ignoring case, which could drop rows")]
+    [InlineData("security_incidents | where displayName !~ 'x'", "displayName !~ 'x'", "Graph would compare this ignoring case, which could drop rows")]
+    [InlineData("security_incidents | where appId != 'x'", "appId != 'x'", "Graph would compare this ignoring case, which could drop rows")]
+    [InlineData("applications | where keyCount between (1 .. 3)", "keyCount between (1 .. 3)", "Graph can only compare a column with a fixed value")]
+    [InlineData("applications | where iff(keyCount > 1, true, false)", "iff(keyCount > 1, true, false)",
+        "Graph can only compare a column with a fixed value")]
+    [InlineData("applications | where tolower(displayName) !in ('a')", "tolower(displayName) !in ('a')",
+        "Graph can only compare a column with a fixed value")]
+    [InlineData("applications | where displayName !in ('a')", "displayName !in ('a')", "Graph doesn't allow this operator on displayName")]
+    [InlineData("applications | where accountEnabled", "accountEnabled", "Graph doesn't allow this operator on accountEnabled")]
     [InlineData("applications | where isnull(displayName)", "isnull(displayName)",
         "Graph needs advanced queries for ne and null checks on directory objects")]
     [InlineData("applications | where displayName == ''", "displayName == ''", "Graph would drop rows for an empty string")]

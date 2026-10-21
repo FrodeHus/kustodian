@@ -94,13 +94,17 @@ public static partial class GraphFilterTranslator
                 case InExpression { Kind: SyntaxKind.InExpression or SyntaxKind.InCsExpression } @in:
                     return In(@in);
                 case InExpression other:
-                    return Pushdown.Keep(PushdownReasons.Operator(Name(other.Left)));
+                    return Column(other.Left) is var (column, _)
+                        ? Pushdown.Keep(PushdownReasons.Operator(column.Name))
+                        : NotAColumn(other.Left);
                 case FunctionCallExpression call when call.ReferencedSymbol == Functions.Not:
                     return Pushdown.Keep(PushdownReasons.Not);
                 case FunctionCallExpression call when call.ArgumentList.Expressions.Count == 1:
                     return NullCheck(call);
+                // A bare column (a bool used as the condition) names it; any other condition the translator doesn't know is
+                // never named as if it were a column.
                 default:
-                    return Pushdown.Keep(PushdownReasons.Operator(Name(expression)));
+                    return NotAColumn(expression);
             }
         }
 
@@ -142,7 +146,10 @@ public static partial class GraphFilterTranslator
                 return Pushdown.Keep(binary.Kind switch
                 {
                     SyntaxKind.EqualTildeExpression when kind == Kind.String => PushdownReasons.CaseInsensitive,
-                    SyntaxKind.NotEqualExpression when table.DirectoryObject => PushdownReasons.AdvancedQuery,
+                    SyntaxKind.NotEqualExpression or SyntaxKind.BangTildeExpression when table.DirectoryObject
+                        => PushdownReasons.AdvancedQuery,
+                    SyntaxKind.NotEqualExpression or SyntaxKind.BangTildeExpression when kind == Kind.String
+                        => PushdownReasons.CaseFolded,
                     _ => PushdownReasons.Operator(column.Name),
                 });
             }
@@ -228,9 +235,6 @@ public static partial class GraphFilterTranslator
                 && table.Columns.Any(c => c.Name == symbol.Name)
                 ? PushdownReasons.Operator(symbol.Name)
                 : PushdownReasons.FixedValue);
-
-        /// <summary>What a condition is about, for its reason: the column's name, or the expression as written.</summary>
-        private static string Name(Expression expression) => Unwrap(expression) is NameReference reference ? reference.SimpleName : Text(expression);
 
         /// <summary>A top-level column of the table with a type that can be pushed. Nested fields and functions of columns
         /// are not columns.</summary>

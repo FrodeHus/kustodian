@@ -14,12 +14,16 @@ public static class PushdownReasons
 {
     public const string CaseInsensitive = "Case-insensitive comparison only goes to Graph for directory objects";
     public const string AdvancedQuery = "Graph needs advanced queries for ne and null checks on directory objects";
+    /// <summary><c>!=</c> or <c>!~</c> on text off directory objects: Graph's <c>ne</c> may ignore case there, so it could
+    /// drop rows that differ from the value only in case.</summary>
+    public const string CaseFolded = "Graph would compare this ignoring case, which could drop rows";
     public const string EmptyString = "Graph would drop rows for an empty string";
     public const string IsNotNullOnText = "isnotnull on text isn't sent to Graph";
     public const string Not = "not() is never sent to Graph";
     public const string OrSide = "One side of this or can't be sent to Graph";
     public const string NotLeading = "Not part of a leading where";
-    /// <summary>The right side isn't a literal (a column, a function), or the left side isn't a plain column.</summary>
+    /// <summary>The right side isn't a literal (a column, a function), the left side isn't a plain column, or the condition
+    /// isn't one the translator knows.</summary>
     public const string FixedValue = "Graph can only compare a column with a fixed value";
     /// <summary>A value Graph can't represent faithfully: an empty <c>in</c> list, a datetime <c>==</c> with sub-second
     /// precision.</summary>
