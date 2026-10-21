@@ -236,7 +236,14 @@ public sealed class LibraryService(JsonFileStore store, TimeProvider time, ILogg
             return "The query text can be at most 1 MB.";
         }
 
-        foreach (var parameter in input.Parameters)
+        return ParameterProblem(input.Parameters);
+    }
+
+    /// <summary>What is wrong with <paramref name="parameters"/>, or null when nothing is: each needs a name and one of the
+    /// types.</summary>
+    internal static string? ParameterProblem(IReadOnlyList<ParameterDef> parameters)
+    {
+        foreach (var parameter in parameters)
         {
             if (parameter is null || parameter.Name is null || parameter.Value is null || string.IsNullOrWhiteSpace(parameter.Name))
             {

@@ -15,6 +15,10 @@
     <ProjectReference Include="..\Kustodian.Engine\Kustodian.Engine.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Snippets\builtin-snippets.json" LogicalName="builtin-snippets.json" />
+  </ItemGroup>
+
   <!-- The web UI is embedded under wwwroot/ and served on app://. With a web project (web/package.json), web/dist is built by
        npm when it is missing or older than its sources, then embedded. Without one, a built-in placeholder page is embedded,
        so the host builds without Node. -->

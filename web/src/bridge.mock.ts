@@ -71,7 +71,14 @@ const RUN_DELAY_MS = 400;
 interface MockRequest {
   id?: string;
   method?: string;
-  params?: { tabId?: string; settings?: typeof defaultSettings; query?: SavedQueryInput; id?: string };
+  params?: {
+    tabId?: string;
+    settings?: typeof defaultSettings;
+    query?: SavedQueryInput;
+    id?: string;
+    session?: Record<string, unknown>;
+    snippet?: { id?: string | null } & Record<string, unknown>;
+  };
 }
 
 interface SavedQueryInput {
@@ -106,6 +113,8 @@ export function createMockTransport(): Transport {
 
   const saved = new Map<string, SavedQuery>();
   let savedCounter = 0;
+  let session: Record<string, unknown> = { version: 1, activeId: null, tabs: [] };
+  const userSnippets = new Map<string, Record<string, unknown>>();
 
   const reply = (id: string, result: unknown) => receive(JSON.stringify({ id, result: result ?? null }));
   const fail = (id: string, code: string, message: string) => receive(JSON.stringify({ id, error: { code, message } }));
@@ -166,6 +175,32 @@ export function createMockTransport(): Transport {
       }
       case 'library.delete':
         saved.delete(params?.id ?? '');
+        reply(id, null);
+        break;
+      case 'session.get':
+        reply(id, { session, corrupt: false });
+        break;
+      case 'session.save':
+        session = { ...(params?.session ?? session), version: 1 };
+        reply(id, { dropped: 0 });
+        break;
+      case 'snippets.list':
+        reply(id, { snippets: [...userSnippets.values()] });
+        break;
+      case 'snippets.save': {
+        const input = params?.snippet;
+        if (!input) {
+          fail(id, 'bad_request', 'The request has no snippet.');
+          break;
+        }
+        const key = input.id ?? `10000000-0000-0000-0000-${String(++savedCounter).padStart(12, '0')}`;
+        const snippet = { description: '', group: null, parameters: [], ...input, id: key, builtIn: false };
+        userSnippets.set(key, snippet);
+        reply(id, snippet);
+        break;
+      }
+      case 'snippets.delete':
+        userSnippets.delete(params?.id ?? '');
         reply(id, null);
         break;
       case 'recent.list':

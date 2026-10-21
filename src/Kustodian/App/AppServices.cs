@@ -6,7 +6,9 @@ using Kustodian.Graph.Schema;
 using Kustodian.Library;
 using Kustodian.Messaging;
 using Kustodian.Messaging.Handlers;
+using Kustodian.Sessions;
 using Kustodian.Settings;
+using Kustodian.Snippets;
 using Kustodian.Storage;
 
 namespace Kustodian.App;
@@ -26,6 +28,8 @@ public sealed class AppServices : IAsyncDisposable
     private readonly HttpClient _http;
     private readonly LibraryService _library;
     private readonly RecentService _recent;
+    private readonly SessionService _session;
+    private readonly SnippetService _snippets;
     private readonly GraphSchema _schema = GraphSchemaCatalog.Beta;
 
     private AppServices(AppSettings startup, SettingsService settings, AccountService accounts, TokenCacheStatus tokenCache,
@@ -38,6 +42,8 @@ public sealed class AppServices : IAsyncDisposable
         _tokenCache = tokenCache;
         _library = new LibraryService(store, time, new StderrLogger<LibraryService>());
         _recent = new RecentService(store, new StderrLogger<RecentService>());
+        _session = new SessionService(store);
+        _snippets = new SnippetService(store, new StderrLogger<SnippetService>());
         Limits = SettingsService.ToGraphLimits(startup.Limits);
 
         var options = new GraphEngineOptions { WorkerPath = engine.WorkerPath, WorkerArgs = engine.WorkerArgs };
@@ -74,6 +80,8 @@ public sealed class AppServices : IAsyncDisposable
         new SchemaHandler(_schema).Register(bridge);
         new QueryHandler(_schema, ActiveAccountAsync, Runner.RunAsync, _recent, _time, new StderrLogger<QueryHandler>()).Register(bridge);
         new LibraryHandler(_library, _recent).Register(bridge);
+        new SessionHandler(_session).Register(bridge);
+        new SnippetHandler(_snippets).Register(bridge);
         new AccountHandler(_accounts, _tokenCache, Objects).Register(bridge);
     }
 

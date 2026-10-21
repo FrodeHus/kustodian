@@ -12,10 +12,13 @@ public sealed record UserDataRead<T>(T Value, bool Corrupt);
 /// overlap. A missing file reads as <paramref name="defaults"/>. Fields missing from the file (or null in it) load with their
 /// defaults, at every level (<see cref="JsonDefaults.Fill"/>), before <paramref name="isValid"/> sees the value. Content that
 /// doesn't parse, isn't an object, has a value of the wrong type, or that <paramref name="isValid"/> refuses, is moved aside
-/// and read as the defaults too, marked corrupt. Writes are atomic
+/// and read as the defaults too, marked corrupt. Arrays of objects are kept whole by <see cref="JsonDefaults.Fill"/>;
+/// <paramref name="fillElements"/>, when given, fills their elements from per-element defaults (<see cref="JsonDefaults.FillElements"/>)
+/// on the filled object, before it is deserialized. Writes are atomic
 /// (<see cref="JsonFileStore.WriteAsync{T}"/>).
 /// </summary>
-public sealed class UserDataFile<T>(JsonFileStore store, string relativePath, Func<T> defaults, Func<T, bool> isValid)
+public sealed class UserDataFile<T>(JsonFileStore store, string relativePath, Func<T> defaults, Func<T, bool> isValid,
+    Func<JsonObject, JsonObject>? fillElements = null)
     where T : class
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -64,7 +67,7 @@ public sealed class UserDataFile<T>(JsonFileStore store, string relativePath, Fu
             var filled = JsonSerializer.SerializeToNode(defaults(), JsonFileStore.Options) is JsonObject fallback
                 ? JsonDefaults.Fill(value, fallback)
                 : value;
-            return filled.Deserialize<T>(JsonFileStore.Options);
+            return (fillElements is null ? filled : fillElements(filled)).Deserialize<T>(JsonFileStore.Options);
         }
         catch (JsonException)
         {

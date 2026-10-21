@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "snippets": [
+    {
+      "id": "5f0e6a6e-6d0a-4a55-9a53-0b7e3a1c0001",
+      "source": "graph",
+      "name": "Expired app credentials",
+      "description": "Application secrets and certificates that ended more than the grace period ago, one row per app.",
+      "text": "union\n    (applications | mv-expand cred = passwordCredentials | extend credKind = \"secret\"),\n    (applications | mv-expand cred = keyCredentials | extend credKind = \"certificate\")\n| where todatetime(cred.endDateTime) < now() - {graceDays}\n| summarize expired = count(), kinds = make_set(credKind) by displayName, appId\n| order by expired desc",
+      "group": "Identity checks",
+      "parameters": [
+        { "name": "graceDays", "type": "timespan", "value": "0d", "required": false, "choices": ["0d", "7d", "30d"] }
+      ]
+    },
+    {
+      "id": "5f0e6a6e-6d0a-4a55-9a53-0b7e3a1c0002",
+      "source": "graph",
+      "name": "Passthru apps",
+      "description": "Applications published through Application Proxy that let traffic through without Entra pre-authentication.",
+      "text": "applications\n| where isnotnull(onPremisesPublishing)\n| where tostring(onPremisesPublishing.externalAuthenticationType) == \"passthru\"\n| project displayName, appId, externalUrl = tostring(onPremisesPublishing.externalUrl)",
+      "group": "Identity checks",
+      "parameters": []
+    },
+    {
+      "id": "5f0e6a6e-6d0a-4a55-9a53-0b7e3a1c0003",
+      "source": "graph",
+      "name": "Stale guests",
+      "description": "Guest users who have not signed in successfully within the period, or never have. Needs AuditLog.Read.All for signInActivity.",
+      "text": "users\n| where userType == \"Guest\"\n| extend lastSignIn = todatetime(signInActivity.lastSuccessfulSignInDateTime)\n| where isnull(lastSignIn) or lastSignIn < ago({days})\n| project displayName, userPrincipalName, mail, createdDateTime, lastSignIn\n| order by lastSignIn asc",
+      "group": "Identity checks",
+      "parameters": [
+        { "name": "days", "type": "timespan", "value": "90d", "required": false, "choices": ["30d", "90d", "180d"] }
+      ]
+    },
+    {
+      "id": "5f0e6a6e-6d0a-4a55-9a53-0b7e3a1c0004",
+      "source": "graph",
+      "name": "Risky service principals",
+      "description": "Service principals Entra ID Protection flags as at risk or confirmed compromised.",
+      "text": "identityProtection_riskyServicePrincipals\n| where riskState in (\"atRisk\", \"confirmedCompromised\")\n| project displayName, appId, riskLevel, riskState, riskDetail, riskLastUpdatedDateTime\n| order by riskLastUpdatedDateTime desc",
+      "group": "Identity checks",
+      "parameters": []
+    }
+  ]
+}
