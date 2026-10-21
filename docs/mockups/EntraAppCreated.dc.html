@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kustodian · Entra ID application created</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="studio.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}a{color:#4CC2FF}
+.grp{display:flex;align-items:center;gap:10px;padding:10px 4px 6px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.sub{display:flex;align-items:center;gap:10px;padding:8px 8px;border-radius:7px;background:var(--panel2);font-weight:600}
+.perm{display:flex;align-items:flex-start;gap:10px;padding:7px 8px 7px 30px;border-radius:7px}
+.perm:hover{background:var(--raise)}
+.perm .name{font-family:"JetBrains Mono",monospace;font-size:12px}
+.perm .what{font-size:12px;color:var(--muted)}
+.lose{font-size:12px;color:var(--warn)}
+.cnt{margin-left:auto;font-size:12px;color:var(--faint);font-weight:400;text-transform:none;letter-spacing:0}
+.row{display:flex;gap:10px;font-size:12.5px}.row .k{width:132px;flex-shrink:0;color:var(--muted)}
+input[type=checkbox]{accent-color:var(--accent);margin-top:2px}
+</style>
+</helmet>
+<div class="studio" style="width: 1440px; height: 900px; display: flex; flex-direction: column; position: relative;">
+<div class="titlebar"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><span class="brand">Kustodian</span><div style="flex-grow: 1;"></div><span class="pill"><span class="dot-ok"></span><b>kari@contoso.com</b> · Contoso Ltd · Azure CLI client</span></div>
+<div style="flex: 1; display: flex; gap: 32px; padding: 48px 64px; align-items: flex-start; filter: blur(1px); opacity: .5;">
+<section class="card" style="width: 520px; height: 520px;"></section>
+<section style="flex: 1; display: flex; flex-direction: column; gap: 16px;"><div class="card" style="height: 150px;"></div><div class="card" style="height: 170px;"></div></section>
+</div>
+<div class="overlay"></div>
+
+<section class="card" role="dialog" aria-label="Application created" style="position: absolute; left: 270px; top: 90px; width: 900px; height: 720px; display: flex; flex-direction: column; box-shadow: 0 24px 60px rgba(0,0,0,.5);">
+<div style="padding: 20px 24px 14px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px;">
+<h1 style="margin: 0; font-size: 18px; font-weight: 600;"><span style="color: var(--ok);">&#10003;</span> Kustodian (kari@contoso.com) was created</h1>
+<span class="muted">App registration and service principal in Contoso Ltd, with 45 delegated permissions listed. Nothing is granted yet.</span>
+</div>
+<div style="flex: 1; padding: 18px 24px; display: flex; flex-direction: column; gap: 18px; overflow: auto;">
+<div class="card" style="padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; background: var(--panel2);">
+<div class="row"><span class="k">Client ID</span><span class="mono">3f2b8c71-5d0e-4a8f-9b61-2c7e44d1a90b</span><button type="button" class="btn ghost" style="height: 22px; margin-left: auto;">Copy</button></div>
+<div class="row"><span class="k">Tenant ID</span><span class="mono">9a1c5e2f-77b0-4c1d-8e3a-51f0c6a2d03e</span><button type="button" class="btn ghost" style="height: 22px; margin-left: auto;">Copy</button></div>
+<a href="#" style="font-size: 12px;">Open in Entra admin center</a>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<b style="font-size: 14px;">1. Grant for the whole tenant <span class="faint" style="font-weight: 400; font-size: 12px;">optional</span></b>
+<span class="muted" style="font-size: 12px;">43 of the 45 permissions need an admin's consent. Until an admin grants them, signing in with this app will ask for admin approval. Microsoft's page shows the admin exactly what is granted.</span>
+<div style="display: flex; gap: 8px; align-items: center;"><button type="button" class="btn primary">Open admin consent page</button><button type="button" class="btn">Copy link for an admin</button><button type="button" class="btn ghost">Check again</button></div>
+<span class="chip ok" style="align-self: flex-start;">You're a Cloud Application Administrator: you can grant this</span>
+<span class="chip warn" style="align-self: flex-start;">Granted for the tenant: 41 of 43 · missing IdentityRiskEvent.Read.All, ThreatHunting.Read.All</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<b style="font-size: 14px;">2. What now?</b>
+<label style="display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 8px;"><input type="radio" name="next" checked style="margin-top: 3px;"><span><b>Switch to this app and sign in</b><br><span class="muted" style="font-size: 12px;">Saves it as your default client and tenant, then signs you in with it. Your Azure CLI sign-in stays in the account list.</span></span></label>
+<label style="display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px;"><input type="radio" name="next" style="margin-top: 3px;"><span><b>Just show me the client ID</b><br><span class="muted" style="font-size: 12px;">Nothing is saved. Use it later under "My own app registration".</span></span></label>
+</div>
+</div>
+<div style="padding: 14px 24px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px;"><button type="button" class="btn">Close</button><button type="button" class="btn primary">Switch and sign in</button></div>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

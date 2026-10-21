@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kustodian · creating an Entra ID application failed</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="studio.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}a{color:#4CC2FF}
+.grp{display:flex;align-items:center;gap:10px;padding:10px 4px 6px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.sub{display:flex;align-items:center;gap:10px;padding:8px 8px;border-radius:7px;background:var(--panel2);font-weight:600}
+.perm{display:flex;align-items:flex-start;gap:10px;padding:7px 8px 7px 30px;border-radius:7px}
+.perm:hover{background:var(--raise)}
+.perm .name{font-family:"JetBrains Mono",monospace;font-size:12px}
+.perm .what{font-size:12px;color:var(--muted)}
+.lose{font-size:12px;color:var(--warn)}
+.cnt{margin-left:auto;font-size:12px;color:var(--faint);font-weight:400;text-transform:none;letter-spacing:0}
+.row{display:flex;gap:10px;font-size:12.5px}.row .k{width:132px;flex-shrink:0;color:var(--muted)}
+input[type=checkbox]{accent-color:var(--accent);margin-top:2px}
+</style>
+</helmet>
+<div class="studio" style="width: 1440px; height: 900px; display: flex; flex-direction: column; position: relative;">
+<div class="titlebar"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><span class="brand">Kustodian</span><div style="flex-grow: 1;"></div><span class="pill"><span class="dot-ok"></span><b>kari@contoso.com</b> · Contoso Ltd · Azure CLI client</span></div>
+<div style="flex: 1; display: flex; gap: 32px; padding: 48px 64px; align-items: flex-start; filter: blur(1px); opacity: .5;">
+<section class="card" style="width: 520px; height: 520px;"></section>
+<section style="flex: 1; display: flex; flex-direction: column; gap: 16px;"><div class="card" style="height: 150px;"></div><div class="card" style="height: 170px;"></div></section>
+</div>
+<div class="overlay"></div>
+
+<section class="card" role="dialog" aria-label="Create Entra ID application" style="position: absolute; left: 320px; top: 170px; width: 800px; height: 560px; display: flex; flex-direction: column; box-shadow: 0 24px 60px rgba(0,0,0,.5);">
+<div style="padding: 20px 24px 14px; border-bottom: 1px solid var(--line);"><h1 style="margin: 0; font-size: 18px; font-weight: 600;">Create Entra ID application</h1></div>
+<div style="flex: 1; padding: 18px 24px; display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<div style="display:flex;gap:8px;align-items:center"><span style="color: var(--ok);">&#10003;</span> Looked up permission IDs in Contoso Ltd</div>
+<div style="display:flex;gap:8px;align-items:center"><span style="color: var(--bad);">&#10007;</span> Create the app registration</div>
+<div style="display:flex;gap:8px;align-items:center" class="faint"><span>&#9675;</span> Make you an owner</div>
+<div style="display:flex;gap:8px;align-items:center" class="faint"><span>&#9675;</span> Create the service principal</div>
+</div>
+<div class="card" role="alert" style="padding: 14px 16px; border-color: var(--bad); background: var(--bad-soft); display: flex; flex-direction: column; gap: 6px;">
+<b style="color: var(--bad);">Your tenant doesn't let you register applications</b>
+<span style="font-size: 12.5px;">An admin can turn on "Users can register applications", give you the Application Developer role, or create the app for you. Nothing was created.</span>
+<span class="faint mono" style="font-size: 11px;">403 Authorization_RequestDenied · Insufficient privileges to complete the operation.</span>
+</div>
+<div class="card" style="padding: 14px 16px; border-color: var(--warn); display: flex; flex-direction: column; gap: 6px;">
+<b style="color: var(--warn);">Another case: the app was created, the service principal wasn't</b>
+<span style="font-size: 12.5px;">Client ID <span class="mono">3f2b8c71-…-2c7e44d1a90b</span> exists without its enterprise application. Kustodian doesn't delete it for you.</span>
+<div style="display:flex;gap:8px"><button type="button" class="btn">Try again</button><button type="button" class="btn ghost">Open in Entra</button></div>
+</div>
+</div>
+<div style="padding: 14px 24px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px;"><button type="button" class="btn">Back to permissions</button><button type="button" class="btn">Close</button></div>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

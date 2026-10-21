@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kustodian · create Entra ID application</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="studio.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}a{color:#4CC2FF}
+.grp{display:flex;align-items:center;gap:10px;padding:10px 4px 6px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.sub{display:flex;align-items:center;gap:10px;padding:8px 8px;border-radius:7px;background:var(--panel2);font-weight:600}
+.perm{display:flex;align-items:flex-start;gap:10px;padding:7px 8px 7px 30px;border-radius:7px}
+.perm:hover{background:var(--raise)}
+.perm .name{font-family:"JetBrains Mono",monospace;font-size:12px}
+.perm .what{font-size:12px;color:var(--muted)}
+.lose{font-size:12px;color:var(--warn)}
+.cnt{margin-left:auto;font-size:12px;color:var(--faint);font-weight:400;text-transform:none;letter-spacing:0}
+.row{display:flex;gap:10px;font-size:12.5px}.row .k{width:132px;flex-shrink:0;color:var(--muted)}
+input[type=checkbox]{accent-color:var(--accent);margin-top:2px}
+</style>
+</helmet>
+<div class="studio" style="width: 1440px; height: 900px; display: flex; flex-direction: column; position: relative;">
+<div class="titlebar"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><span class="brand">Kustodian</span><div style="flex-grow: 1;"></div><span class="pill"><span class="dot-ok"></span><b>kari@contoso.com</b> · Contoso Ltd · Azure CLI client</span></div>
+<div style="flex: 1; display: flex; gap: 32px; padding: 48px 64px; align-items: flex-start; filter: blur(1px); opacity: .5;">
+<section class="card" style="width: 520px; height: 520px;"></section>
+<section style="flex: 1; display: flex; flex-direction: column; gap: 16px;"><div class="card" style="height: 150px;"></div><div class="card" style="height: 170px;"></div></section>
+</div>
+<div class="overlay"></div>
+
+<section class="card" role="dialog" aria-label="Create Entra ID application" style="position: absolute; left: 120px; top: 64px; width: 1200px; height: 790px; display: flex; flex-direction: column; box-shadow: 0 24px 60px rgba(0,0,0,.5);">
+<div style="padding: 20px 24px 14px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px;">
+<h1 style="margin: 0; font-size: 18px; font-weight: 600;">Create Entra ID application</h1>
+<span class="muted">The least set of read permissions that lets Kustodian query everything. Untick what you don't want; nothing is created until you click Create.</span>
+</div>
+<div style="flex: 1; min-height: 0; display: flex;">
+
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line);">
+<div style="flex: 1; overflow: auto; padding: 8px 16px;">
+
+<div class="grp"><input type="checkbox" checked aria-label="Graph">Graph<span class="cnt">40 of 59 permissions · 245 tables</span></div>
+<div class="sub"><input type="checkbox" checked aria-label="Users, groups and directory">Users, groups and directory<span class="cnt">10 permissions · 39 tables</span></div>
+<label class="perm"><input type="checkbox" checked><span style="display:flex;flex-direction:column;gap:2px"><span><span class="name">Directory.Read.All</span> <span class="tag warn">Admin</span></span><span class="what">24 tables: users, groups, applications, servicePrincipals, devices … <a href="#">show all</a></span></span></label>
+<div class="perm" style="color: var(--faint); font-size: 12px;">+ 9 more</div>
+
+<div class="sub" style="margin-top: 6px;"><input type="checkbox" checked aria-label="Devices and Intune">Devices and Intune<span class="cnt">5 permissions · 222 tables</span></div>
+
+<div class="sub" style="margin-top: 6px;"><input type="checkbox" aria-label="Risk and identity protection" style="opacity:.8">Risk and identity protection<span class="cnt">3 of 4 permissions · 7 tables</span></div>
+<label class="perm"><input type="checkbox"><span style="display:flex;flex-direction:column;gap:2px"><span><span class="name">IdentityRiskyUser.Read.All</span> <span class="tag warn">Admin</span></span><span class="lose">You lose 2 tables: riskyUsers, identityProtection/riskyUsers</span></span></label>
+
+<div class="sub" style="margin-top: 6px;"><input type="checkbox" aria-label="Mail, Teams and files">Mail, Teams and files <span class="faint" style="font-weight:400">· Reports and usage · Other</span><span class="cnt">0 of 23 permissions, unticked by default</span></div>
+<div style="color: var(--faint); font-size: 12px; padding: 4px 8px;">&#9656; Apps and permissions · Sign-in and audit logs · Access reviews and privileged roles · Policies and Conditional Access (collapsed, all ticked)</div>
+
+<div class="grp" style="margin-top: 8px;"><input type="checkbox" checked aria-label="Security">Security<span class="cnt">8 permissions · 14 tables + hunting</span></div>
+<div class="sub"><input type="checkbox" checked>Advanced hunting<span class="cnt">1 permission</span></div>
+<label class="perm"><input type="checkbox" checked><span style="display:flex;flex-direction:column;gap:2px"><span><span class="name">ThreatHunting.Read.All</span> <span class="tag warn">Admin</span></span><span class="what">Defender advanced hunting tabs</span></span></label>
+<div class="sub" style="margin-top: 6px;"><input type="checkbox" checked>Graph security data <span class="faint" style="font-weight:400">· alerts, incidents, Global Secure Access, …</span><span class="cnt">7 permissions · 14 tables</span></div>
+
+<div class="grp" style="margin-top: 8px;"><input type="checkbox" checked aria-label="Azure Resources">Azure Resources<span class="cnt">1 permission</span></div>
+<div class="sub"><input type="checkbox" checked>Resource Graph<span class="cnt">1 permission</span></div>
+<label class="perm"><input type="checkbox" checked><span style="display:flex;flex-direction:column;gap:2px"><span><span class="name">user_impersonation</span> <span class="faint" style="font-size:12px">Azure Service Management</span></span><span class="what">Azure Resource Graph tabs, subscriptions and management groups</span></span></label>
+</div>
+<div style="padding: 10px 16px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; background: var(--panel2);">
+<b style="font-size: 12.5px;">45 permissions · 245 of 303 tables · 43 need admin consent</b>
+<span class="faint" style="font-size: 12px;">133 more tables have no published delegated permission; 8 are reachable only with write permissions, which Kustodian doesn't ask for.</span>
+</div>
+</div>
+
+<div style="width: 400px; flex-shrink: 0; display: flex; flex-direction: column; padding: 18px 20px; gap: 14px; overflow: auto;">
+<div class="field"><label for="appname">Name</label><input id="appname" class="input" value="Kustodian (kari@contoso.com)"></div>
+<b style="font-size: 13px;">What will be created</b>
+<div class="card" style="padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; background: var(--panel2);">
+<b>App registration</b>
+<div class="row"><span class="k">Who can sign in</span><span>Only Contoso Ltd<br><span class="faint mono" style="font-size: 11px;">9a1c…d03e</span></span></div>
+<div class="row"><span class="k">Type</span><span>Public client (desktop)</span></div>
+<div class="row"><span class="k">Redirect URIs</span><span class="mono" style="font-size: 11.5px;">http://localhost<br>…/common/oauth2/nativeclient</span></div>
+<div class="row"><span class="k">Public client flows</span><span>On (device code)</span></div>
+<div class="row"><span class="k">Owner</span><span>you</span></div>
+</div>
+<div class="card" style="padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; background: var(--panel2);">
+<b>Service principal</b>
+<span class="muted" style="font-size: 12px;">The app's enterprise application in Contoso Ltd, so it can be consented to and signed in to.</span>
+</div>
+<div class="card" style="padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; background: var(--panel2);">
+<b>API permissions (delegated)</b>
+<div class="row"><span class="k">Microsoft Graph</span><span>44</span></div>
+<div class="row"><span class="k">Azure Service Mgmt</span><span>1</span></div>
+<span class="muted" style="font-size: 12px;">Listed on the app only. Nothing is granted until someone consents.</span>
+</div>
+<div style="flex-grow: 1;"></div>
+<div style="display: flex; gap: 8px; justify-content: flex-end;"><button type="button" class="btn">Cancel</button><button type="button" class="btn primary">Create</button></div>
+</div>
+</div>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
