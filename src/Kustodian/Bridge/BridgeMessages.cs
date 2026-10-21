@@ -38,6 +38,9 @@ public static class BridgeErrorCodes
     public const string Cancelled = "cancelled";
     public const string Failed = "failed";
     public const string SignInNeeded = "signInNeeded";
+
+    /// <summary>An ARM token needs the user (<c>account.consent {key, audience: "arm"}</c>); the account stays signed in.</summary>
+    public const string ConsentNeeded = "consentNeeded";
 }
 
 /// <summary>Thrown by a handler to answer with a specific error code; its message is shown to the user.</summary>

@@ -5,6 +5,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Hunting/hunting-schema.json" LogicalName="hunting-schema.json" />
+    <EmbeddedResource Include="Arg/arg-schema.json" LogicalName="arg-schema.json" />
   </ItemGroup>
 
   <ItemGroup>

@@ -57,6 +57,33 @@ public sealed class DiagnosticsHandlerTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Arm_requests_are_logged_relative_to_arm()
+    {
+        var diagnostics = new RunDiagnostics(new FakeTimeProvider());
+        using var http = new HttpClient(new ArmAuthHandler(new FixedTokens())
+        {
+            InnerHandler = new DiagnosticsHandler { InnerHandler = new Answering(HttpStatusCode.OK) },
+        })
+        {
+            BaseAddress = ArmHttp.BaseAddress,
+        };
+
+        using var request = new HttpRequestMessage(HttpMethod.Post,
+            "https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version=2024-04-01").ForAccount(Account).ForRun(diagnostics);
+        (await http.SendAsync(request, Ct)).Dispose();
+
+        var entry = Assert.Single(diagnostics.Entries);
+        Assert.Equal("POST providers/Microsoft.ResourceGraph/resources?api-version=2024-04-01", entry.Detail);
+        Assert.Equal(200, entry.Status);
+    }
+
+    private sealed class Answering(HttpStatusCode status) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent("{}") });
+    }
+
+    [Fact]
     public async Task Without_content_length_the_reader_records_the_bytes_it_read()
     {
         var diagnostics = new RunDiagnostics(TimeProvider.System);

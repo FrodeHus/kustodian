@@ -84,6 +84,29 @@ public class SchemaHandlerTests
         Assert.Equal(4, view.GetProperty("functions").GetArrayLength());
     }
 
+    [Fact]
+    public async Task Schema_get_arg_returns_the_documented_tables_without_a_request()
+    {
+        var arm = new Stub(_ => throw new InvalidOperationException("No request is expected."));
+        var bridge = new Messaging.Bridge(_ => { });
+        Handler(arm, "account-1").Register(bridge);
+
+        var view = Result(await bridge.HandleAsync("""{"id":"s","method":"schema.get","params":{"source":"arg"}}"""));
+
+        Assert.Empty(arm.Requests);
+        Assert.Equal("arg", view.GetProperty("source").GetString());
+        Assert.Equal("builtIn", view.GetProperty("origin").GetString());
+        Assert.Equal(JsonValueKind.Null, view.GetProperty("fallbackReason").ValueKind);
+        Assert.Equal(0, view.GetProperty("functions").GetArrayLength());
+        var tables = view.GetProperty("tables").EnumerateArray().ToList();
+        Assert.Equal(40, tables.Count);
+        var resources = tables.Single(t => t.GetProperty("name").GetString() == "Resources");
+        Assert.Equal(JsonValueKind.Null, resources.GetProperty("path").ValueKind);
+        var properties = resources.GetProperty("columns").EnumerateArray().Single(c => c.GetProperty("name").GetString() == "properties");
+        Assert.Equal("dynamic", properties.GetProperty("type").GetString());
+        Assert.Equal(JsonValueKind.Null, properties.GetProperty("filterable").ValueKind);
+    }
+
     private static JsonElement Result(string? json)
     {
         Assert.NotNull(json);

@@ -265,6 +265,36 @@ export interface Snippet {
   parameters: ParameterDef[];
 }
 
+/** A subscription the account can see, as `arm.subscriptions` lists it: `id` is the subscription GUID a scope names. */
+export interface ArmSubscription {
+  id: string;
+  name: string;
+  tenantId: string;
+  state: string;
+}
+
+/** `arm.subscriptions`' answer. */
+export interface ArmSubscriptionsAnswer {
+  subscriptions: ArmSubscription[];
+}
+
+/** A management group: `name` is what a scope names, `displayName` what the picker shows. */
+export interface ArmManagementGroup {
+  name: string;
+  displayName: string;
+}
+
+/** `arm.managementGroups`' answer. `note` says why `groups` is empty when they can't be listed. */
+export interface ArmManagementGroupsAnswer {
+  groups: ArmManagementGroup[];
+  note?: string;
+}
+
+/** `arm.resourceTypes`' answer: the account's resource types (`Resources | distinct type`), cached by the host for 24 hours. */
+export interface ArmResourceTypesAnswer {
+  types: string[];
+}
+
 export type Theme = 'dark' | 'light' | 'system';
 
 export interface AppSettings {

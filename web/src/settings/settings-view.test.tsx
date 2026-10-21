@@ -26,6 +26,7 @@ const defaults: AppSettings = {
     perObjectReadsPerTable: 2000,
     perObjectCacheMinutes: 30,
     graphRowsPerRun: 50000,
+    argRowsPerRun: 50000,
   },
 };
 
@@ -57,6 +58,18 @@ afterEach(() => applyTheme('dark'));
 const field = (label: string) => screen.getByLabelText(label).closest('.field') as HTMLElement;
 
 describe('SettingsView', () => {
+  it('settings_shows_arg_rows_per_run_with_its_range_and_the_hosts_message', async () => {
+    render(<SettingsView onClose={vi.fn()} onChange={vi.fn()} />);
+
+    const rows = await screen.findByLabelText('ARG rows per run');
+    expect((rows as HTMLInputElement).value).toBe('50000');
+    expect(within(field('ARG rows per run')).getByText('1,000 to 1,000,000')).toBeTruthy();
+
+    fireEvent.change(rows, { target: { value: '999' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(within(field('ARG rows per run')).getByRole('alert').textContent).toBe('ARG rows per run must be between 1,000 and 1,000,000.');
+  });
+
   it('settings_shows_restart_notice_and_validation_error', async () => {
     const onChange = vi.fn();
     render(<SettingsView onClose={vi.fn()} onChange={onChange} />);

@@ -1,0 +1,11 @@
+{
+  "_source": "Shape of the 'Next page query' example, https://learn.microsoft.com/rest/api/azureresourcegraph/resourcegraph/resources/resources?view=rest-azureresourcegraph-resourcegraph-2024-04-01 (ids scrubbed; this is the last page, so it has no $skipToken).",
+  "totalRecords": 5,
+  "count": 2,
+  "data": [
+    { "name": "vault-1", "type": "microsoft.keyvault/vaults", "id": "/subscriptions/00000000-0000-0000-0000-000000000002/resourceGroups/RG3/providers/Microsoft.KeyVault/vaults/vault-1", "location": "norwayeast" },
+    { "name": "storage-1", "type": "microsoft.storage/storageaccounts", "id": "/subscriptions/00000000-0000-0000-0000-000000000002/resourceGroups/RG3/providers/Microsoft.Storage/storageAccounts/storage-1", "location": "norwayeast" }
+  ],
+  "facets": [],
+  "resultTruncated": "false"
+}

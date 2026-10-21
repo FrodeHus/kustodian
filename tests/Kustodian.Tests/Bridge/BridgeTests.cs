@@ -290,7 +290,7 @@ public class BridgeTests
         var bridge = NewBridge();
         SchemaHandlerTests.Handler(null).Register(bridge);
 
-        var reply = Parse(await bridge.HandleAsync("""{"id":"s","method":"schema.get","params":{"source":"arg"}}"""));
+        var reply = Parse(await bridge.HandleAsync("""{"id":"s","method":"schema.get","params":{"source":"sentinel"}}"""));
 
         Assert.Equal("bad_request", reply.GetProperty("error").GetProperty("code").GetString());
     }

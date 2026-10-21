@@ -1,0 +1,16 @@
+{
+  "_source": "Subscriptions - List, 2022-12-01 (https://learn.microsoft.com/rest/api/resources/subscriptions/list?view=rest-resources-2022-12-01), scrubbed; the last page has no nextLink.",
+  "value": [
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000002",
+      "authorizationSource": "RoleBased",
+      "managedByTenants": [],
+      "subscriptionId": "00000000-0000-0000-0000-000000000002",
+      "tenantId": "00000000-0000-0000-0000-0000000000aa",
+      "displayName": "Development",
+      "state": "Disabled",
+      "subscriptionPolicies": { "locationPlacementId": "Public_2014-09-01", "quotaId": "PayAsYouGo_2014-09-01", "spendingLimit": "Off" }
+    }
+  ],
+  "count": { "type": "Total", "value": 1 }
+}

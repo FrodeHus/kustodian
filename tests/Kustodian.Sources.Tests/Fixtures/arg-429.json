@@ -1,0 +1,13 @@
+{
+  "_source": "ResourceGraphCommon.ErrorResponse (https://learn.microsoft.com/rest/api/azureresourcegraph/resourcegraph/resources/resources?view=rest-azureresourcegraph-resourcegraph-2024-04-01#resourcegraphcommon.errorresponse) for throttling, with the headers of https://learn.microsoft.com/azure/governance/resource-graph/concepts/guidance-for-throttled-requests. The test sends it with Retry-After, x-ms-user-quota-remaining: 0 and x-ms-user-quota-resets-after: 00:00:05. The text is illustrative, not recorded from a tenant.",
+  "error": {
+    "code": "RateLimiting",
+    "message": "Please provide below info when asking for support: timestampUtc = 2026-10-21T08:00:00.0000000Z, correlationId = 00000000-0000-0000-0000-000000000000.",
+    "details": [
+      {
+        "code": "RateLimiting",
+        "message": "Client application has been throttled and should not attempt to repeat the request until an amount of time has elapsed."
+      }
+    ]
+  }
+}

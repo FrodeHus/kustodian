@@ -1,0 +1,7 @@
+{
+  "_source": "ResourceGraphCommon.ErrorResponse (https://learn.microsoft.com/rest/api/azureresourcegraph/resourcegraph/resources/resources?view=rest-azureresourcegraph-resourcegraph-2024-04-01#resourcegraphcommon.errorresponse); a 403 when the user can't read the subscriptions named (https://learn.microsoft.com/azure/governance/resource-graph/troubleshoot/general). The message is illustrative, not recorded from a tenant.",
+  "error": {
+    "code": "AuthorizationFailed",
+    "message": "The client does not have authorization to perform action 'Microsoft.ResourceGraph/resources/read' over the scope requested."
+  }
+}

@@ -545,6 +545,7 @@ describe('App', () => {
       perObjectReadsPerTable: 2000,
       perObjectCacheMinutes: 30,
       graphRowsPerRun: 50000,
+      argRowsPerRun: 50000,
     };
     answers['settings.get'] = () => ({ ...settings, settings: { ...settings.settings, limits } });
     render(<App />);

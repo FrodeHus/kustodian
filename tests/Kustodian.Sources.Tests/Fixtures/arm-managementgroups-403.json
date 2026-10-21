@@ -1,0 +1,7 @@
+{
+  "_source": "ARM's error envelope ({error: {code, message}}, https://learn.microsoft.com/azure/azure-resource-manager/troubleshooting/common-deployment-errors) for a user who can't read management groups. The message is illustrative, not recorded from a tenant.",
+  "error": {
+    "code": "AuthorizationFailed",
+    "message": "The client does not have authorization to perform action 'Microsoft.Management/managementGroups/read' over scope '/providers/Microsoft.Management'."
+  }
+}

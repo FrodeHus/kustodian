@@ -12,6 +12,7 @@ using Kustodian.Sessions;
 using Kustodian.Settings;
 using Kustodian.Snippets;
 using Kustodian.Sources;
+using Kustodian.Sources.Arg;
 using Kustodian.Sources.Hunting;
 using Kustodian.Storage;
 
@@ -19,7 +20,8 @@ namespace Kustodian.App;
 
 /// <summary>
 /// The host's services, built once from the settings the app started with: the fetch budget, the object cache, the reader, the
-/// runner and the engine pool all take their limits from <c>startup</c>, and keep them until the app restarts. Disposing stops
+/// runner, the engine pool and the Resource Graph source (its rows per run) all take their limits from <c>startup</c>, and keep
+/// them until the app restarts. Disposing stops
 /// the engine workers and closes the Graph, hunting and ARM HTTP clients (<see cref="ArmHttp"/>).
 /// </summary>
 public sealed class AppServices : IAsyncDisposable
@@ -33,6 +35,8 @@ public sealed class AppServices : IAsyncDisposable
     private readonly HttpClient _arm;
     private readonly HttpClient _hunting;
     private readonly HuntingSchemaSource _huntingSchema;
+    private readonly ArgClient _arg;
+    private readonly ArmDirectory _armDirectory;
     private readonly LibraryService _library;
     private readonly RecentService _recent;
     private readonly SessionService _session;
@@ -63,6 +67,8 @@ public sealed class AppServices : IAsyncDisposable
         // Graph's chain, with a timeout past advanced hunting's own 3 minutes.
         _hunting = GraphHttp.CreateClient(accounts, new StderrLogger<GraphAuthHandler>(), HuntingClient.Timeout);
         _huntingSchema = new HuntingSchemaSource(_http, time);
+        _arg = new ArgClient(_arm, time);
+        _armDirectory = new ArmDirectory(_arm, time);
         Budget = new GraphFetchBudget(Limits.FetchBudgetBytes);
         Objects = new MemoryGraphObjectCache(time, Limits);
         Runner = new GraphRunner(_schema, new GraphCollectionReader(_http, Budget, Objects, Limits), Budget, Pool, Limits, time,
@@ -102,6 +108,7 @@ public sealed class AppServices : IAsyncDisposable
         new FileHandler(new PhotinoFileDialogs(Window), _allowedFiles).Register(bridge);
         new AccountHandler(_accounts, _tokenCache, Objects).Register(bridge);
         new RawHandler(new RawRequestService(_http, _time), ActiveAccountAsync).Register(bridge);
+        new ArmHandler(_armDirectory, ActiveAccountAsync).Register(bridge);
     }
 
     /// <summary>The query sources by the name <c>query.run</c> gives them.</summary>
@@ -111,6 +118,7 @@ public sealed class AppServices : IAsyncDisposable
         [
             new GraphQuerySource(Runner),
             new HuntingQuerySource(new HuntingClient(_hunting), _time, new StderrLogger<HuntingQuerySource>()),
+            new ArgQuerySource(_arg, _startup.Limits.ArgRowsPerRun, _time, new StderrLogger<ArgQuerySource>()),
         ];
         return sources.ToDictionary(s => s.Name, StringComparer.Ordinal);
     }

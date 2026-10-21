@@ -3,7 +3,7 @@ using Kustodian.Graph.Run;
 namespace Kustodian.App;
 
 /// <summary>Logs each request that carries a run's diagnostics (<see cref="RunDiagnosticsRequest.ForRun"/>) into that run's log:
-/// its method and URL relative to the Graph version, the status of the response, how long it took and the body size. It sits
+/// its method and URL relative to the Graph version (or to ARM's root, <see cref="ArmHttp"/>), the status of the response, how long it took and the body size. It sits
 /// inside the token handler (<see cref="GraphHttp"/>), so it sees the response the caller gets; it reads only the request's
 /// method and URL and the response's status and <c>Content-Length</c>, never any other header, so no token can reach the log.
 /// When the response states no length, the reader adds the size of the body it read
@@ -36,7 +36,8 @@ public sealed class DiagnosticsHandler : DelegatingHandler
         return response;
     }
 
-    /// <summary>The URL relative to <see cref="GraphHttp.BaseAddress"/>, as sent (escaped); any other URL whole.</summary>
+    /// <summary>The URL relative to <see cref="GraphHttp.BaseAddress"/> or <see cref="ArmHttp.BaseAddress"/>, as sent (escaped);
+    /// any other URL whole.</summary>
     private static string Relative(Uri? uri)
     {
         if (uri is null)
@@ -50,7 +51,14 @@ public sealed class DiagnosticsHandler : DelegatingHandler
         }
 
         var text = uri.AbsoluteUri;
-        var baseText = GraphHttp.BaseAddress.AbsoluteUri;
-        return text.StartsWith(baseText, StringComparison.Ordinal) ? text[baseText.Length..] : text;
+        foreach (var baseText in new[] { GraphHttp.BaseAddress.AbsoluteUri, ArmHttp.BaseAddress.AbsoluteUri })
+        {
+            if (text.StartsWith(baseText, StringComparison.Ordinal))
+            {
+                return text[baseText.Length..];
+            }
+        }
+
+        return text;
     }
 }

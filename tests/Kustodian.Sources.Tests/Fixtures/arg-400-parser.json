@@ -1,0 +1,20 @@
+{
+  "_source": "ResourceGraphCommon.ErrorResponse (https://learn.microsoft.com/rest/api/azureresourcegraph/resourcegraph/resources/resources?view=rest-azureresourcegraph-resourcegraph-2024-04-01#resourcegraphcommon.errorresponse): error.code, error.message and error.details[] of {code, message}. The support-info message and the InvalidQuery detail are as ARG writes them (https://learn.microsoft.com/answers/a/1937621). The REST reference doesn't document a detail's line, characterPositionInLine and token: they are the parser detail as the Azure CLI prints it, not recorded from a tenant. The test fills in {line} and {position} (0-based within the line).",
+  "error": {
+    "code": "BadRequest",
+    "message": "Please provide below info when asking for support: timestampUtc = 2026-10-21T08:00:00.0000000Z, correlationId = 00000000-0000-0000-0000-000000000000.",
+    "details": [
+      {
+        "code": "InvalidQuery",
+        "message": "Query is invalid. Please refer to the documentation for the Azure Resource Graph service and fix the error before retrying."
+      },
+      {
+        "code": "ParserFailure",
+        "message": "ParserFailure",
+        "line": {line},
+        "characterPositionInLine": {position},
+        "token": "whre"
+      }
+    ]
+  }
+}

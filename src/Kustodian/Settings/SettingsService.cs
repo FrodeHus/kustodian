@@ -20,11 +20,15 @@ public sealed record AppSettings(int Version, string Theme, string RawDefaultVer
 /// <summary>The client ID and tenant the sign-in screen offers for "My own app registration", when set.</summary>
 public sealed record SignInDefaults(string? ClientId, string? Tenant);
 
-/// <summary>The limits (spec 9), in the units the UI shows. They apply when the app starts.</summary>
+/// <summary>The limits (spec 9), in the units the UI shows. They apply when the app starts. <see cref="ArgRowsPerRun"/> came
+/// later, so it is last and has its default: a settings file without it reads it as the default (<see cref="JsonDefaults"/>).</summary>
 public sealed record LimitSettings(int GraphObjectsPerTable, int FetchBudgetMb, int EngineTimeoutSeconds, int EngineHeapMb,
-    int EngineWorkers, int PerObjectReadsPerTable, int PerObjectCacheMinutes, int GraphRowsPerRun)
+    int EngineWorkers, int PerObjectReadsPerTable, int PerObjectCacheMinutes, int GraphRowsPerRun,
+    int ArgRowsPerRun = LimitSettings.DefaultArgRowsPerRun)
 {
-    public static LimitSettings Default { get; } = new(50_000, 512, 120, 1024, 2, 2_000, 30, 50_000);
+    public const int DefaultArgRowsPerRun = 50_000;
+
+    public static LimitSettings Default { get; } = new(50_000, 512, 120, 1024, 2, 2_000, 30, 50_000, DefaultArgRowsPerRun);
 }
 
 /// <summary>Settings that were refused; the message names the setting and what it may be.</summary>
@@ -57,6 +61,7 @@ public sealed class SettingsService(JsonFileStore store, ILogger<SettingsService
         new("Per-object reads per table", 0, 20_000, l => l.PerObjectReadsPerTable),
         new("Per-object cache (minutes)", 0, 1_440, l => l.PerObjectCacheMinutes),
         new("Rows returned per Graph run", 1_000, 1_000_000, l => l.GraphRowsPerRun),
+        new("ARG rows per run", 1_000, 1_000_000, l => l.ArgRowsPerRun),
     ];
 
     private readonly UserDataFile<AppSettings> _file = new(store, FileName, () => AppSettings.Default, s => Problem(s) is null);

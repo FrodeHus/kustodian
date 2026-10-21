@@ -1,0 +1,12 @@
+{
+  "_source": "Management Groups - List, 2023-04-01 (https://learn.microsoft.com/rest/api/managementgroups/management-groups/list?view=rest-managementgroups-2023-04-01), scrubbed.",
+  "value": [
+    {
+      "id": "/providers/Microsoft.Management/managementGroups/contoso-platform",
+      "type": "Microsoft.Management/managementGroups",
+      "name": "contoso-platform",
+      "properties": { "tenantId": "00000000-0000-0000-0000-0000000000aa", "displayName": "Platform" }
+    }
+  ],
+  "nextLink": null
+}

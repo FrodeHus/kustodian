@@ -19,6 +19,7 @@ const LIMITS: { key: string; name: string; min: number; max: number }[] = [
   { key: 'perObjectReadsPerTable', name: 'Per-object reads per table', min: 0, max: 20_000 },
   { key: 'perObjectCacheMinutes', name: 'Per-object cache (minutes)', min: 0, max: 1_440 },
   { key: 'graphRowsPerRun', name: 'Rows returned per Graph run', min: 1_000, max: 1_000_000 },
+  { key: 'argRowsPerRun', name: 'ARG rows per run', min: 1_000, max: 1_000_000 },
 ];
 
 const THEMES: { value: Theme; name: string }[] = [

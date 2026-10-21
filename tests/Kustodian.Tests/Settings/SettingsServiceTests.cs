@@ -250,6 +250,45 @@ public sealed class SettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Arg_rows_setting_default_range_and_missing_field_default()
+    {
+        Assert.Equal(50_000, LimitSettings.Default.ArgRowsPerRun);
+        // Positional limits written before the setting existed take its default.
+        Assert.Equal(50_000, new LimitSettings(100_000, 1_024, 300, 2_048, 4, 500, 10, 20_000).ArgRowsPerRun);
+
+        var service = NewService();
+        foreach (var refused in new[] { 999, 1_000_001 })
+        {
+            var ex = await Assert.ThrowsAsync<SettingsRejectedException>(() =>
+                service.SetAsync(AppSettings.Default with { Limits = LimitSettings.Default with { ArgRowsPerRun = refused } }, Ct));
+            Assert.Equal("ARG rows per run must be between 1,000 and 1,000,000.", ex.Message);
+        }
+
+        foreach (var accepted in new[] { 1_000, 1_000_000 })
+        {
+            var stored = await service.SetAsync(AppSettings.Default with { Limits = LimitSettings.Default with { ArgRowsPerRun = accepted } }, Ct);
+            Assert.Equal(accepted, stored.Limits.ArgRowsPerRun);
+            using var file = JsonDocument.Parse(await File.ReadAllTextAsync(SettingsPath, Ct));
+            Assert.Equal(accepted, file.RootElement.GetProperty("limits").GetProperty("argRowsPerRun").GetInt32());
+        }
+
+        // A settings file from before the setting: every other limit as written, ARG rows per run its default.
+        const string content = """
+            {"version":1,"theme":"dark","rawDefaultVersion":"beta","signIn":{"clientId":null,"tenant":null},
+             "limits":{"graphObjectsPerTable":50000,"fetchBudgetMb":512,"engineTimeoutSeconds":120,"engineHeapMb":1024,
+                       "engineWorkers":2,"perObjectReadsPerTable":2000,"perObjectCacheMinutes":30,"graphRowsPerRun":40000}}
+            """;
+        await File.WriteAllTextAsync(SettingsPath, content, Ct);
+        var reader = NewService();
+
+        var read = await reader.GetAsync(Ct);
+
+        Assert.False(reader.MovedAside);
+        Assert.Equal(LimitSettings.Default with { GraphRowsPerRun = 40_000 }, read.Limits);
+        Assert.Equal(50_000, read.Limits.ArgRowsPerRun);
+    }
+
+    [Fact]
     public async Task Settings_set_with_partial_limits_keeps_the_defaults_for_the_missing_ones()
     {
         var bridge = new Messaging.Bridge(_ => { });

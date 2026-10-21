@@ -1,4 +1,5 @@
 using Kustodian.Graph.Schema;
+using Kustodian.Sources.Arg;
 using Kustodian.Sources.Hunting;
 
 namespace Kustodian.Messaging.Handlers;
@@ -6,12 +7,14 @@ namespace Kustodian.Messaging.Handlers;
 /// <summary><c>schema.get {source, refresh?}</c>: the tables, columns, functions and complex types the schema panel and the editor
 /// show. <c>graph</c> is the bundled Graph schema. <c>hunting</c> is the active account's advanced hunting schema
 /// (<see cref="HuntingSchemaSource"/>, cached for 24 hours unless <c>refresh</c>), or the bundled one, with the reason, when it
-/// can't be read or nobody is signed in.</summary>
+/// can't be read or nobody is signed in. <c>arg</c> is the bundled list of Resource Graph tables (<see cref="BuiltInArgSchema"/>);
+/// the account's resource types come from <c>arm.resourceTypes</c>.</summary>
 public sealed class SchemaHandler(GraphSchema schema, HuntingSchemaSource hunting, Func<Task<string?>> activeAccount)
 {
     public const string SignInForTenantSchema = "Sign in to see your tenant's schema. The built-in schema is shown.";
 
     private readonly Lazy<SchemaView> _graph = new(() => SchemaView.From(schema));
+    private readonly Lazy<SchemaView> _arg = new(SchemaView.FromArg);
 
     public void Register(Bridge bridge) =>
         bridge.Register("schema.get", async (p, ct) =>
@@ -23,6 +26,7 @@ public sealed class SchemaHandler(GraphSchema schema, HuntingSchemaSource huntin
                 "hunting" => SchemaView.From(await activeAccount() is { } account
                     ? await hunting.GetAsync(account, request.Refresh, ct)
                     : hunting.BuiltIn(SignInForTenantSchema)),
+                "arg" => _arg.Value,
                 _ => throw new BridgeException(BridgeErrorCodes.BadRequest, $"Unknown source {request.Source}."),
             };
         });
@@ -59,6 +63,17 @@ public sealed record SchemaView(
             [.. t.Columns.Select(c => new SchemaColumnView(c.Name, c.Type, c.Description, null, null, null, false))]))],
         [.. hunting.Functions.Select(f => new SchemaFunctionView(f.Name, f.Description,
             [.. f.Parameters.Select(p => new SchemaParameterView(p.Name, p.Type))]))],
+        new Dictionary<string, IReadOnlyList<GraphField>>());
+
+    /// <summary>Resource Graph's bundled tables: the Graph-only fields are null, and there are no functions.</summary>
+    public static SchemaView FromArg() => new(
+        "arg",
+        HuntingSchemaView.BuiltIn,
+        null,
+        BuiltInArgSchema.DocumentedAt,
+        [.. BuiltInArgSchema.Tables.Select(t => new SchemaTableView(t.Name, null, t.Description, null, null,
+            [.. t.Columns.Select(c => new SchemaColumnView(c.Name, c.Type, "", null, null, null, false))]))],
+        [],
         new Dictionary<string, IReadOnlyList<GraphField>>());
 }
 

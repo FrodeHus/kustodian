@@ -1,0 +1,13 @@
+{
+  "_source": "Shape of the 'First page query' example, https://learn.microsoft.com/rest/api/azureresourcegraph/resourcegraph/resources/resources?view=rest-azureresourcegraph-resourcegraph-2024-04-01 (ids scrubbed to zero GUIDs).",
+  "totalRecords": 5,
+  "count": 3,
+  "data": [
+    { "name": "disk-1", "type": "microsoft.compute/disks", "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/RG1/providers/Microsoft.Compute/disks/disk-1", "location": "eastus" },
+    { "name": "automation-1", "type": "microsoft.automation/automationaccounts", "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/RG2/providers/Microsoft.Automation/automationAccounts/automation-1", "location": "westcentralus" },
+    { "name": "runbook-1", "type": "microsoft.automation/automationaccounts/runbooks", "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/RG2/providers/Microsoft.Automation/automationAccounts/automation-1/runbooks/runbook-1", "location": "westcentralus" }
+  ],
+  "facets": [],
+  "resultTruncated": "false",
+  "$skipToken": "eyAibm8iOiAibHVjayIsICJidXQiOiAibmljZSIsICJ0cnkiOiAiISIgfQ=="
+}

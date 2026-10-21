@@ -94,7 +94,20 @@ const defaultSettings = {
     perObjectReadsPerTable: 2000,
     perObjectCacheMinutes: 30,
     graphRowsPerRun: 50000,
+    argRowsPerRun: 50000,
   },
+};
+
+/** `arm.subscriptions`', `arm.managementGroups`' and `arm.resourceTypes`' answers, as `ArmHandler` writes them. */
+const armSubscriptions = {
+  subscriptions: [
+    { id: '00000000-0000-0000-0000-000000000011', name: 'Production', tenantId: account.tenantId, state: 'Enabled' },
+    { id: '00000000-0000-0000-0000-000000000012', name: 'Development', tenantId: account.tenantId, state: 'Enabled' },
+  ],
+};
+const armManagementGroups = { groups: [{ name: 'contoso-platform', displayName: 'Platform' }] };
+const armResourceTypes = {
+  types: ['microsoft.compute/virtualmachines', 'microsoft.keyvault/vaults', 'microsoft.storage/storageaccounts'],
 };
 
 /** `raw.send`'s and `raw.next`'s answer, as the host builds it: never a `Set-Cookie` or `Authorization` header. */
@@ -305,6 +318,15 @@ export function createMockTransport(): Transport {
         break;
       case 'account.consent':
         reply(id, {});
+        break;
+      case 'arm.subscriptions':
+        reply(id, armSubscriptions);
+        break;
+      case 'arm.managementGroups':
+        reply(id, armManagementGroups);
+        break;
+      case 'arm.resourceTypes':
+        reply(id, armResourceTypes);
         break;
       case 'query.cancel':
         cancelRun(params?.tabId ?? '');
