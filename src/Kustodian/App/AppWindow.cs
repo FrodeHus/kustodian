@@ -4,8 +4,8 @@ using Photino.NET;
 
 namespace Kustodian.App;
 
-/// <summary>The app's one window: a native web view showing the embedded UI on <c>app://</c>, talking to the host through
-/// Photino's message channel. There is no HTTP server and no open port.</summary>
+/// <summary>The app's one window: a native web view showing the embedded UI from its <see cref="AppOrigin"/>, talking to the
+/// host through Photino's message channel. There is no HTTP server and no open port.</summary>
 public static class AppWindow
 {
     public const string Title = "Kustodian";
@@ -65,10 +65,10 @@ public static class AppWindow
         // Messages arrive on the UI thread; the pump hands them on in order, off it, so the window never waits on a query.
         var pump = new MessagePump(ReplyAsync);
         window
-            .RegisterCustomSchemeHandler(EmbeddedAssets.Scheme, (object _, string _, string url, out string contentType) =>
+            .RegisterCustomSchemeHandler(assets.Origin.Scheme, (object _, string _, string url, out string contentType) =>
                 assets.Open(url, out contentType))
             .RegisterWebMessageReceivedHandler((_, message) => pump.Post(message))
-            .Load(EmbeddedAssets.StartUrl);
+            .Load(assets.Origin.StartUrl);
 
         window.WaitForClose();
         Volatile.Write(ref closed, 1);

@@ -41,7 +41,7 @@ public static class AppHost
             var runner = new GraphRunner(schema, new GraphCollectionReader(http, budget, objects), budget, pool, time,
                 new StderrLogger<GraphRunner>());
 
-            AppWindow.Run(new EmbeddedAssets(typeof(AppHost).Assembly), bridge =>
+            AppWindow.Run(new EmbeddedAssets(typeof(AppHost).Assembly, AppOrigin.Current), bridge =>
             {
                 new AppHandler().Register(bridge);
                 new SchemaHandler(schema).Register(bridge);

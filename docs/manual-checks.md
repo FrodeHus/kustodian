@@ -12,7 +12,7 @@ Legend: `ok` verified, `-` not run, `owner` needs a live tenant sign-in, `n/a` n
 | --- | --- | --- | --- |
 | `npm ci`, lint, typecheck, test, build in `web/` | ok (40 web tests) | - (no Node in the VM; the web build was made on macOS and embedded) | ok (Ubuntu 24.04 arm64 container, Node 22) |
 | `dotnet build -warnaserror`, 0 warnings | ok | ok | ok |
-| `dotnet test` | ok, 445 passed | ok, 442 passed, 3 skipped | ok, 445 passed |
+| `dotnet test` | ok, 445 passed (457 after the Windows origin fix) | ok, 442 passed, 3 skipped (after the fix: 457, 454 passed, 3 skipped) | ok, 445 passed |
 
 Known open warnings, not failures: oxlint `react(incompatible-library)` for TanStack Table, Vite chunk-size.
 
@@ -20,8 +20,8 @@ Known open warnings, not failures: oxlint `react(incompatible-library)` for TanS
 
 | Check | macOS | Windows | Linux |
 | --- | --- | --- | --- |
-| Window opens and the web UI renders from `app://` | ok (main window with an account already in the token cache; schema panel listed 438 tables) | FAIL (window opens, page stays blank; see notes) | - (headless container, no display) |
-| No `--engine` process left after closing the window (idle) | ok | - | - |
+| Window opens and the web UI renders from its origin (`app://localhost`; `https://kustodian.invalid` on Windows) | ok (main window with an account already in the token cache; schema panel listed 438 tables, 436 on the re-check after the fix) | ok after the fix (sign-in screen: "Sign in to Microsoft Graph", "Not signed in"; see notes) | - (headless container, no display) |
+| No `--engine` process left after closing the window (idle) | ok | - (the app was force-killed after the check, not closed) | - |
 
 ## Spec 13 checklist
 
@@ -45,10 +45,16 @@ Known open warnings, not failures: oxlint `react(incompatible-library)` for TanS
 
 - macOS launch check: the window title was "Kustodian". It showed a signed-in account because of an earlier owner sign-in cached
   on this Mac, so the sign-in screen itself was not seen. Closing the app (SIGTERM) left no Kustodian or `--engine` process.
-- Windows launch check (Parallels Windows 11 ARM64, WebView2 154): the "Kustodian" window opens but stays white. With
-  `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333`, the only page target reports `about:blank`, so the
-  navigation to `app://localhost/index.html` never took effect. The embedded resources are fine: the assembly holds 84
-  `wwwroot/...` names with forward slashes, matching the 84 files in `web/dist`. The `app://` scheme handler is the suspect on
-  WebView2 and needs a fix before the Windows rows can be checked.
+- Windows launch check (Parallels Windows 11 ARM64, WebView2 154), first run: the "Kustodian" window opened but stayed white.
+  With `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333`, the only page target reported `about:blank`: the
+  navigation to `app://localhost/index.html` never took effect. Cause: Photino.Native 4.0.22 never registers custom schemes
+  with WebView2 (no `CoreWebView2CustomSchemeRegistration`); it only intercepts requests through `WebResourceRequested`, and
+  WebView2 treats an unregistered `app:` URL as an external protocol, so nothing loads. Fix: on Windows the handler is
+  registered for `https` and the UI is served from `https://kustodian.invalid/` (`AppOrigin`); requests for other hosts are left
+  to the web view. Re-check after the fix (2026-10-21): the window (1440x900 physical pixels) showed the sign-in screen, header
+  "Kustodian / Microsoft Graph beta / Not signed in" and the "Sign in with your browser" button; captured with `PrintWindow`
+  on the Kustodian window only. Not signed in. The app was then killed; no Kustodian process remained.
+- Windows sizing: Photino's `SetSize(1440, 900)` is in physical pixels on Windows, so at the VM's 200 % scaling the page gets
+  about 720x450 CSS pixels and shows scrollbars. Not fixed here.
 - Linux: only build and tests could be run (container, no display). The monaco-kusto-in-WebKitGTK question (spec 14, risk 2) is
   still open and needs a machine with a display.

@@ -2,22 +2,20 @@ using System.Reflection;
 
 namespace Kustodian.App;
 
-/// <summary>The web UI, embedded in the app at build time under <c>wwwroot/</c> and served on the <c>app://</c> scheme. Only
-/// embedded files are served; nothing is read from disk.</summary>
+/// <summary>The web UI, embedded in the app at build time under <c>wwwroot/</c> and served from an <see cref="AppOrigin"/>.
+/// Only embedded files are served; nothing is read from disk.</summary>
 public sealed class EmbeddedAssets
 {
-    public const string Scheme = "app";
-    public static readonly Uri StartUrl = new("app://localhost/index.html");
-
     private const string Prefix = "wwwroot/";
     private const string Index = "index.html";
 
     private readonly Assembly _assembly;
     private readonly Dictionary<string, string> _resources;
 
-    public EmbeddedAssets(Assembly assembly)
+    public EmbeddedAssets(Assembly assembly, AppOrigin origin)
     {
         _assembly = assembly;
+        Origin = origin;
         // Resources are named after their path below web/dist, with backslashes when built on Windows.
         _resources = assembly.GetManifestResourceNames()
             .Select(name => (Name: name, Path: name.Replace('\\', '/')))
@@ -25,10 +23,18 @@ public sealed class EmbeddedAssets
             .ToDictionary(r => r.Path[Prefix.Length..], r => r.Name, StringComparer.Ordinal);
     }
 
-    /// <summary>The file for <paramref name="url"/>, or null when there is none. A path without an extension is a route of the
-    /// single-page app and gets <c>index.html</c>.</summary>
+    public AppOrigin Origin { get; }
+
+    /// <summary>The file for <paramref name="url"/>, or null when there is none or the URL is not on <see cref="Origin"/>. A
+    /// path without an extension is a route of the single-page app and gets <c>index.html</c>.</summary>
     public Stream? Open(string url, out string contentType)
     {
+        if (!Origin.Serves(url))
+        {
+            contentType = "";
+            return null;
+        }
+
         var path = PathOf(url);
         if (path.Length == 0 || !Path.HasExtension(path))
         {
