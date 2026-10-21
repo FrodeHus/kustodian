@@ -46,7 +46,7 @@ public sealed class AppServices : IAsyncDisposable
         _recent = new RecentService(store, new StderrLogger<RecentService>());
         _session = new SessionService(store);
         _snippets = new SnippetService(store, new StderrLogger<SnippetService>());
-        _allowedFiles = new AllowedFilePaths(_session);
+        _allowedFiles = new AllowedFilePaths(_session, new StderrLogger<AllowedFilePaths>());
         Limits = SettingsService.ToGraphLimits(startup.Limits);
 
         var options = new GraphEngineOptions { WorkerPath = engine.WorkerPath, WorkerArgs = engine.WorkerArgs };

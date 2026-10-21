@@ -181,6 +181,87 @@ public sealed class FileHandlerTests : IDisposable
         Assert.Equal("foo", reply.GetProperty("result").GetProperty("name").GetString());
     }
 
+    [Theory]
+    [InlineData("x/../../../.zshrc")]
+    [InlineData("k\\u0000ql")]
+    [InlineData("..")]
+    [InlineData("averyveryverylongextension")]
+    public async Task Save_adds_no_extension_that_is_not_plain_letters_and_digits(string extension)
+    {
+        var chosen = Path.Combine(_dir, "foo");
+        _dialogs.Save = chosen;
+
+        var reply = await CallAsync("file.saveAs", $$"""{"suggestedName":"foo","content":"hi","filters":[{"name":"X","extensions":["{{extension}}"]}]}""");
+
+        Assert.Equal(chosen, reply.GetProperty("result").GetProperty("path").GetString());
+        Assert.Equal("hi", await File.ReadAllTextAsync(chosen, TestContext.Current.CancellationToken));
+        Assert.Equal([chosen], Directory.GetFileSystemEntries(_dir));
+    }
+
+    [Fact]
+    public async Task Save_does_not_double_the_dot_of_a_name_ending_in_one()
+    {
+        _dialogs.Save = Path.Combine(_dir, "foo.");
+
+        var reply = await CallAsync("file.saveAs", """{"suggestedName":"foo","content":"hi","filters":[{"name":"KQL","extensions":["kql"]}]}""");
+
+        Assert.DoesNotContain("..", reply.GetProperty("result").GetProperty("name").GetString());
+    }
+
+    [Fact]
+    public async Task A_file_open_refused_for_its_size_does_not_become_writable()
+    {
+        var path = Path.Combine(_dir, "big.kql");
+        await File.WriteAllBytesAsync(path, new byte[(5 * 1024 * 1024) + 1], TestContext.Current.CancellationToken);
+        _dialogs.Open = path;
+        await CallAsync("file.open", "{}");
+
+        await CallAsync("file.saveAs", $$"""{"suggestedName":"x.kql","content":"new","path":{{JsonSerializer.Serialize(path)}}}""");
+
+        Assert.Equal(1, _dialogs.SaveCalls);
+        Assert.Equal(5 * 1024 * 1024L + 1, new FileInfo(path).Length);
+    }
+
+    [Fact]
+    public async Task A_file_open_refused_as_not_utf8_does_not_become_writable()
+    {
+        var path = Path.Combine(_dir, "latin.kql");
+        await File.WriteAllBytesAsync(path, [0x61, 0xE6, 0xF8], TestContext.Current.CancellationToken);
+        _dialogs.Open = path;
+        await CallAsync("file.open", "{}");
+
+        await CallAsync("file.saveAs", $$"""{"suggestedName":"x.kql","content":"new","path":{{JsonSerializer.Serialize(path)}}}""");
+
+        Assert.Equal(1, _dialogs.SaveCalls);
+        Assert.Equal([0x61, 0xE6, 0xF8], await File.ReadAllBytesAsync(path, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task An_unreadable_session_seeds_nothing_and_does_not_fault()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Skip("File modes are Unix only.");
+            return;
+        }
+
+        var sessionFile = Path.Combine(_dir, SessionService.FileName);
+        await File.WriteAllTextAsync(sessionFile, "{}", TestContext.Current.CancellationToken);
+        File.SetUnixFileMode(sessionFile, UnixFileMode.None);
+        try
+        {
+            var allowed = new AllowedFilePaths(new SessionService(new JsonFileStore(_dir)));
+
+            Assert.False(await allowed.ContainsAsync(Path.Combine(_dir, "a.kql")));
+            allowed.Add(Path.Combine(_dir, "a.kql"));
+            Assert.True(await allowed.ContainsAsync(Path.Combine(_dir, "a.kql")));
+        }
+        finally
+        {
+            File.SetUnixFileMode(sessionFile, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
+    }
+
     [Fact]
     public async Task Save_that_cannot_replace_the_target_fails_and_leaves_it_and_no_temp_file()
     {

@@ -32,7 +32,6 @@ public sealed class FileHandler(IFileDialogs dialogs, AllowedFilePaths allowed)
             return BridgeNull.Value;
         }
 
-        allowed.Add(path);
         try
         {
             if (new FileInfo(path).Length > MaxOpenBytes)
@@ -42,7 +41,11 @@ public sealed class FileHandler(IFileDialogs dialogs, AllowedFilePaths allowed)
 
             var bytes = await File.ReadAllBytesAsync(path, ct);
             var offset = bytes.AsSpan().StartsWith(Encoding.UTF8.Preamble) ? Encoding.UTF8.Preamble.Length : 0;
-            return new OpenAnswer(path, Path.GetFileName(path), StrictUtf8.GetString(bytes, offset, bytes.Length - offset));
+            var text = StrictUtf8.GetString(bytes, offset, bytes.Length - offset);
+
+            // Only a file that was read becomes one Save may write to: a refused file stays behind a dialog.
+            allowed.Add(path);
+            return new OpenAnswer(path, Path.GetFileName(path), text);
         }
         catch (DecoderFallbackException)
         {
@@ -87,7 +90,7 @@ public sealed class FileHandler(IFileDialogs dialogs, AllowedFilePaths allowed)
 
             // The OS dialog doesn't add the extension on every platform. This can overwrite an existing foo.kql without the OS
             // having asked, because the dialog only checked for foo.
-            path += MissingExtension(path, filters);
+            path = WithExtension(path, filters);
             allowed.Add(path);
         }
 
@@ -107,15 +110,25 @@ public sealed class FileHandler(IFileDialogs dialogs, AllowedFilePaths allowed)
         return new SaveAnswer(path, Path.GetFileName(path));
     }
 
-    private static string MissingExtension(string path, IReadOnlyList<FileFilter> filters)
+    /// <summary>The chosen <paramref name="path"/> with the first filter's first extension added when it has none. The filters come
+    /// from the page, so an extension is used only if it is 1 to 16 letters or digits; anything else (a separator, a NUL) adds
+    /// nothing. As a second guard the result must stay in the folder the user chose.</summary>
+    private static string WithExtension(string path, IReadOnlyList<FileFilter> filters)
     {
-        if (Path.HasExtension(path) || filters.Count == 0 || filters[0].Extensions.Count == 0)
+        // "foo." has an extension that is empty; it stays as it is rather than becoming "foo..kql".
+        if (Path.HasExtension(path) || path.EndsWith('.') || filters.Count == 0 || filters[0].Extensions.Count == 0)
         {
-            return "";
+            return path;
         }
 
-        var extension = filters[0].Extensions[0].TrimStart('*', '.');
-        return extension.Length == 0 ? "" : "." + extension;
+        var extension = (filters[0].Extensions[0] ?? "").TrimStart('*', '.');
+        if (extension.Length is < 1 or > 16 || !extension.All(char.IsAsciiLetterOrDigit))
+        {
+            return path;
+        }
+
+        var extended = path + "." + extension;
+        return Path.GetDirectoryName(Path.GetFullPath(extended)) == Path.GetDirectoryName(Path.GetFullPath(path)) ? extended : path;
     }
 
     private static async Task WriteAtomicAsync(string path, byte[] bytes, CancellationToken ct)
