@@ -433,7 +433,7 @@ public sealed class GraphEnginePoolTests
     [Fact]
     public void Failure_messages_are_the_specs()
     {
-        Assert.Equal("The server is busy, try again", new GraphEngineException(GraphEngineFailure.Busy).Message);
+        Assert.Equal("Another query is using the engine. Try again when it finishes.", new GraphEngineException(GraphEngineFailure.Busy).Message);
         Assert.Equal("Timed out after 30 s", new GraphEngineException(GraphEngineFailure.TimedOut).Message);
         Assert.Equal("Timed out after 30 s", new GraphEngineException(GraphEngineFailure.TimedOut, TimeSpan.FromSeconds(30)).Message);
         Assert.Equal("Timed out after 45 s", new GraphEngineException(GraphEngineFailure.TimedOut, TimeSpan.FromSeconds(45)).Message);

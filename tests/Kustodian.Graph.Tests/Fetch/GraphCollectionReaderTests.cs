@@ -139,7 +139,7 @@ public sealed class GraphCollectionReaderTests
         var ex = await Fails(Read(Reader(handler, budget), Fetch(), lease));
 
         Assert.Equal(GraphReadFailure.Busy, ex.Failure);
-        Assert.Equal("The server is busy, try again", ex.Message);
+        Assert.Equal("Other queries are fetching from Graph. Try again when they finish.", ex.Message);
     }
 
     [Fact]

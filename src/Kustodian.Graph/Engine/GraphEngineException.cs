@@ -31,7 +31,7 @@ public sealed class GraphEngineException(GraphEngineFailure failure, TimeSpan? t
 
     private static string MessageFor(GraphEngineFailure failure, TimeSpan timeout) => failure switch
     {
-        GraphEngineFailure.Busy => "The server is busy, try again",
+        GraphEngineFailure.Busy => "Another query is using the engine. Try again when it finishes.",
         GraphEngineFailure.TimedOut => string.Create(
             CultureInfo.InvariantCulture, $"Timed out after {(long)Math.Ceiling(timeout.TotalSeconds)} s"),
         GraphEngineFailure.OutOfMemory => "The query needed too much memory (it may multiply rows: check joins)",

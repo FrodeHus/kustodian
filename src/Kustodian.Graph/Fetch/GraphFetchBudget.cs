@@ -61,7 +61,7 @@ public sealed class GraphFetchBudget(long maxBytes = GraphFetchBudget.DefaultMax
             }
             catch (OperationCanceledException) when (deadline.IsCancellationRequested && !ct.IsCancellationRequested)
             {
-                throw new GraphReadException(GraphReadFailure.Busy, "The server is busy, try again");
+                throw new GraphReadException(GraphReadFailure.Busy, "Other queries are fetching from Graph. Try again when they finish.");
             }
         }
     }
