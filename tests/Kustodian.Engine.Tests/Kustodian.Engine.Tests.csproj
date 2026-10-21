@@ -3,9 +3,12 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
-    <!-- No tests yet (exit code 8 = zero tests ran); remove this line when the first test lands. -->
-    <TestingPlatformCommandLineArguments>--ignore-exit-code 8</TestingPlatformCommandLineArguments>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Fixtures\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 
   <ItemGroup>
     <Using Include="Xunit" />
@@ -17,6 +20,22 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Kustodian.Engine\Kustodian.Engine.csproj" />
+    <!-- The worker program is not referenced for its code: its whole output folder is copied to engine-worker/ under the test
+         output, and the pool tests start Kustodian.EngineWorker.dll from there on the dotnet host. -->
+    <ProjectReference Include="..\Kustodian.EngineWorker\Kustodian.EngineWorker.csproj" OutputItemType="EngineWorkerAssembly" ReferenceOutputAssembly="false" />
   </ItemGroup>
+
+  <Target Name="IncludeEngineWorker" AfterTargets="ResolveProjectReferences" Condition="'@(EngineWorkerAssembly)' != ''">
+    <PropertyGroup>
+      <_EngineWorkerDir>@(EngineWorkerAssembly->'%(RootDir)%(Directory)')</_EngineWorkerDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <_EngineWorkerFile Include="$(_EngineWorkerDir)**/*" />
+      <ContentWithTargetPath Include="@(_EngineWorkerFile)">
+        <TargetPath>engine-worker/%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </ContentWithTargetPath>
+    </ItemGroup>
+  </Target>
 
 </Project>

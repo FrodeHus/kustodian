@@ -1,0 +1,83 @@
+{
+  "@odata.context": "https://graph.microsoft.com/beta/$metadata#applications",
+  "value": [
+    {
+      "id": "0b1a1c2e-0000-4000-8000-000000000001",
+      "appId": "a1000000-0000-4000-8000-000000000001",
+      "displayName": "Payroll Portal",
+      "createdDateTime": "2022-03-14T09:12:00Z",
+      "signInAudience": "AzureADMyOrg",
+      "passwordCredentials": [
+        { "keyId": "p-1", "displayName": "prod-secret", "startDateTime": "2024-01-01T00:00:00Z", "endDateTime": "2025-12-31T00:00:00Z", "hint": "Xy~" }
+      ],
+      "keyCredentials": [],
+      "onPremisesPublishing": null
+    },
+    {
+      "id": "0b1a1c2e-0000-4000-8000-000000000002",
+      "appId": "a1000000-0000-4000-8000-000000000002",
+      "displayName": "Legacy Intranet (App Proxy)",
+      "createdDateTime": "2019-06-01T10:00:00Z",
+      "signInAudience": "AzureADMyOrg",
+      "passwordCredentials": [],
+      "keyCredentials": [],
+      "onPremisesPublishing": {
+        "externalUrl": "https://intranet-contoso.msappproxy.net/",
+        "internalUrl": "http://intranet.corp.local/",
+        "externalAuthenticationType": "passthru",
+        "isPersistentCookieEnabled": false
+      }
+    },
+    {
+      "id": "0b1a1c2e-0000-4000-8000-000000000003",
+      "appId": "a1000000-0000-4000-8000-000000000003",
+      "displayName": "HR Wiki (App Proxy)",
+      "createdDateTime": "2020-02-20T10:00:00Z",
+      "signInAudience": "AzureADMyOrg",
+      "passwordCredentials": [],
+      "keyCredentials": [],
+      "onPremisesPublishing": {
+        "externalUrl": "https://hrwiki-contoso.msappproxy.net/",
+        "internalUrl": "http://hrwiki.corp.local/",
+        "externalAuthenticationType": "aadPreAuthentication"
+      }
+    },
+    {
+      "id": "0b1a1c2e-0000-4000-8000-000000000004",
+      "appId": "a1000000-0000-4000-8000-000000000004",
+      "displayName": "CI Deployer",
+      "createdDateTime": "2023-08-30T08:00:00Z",
+      "signInAudience": "AzureADMyOrg",
+      "passwordCredentials": [
+        { "keyId": "p-2", "displayName": "old", "startDateTime": "2023-08-30T00:00:00Z", "endDateTime": "2024-08-30T00:00:00Z" },
+        { "keyId": "p-3", "displayName": "current", "startDateTime": "2026-01-01T00:00:00Z", "endDateTime": "2027-01-01T00:00:00Z" }
+      ],
+      "keyCredentials": [
+        { "keyId": "k-1", "displayName": "CN=deployer", "type": "AsymmetricX509Cert", "usage": "Verify", "startDateTime": "2024-01-01T00:00:00Z", "endDateTime": "2026-06-01T00:00:00Z" }
+      ],
+      "onPremisesPublishing": null
+    },
+    {
+      "id": "0b1a1c2e-0000-4000-8000-000000000005",
+      "appId": "a1000000-0000-4000-8000-000000000005",
+      "displayName": "Partner Portal",
+      "createdDateTime": "2024-11-11T11:11:00Z",
+      "signInAudience": "AzureADMultipleOrgs",
+      "passwordCredentials": [
+        { "keyId": "p-4", "displayName": "partner", "startDateTime": "2025-11-11T00:00:00Z", "endDateTime": "2027-11-11T00:00:00Z" }
+      ],
+      "keyCredentials": [],
+      "onPremisesPublishing": null
+    },
+    {
+      "id": "0b1a1c2e-0000-4000-8000-000000000006",
+      "appId": "a1000000-0000-4000-8000-000000000006",
+      "displayName": "Marketing Analytics",
+      "createdDateTime": "2025-02-02T12:00:00Z",
+      "signInAudience": "AzureADandPersonalMicrosoftAccount",
+      "passwordCredentials": [],
+      "keyCredentials": [],
+      "onPremisesPublishing": null
+    }
+  ]
+}

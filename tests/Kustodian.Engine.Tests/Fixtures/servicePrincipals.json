@@ -1,0 +1,9 @@
+{
+  "@odata.context": "https://graph.microsoft.com/beta/$metadata#servicePrincipals",
+  "value": [
+    { "id": "5p000000-0000-4000-8000-000000000001", "appId": "a1000000-0000-4000-8000-000000000001", "displayName": "Payroll Portal", "accountEnabled": true, "servicePrincipalType": "Application" },
+    { "id": "5p000000-0000-4000-8000-000000000002", "appId": "a1000000-0000-4000-8000-000000000002", "displayName": "Legacy Intranet (App Proxy)", "accountEnabled": true, "servicePrincipalType": "Application" },
+    { "id": "5p000000-0000-4000-8000-000000000004", "appId": "a1000000-0000-4000-8000-000000000004", "displayName": "CI Deployer", "accountEnabled": false, "servicePrincipalType": "Application" },
+    { "id": "5p000000-0000-4000-8000-000000000005", "appId": "a1000000-0000-4000-8000-000000000005", "displayName": "Partner Portal", "accountEnabled": true, "servicePrincipalType": "Application" }
+  ]
+}

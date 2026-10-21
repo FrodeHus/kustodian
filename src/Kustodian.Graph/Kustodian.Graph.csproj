@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <PackageReference Include="Microsoft.Azure.Kusto.Language" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 
   <ItemGroup>
@@ -9,6 +10,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Kustodian.Graph.Tests" />
+    <InternalsVisibleTo Include="Kustodian.Engine.Tests" />
   </ItemGroup>
 
 </Project>
