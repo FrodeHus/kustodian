@@ -1,13 +1,23 @@
 # Schema tool
 
 Regenerates `src/Kustodian.Graph/Schema/graph-beta.json`, the Graph beta schema embedded in the app, and prints what changed.
+It also writes `graph-permissions.json` beside it (see Outputs).
 
 ```
-dotnet run --project tools/schema -- [--metadata <path|url>] [--permissions <path|url>] [--out <path>]
+dotnet run --project tools/schema -- [--metadata <path|url>] [--permissions <path|url>] [--out <path>] [--permissions-out <path>]
 ```
 
 With no arguments it downloads both inputs. Set `GITHUB_TOKEN` to avoid API rate limits when resolving the metadata commit.
 Exit codes: 0 ok, 2 usage, 3 an input could not be read or downloaded.
+
+## Outputs
+
+- `graph-beta.json` (`--out`): the schema. Not rewritten when nothing changed.
+- `graph-permissions.json` (`--permissions-out`, default beside the schema path): every `DelegatedWork` permission whose path
+  sets include `GET` on a table's path, whatever the least-privileged marker, with admin consent, Microsoft's `userDescription`
+  and the table paths it can read (`GraphPermissionCatalog`). Permissions that read no table are left out. It is written on
+  every run, even when the schema is unchanged, and the tool prints `Permissions: N`. The Create Entra ID application dialog
+  offers these; write permissions are filtered out there, not here.
 
 ## Inputs
 

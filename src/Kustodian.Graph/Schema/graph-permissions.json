@@ -1,0 +1,2223 @@
+{
+  "source": "msgraph-metadata@1fd0ef510f79f3dadb3e083bdebc9496f939a11c; permissions https://raw.githubusercontent.com/microsoftgraph/microsoft-graph-devx-content/master/permissions/new/permissions.json",
+  "permissions": [
+    {
+      "name": "APIConnectors.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read, create and manage the API connectors used in user authentication flows, on your behalf.",
+      "tables": [
+        "identity/apiConnectors"
+      ]
+    },
+    {
+      "name": "AccessReview.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read information on access reviews, reviewers, decisions and settings that you have access to.",
+      "tables": [
+        "accessReviews"
+      ]
+    },
+    {
+      "name": "AccessReview.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read, update and perform action on access reviews, reviewers, decisions and settings that you have access to.",
+      "tables": [
+        "accessReviews"
+      ]
+    },
+    {
+      "name": "AccessReview.ReadWrite.Membership",
+      "adminConsent": true,
+      "description": "Allows the app to read, update and perform action on access reviews, reviewers, decisions and settings that you have access to.",
+      "tables": [
+        "accessReviews"
+      ]
+    },
+    {
+      "name": "AdministrativeUnit.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read administrative units and administrative unit membership on your behalf.",
+      "tables": [
+        "administrativeUnits",
+        "directory/administrativeUnits"
+      ]
+    },
+    {
+      "name": "AdministrativeUnit.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to create, read, update, and delete administrative units and manage administrative unit membership on your behalf.",
+      "tables": [
+        "administrativeUnits",
+        "directory/administrativeUnits"
+      ]
+    },
+    {
+      "name": "AgentCardManifest.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read agent card manifests on your behalf.",
+      "tables": [
+        "agentRegistry/agentCardManifests"
+      ]
+    },
+    {
+      "name": "AgentCardManifest.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write agent card manifests on your behalf.",
+      "tables": [
+        "agentRegistry/agentCardManifests"
+      ]
+    },
+    {
+      "name": "AgentCollection.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read collections and their membership on your behalf.",
+      "tables": [
+        "agentRegistry/agentCollections"
+      ]
+    },
+    {
+      "name": "AgentCollection.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to create, read, update, and delete collections and manage their membership on your behalf.",
+      "tables": [
+        "agentRegistry/agentCollections"
+      ]
+    },
+    {
+      "name": "AgentIdUser.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to create agent users, read and write the full set of profile properties, reports, and managers of agent ID users, delete and restore agent users in your organization, and read basic company properties, on your behalf.",
+      "tables": [
+        "users"
+      ]
+    },
+    {
+      "name": "AgentIdUser.ReadWrite.IdentityParentedBy",
+      "adminConsent": true,
+      "description": "Allows the app to create agent users, read and write the full set of profile properties, reports, and managers of agent ID users in your organization, delete and restore agent users under an agent blueprint, and read basic company properties, on your behalf.",
+      "tables": [
+        "users"
+      ]
+    },
+    {
+      "name": "AgentInstance.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read agent instances and their related collections on your behalf.",
+      "tables": [
+        "agentRegistry/agentInstances"
+      ]
+    },
+    {
+      "name": "AgentInstance.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to create, read, update, and delete agent instances on your behalf.",
+      "tables": [
+        "agentRegistry/agentInstances"
+      ]
+    },
+    {
+      "name": "AppCatalog.Read.All",
+      "adminConsent": false,
+      "description": "Allows the app to read apps in the app catalogs.",
+      "tables": [
+        "appCatalogs/teamsApps"
+      ]
+    },
+    {
+      "name": "AppCatalog.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to create, read, update, and delete apps in the app catalogs.",
+      "tables": [
+        "appCatalogs/teamsApps"
+      ]
+    },
+    {
+      "name": "AppCatalog.Submit",
+      "adminConsent": false,
+      "description": "Allows the app to submit application packages to the catalog and cancel submissions that are pending review on your behalf.",
+      "tables": [
+        "appCatalogs/teamsApps"
+      ]
+    },
+    {
+      "name": "Application.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read applications and service principals on your behalf.",
+      "tables": [
+        "applications",
+        "schemaExtensions",
+        "servicePrincipals"
+      ]
+    },
+    {
+      "name": "Application.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to create, read, update and delete applications and service principals on your behalf. Allows management of app role assignments, except those exposed by Microsoft Graph. Does not allow management of delegated permission grants.",
+      "tables": [
+        "applications",
+        "servicePrincipals"
+      ]
+    },
+    {
+      "name": "AuditLog.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and query your audit log activities, on your behalf.",
+      "tables": [
+        "auditLogs/directoryAudits",
+        "auditLogs/provisioning",
+        "auditLogs/signIns",
+        "auditLogs/signUps",
+        "reports/correlations"
+      ]
+    },
+    {
+      "name": "Bookings.Manage.All",
+      "adminConsent": false,
+      "description": "Allows an app to read, write and manage bookings appointments, businesses, customers, services, and staff on your behalf.",
+      "tables": [
+        "bookingBusinesses",
+        "bookingCurrencies",
+        "solutions/bookingBusinesses",
+        "solutions/bookingCurrencies"
+      ]
+    },
+    {
+      "name": "Bookings.Read.All",
+      "adminConsent": false,
+      "description": "Allows an app to read bookings appointments, businesses, customers, services, and staff on your behalf.",
+      "tables": [
+        "bookingBusinesses",
+        "bookingCurrencies",
+        "solutions/bookingBusinesses",
+        "solutions/bookingCurrencies"
+      ]
+    },
+    {
+      "name": "Bookings.ReadWrite.All",
+      "adminConsent": false,
+      "description": "Allows an app to read and write Bookings appointments, businesses, customers, services, and staff on your behalf. Does not allow create, delete and publish of booking businesses.",
+      "tables": [
+        "bookingBusinesses",
+        "bookingCurrencies",
+        "solutions/bookingBusinesses",
+        "solutions/bookingCurrencies"
+      ]
+    },
+    {
+      "name": "BookingsAppointment.ReadWrite.All",
+      "adminConsent": false,
+      "description": "Allows an app to read and write bookings appointments and customers, and additionally allows read businesses information, services, and staff on your behalf.",
+      "tables": [
+        "bookingBusinesses",
+        "bookingCurrencies",
+        "solutions/bookingBusinesses",
+        "solutions/bookingCurrencies"
+      ]
+    },
+    {
+      "name": "BusinessScenarioConfig.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read the configurations of your organization's business scenarios, on your behalf.",
+      "tables": [
+        "solutions/businessScenarios"
+      ]
+    },
+    {
+      "name": "BusinessScenarioConfig.Read.OwnedBy",
+      "adminConsent": true,
+      "description": "Allows the app to read the configurations of business scenarios it owns, on your behalf.",
+      "tables": [
+        "solutions/businessScenarios"
+      ]
+    },
+    {
+      "name": "BusinessScenarioConfig.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write the configurations of your organization's business scenarios, on your behalf.",
+      "tables": [
+        "solutions/businessScenarios"
+      ]
+    },
+    {
+      "name": "BusinessScenarioConfig.ReadWrite.OwnedBy",
+      "adminConsent": true,
+      "description": "Allows the app to create new business scenarios and fully manage the configurations of scenarios it owns, on your behalf.",
+      "tables": [
+        "solutions/businessScenarios"
+      ]
+    },
+    {
+      "name": "Chat.Read",
+      "adminConsent": false,
+      "description": "Allows an app to read your 1 on 1 or group chat messages in Microsoft Teams, on your behalf.",
+      "tables": [
+        "chats"
+      ]
+    },
+    {
+      "name": "Chat.ReadBasic",
+      "adminConsent": false,
+      "description": "Allows an app to read the members and descriptions of one-to-one and group chat threads, on your behalf.",
+      "tables": [
+        "chats"
+      ]
+    },
+    {
+      "name": "Chat.ReadWrite",
+      "adminConsent": false,
+      "description": "Allows an app to read and write your 1 on 1 or group chat messages in Microsoft Teams, on your behalf.",
+      "tables": [
+        "chats"
+      ]
+    },
+    {
+      "name": "Community.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to list Viva Engage communities, and to read their properties on your behalf.",
+      "tables": [
+        "employeeExperience/communities",
+        "employeeExperience/engagementAsyncOperations"
+      ]
+    },
+    {
+      "name": "Community.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to create Viva Engage communities and read all community properties on your behalf.",
+      "tables": [
+        "employeeExperience/communities",
+        "employeeExperience/engagementAsyncOperations"
+      ]
+    },
+    {
+      "name": "CrossTenantUserProfileSharing.Read",
+      "adminConsent": true,
+      "description": "Allows the application to list and query shared user profile information associated with the current tenant on your behalf.  It also permits the application to export your external user data (e.g. customer content or system-generated logs), associated with the current tenant on your behalf.",
+      "tables": [
+        "directory/outboundSharedUserProfiles"
+      ]
+    },
+    {
+      "name": "CrossTenantUserProfileSharing.Read.All",
+      "adminConsent": true,
+      "description": "Allows the application to list and query any shared user profile information associated with the current tenant on your behalf.  It also permits the application to export external user data (e.g. customer content or system-generated logs), for any user associated with the current tenant on your behalf.",
+      "tables": [
+        "directory/inboundSharedUserProfiles",
+        "directory/outboundSharedUserProfiles"
+      ]
+    },
+    {
+      "name": "CrossTenantUserProfileSharing.ReadWrite",
+      "adminConsent": true,
+      "description": "Allows the application to list and query shared user profile information associated with the current tenant on your behalf.  It also permits the application to export and remove your external user data (e.g. customer content or system-generated logs), associated with the current tenant on your behalf.",
+      "tables": [
+        "directory/outboundSharedUserProfiles"
+      ]
+    },
+    {
+      "name": "CrossTenantUserProfileSharing.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the application to list and query any shared user profile information associated with the current tenant on your behalf.  It also permits the application to export and remove external user data (e.g. customer content or system-generated logs), for any user associated with the current tenant on your behalf.",
+      "tables": [
+        "directory/inboundSharedUserProfiles",
+        "directory/outboundSharedUserProfiles"
+      ]
+    },
+    {
+      "name": "CustomAuthenticationExtension.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read your organization's custom authentication extensions, on your behalf.",
+      "tables": [
+        "identity/customAuthenticationExtensions"
+      ]
+    },
+    {
+      "name": "CustomAuthenticationExtension.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write your organization's custom authentication extensions, on your behalf.",
+      "tables": [
+        "identity/customAuthenticationExtensions"
+      ]
+    },
+    {
+      "name": "CustomSecAttributeAuditLogs.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read custom security attributes audit logs on your behalf.",
+      "tables": [
+        "auditLogs/customSecurityAttributeAudits"
+      ]
+    },
+    {
+      "name": "CustomSecAttributeDefinition.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read custom security attribute definitions for the tenant on your behalf.",
+      "tables": [
+        "directory/attributeSets",
+        "directory/customSecurityAttributeDefinitions"
+      ]
+    },
+    {
+      "name": "CustomSecAttributeDefinition.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write custom security attribute definitions for the tenant on your behalf.",
+      "tables": [
+        "directory/attributeSets",
+        "directory/customSecurityAttributeDefinitions"
+      ]
+    },
+    {
+      "name": "DelegatedAdminRelationship.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read details of Delegated Admin relationships with customers like access details (that includes roles) and the duration as well as specific role assignments to security groups on your behalf.",
+      "tables": [
+        "tenantRelationships/delegatedAdminCustomers",
+        "tenantRelationships/delegatedAdminRelationships"
+      ]
+    },
+    {
+      "name": "DelegatedAdminRelationship.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to manage (create-update-terminate) Delegated Admin relationships with customers and role assignments to security groups for active Delegated Admin relationships on your behalf.",
+      "tables": [
+        "tenantRelationships/delegatedAdminCustomers",
+        "tenantRelationships/delegatedAdminRelationships"
+      ]
+    },
+    {
+      "name": "DelegatedPermissionGrant.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to manage permission grants for delegated permissions exposed by any API (including Microsoft Graph), on your behalf. ",
+      "tables": [
+        "oauth2PermissionGrants"
+      ]
+    },
+    {
+      "name": "Device.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read devices' configuration information on your behalf.",
+      "tables": [
+        "devices"
+      ]
+    },
+    {
+      "name": "DeviceManagementApps.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read the properties, group assignments and status of apps, app configurations and app protection policies managed by Microsoft Intune.",
+      "tables": [
+        "deviceAppManagement/androidManagedAppProtections",
+        "deviceAppManagement/defaultManagedAppProtections",
+        "deviceAppManagement/deviceAppManagementTasks",
+        "deviceAppManagement/enterpriseCodeSigningCertificates",
+        "deviceAppManagement/iosManagedAppProtections",
+        "deviceAppManagement/managedAppPolicies",
+        "deviceAppManagement/managedAppRegistrations",
+        "deviceAppManagement/managedAppStatuses",
+        "deviceAppManagement/managedEBookCategories",
+        "deviceAppManagement/managedEBooks",
+        "deviceAppManagement/mdmWindowsInformationProtectionPolicies",
+        "deviceAppManagement/mobileAppCategories",
+        "deviceAppManagement/mobileAppConfigurations",
+        "deviceAppManagement/mobileApps",
+        "deviceAppManagement/targetedManagedAppConfigurations",
+        "deviceAppManagement/wdacSupplementalPolicies",
+        "deviceAppManagement/windowsInformationProtectionDeviceRegistrations",
+        "deviceAppManagement/windowsInformationProtectionPolicies",
+        "deviceAppManagement/windowsInformationProtectionWipeActions",
+        "deviceAppManagement/windowsManagedAppProtections",
+        "deviceManagement/auditEvents",
+        "deviceManagement/configManagerCollections",
+        "deviceManagement/intuneBrandingProfiles",
+        "deviceManagement/windowsInformationProtectionAppLearningSummaries",
+        "deviceManagement/windowsInformationProtectionNetworkLearningSummaries",
+        "users"
+      ]
+    },
+    {
+      "name": "DeviceManagementApps.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write the properties, group assignments and status of apps, app configurations and app protection policies managed by Microsoft Intune.",
+      "tables": [
+        "deviceAppManagement/androidManagedAppProtections",
+        "deviceAppManagement/defaultManagedAppProtections",
+        "deviceAppManagement/deviceAppManagementTasks",
+        "deviceAppManagement/enterpriseCodeSigningCertificates",
+        "deviceAppManagement/iosManagedAppProtections",
+        "deviceAppManagement/managedAppPolicies",
+        "deviceAppManagement/managedAppRegistrations",
+        "deviceAppManagement/managedAppStatuses",
+        "deviceAppManagement/managedEBookCategories",
+        "deviceAppManagement/managedEBooks",
+        "deviceAppManagement/mdmWindowsInformationProtectionPolicies",
+        "deviceAppManagement/mobileAppCategories",
+        "deviceAppManagement/mobileAppConfigurations",
+        "deviceAppManagement/mobileApps",
+        "deviceAppManagement/targetedManagedAppConfigurations",
+        "deviceAppManagement/wdacSupplementalPolicies",
+        "deviceAppManagement/windowsInformationProtectionDeviceRegistrations",
+        "deviceAppManagement/windowsInformationProtectionPolicies",
+        "deviceAppManagement/windowsInformationProtectionWipeActions",
+        "deviceAppManagement/windowsManagedAppProtections",
+        "deviceManagement/auditEvents",
+        "deviceManagement/configManagerCollections",
+        "deviceManagement/intuneBrandingProfiles",
+        "deviceManagement/windowsInformationProtectionAppLearningSummaries",
+        "deviceManagement/windowsInformationProtectionNetworkLearningSummaries",
+        "users"
+      ]
+    },
+    {
+      "name": "DeviceManagementCloudCA.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read certification authority information on your behalf.",
+      "tables": [
+        "deviceManagement/cloudCertificationAuthority"
+      ]
+    },
+    {
+      "name": "DeviceManagementCloudCA.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write certification authority information on your behalf.",
+      "tables": [
+        "deviceManagement/cloudCertificationAuthority"
+      ]
+    },
+    {
+      "name": "DeviceManagementConfiguration.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read properties of Microsoft Intune-managed device configuration and device compliance policies and their assignment to groups.",
+      "tables": [
+        "deviceAppManagement/defaultManagedAppProtections",
+        "deviceAppManagement/deviceAppManagementTasks",
+        "deviceAppManagement/managedAppPolicies",
+        "deviceAppManagement/managedAppRegistrations",
+        "deviceAppManagement/managedAppStatuses",
+        "deviceAppManagement/policySets",
+        "deviceAppManagement/vppTokens",
+        "deviceAppManagement/windowsInformationProtectionDeviceRegistrations",
+        "deviceAppManagement/windowsInformationProtectionPolicies",
+        "deviceAppManagement/windowsInformationProtectionWipeActions",
+        "deviceAppManagement/windowsManagedAppProtections",
+        "deviceManagement/androidDeviceOwnerEnrollmentProfiles",
+        "deviceManagement/androidForWorkAppConfigurationSchemas",
+        "deviceManagement/androidForWorkEnrollmentProfiles",
+        "deviceManagement/androidManagedStoreAppConfigurationSchemas",
+        "deviceManagement/assignmentFilters",
+        "deviceManagement/cartToClassAssociations",
+        "deviceManagement/categories",
+        "deviceManagement/certificateConnectorDetails",
+        "deviceManagement/chromeOSOnboardingSettings",
+        "deviceManagement/cloudPCConnectivityIssues",
+        "deviceManagement/comanagedDevices",
+        "deviceManagement/comanagementEligibleDevices",
+        "deviceManagement/complianceCategories",
+        "deviceManagement/complianceManagementPartners",
+        "deviceManagement/compliancePolicies",
+        "deviceManagement/complianceSettings",
+        "deviceManagement/configManagerCollections",
+        "deviceManagement/configurationCategories",
+        "deviceManagement/configurationPolicies",
+        "deviceManagement/configurationPolicyTemplates",
+        "deviceManagement/configurationSettings",
+        "deviceManagement/dataSharingConsents",
+        "deviceManagement/detectedApps",
+        "deviceManagement/deviceCategories",
+        "deviceManagement/deviceCompliancePolicies",
+        "deviceManagement/deviceCompliancePolicySettingStateSummaries",
+        "deviceManagement/deviceComplianceScripts",
+        "deviceManagement/deviceConfigurationConflictSummary",
+        "deviceManagement/deviceConfigurationRestrictedAppsViolations",
+        "deviceManagement/deviceConfigurations",
+        "deviceManagement/deviceConfigurationsAllManagedDeviceCertificateStates",
+        "deviceManagement/deviceCustomAttributeShellScripts",
+        "deviceManagement/deviceEnrollmentConfigurations",
+        "deviceManagement/deviceHealthScripts",
+        "deviceManagement/deviceManagementPartners",
+        "deviceManagement/deviceShellScripts",
+        "deviceManagement/domainJoinConnectors",
+        "deviceManagement/embeddedSIMActivationCodePools",
+        "deviceManagement/exchangeConnectors",
+        "deviceManagement/groupPolicyCategories",
+        "deviceManagement/groupPolicyConfigurations",
+        "deviceManagement/groupPolicyDefinitions",
+        "deviceManagement/groupPolicyMigrationReports",
+        "deviceManagement/groupPolicyObjectFiles",
+        "deviceManagement/groupPolicyUploadedDefinitionFiles",
+        "deviceManagement/hardwareConfigurations",
+        "deviceManagement/hardwarePasswordInfo",
+        "deviceManagement/intents",
+        "deviceManagement/iosUpdateStatuses",
+        "deviceManagement/macOSSoftwareUpdateAccountSummaries",
+        "deviceManagement/managedDeviceEncryptionStates",
+        "deviceManagement/managedDevices",
+        "deviceManagement/microsoftTunnelConfigurations",
+        "deviceManagement/microsoftTunnelHealthThresholds",
+        "deviceManagement/microsoftTunnelServerLogCollectionResponses",
+        "deviceManagement/microsoftTunnelSites",
+        "deviceManagement/mobileThreatDefenseConnectors",
+        "deviceManagement/ndesConnectors",
+        "deviceManagement/operationApprovalPolicies",
+        "deviceManagement/operationApprovalRequests",
+        "deviceManagement/remoteActionAudits",
+        "deviceManagement/remoteAssistancePartners",
+        "deviceManagement/resourceOperations",
+        "deviceManagement/reusablePolicySettings",
+        "deviceManagement/reusableSettings",
+        "deviceManagement/roleAssignments",
+        "deviceManagement/roleDefinitions",
+        "deviceManagement/roleScopeTags",
+        "deviceManagement/settingDefinitions",
+        "deviceManagement/templateSettings",
+        "deviceManagement/templates",
+        "deviceManagement/userExperienceAnalyticsAnomaly",
+        "deviceManagement/userExperienceAnalyticsAnomalyDevice",
+        "deviceManagement/userExperienceAnalyticsAppHealthApplicationPerformance",
+        "deviceManagement/userExperienceAnalyticsAppHealthApplicationPerformanceByAppVersion",
+        "deviceManagement/userExperienceAnalyticsAppHealthApplicationPerformanceByAppVersionDetails",
+        "deviceManagement/userExperienceAnalyticsAppHealthApplicationPerformanceByAppVersionDeviceId",
+        "deviceManagement/userExperienceAnalyticsAppHealthApplicationPerformanceByOSVersion",
+        "deviceManagement/userExperienceAnalyticsAppHealthDeviceModelPerformance",
+        "deviceManagement/userExperienceAnalyticsAppHealthDevicePerformance",
+        "deviceManagement/userExperienceAnalyticsAppHealthDevicePerformanceDetails",
+        "deviceManagement/userExperienceAnalyticsAppHealthOSVersionPerformance",
+        "deviceManagement/userExperienceAnalyticsBaselines",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthAppImpact",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthDeviceAppImpact",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthDevicePerformance",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthDeviceRuntimeHistory",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthModelPerformance",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthOsPerformance",
+        "deviceManagement/userExperienceAnalyticsDeviceMetricHistory",
+        "deviceManagement/userExperienceAnalyticsDevicePerformance",
+        "deviceManagement/userExperienceAnalyticsDeviceScopes",
+        "deviceManagement/userExperienceAnalyticsDeviceScores",
+        "deviceManagement/userExperienceAnalyticsDeviceStartupHistory",
+        "deviceManagement/userExperienceAnalyticsDeviceStartupProcessPerformance",
+        "deviceManagement/userExperienceAnalyticsDeviceStartupProcesses",
+        "deviceManagement/userExperienceAnalyticsDevicesWithoutCloudIdentity",
+        "deviceManagement/userExperienceAnalyticsImpactingProcess",
+        "deviceManagement/userExperienceAnalyticsMetricHistory",
+        "deviceManagement/userExperienceAnalyticsModelScores",
+        "deviceManagement/userExperienceAnalyticsNotAutopilotReadyDevice",
+        "deviceManagement/userExperienceAnalyticsRemoteConnection",
+        "deviceManagement/userExperienceAnalyticsResourcePerformance",
+        "deviceManagement/userExperienceAnalyticsScoreHistory",
+        "deviceManagement/userExperienceAnalyticsWorkFromAnywhereMetrics",
+        "deviceManagement/userExperienceAnalyticsWorkFromAnywhereModelPerformance",
+        "deviceManagement/userPfxCertificates",
+        "deviceManagement/windowsDriverUpdateProfiles",
+        "deviceManagement/windowsFeatureUpdateProfiles",
+        "deviceManagement/windowsMalwareInformation",
+        "deviceManagement/windowsQualityUpdateProfiles",
+        "deviceManagement/windowsUpdateCatalogItems",
+        "deviceManagement/zebraFotaArtifacts",
+        "deviceManagement/zebraFotaDeployments",
+        "organization",
+        "users"
+      ]
+    },
+    {
+      "name": "DeviceManagementConfiguration.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write properties of Microsoft Intune-managed device configuration and device compliance policies and their assignment to groups.",
+      "tables": [
+        "deviceAppManagement/defaultManagedAppProtections",
+        "deviceAppManagement/deviceAppManagementTasks",
+        "deviceAppManagement/managedAppPolicies",
+        "deviceAppManagement/managedAppRegistrations",
+        "deviceAppManagement/managedAppStatuses",
+        "deviceAppManagement/policySets",
+        "deviceAppManagement/vppTokens",
+        "deviceAppManagement/windowsInformationProtectionDeviceRegistrations",
+        "deviceAppManagement/windowsInformationProtectionPolicies",
+        "deviceAppManagement/windowsInformationProtectionWipeActions",
+        "deviceAppManagement/windowsManagedAppProtections",
+        "deviceManagement/androidDeviceOwnerEnrollmentProfiles",
+        "deviceManagement/androidForWorkAppConfigurationSchemas",
+        "deviceManagement/androidForWorkEnrollmentProfiles",
+        "deviceManagement/androidManagedStoreAppConfigurationSchemas",
+        "deviceManagement/assignmentFilters",
+        "deviceManagement/cartToClassAssociations",
+        "deviceManagement/categories",
+        "deviceManagement/certificateConnectorDetails",
+        "deviceManagement/chromeOSOnboardingSettings",
+        "deviceManagement/cloudPCConnectivityIssues",
+        "deviceManagement/comanagedDevices",
+        "deviceManagement/comanagementEligibleDevices",
+        "deviceManagement/complianceCategories",
+        "deviceManagement/complianceManagementPartners",
+        "deviceManagement/compliancePolicies",
+        "deviceManagement/complianceSettings",
+        "deviceManagement/configManagerCollections",
+        "deviceManagement/configurationCategories",
+        "deviceManagement/configurationPolicies",
+        "deviceManagement/configurationPolicyTemplates",
+        "deviceManagement/configurationSettings",
+        "deviceManagement/dataSharingConsents",
+        "deviceManagement/detectedApps",
+        "deviceManagement/deviceCategories",
+        "deviceManagement/deviceCompliancePolicies",
+        "deviceManagement/deviceCompliancePolicySettingStateSummaries",
+        "deviceManagement/deviceComplianceScripts",
+        "deviceManagement/deviceConfigurationConflictSummary",
+        "deviceManagement/deviceConfigurationRestrictedAppsViolations",
+        "deviceManagement/deviceConfigurations",
+        "deviceManagement/deviceConfigurationsAllManagedDeviceCertificateStates",
+        "deviceManagement/deviceCustomAttributeShellScripts",
+        "deviceManagement/deviceEnrollmentConfigurations",
+        "deviceManagement/deviceHealthScripts",
+        "deviceManagement/deviceManagementPartners",
+        "deviceManagement/deviceShellScripts",
+        "deviceManagement/domainJoinConnectors",
+        "deviceManagement/embeddedSIMActivationCodePools",
+        "deviceManagement/exchangeConnectors",
+        "deviceManagement/groupPolicyCategories",
+        "deviceManagement/groupPolicyConfigurations",
+        "deviceManagement/groupPolicyDefinitions",
+        "deviceManagement/groupPolicyMigrationReports",
+        "deviceManagement/groupPolicyObjectFiles",
+        "deviceManagement/groupPolicyUploadedDefinitionFiles",
+        "deviceManagement/hardwareConfigurations",
+        "deviceManagement/hardwarePasswordInfo",
+        "deviceManagement/intents",
+        "deviceManagement/iosUpdateStatuses",
+        "deviceManagement/macOSSoftwareUpdateAccountSummaries",
+        "deviceManagement/managedDeviceEncryptionStates",
+        "deviceManagement/managedDevices",
+        "deviceManagement/microsoftTunnelConfigurations",
+        "deviceManagement/microsoftTunnelHealthThresholds",
+        "deviceManagement/microsoftTunnelServerLogCollectionResponses",
+        "deviceManagement/microsoftTunnelSites",
+        "deviceManagement/mobileThreatDefenseConnectors",
+        "deviceManagement/ndesConnectors",
+        "deviceManagement/operationApprovalPolicies",
+        "deviceManagement/operationApprovalRequests",
+        "deviceManagement/remoteActionAudits",
+        "deviceManagement/remoteAssistancePartners",
+        "deviceManagement/resourceOperations",
+        "deviceManagement/reusablePolicySettings",
+        "deviceManagement/reusableSettings",
+        "deviceManagement/roleAssignments",
+        "deviceManagement/roleDefinitions",
+        "deviceManagement/roleScopeTags",
+        "deviceManagement/settingDefinitions",
+        "deviceManagement/templateSettings",
+        "deviceManagement/templates",
+        "deviceManagement/userExperienceAnalyticsAnomaly",
+        "deviceManagement/userExperienceAnalyticsAnomalyDevice",
+        "deviceManagement/userExperienceAnalyticsAppHealthApplicationPerformance",
+        "deviceManagement/userExperienceAnalyticsAppHealthApplicationPerformanceByAppVersion",
+        "deviceManagement/userExperienceAnalyticsAppHealthApplicationPerformanceByAppVersionDetails",
+        "deviceManagement/userExperienceAnalyticsAppHealthApplicationPerformanceByAppVersionDeviceId",
+        "deviceManagement/userExperienceAnalyticsAppHealthApplicationPerformanceByOSVersion",
+        "deviceManagement/userExperienceAnalyticsAppHealthDeviceModelPerformance",
+        "deviceManagement/userExperienceAnalyticsAppHealthDevicePerformance",
+        "deviceManagement/userExperienceAnalyticsAppHealthDevicePerformanceDetails",
+        "deviceManagement/userExperienceAnalyticsAppHealthOSVersionPerformance",
+        "deviceManagement/userExperienceAnalyticsBaselines",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthAppImpact",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthDeviceAppImpact",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthDevicePerformance",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthDeviceRuntimeHistory",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthModelPerformance",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthOsPerformance",
+        "deviceManagement/userExperienceAnalyticsDeviceMetricHistory",
+        "deviceManagement/userExperienceAnalyticsDevicePerformance",
+        "deviceManagement/userExperienceAnalyticsDeviceScopes",
+        "deviceManagement/userExperienceAnalyticsDeviceScores",
+        "deviceManagement/userExperienceAnalyticsDeviceStartupHistory",
+        "deviceManagement/userExperienceAnalyticsDeviceStartupProcessPerformance",
+        "deviceManagement/userExperienceAnalyticsDeviceStartupProcesses",
+        "deviceManagement/userExperienceAnalyticsDevicesWithoutCloudIdentity",
+        "deviceManagement/userExperienceAnalyticsImpactingProcess",
+        "deviceManagement/userExperienceAnalyticsMetricHistory",
+        "deviceManagement/userExperienceAnalyticsModelScores",
+        "deviceManagement/userExperienceAnalyticsNotAutopilotReadyDevice",
+        "deviceManagement/userExperienceAnalyticsRemoteConnection",
+        "deviceManagement/userExperienceAnalyticsResourcePerformance",
+        "deviceManagement/userExperienceAnalyticsScoreHistory",
+        "deviceManagement/userExperienceAnalyticsWorkFromAnywhereMetrics",
+        "deviceManagement/userExperienceAnalyticsWorkFromAnywhereModelPerformance",
+        "deviceManagement/userPfxCertificates",
+        "deviceManagement/windowsDriverUpdateProfiles",
+        "deviceManagement/windowsFeatureUpdateProfiles",
+        "deviceManagement/windowsMalwareInformation",
+        "deviceManagement/windowsQualityUpdateProfiles",
+        "deviceManagement/windowsUpdateCatalogItems",
+        "deviceManagement/zebraFotaArtifacts",
+        "deviceManagement/zebraFotaDeployments",
+        "organization",
+        "users"
+      ]
+    },
+    {
+      "name": "DeviceManagementManagedDevices.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read the properties of devices managed by Microsoft Intune.",
+      "tables": [
+        "deviceManagement/autopilotEvents",
+        "deviceManagement/cloudPCConnectivityIssues",
+        "deviceManagement/comanagedDevices",
+        "deviceManagement/comanagementEligibleDevices",
+        "deviceManagement/detectedApps",
+        "deviceManagement/deviceCategories",
+        "deviceManagement/deviceComplianceScripts",
+        "deviceManagement/deviceCustomAttributeShellScripts",
+        "deviceManagement/deviceShellScripts",
+        "deviceManagement/managedDevices",
+        "deviceManagement/mobileAppTroubleshootingEvents",
+        "deviceManagement/remoteActionAudits",
+        "deviceManagement/troubleshootingEvents",
+        "deviceManagement/userExperienceAnalyticsAnomaly",
+        "deviceManagement/userExperienceAnalyticsAnomalyDevice",
+        "deviceManagement/userExperienceAnalyticsAppHealthApplicationPerformance",
+        "deviceManagement/userExperienceAnalyticsAppHealthApplicationPerformanceByAppVersion",
+        "deviceManagement/userExperienceAnalyticsAppHealthApplicationPerformanceByAppVersionDetails",
+        "deviceManagement/userExperienceAnalyticsAppHealthApplicationPerformanceByAppVersionDeviceId",
+        "deviceManagement/userExperienceAnalyticsAppHealthApplicationPerformanceByOSVersion",
+        "deviceManagement/userExperienceAnalyticsAppHealthDeviceModelPerformance",
+        "deviceManagement/userExperienceAnalyticsAppHealthDevicePerformance",
+        "deviceManagement/userExperienceAnalyticsAppHealthDevicePerformanceDetails",
+        "deviceManagement/userExperienceAnalyticsAppHealthOSVersionPerformance",
+        "deviceManagement/userExperienceAnalyticsBaselines",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthAppImpact",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthDeviceAppImpact",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthDevicePerformance",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthDeviceRuntimeHistory",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthModelPerformance",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthOsPerformance",
+        "deviceManagement/userExperienceAnalyticsDeviceMetricHistory",
+        "deviceManagement/userExperienceAnalyticsDevicePerformance",
+        "deviceManagement/userExperienceAnalyticsDeviceScopes",
+        "deviceManagement/userExperienceAnalyticsDeviceScores",
+        "deviceManagement/userExperienceAnalyticsDeviceStartupHistory",
+        "deviceManagement/userExperienceAnalyticsDeviceStartupProcessPerformance",
+        "deviceManagement/userExperienceAnalyticsDeviceStartupProcesses",
+        "deviceManagement/userExperienceAnalyticsDevicesWithoutCloudIdentity",
+        "deviceManagement/userExperienceAnalyticsImpactingProcess",
+        "deviceManagement/userExperienceAnalyticsMetricHistory",
+        "deviceManagement/userExperienceAnalyticsModelScores",
+        "deviceManagement/userExperienceAnalyticsNotAutopilotReadyDevice",
+        "deviceManagement/userExperienceAnalyticsRemoteConnection",
+        "deviceManagement/userExperienceAnalyticsResourcePerformance",
+        "deviceManagement/userExperienceAnalyticsScoreHistory",
+        "deviceManagement/userExperienceAnalyticsWorkFromAnywhereMetrics",
+        "deviceManagement/userExperienceAnalyticsWorkFromAnywhereModelPerformance",
+        "deviceManagement/windowsMalwareInformation",
+        "users"
+      ]
+    },
+    {
+      "name": "DeviceManagementManagedDevices.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write the properties of devices managed by Microsoft Intune. Does not allow high impact operations such as remote wipe and password reset on the device's owner.",
+      "tables": [
+        "deviceManagement/autopilotEvents",
+        "deviceManagement/cloudPCConnectivityIssues",
+        "deviceManagement/comanagedDevices",
+        "deviceManagement/comanagementEligibleDevices",
+        "deviceManagement/detectedApps",
+        "deviceManagement/deviceCategories",
+        "deviceManagement/deviceComplianceScripts",
+        "deviceManagement/deviceCustomAttributeShellScripts",
+        "deviceManagement/deviceShellScripts",
+        "deviceManagement/managedDevices",
+        "deviceManagement/mobileAppTroubleshootingEvents",
+        "deviceManagement/remoteActionAudits",
+        "deviceManagement/troubleshootingEvents",
+        "deviceManagement/userExperienceAnalyticsAnomaly",
+        "deviceManagement/userExperienceAnalyticsAnomalyDevice",
+        "deviceManagement/userExperienceAnalyticsAppHealthApplicationPerformance",
+        "deviceManagement/userExperienceAnalyticsAppHealthApplicationPerformanceByAppVersion",
+        "deviceManagement/userExperienceAnalyticsAppHealthApplicationPerformanceByAppVersionDetails",
+        "deviceManagement/userExperienceAnalyticsAppHealthApplicationPerformanceByAppVersionDeviceId",
+        "deviceManagement/userExperienceAnalyticsAppHealthApplicationPerformanceByOSVersion",
+        "deviceManagement/userExperienceAnalyticsAppHealthDeviceModelPerformance",
+        "deviceManagement/userExperienceAnalyticsAppHealthDevicePerformance",
+        "deviceManagement/userExperienceAnalyticsAppHealthDevicePerformanceDetails",
+        "deviceManagement/userExperienceAnalyticsAppHealthOSVersionPerformance",
+        "deviceManagement/userExperienceAnalyticsBaselines",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthAppImpact",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthDeviceAppImpact",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthDevicePerformance",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthDeviceRuntimeHistory",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthModelPerformance",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthOsPerformance",
+        "deviceManagement/userExperienceAnalyticsDeviceMetricHistory",
+        "deviceManagement/userExperienceAnalyticsDevicePerformance",
+        "deviceManagement/userExperienceAnalyticsDeviceScopes",
+        "deviceManagement/userExperienceAnalyticsDeviceScores",
+        "deviceManagement/userExperienceAnalyticsDeviceStartupHistory",
+        "deviceManagement/userExperienceAnalyticsDeviceStartupProcessPerformance",
+        "deviceManagement/userExperienceAnalyticsDeviceStartupProcesses",
+        "deviceManagement/userExperienceAnalyticsDevicesWithoutCloudIdentity",
+        "deviceManagement/userExperienceAnalyticsImpactingProcess",
+        "deviceManagement/userExperienceAnalyticsMetricHistory",
+        "deviceManagement/userExperienceAnalyticsModelScores",
+        "deviceManagement/userExperienceAnalyticsNotAutopilotReadyDevice",
+        "deviceManagement/userExperienceAnalyticsRemoteConnection",
+        "deviceManagement/userExperienceAnalyticsResourcePerformance",
+        "deviceManagement/userExperienceAnalyticsScoreHistory",
+        "deviceManagement/userExperienceAnalyticsWorkFromAnywhereMetrics",
+        "deviceManagement/userExperienceAnalyticsWorkFromAnywhereModelPerformance",
+        "deviceManagement/windowsMalwareInformation",
+        "users"
+      ]
+    },
+    {
+      "name": "DeviceManagementRBAC.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read the properties relating to the Microsoft Intune Role-Based Access Control (RBAC) settings.",
+      "tables": [
+        "deviceManagement/operationApprovalPolicies",
+        "deviceManagement/operationApprovalRequests",
+        "deviceManagement/resourceOperations",
+        "deviceManagement/roleAssignments",
+        "deviceManagement/roleDefinitions",
+        "deviceManagement/roleScopeTags"
+      ]
+    },
+    {
+      "name": "DeviceManagementRBAC.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write the properties relating to the Microsoft Intune Role-Based Access Control (RBAC) settings.",
+      "tables": [
+        "deviceManagement/operationApprovalPolicies",
+        "deviceManagement/operationApprovalRequests",
+        "deviceManagement/resourceOperations",
+        "deviceManagement/roleAssignments",
+        "deviceManagement/roleDefinitions",
+        "deviceManagement/roleScopeTags"
+      ]
+    },
+    {
+      "name": "DeviceManagementScripts.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read Microsoft Intune device compliance scripts, device management scripts, device shell scripts, device custom attripute shell scripts and device health scripts.",
+      "tables": [
+        "deviceManagement/deviceComplianceScripts",
+        "deviceManagement/deviceHealthScripts"
+      ]
+    },
+    {
+      "name": "DeviceManagementScripts.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write Microsoft Intune device compliance scripts, device management scripts, device shell scripts, device custom attripute shell scripts and device health scripts.",
+      "tables": [
+        "deviceManagement/deviceComplianceScripts",
+        "deviceManagement/deviceHealthScripts"
+      ]
+    },
+    {
+      "name": "DeviceManagementServiceConfig.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read Microsoft Intune service properties including device enrollment and third party service connection configuration.",
+      "tables": [
+        "deviceAppManagement/vppTokens",
+        "deviceManagement/appleUserInitiatedEnrollmentProfiles",
+        "deviceManagement/complianceManagementPartners",
+        "deviceManagement/depOnboardingSettings",
+        "deviceManagement/deviceEnrollmentConfigurations",
+        "deviceManagement/deviceManagementPartners",
+        "deviceManagement/exchangeConnectors",
+        "deviceManagement/importedDeviceIdentities",
+        "deviceManagement/importedWindowsAutopilotDeviceIdentities",
+        "deviceManagement/mobileThreatDefenseConnectors",
+        "deviceManagement/notificationMessageTemplates",
+        "deviceManagement/remoteAssistancePartners",
+        "deviceManagement/resourceAccessProfiles",
+        "deviceManagement/termsAndConditions",
+        "deviceManagement/windowsAutopilotDeploymentProfiles",
+        "deviceManagement/windowsAutopilotDeviceIdentities",
+        "organization",
+        "users"
+      ]
+    },
+    {
+      "name": "DeviceManagementServiceConfig.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write Microsoft Intune service properties including device enrollment and third party service connection configuration.",
+      "tables": [
+        "deviceAppManagement/vppTokens",
+        "deviceManagement/appleUserInitiatedEnrollmentProfiles",
+        "deviceManagement/complianceManagementPartners",
+        "deviceManagement/dataSharingConsents",
+        "deviceManagement/depOnboardingSettings",
+        "deviceManagement/deviceEnrollmentConfigurations",
+        "deviceManagement/deviceManagementPartners",
+        "deviceManagement/exchangeConnectors",
+        "deviceManagement/importedDeviceIdentities",
+        "deviceManagement/importedWindowsAutopilotDeviceIdentities",
+        "deviceManagement/mobileThreatDefenseConnectors",
+        "deviceManagement/notificationMessageTemplates",
+        "deviceManagement/remoteAssistancePartners",
+        "deviceManagement/resourceAccessProfiles",
+        "deviceManagement/termsAndConditions",
+        "deviceManagement/windowsAutopilotDeploymentProfiles",
+        "deviceManagement/windowsAutopilotDeviceIdentities",
+        "organization",
+        "users"
+      ]
+    },
+    {
+      "name": "Directory.AccessAsUser.All",
+      "adminConsent": true,
+      "description": "Allows the app to have the same access to information in your work or school directory as you do.",
+      "tables": [
+        "privilegedOperationEvents",
+        "privilegedRoleAssignments",
+        "privilegedRoles"
+      ]
+    },
+    {
+      "name": "Directory.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read data in your organization's directory.",
+      "tables": [
+        "administrativeUnits",
+        "appCatalogs/teamsApps",
+        "applications",
+        "auditLogs/directoryAudits",
+        "auditLogs/provisioning",
+        "contacts",
+        "contracts",
+        "dataClassification/jobs",
+        "dataClassification/sensitiveTypes",
+        "devices",
+        "directory/administrativeUnits",
+        "directoryRoleTemplates",
+        "directoryRoles",
+        "directorySettingTemplates",
+        "domains",
+        "groupLifecyclePolicies",
+        "groups",
+        "oauth2PermissionGrants",
+        "organization",
+        "privilegedRoleAssignmentRequests",
+        "servicePrincipals",
+        "settings",
+        "subscribedSkus",
+        "users"
+      ]
+    },
+    {
+      "name": "Directory.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write data in your organization's directory, such as other users, groups.  It does not allow the app to delete users or groups, or reset user passwords but it does allow modification of recovery properties that may lead to account takeover.",
+      "tables": [
+        "administrativeUnits",
+        "appCatalogs/teamsApps",
+        "applications",
+        "contacts",
+        "contracts",
+        "devices",
+        "directory/administrativeUnits",
+        "directoryRoleTemplates",
+        "directoryRoles",
+        "directorySettingTemplates",
+        "groupLifecyclePolicies",
+        "groups",
+        "oauth2PermissionGrants",
+        "organization",
+        "policies/featureRolloutPolicies",
+        "servicePrincipals",
+        "settings",
+        "subscribedSkus",
+        "users"
+      ]
+    },
+    {
+      "name": "DirectoryRecommendations.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read Azure AD recommendations, on your behalf.",
+      "tables": [
+        "directory/recommendations"
+      ]
+    },
+    {
+      "name": "DirectoryRecommendations.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and update Azure AD recommendations, on your behalf.",
+      "tables": [
+        "directory/recommendations"
+      ]
+    },
+    {
+      "name": "Domain.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read all domain properties on your behalf.",
+      "tables": [
+        "domains"
+      ]
+    },
+    {
+      "name": "Domain.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write all domain properties on your behalf. Also allows the app to add, verify and remove domains.",
+      "tables": [
+        "domains"
+      ]
+    },
+    {
+      "name": "EduRoster.ReadBasic",
+      "adminConsent": true,
+      "description": "Allows the app to view minimal  information about both schools and classes in your organization and education-related information about you and other users on your behalf.",
+      "tables": [
+        "education/classes",
+        "education/schools"
+      ]
+    },
+    {
+      "name": "EngagementRole.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to list all Viva Engage roles and role memberships on your behalf.",
+      "tables": [
+        "employeeExperience/roles"
+      ]
+    },
+    {
+      "name": "EngagementRole.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to assign Viva Engage role to a user, and remove a Viva Engage role from a user on your behalf.",
+      "tables": [
+        "employeeExperience/roles"
+      ]
+    },
+    {
+      "name": "EventListener.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read your organization's authentication event listeners, on your behalf.",
+      "tables": [
+        "identity/authenticationEventListeners",
+        "identity/authenticationEventsFlows"
+      ]
+    },
+    {
+      "name": "EventListener.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write your organization's authentication event listeners, on your behalf.",
+      "tables": [
+        "identity/authenticationEventListeners",
+        "identity/authenticationEventsFlows"
+      ]
+    },
+    {
+      "name": "ExternalConnection.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read all external connections on your behalf. The signed-in user must be an administrator.",
+      "tables": [
+        "external/connections"
+      ]
+    },
+    {
+      "name": "ExternalConnection.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write all external connections on your behalf. The signed-in user must be an administrator.",
+      "tables": [
+        "external/connections"
+      ]
+    },
+    {
+      "name": "ExternalConnection.ReadWrite.OwnedBy",
+      "adminConsent": true,
+      "description": "Allows the app to read and write external connections on your behalf. The signed-in user must be an administrator. The app can only read and write external connections that it is authorized to, or it can create new external connections. ",
+      "tables": [
+        "external/connections"
+      ]
+    },
+    {
+      "name": "ExternalUserProfile.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read available properties of external user profiles, on your behalf.",
+      "tables": [
+        "directory/externalUserProfiles"
+      ]
+    },
+    {
+      "name": "ExternalUserProfile.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write available properties of external user profiles, on your behalf.",
+      "tables": [
+        "directory/externalUserProfiles"
+      ]
+    },
+    {
+      "name": "Financials.ReadWrite.All",
+      "adminConsent": false,
+      "description": "Allows the app to read and write financials data on your behalf.",
+      "tables": [
+        "financials/companies"
+      ]
+    },
+    {
+      "name": "Group-NestingSupport.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write the disableNesting property on your behalf.",
+      "tables": [
+        "groups"
+      ]
+    },
+    {
+      "name": "Group-PreferredDataLocation.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to create, read and update groups' preferred data location property that you have access to in the organization, on your behalf.",
+      "tables": [
+        "groups"
+      ]
+    },
+    {
+      "name": "Group.ManageProtection.All",
+      "adminConsent": true,
+      "description": "Allows the app to list groups, to read their properties, and manage the MIP label on your behalf.",
+      "tables": [
+        "groups"
+      ]
+    },
+    {
+      "name": "Group.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to list groups, and to read their properties and all group memberships on your behalf.  Also allows the app to read calendar, conversations, files, and other group content for all groups you can access.  ",
+      "tables": [
+        "groups",
+        "planner/buckets",
+        "planner/plans",
+        "planner/tasks",
+        "settings"
+      ]
+    },
+    {
+      "name": "Group.ReadBasic.All",
+      "adminConsent": true,
+      "description": "Allows the app to read all group basic properties on your behalf.",
+      "tables": [
+        "groups"
+      ]
+    },
+    {
+      "name": "Group.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to create groups and read all group properties and memberships on your behalf.  Additionally allows the app to manage your groups and to update group content for groups you are a member of.",
+      "tables": [
+        "groups",
+        "planner/buckets",
+        "planner/plans",
+        "planner/tasks",
+        "settings"
+      ]
+    },
+    {
+      "name": "GroupMember.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to list groups, read basic group properties and read membership of all your groups.",
+      "tables": [
+        "groups"
+      ]
+    },
+    {
+      "name": "GroupSettings.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read a list of tenant-level or group-specific group settings objects, on your behalf.",
+      "tables": [
+        "directorySettingTemplates",
+        "settings"
+      ]
+    },
+    {
+      "name": "GroupSettings.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to create, read, update, and delete on the list of tenant-level or group-specific group settings objects that you have access to in the organization, on your behalf.",
+      "tables": [
+        "directorySettingTemplates",
+        "settings"
+      ]
+    },
+    {
+      "name": "IdentityProvider.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read your organization's identity (authentication) providers' properties on your behalf.",
+      "tables": [
+        "directory/federationConfigurations",
+        "identity/identityProviders",
+        "identityProviders"
+      ]
+    },
+    {
+      "name": "IdentityProvider.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write your organization's identity (authentication) providers' properties on your behalf.",
+      "tables": [
+        "directory/federationConfigurations",
+        "identity/identityProviders",
+        "identityProviders"
+      ]
+    },
+    {
+      "name": "IdentityRiskEvent.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read identity risk event information for all users in your organization on behalf of the signed-in user. ",
+      "tables": [
+        "identityProtection/agentRiskDetections",
+        "identityProtection/riskDetections",
+        "identityProtection/servicePrincipalRiskDetections",
+        "riskDetections"
+      ]
+    },
+    {
+      "name": "IdentityRiskyAgent.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read risky agents information in your organization, on behalf of the signed-in user.",
+      "tables": [
+        "identityProtection/riskyAgents"
+      ]
+    },
+    {
+      "name": "IdentityRiskyServicePrincipal.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read all identity risky service principal information for your organization, on your behalf.",
+      "tables": [
+        "identityProtection/riskyServicePrincipals"
+      ]
+    },
+    {
+      "name": "IdentityRiskyServicePrincipal.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and update identity risky service principal information for all service principals in your organization, on your behalf. Update operations include dismissing risky service principals.",
+      "tables": [
+        "identityProtection/riskyServicePrincipals"
+      ]
+    },
+    {
+      "name": "IdentityRiskyUser.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read identity risky user information for all users in your organization on behalf of the signed-in user.",
+      "tables": [
+        "identityProtection/riskyUsers",
+        "riskyUsers"
+      ]
+    },
+    {
+      "name": "IdentityUserFlow.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read your organization's user flows, on your behalf.",
+      "tables": [
+        "identity/b2cUserFlows",
+        "identity/b2xUserFlows",
+        "identity/userFlowAttributes",
+        "identity/userFlows"
+      ]
+    },
+    {
+      "name": "IdentityUserFlow.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read or write your organization's user flows, on your behalf.",
+      "tables": [
+        "identity/b2cUserFlows",
+        "identity/b2xUserFlows",
+        "identity/userFlowAttributes",
+        "identity/userFlows"
+      ]
+    },
+    {
+      "name": "LearningProvider.Read",
+      "adminConsent": true,
+      "description": "Allows the app to read data for the learning provider in the organization's directory, on your behalf.",
+      "tables": [
+        "employeeExperience/learningProviders"
+      ]
+    },
+    {
+      "name": "LearningProvider.ReadWrite",
+      "adminConsent": true,
+      "description": "Allows the app to create, update, read, and delete data for the learning provider in the organization's directory, on your behalf.",
+      "tables": [
+        "employeeExperience/learningProviders"
+      ]
+    },
+    {
+      "name": "LicenseAssignment.Read.All",
+      "adminConsent": false,
+      "description": "Allows the app to read all license assignments, on your behalf.",
+      "tables": [
+        "subscribedSkus"
+      ]
+    },
+    {
+      "name": "NetworkAccess-Reports.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read all network access reports and configuration settings, on your behalf.",
+      "tables": [
+        "networkAccess/alerts"
+      ]
+    },
+    {
+      "name": "NetworkAccess.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read all network access information and configuration settings, on your behalf.",
+      "tables": [
+        "networkAccess/cloudFirewallPolicies",
+        "networkAccess/filteringPolicies",
+        "networkAccess/filteringProfiles",
+        "networkAccess/forwardingPolicies",
+        "networkAccess/forwardingProfiles",
+        "networkAccess/threatIntelligencePolicies",
+        "networkAccess/tlsInspectionPolicies"
+      ]
+    },
+    {
+      "name": "NetworkAccess.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write all network access information and configuration settings, on your behalf.",
+      "tables": [
+        "networkAccess/alerts",
+        "networkAccess/cloudFirewallPolicies",
+        "networkAccess/filteringPolicies",
+        "networkAccess/filteringProfiles",
+        "networkAccess/forwardingPolicies",
+        "networkAccess/forwardingProfiles",
+        "networkAccess/threatIntelligencePolicies",
+        "networkAccess/tlsInspectionPolicies"
+      ]
+    },
+    {
+      "name": "OnPremDirectorySynchronization.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read all on-premises directory synchronization information for the organization, on your behalf.",
+      "tables": [
+        "directory/onPremisesSynchronization"
+      ]
+    },
+    {
+      "name": "OnPremDirectorySynchronization.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write all on-premises directory synchronization information for the organization, on your behalf.",
+      "tables": [
+        "directory/onPremisesSynchronization"
+      ]
+    },
+    {
+      "name": "OnlineMeetings.Read",
+      "adminConsent": false,
+      "description": "Allows the app to read online meeting details on your behalf.",
+      "tables": [
+        "app/onlineMeetings",
+        "communications/onlineMeetings"
+      ]
+    },
+    {
+      "name": "OnlineMeetings.ReadWrite",
+      "adminConsent": false,
+      "description": "Allows the app to read and create online meetings on your behalf.",
+      "tables": [
+        "app/onlineMeetings",
+        "communications/onlineMeetings"
+      ]
+    },
+    {
+      "name": "OrgContact.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read all organizational contacts on your behalf.  These contacts are managed by the organization and are different from your personal contacts.",
+      "tables": [
+        "contacts"
+      ]
+    },
+    {
+      "name": "Organization.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read the organization and related resources, on your behalf. Related resources include things like subscribed skus and tenant branding information.",
+      "tables": [
+        "organization",
+        "subscribedSkus"
+      ]
+    },
+    {
+      "name": "Organization.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write the organization and related resources, on your behalf. Related resources include things like subscribed skus and tenant branding information.",
+      "tables": [
+        "organization",
+        "subscribedSkus"
+      ]
+    },
+    {
+      "name": "PendingExternalUserProfile.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read available properties of pending external user profiles, on your behalf.",
+      "tables": [
+        "directory/pendingExternalUserProfiles"
+      ]
+    },
+    {
+      "name": "PendingExternalUserProfile.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write available properties of pending external user profiles, on your behalf.",
+      "tables": [
+        "directory/pendingExternalUserProfiles"
+      ]
+    },
+    {
+      "name": "PlaceDevice.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read all workplace devices, on your behalf.",
+      "tables": [
+        "workplace/sensorDevices"
+      ]
+    },
+    {
+      "name": "PlaceDevice.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write all workplace devices, on your behalf.",
+      "tables": [
+        "workplace/sensorDevices"
+      ]
+    },
+    {
+      "name": "Policy.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read your organization's policies on your behalf.",
+      "tables": [
+        "policies/activityBasedTimeoutPolicies",
+        "policies/appManagementPolicies",
+        "policies/authenticationStrengthPolicies",
+        "policies/authorizationPolicy",
+        "policies/claimsMappingPolicies",
+        "policies/homeRealmDiscoveryPolicies",
+        "policies/mobileAppManagementPolicies",
+        "policies/mobileDeviceManagementPolicies",
+        "policies/tokenIssuancePolicies",
+        "policies/tokenLifetimePolicies",
+        "trustFramework/policies"
+      ]
+    },
+    {
+      "name": "Policy.Read.AuthenticationMethod",
+      "adminConsent": true,
+      "description": "Allows the app to read the authentication method policies for your tenant, on your behalf.",
+      "tables": [
+        "policies/authenticationStrengthPolicies"
+      ]
+    },
+    {
+      "name": "Policy.Read.B2BManagementPolicy",
+      "adminConsent": true,
+      "description": "Allows the app to read your organization's B2BManagement policies on your behalf.",
+      "tables": [
+        "policies/b2bManagementPolicies"
+      ]
+    },
+    {
+      "name": "Policy.Read.HybridAuthentication",
+      "adminConsent": true,
+      "description": "Allows the app to read your organization's hybrid authentication policies on your behalf.",
+      "tables": [
+        "policies/featureRolloutPolicies"
+      ]
+    },
+    {
+      "name": "Policy.Read.OnPremAuthenticationPolicy",
+      "adminConsent": true,
+      "description": "Allows the app to read your organization's on-prem authentication policies on your behalf.",
+      "tables": [
+        "policies/onPremAuthenticationPolicies"
+      ]
+    },
+    {
+      "name": "Policy.Read.PermissionGrant",
+      "adminConsent": true,
+      "description": "Allows the app to read policies related to consent and permission grants for applications, on your behalf.",
+      "tables": [
+        "policies/permissionGrantPolicies"
+      ]
+    },
+    {
+      "name": "Policy.ReadWrite.ApplicationConfiguration",
+      "adminConsent": true,
+      "description": "Allows the app to read and write your organization's application configuration policies on your behalf.  This includes policies such as activityBasedTimeoutPolicy, claimsMappingPolicy, homeRealmDiscoveryPolicy, tokenIssuancePolicy  and tokenLifetimePolicy.",
+      "tables": [
+        "policies/activityBasedTimeoutPolicies",
+        "policies/appManagementPolicies",
+        "policies/claimsMappingPolicies",
+        "policies/homeRealmDiscoveryPolicies",
+        "policies/tokenIssuancePolicies",
+        "policies/tokenLifetimePolicies"
+      ]
+    },
+    {
+      "name": "Policy.ReadWrite.AuthenticationMethod",
+      "adminConsent": true,
+      "description": "Allows the app to read and write the authentication method policies for your tenant, on your behalf.",
+      "tables": [
+        "policies/authenticationStrengthPolicies"
+      ]
+    },
+    {
+      "name": "Policy.ReadWrite.Authorization",
+      "adminConsent": true,
+      "description": "Allows the app to read and write your organization's authorization policy on your behalf. For example, authorization policies can control some of the permissions that the out-of-the-box user role has by default.",
+      "tables": [
+        "policies/authorizationPolicy"
+      ]
+    },
+    {
+      "name": "Policy.ReadWrite.B2BManagementPolicy",
+      "adminConsent": true,
+      "description": "Allows the app to read and write your organization's B2BManagement policies on your behalf.",
+      "tables": [
+        "policies/b2bManagementPolicies"
+      ]
+    },
+    {
+      "name": "Policy.ReadWrite.ConditionalAccess",
+      "adminConsent": true,
+      "description": "Allows the app to read and write your organization's conditional access policies on your behalf.",
+      "tables": [
+        "policies/authenticationStrengthPolicies"
+      ]
+    },
+    {
+      "name": "Policy.ReadWrite.HybridAuthentication",
+      "adminConsent": true,
+      "description": "Allows the app to read and write your organization's hybrid authentication policies on your behalf.",
+      "tables": [
+        "policies/featureRolloutPolicies"
+      ]
+    },
+    {
+      "name": "Policy.ReadWrite.MobilityManagement",
+      "adminConsent": true,
+      "description": "Allows the app to read and write your organization's mobility management policies on your behalf.  For example, a mobility management policy can set the enrollment scope for a given mobility management application.",
+      "tables": [
+        "policies/mobileAppManagementPolicies",
+        "policies/mobileDeviceManagementPolicies"
+      ]
+    },
+    {
+      "name": "Policy.ReadWrite.OnPremAuthenticationPolicy",
+      "adminConsent": true,
+      "description": "Allows the app to read and write your organization's on-prem authentication policies on your behalf.",
+      "tables": [
+        "policies/onPremAuthenticationPolicies"
+      ]
+    },
+    {
+      "name": "Policy.ReadWrite.PermissionGrant",
+      "adminConsent": true,
+      "description": "Allows the app to manage policies related to consent and permission grants for applications, on behalf of the signed-in user.",
+      "tables": [
+        "policies/permissionGrantPolicies"
+      ]
+    },
+    {
+      "name": "Policy.ReadWrite.TrustFramework",
+      "adminConsent": true,
+      "description": "Allows the app to read and write your organization's trust framework policies on your behalf.",
+      "tables": [
+        "trustFramework/policies"
+      ]
+    },
+    {
+      "name": "Presence.Read",
+      "adminConsent": false,
+      "description": "Allows the app to read your presence information on your behalf. Presence information includes activity, availability, status note, calendar out-of-office message, timezone and work location.",
+      "tables": [
+        "communications/presences"
+      ]
+    },
+    {
+      "name": "Presence.Read.All",
+      "adminConsent": false,
+      "description": "Allows the app to read presence information of all users in the directory on your behalf. Presence information includes activity, availability, status note, calendar out-of-office message, timezone and work location.",
+      "tables": [
+        "communications/presences"
+      ]
+    },
+    {
+      "name": "PrintAlertSettings.Read.All",
+      "adminConsent": true,
+      "description": "Allows the application to read tenant-wide alert settings on your behalf.",
+      "tables": [
+        "print/services"
+      ]
+    },
+    {
+      "name": "PrintAlertSettings.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the application to read and write tenant-wide alert settings on your behalf.",
+      "tables": [
+        "print/services"
+      ]
+    },
+    {
+      "name": "PrintConnector.Read.All",
+      "adminConsent": true,
+      "description": "Allows the application to read print connectors on your behalf.",
+      "tables": [
+        "print/connectors",
+        "print/services"
+      ]
+    },
+    {
+      "name": "PrintConnector.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the application to read and write print connectors on your behalf.",
+      "tables": [
+        "print/connectors",
+        "print/services"
+      ]
+    },
+    {
+      "name": "PrintJob.Create",
+      "adminConsent": false,
+      "description": "Allows the application to create print jobs on your behalf and upload document content to print jobs  that you created.",
+      "tables": [
+        "print/services"
+      ]
+    },
+    {
+      "name": "PrintJob.Read",
+      "adminConsent": false,
+      "description": "Allows the application to read the metadata and document content of print jobs that you created.",
+      "tables": [
+        "print/services"
+      ]
+    },
+    {
+      "name": "PrintJob.Read.All",
+      "adminConsent": true,
+      "description": "Allows the application to read the metadata and document content of print jobs on your behalf. ",
+      "tables": [
+        "print/services"
+      ]
+    },
+    {
+      "name": "PrintJob.ReadBasic",
+      "adminConsent": false,
+      "description": "Allows the application to read the metadata of print jobs that you created. Does not allow access to print job document content.",
+      "tables": [
+        "print/services"
+      ]
+    },
+    {
+      "name": "PrintJob.ReadBasic.All",
+      "adminConsent": true,
+      "description": "Allows the application to read the metadata of print jobs on your behalf. Does not allow access to print job document content.",
+      "tables": [
+        "print/services"
+      ]
+    },
+    {
+      "name": "PrintJob.ReadWrite",
+      "adminConsent": false,
+      "description": "Allows the application to read and update the metadata and document content of print jobs that you created.",
+      "tables": [
+        "print/services"
+      ]
+    },
+    {
+      "name": "PrintJob.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the application to read and update the metadata and document content of print jobs on your behalf. ",
+      "tables": [
+        "print/services"
+      ]
+    },
+    {
+      "name": "PrintJob.ReadWriteBasic",
+      "adminConsent": false,
+      "description": "Allows the application to read and update the metadata of print jobs that you created. Does not allow access to print job document content.",
+      "tables": [
+        "print/services"
+      ]
+    },
+    {
+      "name": "PrintJob.ReadWriteBasic.All",
+      "adminConsent": true,
+      "description": "Allows the application to read and update the metadata of print jobs on your behalf. Does not allow access to print job document content.",
+      "tables": [
+        "print/services"
+      ]
+    },
+    {
+      "name": "PrintSettings.Read.All",
+      "adminConsent": true,
+      "description": "Allows the application to read tenant-wide print settings on your behalf.",
+      "tables": [
+        "print/services"
+      ]
+    },
+    {
+      "name": "PrintSettings.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the application to read and write tenant-wide print settings on your behalf.",
+      "tables": [
+        "print/services"
+      ]
+    },
+    {
+      "name": "Printer.Create",
+      "adminConsent": true,
+      "description": "Allows the application to create (register) printers on your behalf. ",
+      "tables": [
+        "print/services"
+      ]
+    },
+    {
+      "name": "Printer.FullControl.All",
+      "adminConsent": true,
+      "description": "Allows the application to create (register), read, update, and delete (unregister) printers on your behalf.  ",
+      "tables": [
+        "print/printers"
+      ]
+    },
+    {
+      "name": "Printer.Read.All",
+      "adminConsent": true,
+      "description": "Allows the application to read printers on your behalf. ",
+      "tables": [
+        "print/printers",
+        "print/services"
+      ]
+    },
+    {
+      "name": "Printer.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the application to read and update printers on your behalf. Does not allow creating (registering) or deleting (unregistering) printers.",
+      "tables": [
+        "print/printers",
+        "print/services"
+      ]
+    },
+    {
+      "name": "PrinterShare.Read.All",
+      "adminConsent": false,
+      "description": "Allows the application to read printer shares on your behalf. ",
+      "tables": [
+        "print/services",
+        "print/shares"
+      ]
+    },
+    {
+      "name": "PrinterShare.ReadBasic.All",
+      "adminConsent": false,
+      "description": "Allows the application to read basic information about printer shares on your behalf.",
+      "tables": [
+        "print/services",
+        "print/shares"
+      ]
+    },
+    {
+      "name": "PrinterShare.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the application to read and update printer shares on your behalf. ",
+      "tables": [
+        "print/services",
+        "print/shares"
+      ]
+    },
+    {
+      "name": "PrivilegedAccess.ReadWrite.AzureAD",
+      "adminConsent": true,
+      "description": "Allows the app to request and manage just in time elevation (including scheduled elevation) of users to Azure AD built-in administrative roles, on your behalf.",
+      "tables": [
+        "privilegedApproval",
+        "privilegedRoleAssignmentRequests"
+      ]
+    },
+    {
+      "name": "ProgramControl.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read information on programs and program controls that you have access to.",
+      "tables": [
+        "programControlTypes",
+        "programControls",
+        "programs"
+      ]
+    },
+    {
+      "name": "ProgramControl.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read, update and perform action on programs and program controls that you have access to.",
+      "tables": [
+        "programControlTypes",
+        "programControls",
+        "programs"
+      ]
+    },
+    {
+      "name": "ProvisioningLog.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and query your provisioning log activities, on your behalf.",
+      "tables": [
+        "auditLogs/provisioning",
+        "reports/correlations"
+      ]
+    },
+    {
+      "name": "Reports.Read.All",
+      "adminConsent": true,
+      "description": "Allows an app to read all service usage reports on your behalf. Services that provide usage reports include Office 365 and Azure Active Directory.",
+      "tables": [
+        "reports/applicationSignInDetailedSummary",
+        "reports/credentialUserRegistrationDetails",
+        "reports/dailyPrintUsageByPrinter",
+        "reports/dailyPrintUsageByUser",
+        "reports/monthlyPrintUsageByPrinter",
+        "reports/monthlyPrintUsageByUser",
+        "reports/userCredentialUsageDetails"
+      ]
+    },
+    {
+      "name": "RoleManagement.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read the role-based access control (RBAC) settings for all RBAC providers, on your behalf.  This includes reading role definitions and role assignments.",
+      "tables": [
+        "policies/roleManagementPolicies",
+        "policies/roleManagementPolicyAssignments"
+      ]
+    },
+    {
+      "name": "RoleManagement.Read.Directory",
+      "adminConsent": true,
+      "description": "Allows the app to read the role-based access control (RBAC) settings for your company's directory, on your behalf.  This includes reading directory role templates, directory roles and memberships.",
+      "tables": [
+        "directoryRoleTemplates",
+        "directoryRoles",
+        "policies/roleManagementPolicies",
+        "policies/roleManagementPolicyAssignments"
+      ]
+    },
+    {
+      "name": "RoleManagement.ReadWrite.Directory",
+      "adminConsent": true,
+      "description": "Allows the app to read and manage the role-based access control (RBAC) settings for your company's directory, on your behalf. This includes instantiating directory roles and managing directory role membership, and reading directory role templates, directory roles and memberships.",
+      "tables": [
+        "directoryRoleTemplates",
+        "directoryRoles",
+        "policies/roleManagementPolicies",
+        "policies/roleManagementPolicyAssignments"
+      ]
+    },
+    {
+      "name": "RoleManagementPolicy.Read.Directory",
+      "adminConsent": true,
+      "description": "Allows the app to read policies for privileged role-based access control (RBAC) assignments of your company's directory, on your behalf.",
+      "tables": [
+        "policies/roleManagementPolicies",
+        "policies/roleManagementPolicyAssignments"
+      ]
+    },
+    {
+      "name": "RoleManagementPolicy.ReadWrite.Directory",
+      "adminConsent": true,
+      "description": "Allows the app to read, update, and delete policies for privileged role-based access control (RBAC) assignments of your company's directory, on your behalf.",
+      "tables": [
+        "policies/roleManagementPolicies",
+        "policies/roleManagementPolicyAssignments"
+      ]
+    },
+    {
+      "name": "SearchConfiguration.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read search configuration, on your behalf.",
+      "tables": [
+        "search/acronyms",
+        "search/bookmarks",
+        "search/qnas"
+      ]
+    },
+    {
+      "name": "SearchConfiguration.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write search configuration, on your behalf.",
+      "tables": [
+        "search/acronyms",
+        "search/bookmarks",
+        "search/qnas"
+      ]
+    },
+    {
+      "name": "SecurityAlert.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read all security alerts that you have access to.",
+      "tables": [
+        "security/alerts_v2"
+      ]
+    },
+    {
+      "name": "SecurityAlert.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write all alerts that you have access to.",
+      "tables": [
+        "security/alerts_v2"
+      ]
+    },
+    {
+      "name": "SecurityEvents.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read your organization's security events on your behalf.",
+      "tables": [
+        "security/alerts",
+        "security/secureScoreControlProfiles",
+        "security/secureScores"
+      ]
+    },
+    {
+      "name": "SecurityEvents.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read your organization's security events on your behalf. Also allows you to update editable properties in security events.",
+      "tables": [
+        "security/alerts",
+        "security/secureScoreControlProfiles",
+        "security/secureScores"
+      ]
+    },
+    {
+      "name": "SecurityIncident.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read all security incidents that you have access to.",
+      "tables": [
+        "security/incidents"
+      ]
+    },
+    {
+      "name": "SecurityIncident.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write to all security incidents that you have access to.",
+      "tables": [
+        "security/incidents"
+      ]
+    },
+    {
+      "name": "SignInIdentifier.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read your organization's sign-in identifiers, on your behalf.",
+      "tables": [
+        "identity/signInIdentifiers"
+      ]
+    },
+    {
+      "name": "SignInIdentifier.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write your organization's sign-in identifiers, on your behalf.",
+      "tables": [
+        "identity/signInIdentifiers"
+      ]
+    },
+    {
+      "name": "Sites.Read.All",
+      "adminConsent": false,
+      "description": "Allow the application to read documents and list items in all site collections on your behalf",
+      "tables": [
+        "sites"
+      ]
+    },
+    {
+      "name": "Sites.ReadWrite.All",
+      "adminConsent": false,
+      "description": "Allow the application to edit or delete documents and list items in all site collections on your behalf.",
+      "tables": [
+        "sites"
+      ]
+    },
+    {
+      "name": "SubjectRightsRequest.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read subject rights requests on your behalf.",
+      "tables": [
+        "privacy/subjectRightsRequests",
+        "security/subjectRightsRequests"
+      ]
+    },
+    {
+      "name": "SubjectRightsRequest.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write subject rights requests on your behalf.",
+      "tables": [
+        "privacy/subjectRightsRequests",
+        "security/subjectRightsRequests"
+      ]
+    },
+    {
+      "name": "Tasks.Read",
+      "adminConsent": false,
+      "description": "Allows the app to read your tasks and task lists, including any shared with you. Doesn't include permission to create, delete, or update anything.",
+      "tables": [
+        "planner/buckets",
+        "planner/plans",
+        "planner/plans_v2",
+        "planner/tasks",
+        "planner/tasks_v2"
+      ]
+    },
+    {
+      "name": "Tasks.ReadWrite",
+      "adminConsent": false,
+      "description": "Allows the app to create, read, update, and delete your tasks and task lists, including any shared with you.",
+      "tables": [
+        "planner/buckets",
+        "planner/plans",
+        "planner/tasks"
+      ]
+    },
+    {
+      "name": "Team.ReadBasic.All",
+      "adminConsent": false,
+      "description": "Read the names and  descriptions of teams, on your behalf.",
+      "tables": [
+        "teams",
+        "teamwork/deletedTeams"
+      ]
+    },
+    {
+      "name": "TeamSettings.Read.All",
+      "adminConsent": true,
+      "description": "Read all teams' settings, on your behalf.",
+      "tables": [
+        "teams"
+      ]
+    },
+    {
+      "name": "TeamSettings.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Read and change all teams' settings, on your behalf.",
+      "tables": [
+        "teams"
+      ]
+    },
+    {
+      "name": "TeamTemplates.Read",
+      "adminConsent": false,
+      "description": "Read available Teams templates, on your behalf.",
+      "tables": [
+        "teamwork/teamTemplates"
+      ]
+    },
+    {
+      "name": "TeamworkDevice.Read.All",
+      "adminConsent": true,
+      "description": "Allow the app to read the management data for Teams devices on your behalf.",
+      "tables": [
+        "teamwork/devices"
+      ]
+    },
+    {
+      "name": "TeamworkDevice.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allow the app to read and write the management data for Teams devices on your behalf.",
+      "tables": [
+        "teamwork/devices"
+      ]
+    },
+    {
+      "name": "TermStore.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read the term store data that you have access to. This includes all sets, groups and terms in the term store.",
+      "tables": [
+        "termStore/groups"
+      ]
+    },
+    {
+      "name": "TermStore.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read or modify data that you have access to. This includes all sets, groups and terms in the term store.",
+      "tables": [
+        "termStore/groups"
+      ]
+    },
+    {
+      "name": "ThreatAssessment.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows an app to read your organization's threat assessment requests on your behalf. Also allows the app to create new requests to assess threats received by your organization on your behalf.",
+      "tables": [
+        "informationProtection/threatAssessmentRequests"
+      ]
+    },
+    {
+      "name": "ThreatIndicators.ReadWrite.OwnedBy",
+      "adminConsent": true,
+      "description": "Allows the app to create threat indicators, and fully manage those threat indicators (read, update and delete), on your behalf.  It cannot update any threat indicators that it is not an owner of.",
+      "tables": [
+        "security/tiIndicators"
+      ]
+    },
+    {
+      "name": "TrustFrameworkKeySet.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read trust framework key sets, on your behalf.",
+      "tables": [
+        "trustFramework/keySets"
+      ]
+    },
+    {
+      "name": "TrustFrameworkKeySet.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read or write trust framework key sets, on your behalf.",
+      "tables": [
+        "trustFramework/keySets"
+      ]
+    },
+    {
+      "name": "User.Read",
+      "adminConsent": false,
+      "description": "Allows you to sign in to the app with your organizational account and let the app read your profile. It also allows the app to read basic company information.",
+      "tables": [
+        "organization",
+        "schemaExtensions"
+      ]
+    },
+    {
+      "name": "User.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read the full set of user properties of all users in the organization and read company properties, on your behalf.",
+      "tables": [
+        "organization",
+        "users"
+      ]
+    },
+    {
+      "name": "User.ReadBasic.All",
+      "adminConsent": false,
+      "description": "Allows the app to read a basic set of profile properties of other users in your organization on your behalf. Includes display name, first and last name, email address, photo, id and security identifier. Also allows the app to read the full profile of the signed-in user.",
+      "tables": [
+        "users"
+      ]
+    },
+    {
+      "name": "User.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write the full set of profile properties, reports, and managers of other users in your organization, and read basic company properties, on your behalf.",
+      "tables": [
+        "users"
+      ]
+    },
+    {
+      "name": "WorkforceIntegration.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read workforce integrations, to synchronize data from Microsoft Teams Shifts, on your behalf.",
+      "tables": [
+        "teamwork/workforceIntegrations"
+      ]
+    },
+    {
+      "name": "WorkforceIntegration.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to manage workforce integrations, to synchronize data from Microsoft Teams Shifts, on your behalf.",
+      "tables": [
+        "teamwork/workforceIntegrations"
+      ]
+    },
+    {
+      "name": "Zone.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read all Zones and their environments in Microsoft Defender for Cloud on behalf of the signed-in user.",
+      "tables": [
+        "security/zones"
+      ]
+    },
+    {
+      "name": "Zone.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read, create, update, and delete Zones and manage their environments in Microsoft Defender for Cloud on behalf of the signed-in user..",
+      "tables": [
+        "security/zones"
+      ]
+    }
+  ]
+}

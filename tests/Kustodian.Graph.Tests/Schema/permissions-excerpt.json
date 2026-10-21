@@ -329,7 +329,14 @@
     "Directory.Read.All": {
       "authorizationType": "oAuth2",
       "schemes": {
-        "DelegatedWork": {},
+        "DelegatedWork": {
+          "adminDisplayName": "Read directory data",
+          "adminDescription": "Allows the app to read data in your organization's directory, such as users, groups and apps.",
+          "userDisplayName": "Read directory data",
+          "userDescription": "Allows the app to read data in your organization's directory.",
+          "requiresAdminConsent": true,
+          "privilegeLevel": 3
+        },
         "Application": {}
       },
       "pathSets": [

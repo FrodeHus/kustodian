@@ -4,8 +4,9 @@ using Kustodian.Graph.Schema;
 
 // Regenerates src/Kustodian.Graph/Schema/graph-beta.json from Microsoft Graph's described beta CSDL and Microsoft's
 // permissions data.
-//   dotnet run --project tools/schema -- [--metadata <path|url>] [--permissions <path|url>] [--out <path>]
-// With no arguments it downloads both inputs, writes the file and prints what changed.
+//   dotnet run --project tools/schema -- [--metadata <path|url>] [--permissions <path|url>] [--out <path>] [--permissions-out <path>]
+// With no arguments it downloads both inputs, writes the file and prints what changed. It also writes graph-permissions.json
+// (every delegated permission that can read a table) beside the schema.
 
 // Exit codes: 0 ok, 2 usage, 3 an input couldn't be read or downloaded.
 const string MetadataPath = "clean_beta_metadata/cleanMetadataWithDescriptionsAndAnnotationsbeta.xml";
@@ -15,6 +16,7 @@ const string PermissionsUrl = "https://raw.githubusercontent.com/microsoftgraph/
 string? metadata = null;
 string? permissionsInput = null;
 string? outPath = null;
+string? permissionsOutPath = null;
 for (var i = 0; i < args.Length; i++)
 {
     switch (args[i])
@@ -28,18 +30,24 @@ for (var i = 0; i < args.Length; i++)
         case "--out" when i + 1 < args.Length:
             outPath = args[++i];
             break;
+        case "--permissions-out" when i + 1 < args.Length:
+            permissionsOutPath = args[++i];
+            break;
         default:
-            Console.Error.WriteLine("Usage: schema [--metadata <path|url>] [--permissions <path|url>] [--out <path>]");
+            Console.Error.WriteLine("Usage: schema [--metadata <path|url>] [--permissions <path|url>] [--out <path>] [--permissions-out <path>]");
             return 2;
     }
 }
 
 var schemaPath = outPath ?? Path.Combine(FindSolutionRoot(), "src", "Kustodian.Graph", "Schema", "graph-beta.json");
 
+var catalogPath = permissionsOutPath ?? Path.Combine(Path.GetDirectoryName(schemaPath)!, "graph-permissions.json");
+
 using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
 http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("kustodian-schema", "1.0"));
 
 GraphSchema generated;
+GraphPermissionCatalog catalog;
 try
 {
     var (metadataSource, metadataStream) = metadata is null ? await DownloadMetadata(http) : await Open(http, metadata);
@@ -48,8 +56,10 @@ try
     await using (permissionsStream)
     {
         var permissions = GraphPermissions.ReadDelegated(permissionsStream);
-        generated = GraphSchemaBuilder.Build(GraphMetadata.Load(metadataStream), permissions,
-            $"{metadataSource}; permissions {permissionsSource}", DateTimeOffset.UtcNow);
+        var source = $"{metadataSource}; permissions {permissionsSource}";
+        generated = GraphSchemaBuilder.Build(GraphMetadata.Load(metadataStream), permissions, source, DateTimeOffset.UtcNow);
+        permissionsStream.Position = 0;
+        catalog = GraphPermissionCatalog.Build(permissionsStream, generated.Tables, source);
     }
 }
 catch (Exception e) when (e is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or IOException)
@@ -71,6 +81,10 @@ Console.WriteLine($"Tables: {generated.Tables.Count}, with permissions: {generat
     $"complex types: {generated.ComplexTypes.Count}");
 if (diff is not null)
     Console.WriteLine(diff.ToSummary());
+
+Console.WriteLine($"Permissions: {catalog.Permissions.Count}");
+await File.WriteAllTextAsync(catalogPath, GraphPermissionCatalog.Write(catalog));
+Console.WriteLine($"Wrote {catalogPath}");
 
 if (diff is { IsEmpty: true })
 {
