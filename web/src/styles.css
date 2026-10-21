@@ -99,3 +99,89 @@ body {
   font-size: 13px;
   line-height: 18px;
 }
+
+/* The class roles of docs/mockups/studio.css: window chrome, tabs, side panel, toolbar, results, chips, cards and menus. */
+@layer components {
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  .muted { color: var(--muted); }
+  .faint { color: var(--faint); }
+
+  .titlebar { height: 38px; display: flex; align-items: center; gap: 12px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .brand { font-weight: 600; letter-spacing: 0.01em; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+  .pill b { color: var(--text); font-weight: 600; }
+  button.pill { cursor: pointer; }
+  button.pill:hover { border-color: var(--faint); }
+  .dot-ok { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); display: inline-block; flex-shrink: 0; }
+  .dot-off { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); display: inline-block; flex-shrink: 0; }
+
+  .tabs { display: flex; align-items: flex-end; gap: 2px; height: 36px; padding: 0 8px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .tab { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px 0 12px; border: 1px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0; color: var(--muted); background: transparent; }
+  .tab.on { background: var(--bg); color: var(--text); border-color: var(--line); }
+  .tab > button[role='tab'] { display: flex; align-items: center; gap: 8px; height: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+  .tab .x { width: 18px; height: 18px; border-radius: 4px; border: 0; background: transparent; color: var(--faint); display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
+  .tab .x:hover { background: var(--raise); color: var(--text); }
+  .tab .mod { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: inline-block; }
+  .tab-add { height: 30px; width: 30px; border: 0; background: transparent; color: var(--muted); border-radius: 6px; cursor: pointer; font-size: 16px; }
+  .tab-add:hover { background: var(--raise); color: var(--text); }
+
+  .body { display: flex; flex: 1; min-height: 0; }
+  .rail { width: 48px; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; }
+  .rail button { width: 36px; height: 36px; border-radius: 8px; border: 0; background: transparent; color: var(--faint); display: flex; align-items: center; justify-content: center; }
+  .rail button[aria-pressed='true'] { background: var(--accent-soft); color: var(--accent); }
+  .side { width: 268px; flex-shrink: 0; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+  .side h2 { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 12px 14px 8px; }
+  .search { margin: 0 12px 8px; height: 30px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); padding: 0 10px; font: inherit; width: calc(100% - 24px); }
+  .search:focus, .input:focus { outline: 1px solid var(--accent); outline-offset: -1px; }
+  .tree { list-style: none; margin: 0; padding: 0 6px; }
+  .tree button { width: 100%; display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; font-size: 12.5px; text-align: left; cursor: pointer; }
+  .tree button:hover { background: var(--raise); }
+  .tree .col { padding-left: 26px; color: var(--muted); }
+  .tree .ty { margin-left: auto; font-size: 11px; color: var(--faint); }
+  .tag { font-size: 10px; font-weight: 600; padding: 0 5px; height: 16px; line-height: 16px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); }
+  .tag.warn { background: var(--warn-soft); color: var(--warn); }
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+  .toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--bg); }
+  .btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); font: inherit; font-weight: 500; cursor: pointer; }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+  .btn.ghost:not(:disabled):hover { background: var(--raise); color: var(--text); }
+  .kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; border-radius: 4px; border: 1px solid var(--line); font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--faint); }
+  .sep { width: 1px; height: 20px; background: var(--line); }
+
+  .rbar { display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 38px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  .rtab { height: 38px; padding: 0 10px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font: inherit; font-weight: 500; }
+  .rtab[aria-selected='true'] { color: var(--text); border-bottom-color: var(--accent); }
+  .datagrid { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .datagrid th { position: sticky; top: 0; z-index: 1; text-align: left; font-weight: 600; color: var(--muted); background: var(--panel2); padding: 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .datagrid th button { width: 100%; padding: 7px 12px; border: 0; background: transparent; color: inherit; font: inherit; text-align: inherit; cursor: pointer; }
+  .datagrid td { padding: 6px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; font-family: 'JetBrains Mono', monospace; font-size: 12px; max-width: 480px; overflow: hidden; text-overflow: ellipsis; }
+  .datagrid td button { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .datagrid td button:hover { color: var(--accent); }
+  .datagrid tr.sel td { background: var(--accent-soft); }
+  .num { text-align: right; }
+  .status { height: 26px; display: flex; align-items: center; gap: 14px; padding: 0 12px; background: var(--panel); border-top: 1px solid var(--line); font-size: 11.5px; color: var(--muted); }
+  .chip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 500; background: var(--panel2); border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .chip.ok { color: var(--ok); }
+  .chip.warn { background: var(--warn-soft); border-color: transparent; color: var(--warn); }
+  .chip.bad { background: var(--bad-soft); border-color: transparent; color: var(--bad); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 12px; font-weight: 600; color: var(--muted); }
+  .input { height: 32px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); padding: 0 10px; font: inherit; }
+  .overlay { position: absolute; inset: 0; background: rgba(5, 7, 10, 0.55); }
+
+  .src { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 16px; padding: 0 4px; border-radius: 4px; font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; font-family: 'Inter', sans-serif; }
+  .src.graph { background: rgba(76, 194, 255, 0.16); color: #4cc2ff; }
+  .src.hunt { background: rgba(245, 165, 36, 0.16); color: #f5a524; }
+  .src.arg { background: rgba(127, 212, 168, 0.16); color: #7fd4a8; }
+  .light .src.graph { background: rgba(11, 111, 174, 0.1); color: #0b6fae; }
+  .light .src.hunt { background: rgba(160, 90, 0, 0.1); color: #a05a00; }
+  .light .src.arg { background: rgba(30, 122, 78, 0.1); color: #1e7a4e; }
+  .menu { position: absolute; z-index: 3; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+  .menu button { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+  .menu button:hover, .menu button:focus-visible, .menu button.on { background: var(--raise); outline: none; }
+  .code { font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 19px; white-space: pre; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; color: var(--text); }
+}
