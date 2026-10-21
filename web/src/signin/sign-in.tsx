@@ -78,7 +78,7 @@ export function SignIn({ list, onChanged, onBack, error: listError = null }: Sig
           Use a device code instead
         </button>
         {deviceCode && (
-          <div className="code whitespace-pre-wrap" role="status">
+          <div className="codeblock whitespace-pre-wrap" role="status">
             {deviceCode}
           </div>
         )}
