@@ -14,6 +14,8 @@ export type Command = {
   group: string;
   run: () => void;
   enabled?: () => boolean;
+  /** The shortcut fires everywhere: in text fields, and for an Enter chord outside the editor (the raw tab's Send). */
+  global?: boolean;
 };
 
 /** One key combination of a shortcut. */
@@ -33,13 +35,17 @@ const changed = () => watchers.forEach((w) => w());
 const chordKey = (c: Chord) => `${c.mod}|${c.ctrl}|${c.shift}|${c.alt}|${c.key.toLowerCase()}`;
 const sameChord = (a: Chord, b: Chord) => chordKey(a) === chordKey(b);
 
-/** In development, says when a command's id or one of its shortcuts is already registered: one of the two would be lost. */
+/** In development, says when a command's id or one of its shortcuts is already registered: one of the two would be lost. Two
+ * commands may share a shortcut when both say when they are enabled (Run on query tabs, Send on raw tabs): the key runs the
+ * first one enabled. */
 function warnDuplicates(cmd: Command) {
   if (!import.meta.env.DEV) {
     return;
   }
   for (const chord of parseShortcut(cmd.shortcut)) {
-    const other = [...registry.values()].find((o) => o.id !== cmd.id && parseShortcut(o.shortcut).some((c) => sameChord(c, chord)));
+    const other = [...registry.values()].find(
+      (o) => o.id !== cmd.id && !(o.enabled && cmd.enabled) && parseShortcut(o.shortcut).some((c) => sameChord(c, chord)),
+    );
     if (other) {
       const written = [chord.mod && 'Mod', chord.ctrl && 'Ctrl', chord.shift && 'Shift', chord.alt && 'Alt', chord.key].filter(Boolean).join('+');
       console.warn(`The shortcut ${written} of ${cmd.id} is also the shortcut of ${other.id}.`);
@@ -151,9 +157,10 @@ const FIELD_SHORTCUTS = parseShortcut('Mod+K, Mod+Shift+P, Mod+S');
  * One keydown listener for the window that runs the command whose shortcut was pressed.
  *
  * - Keys pressed in the editor are left to it (it binds the same shortcuts), and so are keys something else already handled.
+ * - The key runs the first enabled command with that shortcut.
  * - Enter chords (run block, run all, run without cache) run only from the editor's own bindings, so everywhere else Enter
- *   keeps its meaning, such as pressing a focused button.
- * - In a text field only {@link FIELD_SHORTCUTS} fire.
+ *   keeps its meaning, such as pressing a focused button; a `global` command's run anywhere.
+ * - In a text field only {@link FIELD_SHORTCUTS} and `global` commands fire.
  * - While `enabled` says no (sign-in covers the workspace, or the palette is open), no shortcut fires.
  *
  * Returns the function that removes the listener.
@@ -165,10 +172,10 @@ export function bindGlobalKeys(enabled: () => boolean = () => true): () => void 
     }
     for (const cmd of registry.values()) {
       const chord = parseShortcut(cmd.shortcut).find((c) => matchesChord(e, c));
-      if (!chord) {
+      if (!chord || !isEnabled(cmd)) {
         continue;
       }
-      if (chord.key === 'Enter' || (isEditable(e.target) && !FIELD_SHORTCUTS.some((c) => sameChord(c, chord))) || !isEnabled(cmd)) {
+      if (!cmd.global && (chord.key === 'Enter' || (isEditable(e.target) && !FIELD_SHORTCUTS.some((c) => sameChord(c, chord))))) {
         return;
       }
       e.preventDefault();

@@ -1,10 +1,29 @@
+import { kqlString } from '../shell/kql-string';
+
 /** How many rows a datatable takes from an array before the rest is left out. */
 export const MAX_DATATABLE_ROWS = 5000;
+/** How many bytes of KQL a datatable may come to, so its tab fits in the session (`SessionService.MaxTextBytes`, 1 MiB) with
+ * room for a note above it. */
+export const MAX_DATATABLE_BYTES = 1_000_000;
 
 type ColumnType = 'long' | 'real' | 'bool' | 'datetime' | 'string' | 'dynamic';
 
-/** An ISO 8601 date, or date and time in UTC, as Graph writes them: only digits and `-:.TZ`, so it is safe inside `datetime()`. */
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d{1,7})?)?Z?)?$/;
+/** An ISO 8601 date and time with `Z` or an offset, as Graph writes them: only digits and `-:.TZ+`, so it is safe inside
+ * `datetime()`. {@link isDateTime} also checks the ranges. */
+const ISO_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,7})?)?(?:Z|[+-](\d{2}):(\d{2}))$/;
+
+/** Whether a string is a real date and time: the ISO form, a month and day that exist, and a time and offset in range. */
+function isDateTime(value: string): boolean {
+  const m = ISO_DATE_TIME.exec(value);
+  if (!m) {
+    return false;
+  }
+  const [year, month, day, hour, minute, second, offsetHours, offsetMinutes] = m.slice(1).map((v) => (v === undefined ? 0 : Number(v)));
+  const days = new Date(Date.UTC(year!, month!, 0)).getUTCDate();
+  return (
+    month! >= 1 && month! <= 12 && day! >= 1 && day! <= days && hour! <= 23 && minute! <= 59 && second! <= 59 && offsetHours! <= 14 && offsetMinutes! <= 59
+  );
+}
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /** Words the KQL parser reserves, or reads as a type or literal, where a name is expected: a name that is one goes in `['…']`. */
@@ -14,34 +33,6 @@ const KEYWORDS = new Set([
   'like', 'long', 'not', 'null', 'of', 'on', 'or', 'order', 'print', 'project', 'range', 'real', 'set', 'sort', 'step', 'string',
   'summarize', 'take', 'time', 'timespan', 'to', 'true', 'typeof', 'union', 'where', 'with',
 ]);
-
-/** Whether a character is a control character, as .NET's `char.IsControl` counts them (U+0000–U+001F and U+007F–U+009F). */
-const isControl = (code: number) => code <= 0x1f || (code >= 0x7f && code <= 0x9f);
-
-/**
- * A KQL string literal in `quote` quotes, escaped as the host escapes parameter values: backslash and the quote, `\n`, `\r`
- * and `\t`, and every other control character as `\uXXXX`. It can't end early or span lines.
- */
-export function kqlString(value: string, quote: '"' | "'"): string {
-  let literal = quote;
-  for (const ch of value) {
-    const code = ch.charCodeAt(0);
-    if (ch === '\\' || ch === quote) {
-      literal += `\\${ch}`;
-    } else if (ch === '\n') {
-      literal += '\\n';
-    } else if (ch === '\r') {
-      literal += '\\r';
-    } else if (ch === '\t') {
-      literal += '\\t';
-    } else if (isControl(code)) {
-      literal += `\\u${code.toString(16).padStart(4, '0')}`;
-    } else {
-      literal += ch;
-    }
-  }
-  return literal + quote;
-}
 
 /** A column name: as written when it is a plain identifier, else in `['…']`. */
 function columnName(name: string): string {
@@ -93,7 +84,7 @@ function kindOf(value: unknown): ColumnType | null {
     return Number.isSafeInteger(value) ? 'long' : 'real';
   }
   if (typeof value === 'string') {
-    return ISO_DATE.test(value) ? 'datetime' : 'string';
+    return isDateTime(value) ? 'datetime' : 'string';
   }
   return 'dynamic';
 }
@@ -142,11 +133,12 @@ function literal(type: ColumnType, value: unknown): string {
  *
  * - The columns are the objects' keys in the order they first appear; an element that isn't an object is a row with its value
  *   in a `value` column.
- * - Each column's type comes from its values: long, real, bool, datetime (an ISO 8601 date in UTC), string, or dynamic for
- *   objects, arrays and columns whose values are of different kinds.
- * - At most `maxRows` rows are taken; `truncated` says there were more.
+ * - Each column's type comes from its values: long, real, bool, datetime (an ISO 8601 date and time with `Z` or an offset,
+ *   that exists), string, or dynamic for objects, arrays and columns whose values are of different kinds.
+ * - At most `maxRows` rows are taken, and no more than fit in {@link MAX_DATATABLE_BYTES} of KQL; `truncated` says rows were
+ *   left out, and `rows` how many are in.
  */
-export function toDatatable(name: string, array: unknown[], maxRows = MAX_DATATABLE_ROWS): { kql: string; truncated: boolean } {
+export function toDatatable(name: string, array: unknown[], maxRows = MAX_DATATABLE_ROWS): { kql: string; truncated: boolean; rows: number } {
   const rows = array.slice(0, maxRows).map((item) =>
     item !== null && typeof item === 'object' && !Array.isArray(item) ? (item as Record<string, unknown>) : { value: item },
   );
@@ -165,8 +157,19 @@ export function toDatatable(name: string, array: unknown[], maxRows = MAX_DATATA
   }
   const types = keys.map((key) => columnType(rows.map((row) => row[key])));
   const schema = keys.map((key, i) => `${columnName(key)}:${types[i]!}`).join(', ');
-  const lines = rows.map((row) => `    ${keys.map((key, i) => literal(types[i]!, row[key])).join(', ')}`);
   const table = letName(name);
+  const encoder = new TextEncoder();
+  // The frame, and a comma and newline per row, count toward the budget.
+  let bytes = encoder.encode(`let ${table} = datatable(${schema}) [\n];\n${table}`).length;
+  const lines: string[] = [];
+  for (const row of rows) {
+    const line = `    ${keys.map((key, i) => literal(types[i]!, row[key])).join(', ')}`;
+    bytes += encoder.encode(line).length + 2;
+    if (bytes > MAX_DATATABLE_BYTES) {
+      break;
+    }
+    lines.push(line);
+  }
   const body = lines.length > 0 ? `${lines.join(',\n')}\n` : '';
-  return { kql: `let ${table} = datatable(${schema}) [\n${body}];\n${table}`, truncated: array.length > maxRows };
+  return { kql: `let ${table} = datatable(${schema}) [\n${body}];\n${table}`, truncated: lines.length < array.length, rows: lines.length };
 }

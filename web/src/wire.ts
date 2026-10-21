@@ -15,6 +15,8 @@ export interface SchemaColumn {
 
 export interface SchemaTable {
   name: string;
+  /** The Graph collection relative to the version (`auditLogs/signIns` for `auditLogs_signIns`). */
+  path: string;
   description: string;
   docsUrl: string;
   permissions: string[];
@@ -149,7 +151,22 @@ export interface ParameterValue {
   required: boolean;
 }
 
-/** A tab as `session.json` keeps it. The host nulls a `filePath` the user didn't choose. */
+/** A raw request header as the raw tab's editor holds it. */
+export interface RawTabHeader {
+  name: string;
+  value: string;
+}
+
+/** A raw request tab's request as the session keeps it: the version (null: the settings' default) and the headers. The host
+ * keeps only headers the raw tab could send (never `Authorization`, `Host`, `Cookie` or `Accept-Encoding`), at most 20 and
+ * 8 KB in all. */
+export interface RawTabRequest {
+  version: string | null;
+  headers: RawTabHeader[];
+}
+
+/** A tab as `session.json` keeps it. The host nulls a `filePath` the user didn't choose. `raw` is a raw request tab's request,
+ * and null (or left out) for other tabs. */
 export interface SessionTab {
   id: string;
   source: Source;
@@ -159,6 +176,7 @@ export interface SessionTab {
   savedId: string | null;
   parameters: ParameterDef[];
   filePath: string | null;
+  raw?: RawTabRequest | null;
 }
 
 export interface Session {

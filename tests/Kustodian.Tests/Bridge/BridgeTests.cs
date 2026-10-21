@@ -264,6 +264,10 @@ public class BridgeTests
         var tables = view.GetProperty("tables").EnumerateArray().ToList();
         Assert.Equal(GraphSchemaCatalog.Beta.Tables.Count, tables.Count);
         var users = tables.Single(t => t.GetProperty("name").GetString() == "users");
+        Assert.Equal("users", users.GetProperty("path").GetString());
+        // The raw tab completes Graph paths, not KQL table names.
+        var signIns = tables.Single(t => t.GetProperty("name").GetString() == "auditLogs_signIns");
+        Assert.Equal("auditLogs/signIns", signIns.GetProperty("path").GetString());
         Assert.NotEmpty(users.GetProperty("permissions").EnumerateArray());
         Assert.False(string.IsNullOrEmpty(users.GetProperty("docsUrl").GetString()));
         Assert.Equal(JsonValueKind.String, users.GetProperty("description").ValueKind);

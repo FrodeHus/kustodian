@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BridgeError } from '../bridge';
+import { bindGlobalKeys, runCommand } from '../shell/commands';
 import schema from '../fixtures/graph-schema.json';
 import { useTabs } from '../tabs/tab-store';
 import type { RawResponse, SchemaView } from '../wire';
@@ -132,6 +133,12 @@ describe('RawTab', () => {
     expect(completePath(graph, 'users?$filter=account', 21).items).toEqual(['accountEnabled']);
     expect(completePath(graph, 'users?$to', 9).items).toEqual(['$top']);
     expect(completePath(graph, 'users/', 6).items).toEqual([]);
+    // Graph paths, not KQL names: a nested collection completes with its slash, and its own columns.
+    expect(completePath(graph, 'auditLogs/s', 11)).toEqual({ from: 0, items: ['auditLogs/signIns'] });
+    expect(completePath(graph, 'auditLogs_', 10).items).toEqual([]);
+    expect(completePath(graph, 'auditLogs/signIns?$select=', 26).items).toEqual(['id', 'createdDateTime', 'userPrincipalName', 'appDisplayName', 'ipAddress']);
+    // The table whose path is the longest prefix of the typed path.
+    expect(completePath(graph, 'auditLogs/signIns/x?$select=app', 31).items).toEqual(['appDisplayName']);
 
     const id = openTab('');
     renderTab(id);
@@ -159,6 +166,80 @@ describe('RawTab', () => {
     expect(activeId).toBe(opened.id);
     expect(opened).toMatchObject({ source: 'graph', title: 'memberOf_rows', dirty: false });
     expect(opened.text).toBe('let memberOf_rows = datatable(id:string, displayName:string) [\n    "1", "SOC Analysts"\n];\nmemberOf_rows');
+  });
+
+  it('raw_tab_keeps_its_request_in_the_tab_for_the_session', () => {
+    const id = openRaw({ path: 'me', version: 'v1.0' });
+    renderTab(id);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add header' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Header 1 name' }), { target: { value: 'Prefer' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Version' }), { target: { value: 'beta' } });
+
+    expect(useTabs.getState().tabs[0]!.raw).toEqual({ version: 'beta', headers: [{ name: 'Prefer', value: '' }] });
+    expect(useTabs.getState().tabs[0]!.parameters).toEqual([]);
+  });
+
+  it('raw_header_refusals_show_as_soon_as_they_are_typed', () => {
+    renderTab(openTab());
+    const add = screen.getByRole('button', { name: 'Add header' });
+    fireEvent.click(add);
+    fireEvent.click(add);
+    fireEvent.click(add);
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Header 1 name' }), { target: { value: 'Authorization' } });
+    expect(screen.getByText("The Authorization header can't be set from the raw tab.")).toBeTruthy();
+    expect(screen.getByRole('textbox', { name: 'Header 1 name' }).getAttribute('aria-invalid')).toBe('true');
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Header 1 name' }), { target: { value: 'Prefer' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Header 2 name' }), { target: { value: 'prefer' } });
+    expect(screen.getByText('Prefer is set again below; only the last one is sent.')).toBeTruthy();
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Header 3 value' }), { target: { value: 'orphan' } });
+    expect(screen.getByText('This header has no name, so it isn’t sent.')).toBeTruthy();
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Header 2 name' }), { target: { value: 'X-Line' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Header 2 value' }), { target: { value: 'caf\u00e9' } });
+    expect(screen.getByText("The X-Line header's value can only have printable ASCII characters.")).toBeTruthy();
+    expect(bridge.call).not.toHaveBeenCalled();
+  });
+
+  it('raw_send_and_next_are_commands_and_mod_enter_sends_from_anywhere_on_the_tab', async () => {
+    bridge.call.mockResolvedValueOnce(response({ value: [{ displayName: 'First' }] }, NEXT)).mockResolvedValueOnce(response({ value: [] }));
+    const unbind = bindGlobalKeys();
+    renderTab(openTab());
+    fireEvent.click(screen.getByRole('button', { name: 'Add header' }));
+    expect(runCommand('raw.next')).toBe(false);
+
+    // From a header field, a text field where other shortcuts don't fire.
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Header 1 name' }), { key: 'Enter', code: 'Enter', ctrlKey: true });
+    await screen.findByText('"First"');
+    expect(bridge.call).toHaveBeenCalledWith('raw.send', expect.objectContaining({ path: 'me/memberOf' }));
+
+    act(() => void runCommand('raw.next'));
+    await waitFor(() => expect(bridge.call).toHaveBeenLastCalledWith('raw.next', { nextLink: NEXT }));
+    unbind();
+  });
+
+  it('raw_version_and_next_link_refusals_show_beside_their_controls', async () => {
+    bridge.call
+      .mockRejectedValueOnce(new BridgeError('bad_request', 'The version must be beta or v1.0.'))
+      .mockResolvedValueOnce(response({ value: [] }, NEXT))
+      .mockRejectedValueOnce(new BridgeError('bad_request', 'A next link must be an https URL on graph.microsoft.com.'));
+    renderTab(openTab());
+
+    fireEvent.click(screen.getByRole('button', { name: /^Send/ }));
+    const version = screen.getByRole('combobox', { name: 'Version' });
+    await waitFor(() => expect(version.getAttribute('aria-invalid')).toBe('true'));
+    expect(document.getElementById(version.getAttribute('aria-describedby')!)?.textContent).toBe('The version must be beta or v1.0.');
+    expect(screen.getByRole('combobox', { name: 'Request path' }).getAttribute('aria-invalid')).toBe('false');
+
+    fireEvent.click(screen.getByRole('button', { name: /^Send/ }));
+    const next = await screen.findByRole('button', { name: 'Next page' });
+    fireEvent.click(next);
+    await waitFor(() => expect(next.getAttribute('aria-describedby')).not.toBeNull());
+    expect(document.getElementById(next.getAttribute('aria-describedby')!)?.textContent).toBe('A next link must be an https URL on graph.microsoft.com.');
+    expect(screen.getByRole('combobox', { name: 'Request path' }).getAttribute('aria-invalid')).toBe('false');
   });
 
   it('raw_refusals_show_beside_their_field', async () => {

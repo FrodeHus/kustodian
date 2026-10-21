@@ -4,6 +4,7 @@
   "tables": [
     {
       "name": "applications",
+      "path": "applications",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/application?view=graph-rest-beta",
       "permissions": [
@@ -77,6 +78,7 @@
     },
     {
       "name": "users",
+      "path": "users",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/user?view=graph-rest-beta",
       "permissions": [
@@ -132,6 +134,7 @@
     },
     {
       "name": "servicePrincipals",
+      "path": "servicePrincipals",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/serviceprincipal?view=graph-rest-beta",
       "permissions": [
@@ -178,6 +181,7 @@
     },
     {
       "name": "groups",
+      "path": "groups",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/group?view=graph-rest-beta",
       "permissions": [
@@ -225,6 +229,7 @@
     },
     {
       "name": "auditLogs_signIns",
+      "path": "auditLogs/signIns",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/signin?view=graph-rest-beta",
       "permissions": [

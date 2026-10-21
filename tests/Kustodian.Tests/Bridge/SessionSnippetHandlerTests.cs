@@ -62,6 +62,25 @@ public sealed class SessionSnippetHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task Session_save_never_writes_a_typed_authorization_header()
+    {
+        var saved = await CallAsync("session.save", """
+            {"session":{"tabs":[{"id":"r","source":"raw","text":"me","raw":{"version":"beta","headers":[
+              {"name":"Authorization","value":"Bearer typed-token"},{"name":"ConsistencyLevel","value":"eventual"}]}}]}}
+            """);
+        var got = (await CallAsync("session.get", "{}")).GetProperty("result").GetProperty("session").GetProperty("tabs")[0];
+
+        Assert.Equal(0, saved.GetProperty("result").GetProperty("dropped").GetInt32());
+        var headers = got.GetProperty("raw").GetProperty("headers");
+        Assert.Equal(1, headers.GetArrayLength());
+        Assert.Equal("ConsistencyLevel", headers[0].GetProperty("name").GetString());
+        Assert.Equal("beta", got.GetProperty("raw").GetProperty("version").GetString());
+        var file = await File.ReadAllTextAsync(Path.Combine(_dir, "session.json"), TestContext.Current.CancellationToken);
+        Assert.DoesNotContain("typed-token", file, StringComparison.Ordinal);
+        Assert.DoesNotContain("authorization", file, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task Session_save_keeps_only_approved_file_paths()
     {
         var approved = Path.Combine(_dir, "ok.kql");

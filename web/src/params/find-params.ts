@@ -1,3 +1,4 @@
+import { kqlString } from '../shell/kql-string';
 import type { ParameterDef } from '../wire';
 
 /** The parameter types the host knows (spec 6.3). */
@@ -99,28 +100,7 @@ export function mergeParameters(names: string[], known: ParameterDef[]): Paramet
   return names.map((name) => known.find((p) => p.name === name) ?? { name, type: 'text', value: '', required: false, choices: null });
 }
 
-function quoted(value: string): string {
-  let out = '"';
-  for (const c of value) {
-    const code = c.charCodeAt(0);
-    if (c === '\\') {
-      out += '\\\\';
-    } else if (c === '"') {
-      out += '\\"';
-    } else if (c === '\n') {
-      out += '\\n';
-    } else if (c === '\r') {
-      out += '\\r';
-    } else if (c === '\t') {
-      out += '\\t';
-    } else if (code < 0x20 || (code >= 0x7f && code < 0xa0)) {
-      out += `\\u${code.toString(16).padStart(4, '0')}`;
-    } else {
-      out += c;
-    }
-  }
-  return `${out}"`;
-}
+const quoted = (value: string) => kqlString(value, '"');
 
 const NUMBER = /^-?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?$/;
 

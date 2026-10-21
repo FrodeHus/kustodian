@@ -1,4 +1,5 @@
 import { call } from '../bridge';
+import { sendableHeaders } from '../raw/raw-request';
 import { errorText } from '../shell/errors';
 import { useTabs } from '../tabs/tab-store';
 import type { Session, SessionAnswer } from '../wire';
@@ -12,7 +13,8 @@ export const READ_RETRIES = 3;
 
 export const UNREADABLE_MESSAGE = 'Couldn’t read your last session; changes won’t be saved until it can be read.';
 
-/** What `session.json` keeps of the open tabs: never runs or results. */
+/** What `session.json` keeps of the open tabs: never runs or results, and of a raw tab's headers only those it could send (the
+ * host drops the others too), so a typed `Authorization` header never reaches the file. */
 function snapshot(): Session {
   const { tabs, activeId } = useTabs.getState();
   return {
@@ -27,6 +29,7 @@ function snapshot(): Session {
       savedId: t.savedId ?? null,
       parameters: t.parameters,
       filePath: t.filePath ?? null,
+      ...(t.raw ? { raw: { version: t.raw.version, headers: sendableHeaders(t.raw.headers) } } : {}),
     })),
   };
 }

@@ -104,10 +104,14 @@ export function SettingsView({ onClose, onChange }: SettingsViewProps) {
     const limits: Record<string, number> = { ...stored.settings.limits };
     for (const l of LIMITS) {
       const text = draft.limits[l.key]?.trim() ?? '';
-      if (/^\d+$/.test(text)) {
-        limits[l.key] = Number(text);
-      } else {
+      const value = Number(text);
+      if (!/^\d+$/.test(text)) {
         wrong[l.key] = `${l.name} must be a whole number.`;
+      } else if (value < l.min || value > l.max) {
+        // As the host words it; checked here too, so a number too big for the host to read gets the same message.
+        wrong[l.key] = `${l.name} must be between ${count(l.min)} and ${count(l.max)}.`;
+      } else {
+        limits[l.key] = value;
       }
     }
     setErrors(wrong);

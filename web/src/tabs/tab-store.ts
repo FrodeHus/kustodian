@@ -3,7 +3,7 @@ import { BridgeError, call, on } from '../bridge';
 import { blockAt } from '../editor/block-at';
 import { findParams, mergeParameters } from '../params/find-params';
 import { newId } from '../shell/ids';
-import type { ParameterDef, ParameterValue, RunProgress, RunResult, Session, Source } from '../wire';
+import type { ParameterDef, ParameterValue, RawTabRequest, RunProgress, RunResult, Session, Source } from '../wire';
 
 export type { Source } from '../wire';
 
@@ -65,6 +65,8 @@ export interface Tab {
   /** The `.kql` file this tab was opened from or saved to. */
   filePath?: string;
   parameters: ParameterDef[];
+  /** A raw request tab's version and headers; its text is the path. */
+  raw?: RawTabRequest;
   run?: TabRun;
   /** A result kept to compare later runs with. */
   pinned?: RunResult;
@@ -82,6 +84,7 @@ export interface TabSeed {
   savedId?: string;
   filePath?: string;
   parameters?: ParameterDef[];
+  raw?: RawTabRequest;
 }
 
 /** Where the editor's cursor is in a tab, and the selected text (empty when nothing is selected) with where it starts. Lines and
@@ -114,6 +117,8 @@ interface TabsState {
    */
   markSaved(id: string, saved: { savedId?: string | null; filePath?: string | null; title: string; text: string }): void;
   setParameters(id: string, parameters: ParameterDef[]): void;
+  /** Sets a raw request tab's version and headers. */
+  setRaw(id: string, raw: RawTabRequest): void;
   /** Keeps the tab's current result to compare with. */
   pin(id: string): void;
   unpin(id: string): void;
@@ -162,9 +167,9 @@ export const useTabs = create<TabsState>()((set, get) => {
       return get().openWith({ source, title: `Query ${n}`, text: '' });
     },
 
-    openWith({ source, title, text, savedId, filePath, parameters }) {
+    openWith({ source, title, text, savedId, filePath, parameters, raw }) {
       const id = newId();
-      const tab: Tab = { id, source, title, text, dirty: false, savedId, filePath, parameters: parameters ?? [], history: [] };
+      const tab: Tab = { id, source, title, text, dirty: false, savedId, filePath, parameters: parameters ?? [], raw, history: [] };
       set((s) => ({ tabs: [...s.tabs, tab], activeId: id }));
       return id;
     },
@@ -182,6 +187,7 @@ export const useTabs = create<TabsState>()((set, get) => {
         savedId: t.savedId ?? undefined,
         filePath: t.filePath ?? undefined,
         parameters: t.parameters,
+        raw: t.raw ?? undefined,
         history: [],
       }));
       const activeId = tabs.some((t) => t.id === session.activeId) ? session.activeId : (tabs[0]?.id ?? null);
@@ -203,6 +209,10 @@ export const useTabs = create<TabsState>()((set, get) => {
 
     setParameters(id, parameters) {
       update(id, () => ({ parameters }));
+    },
+
+    setRaw(id, raw) {
+      update(id, () => ({ raw }));
     },
 
     pin(id) {

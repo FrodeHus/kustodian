@@ -3,12 +3,13 @@ import { BridgeError, call } from '../bridge';
 import { copyFailed, copyText } from '../results/copy';
 import { NoticeLine, type Notice } from '../results/result-grid';
 import { errorText } from '../shell/errors';
+import { registerCommands } from '../shell/commands';
 import { MOD } from '../shell/keys';
 import { useTabs, type Tab } from '../tabs/tab-store';
-import type { RawResponse, SchemaView } from '../wire';
+import type { RawResponse, RawTabHeader, SchemaView } from '../wire';
 import { completePath } from './path-completion';
-import { IDLE, RAW_VERSIONS, rawRequest, requestParameters, updateRaw, useRawResponses, type RawHeader } from './raw-request';
-import { MAX_DATATABLE_ROWS, toDatatable } from './to-datatable';
+import { IDLE, RAW_VERSIONS, headerProblem, rawRequest, updateRaw, useRawResponses, type RawState } from './raw-request';
+import { toDatatable } from './to-datatable';
 
 const STATUS_TEXT: Record<number, string> = {
   200: 'OK',
@@ -33,6 +34,11 @@ const STATUS_TEXT: Record<number, string> = {
 
 function size(bytes: number): string {
   return bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/** An error of a raw request, and the control it is about. */
+function failure(e: unknown, about: NonNullable<RawState['error']>['about']): RawState['error'] {
+  return { code: e instanceof BridgeError ? e.code : 'failed', message: errorText(e), about };
 }
 
 /** The path as the host takes it: relative to the version, so a leading slash is dropped. */
@@ -60,8 +66,8 @@ export function RawTab({ tab, schema, defaultVersion, accountKey, onSignIn }: Ra
   const [view, setView] = useState<'body' | 'headers'>('body');
   const [notice, setNotice] = useState<Notice | null>(null);
 
-  const setRequest = (next: { version?: string; headers?: RawHeader[] }) =>
-    useTabs.getState().setParameters(tab.id, requestParameters(next.version ?? request.version, next.headers ?? request.headers));
+  const setRequest = (next: { version?: string; headers?: RawTabHeader[] }) =>
+    useTabs.getState().setRaw(tab.id, { version: next.version ?? request.version, headers: next.headers ?? request.headers });
 
   const busy = () => useRawResponses.getState().responses[tab.id]?.sending ?? false;
 
@@ -79,7 +85,8 @@ export function RawTab({ tab, schema, defaultVersion, accountKey, onSignIn }: Ra
       setRequest({ version });
       useTabs.getState().setTitle(tab.id, `GET /${path.split('?')[0] ?? ''}`);
     } catch (e) {
-      updateRaw(tab.id, { sending: false, error: { code: e instanceof BridgeError ? e.code : 'failed', message: errorText(e) } });
+      const message = errorText(e);
+      updateRaw(tab.id, { sending: false, error: failure(e, /header/i.test(message) ? 'headers' : /version/i.test(message) ? 'version' : 'path') });
     }
   }
 
@@ -94,7 +101,7 @@ export function RawTab({ tab, schema, defaultVersion, accountKey, onSignIn }: Ra
       const pages = useRawResponses.getState().responses[tab.id]?.pages ?? [];
       updateRaw(tab.id, { pages: [...pages, response], sending: false });
     } catch (e) {
-      updateRaw(tab.id, { sending: false, error: { code: e instanceof BridgeError ? e.code : 'failed', message: errorText(e) } });
+      updateRaw(tab.id, { sending: false, error: failure(e, 'next') });
     }
   }
 
@@ -103,21 +110,34 @@ export function RawTab({ tab, schema, defaultVersion, accountKey, onSignIn }: Ra
     // Graph's collections are all `value`: the entity set names them better.
     const base = label && label !== 'value' && !/^\d+$/.test(label) ? label : segment || 'value';
     const name = `${base.replace(/[^A-Za-z0-9_]/g, '_')}_rows`;
-    const { kql, truncated } = toDatatable(name, array);
-    const text = truncated
-      ? `// Only the first ${MAX_DATATABLE_ROWS.toLocaleString('en-US')} of ${array.length.toLocaleString('en-US')} rows are here.\n${kql}`
-      : kql;
+    const { kql, truncated, rows } = toDatatable(name, array);
+    const text = truncated ? `// Only the first ${rows.toLocaleString('en-US')} of ${array.length.toLocaleString('en-US')} rows are here.\n${kql}` : kql;
     useTabs.getState().openWith({ source: 'graph', title: name, text });
   };
 
   const error = state.error;
-  const refusal = error?.code === 'bad_request' ? error.message : null;
-  const headerError = refusal && /header/i.test(refusal) ? refusal : null;
-  const pathError = refusal && !headerError ? refusal : null;
+  const refusal = (about: NonNullable<RawState['error']>['about']) => (error?.code === 'bad_request' && error.about === about ? error.message : null);
+  const pathError = refusal('path');
+  const versionError = refusal('version');
   const last = state.pages.at(-1);
   const accountChanged = state.pages.length > 0 && state.accountKey !== accountKey;
+  const canNext = !!last?.nextLink && !state.sending && !accountChanged;
   // A body can be megabytes: measured once per page, not on every keystroke in the headers.
   const bytes = useMemo(() => (last ? new TextEncoder().encode(last.body).length : 0), [last]);
+
+  // Send and Next page are commands: Mod+Enter sends from anywhere on the tab. They call this render's functions.
+  const actions = useRef({ send, next, canNext });
+  useEffect(() => {
+    actions.current = { send, next, canNext };
+  });
+  useEffect(
+    () =>
+      registerCommands([
+        { id: 'raw.send', title: 'Send the raw request', group: 'Run', shortcut: 'Mod+Enter', global: true, run: () => void actions.current.send(), enabled: () => true },
+        { id: 'raw.next', title: 'Next page of the raw response', group: 'Run', run: () => void actions.current.next(), enabled: () => actions.current.canNext },
+      ]),
+    [],
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -128,6 +148,8 @@ export function RawTab({ tab, schema, defaultVersion, accountKey, onSignIn }: Ra
         <select
           className="textbox font-mono w-[84px]"
           aria-label="Version"
+          aria-invalid={versionError !== null}
+          aria-describedby={versionError ? `${tab.id}-version-error` : undefined}
           value={version}
           onChange={(e) => setRequest({ version: e.target.value })}
         >
@@ -137,6 +159,11 @@ export function RawTab({ tab, schema, defaultVersion, accountKey, onSignIn }: Ra
             </option>
           ))}
         </select>
+        {versionError && (
+          <span className="text-[12px] text-bad" role="alert" id={`${tab.id}-version-error`}>
+            {versionError}
+          </span>
+        )}
         <PathInput
           tabId={tab.id}
           text={tab.text}
@@ -154,7 +181,7 @@ export function RawTab({ tab, schema, defaultVersion, accountKey, onSignIn }: Ra
         </div>
       )}
       <div className="flex min-h-0 flex-1">
-        <HeadersEditor headers={request.headers} error={headerError} onChange={(headers) => setRequest({ headers })} />
+        <HeadersEditor headers={request.headers} error={refusal('headers')} onChange={(headers) => setRequest({ headers })} />
         <section aria-label="Response" className="flex min-w-0 flex-1 flex-col">
           {last ? (
             <>
@@ -200,9 +227,20 @@ export function RawTab({ tab, schema, defaultVersion, accountKey, onSignIn }: Ra
               )}
               {last.nextLink && (
                 <div className="flex items-center gap-3 border-t border-line px-3 py-2">
-                  <button type="button" className="btn" disabled={state.sending || accountChanged} onClick={() => void next()}>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={!canNext}
+                    aria-describedby={refusal('next') ? `${tab.id}-next-error` : undefined}
+                    onClick={() => void next()}
+                  >
                     Next page
                   </button>
+                  {refusal('next') && (
+                    <span className="text-[12px] text-bad" role="alert" id={`${tab.id}-next-error`}>
+                      {refusal('next')}
+                    </span>
+                  )}
                   {accountChanged && (
                     <span className="text-[12px] text-warn">
                       The account changed since the first page. Send the request again to page through it with this account.
@@ -304,7 +342,8 @@ function PathInput({ tabId, text, schema, invalid, onSend }: PathInputProps) {
         return;
       }
     }
-    if (e.key === 'Enter') {
+    // Mod+Enter is the Send command's, which works anywhere on the tab.
+    if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       onSend();
     }
@@ -358,37 +397,66 @@ function PathInput({ tabId, text, schema, invalid, onSend }: PathInputProps) {
   );
 }
 
-function HeadersEditor({ headers, error, onChange }: { headers: RawHeader[]; error: string | null; onChange: (headers: RawHeader[]) => void }) {
-  const set = (i: number, change: Partial<RawHeader>) => onChange(headers.map((h, j) => (j === i ? { ...h, ...change } : h)));
+/** What is wrong with a header row as the user types it: what the host would refuse, a value without a name, or a name used
+ * again (only the last one is sent). Null for a row that is fine, or empty. */
+function rowNotice(headers: RawTabHeader[], i: number): string | null {
+  const h = headers[i]!;
+  const name = h.name.trim();
+  if (name === '') {
+    return h.value === '' ? null : 'This header has no name, so it isn’t sent.';
+  }
+  const problem = headerProblem(name, h.value);
+  if (problem) {
+    return problem;
+  }
+  const later = headers.slice(i + 1).some((o) => o.name.trim().toLowerCase() === name.toLowerCase());
+  return later ? `${name} is set again below; only the last one is sent.` : null;
+}
+
+function HeadersEditor({ headers, error, onChange }: { headers: RawTabHeader[]; error: string | null; onChange: (headers: RawTabHeader[]) => void }) {
+  const set = (i: number, change: Partial<RawTabHeader>) => onChange(headers.map((h, j) => (j === i ? { ...h, ...change } : h)));
   return (
     <section aria-label="Request headers" className="flex w-[34%] max-w-[420px] min-w-[240px] shrink-0 flex-col overflow-auto border-r border-line">
       <div className="rbar">
         <b className="text-[12.5px]">Headers · {headers.length}</b>
       </div>
       <div className="flex flex-col gap-1.5 p-3">
-        {headers.map((h, i) => (
-          <div key={i} className="flex items-center gap-1.5">
-            <input
-              className="textbox font-mono w-[40%] min-w-0"
-              aria-label={`Header ${i + 1} name`}
-              placeholder="Name"
-              spellCheck={false}
-              value={h.name}
-              onChange={(e) => set(i, { name: e.target.value })}
-            />
-            <input
-              className="textbox font-mono min-w-0 flex-1"
-              aria-label={`Header ${i + 1} value`}
-              placeholder="Value"
-              spellCheck={false}
-              value={h.value}
-              onChange={(e) => set(i, { value: e.target.value })}
-            />
-            <button type="button" className="btn ghost" aria-label={`Remove header ${i + 1}`} onClick={() => onChange(headers.filter((_, j) => j !== i))}>
-              ×
-            </button>
-          </div>
-        ))}
+        {headers.map((h, i) => {
+          const notice = rowNotice(headers, i);
+          const noticeId = `header-${i}-notice`;
+          return (
+            <div key={i} className="flex flex-col gap-1">
+              <div className="flex items-center gap-1.5">
+                <input
+                  className="textbox font-mono w-[40%] min-w-0"
+                  aria-label={`Header ${i + 1} name`}
+                  aria-invalid={notice !== null}
+                  aria-describedby={notice ? noticeId : undefined}
+                  placeholder="Name"
+                  spellCheck={false}
+                  value={h.name}
+                  onChange={(e) => set(i, { name: e.target.value })}
+                />
+                <input
+                  className="textbox font-mono min-w-0 flex-1"
+                  aria-label={`Header ${i + 1} value`}
+                  placeholder="Value"
+                  spellCheck={false}
+                  value={h.value}
+                  onChange={(e) => set(i, { value: e.target.value })}
+                />
+                <button type="button" className="btn ghost" aria-label={`Remove header ${i + 1}`} onClick={() => onChange(headers.filter((_, j) => j !== i))}>
+                  ×
+                </button>
+              </div>
+              {notice && (
+                <span className="text-[12px] text-warn" id={noticeId}>
+                  {notice}
+                </span>
+              )}
+            </div>
+          );
+        })}
         <div className="flex items-center gap-1.5 text-[12px]">
           <span className="faint mono w-[40%]">Authorization</span>
           <span className="faint">Bearer · added for you, never shown</span>

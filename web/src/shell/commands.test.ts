@@ -155,6 +155,34 @@ describe('commands', () => {
     expect(settings).toHaveBeenCalledOnce();
   });
 
+  it('a_shared_shortcut_runs_the_first_enabled_command_and_a_global_one_fires_in_fields', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const ran: string[] = [];
+    let raw = false;
+    keep(
+      registerCommands([
+        { id: 'run.block', title: 'Run', group: 'Run', shortcut: 'Mod+Enter', run: () => ran.push('run'), enabled: () => !raw },
+        { id: 'raw.send', title: 'Send', group: 'Run', shortcut: 'Mod+Enter', global: true, run: () => ran.push('send'), enabled: () => raw },
+      ]),
+    );
+    keep(bindGlobalKeys());
+    // Both say when they are enabled, so sharing the shortcut is meant.
+    expect(warn).not.toHaveBeenCalled();
+
+    const field = document.createElement('input');
+    document.body.append(field);
+    // Run's Enter chord stays the editor's.
+    key({ key: 'Enter', code: 'Enter', ctrlKey: true }, field);
+    expect(ran).toEqual([]);
+
+    raw = true;
+    key({ key: 'Enter', code: 'Enter', ctrlKey: true }, field);
+    key({ key: 'Enter', code: 'Enter', ctrlKey: true });
+    expect(ran).toEqual(['send', 'send']);
+    field.remove();
+    warn.mockRestore();
+  });
+
   it('match_is_a_case_insensitive_subsequence', () => {
     expect(matchScore('exp', 'Explain the query')).not.toBeNull();
     expect(matchScore('rnal', 'Run all')).not.toBeNull();

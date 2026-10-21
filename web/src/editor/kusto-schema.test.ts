@@ -9,6 +9,7 @@ const view: SchemaView = {
   tables: [
     {
       name: 'applications',
+      path: 'applications',
       description: 'App registrations.',
       docsUrl: '',
       permissions: ['Application.Read.All'],

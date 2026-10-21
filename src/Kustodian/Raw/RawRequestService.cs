@@ -214,19 +214,9 @@ public sealed class RawRequestService(HttpClient graph, TimeProvider? time = nul
         var list = new List<KeyValuePair<string, string>>(headers.Count);
         foreach (var (name, value) in headers)
         {
-            if (string.IsNullOrEmpty(name) || !name.All(IsTokenChar))
+            if (HeaderProblem(name, value) is { } problem)
             {
-                throw new RawRequestRefusedException("A header name can only have letters, digits and !#$%&'*+-.^_`|~.");
-            }
-
-            if (RefusedHeaders.Contains(name))
-            {
-                throw new RawRequestRefusedException($"The {name} header can't be set from the raw tab.");
-            }
-
-            if (value is null || !value.All(c => c is '\t' or (>= ' ' and <= '~')))
-            {
-                throw new RawRequestRefusedException($"The {name} header's value can only have printable ASCII characters.");
+                throw new RawRequestRefusedException(problem);
             }
 
             total += name.Length + value.Length;
@@ -239,6 +229,26 @@ public sealed class RawRequestService(HttpClient graph, TimeProvider? time = nul
         }
 
         return list;
+    }
+
+    /// <summary>Why a header can't be sent from the raw tab, as the user is told it, or null when it can: its name must be an
+    /// HTTP token and not one of the refused headers, and its value printable ASCII (so no CR or LF). The session keeps only
+    /// headers this accepts.</summary>
+    public static string? HeaderProblem(string? name, string? value)
+    {
+        if (string.IsNullOrEmpty(name) || !name.All(IsTokenChar))
+        {
+            return "A header name can only have letters, digits and !#$%&'*+-.^_`|~.";
+        }
+
+        if (RefusedHeaders.Contains(name))
+        {
+            return $"The {name} header can't be set from the raw tab.";
+        }
+
+        return value is null || !value.All(c => c is '\t' or (>= ' ' and <= '~'))
+            ? $"The {name} header's value can only have printable ASCII characters."
+            : null;
     }
 
     /// <summary>A character of an HTTP token (RFC 9110, 5.6.2).</summary>

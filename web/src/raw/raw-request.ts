@@ -1,36 +1,47 @@
 import { create } from 'zustand';
 import { useTabs, type Tab } from '../tabs/tab-store';
-import type { ParameterDef, RawResponse } from '../wire';
+import type { RawResponse, RawTabHeader, RawTabRequest } from '../wire';
 
 export const RAW_VERSIONS = ['beta', 'v1.0'] as const;
 
-/** A request header as the headers editor holds it. */
-export interface RawHeader {
-  name: string;
-  value: string;
+/** The raw tab's limits on headers, as the host has them (`RawRequestService`). */
+export const MAX_HEADERS = 20;
+export const MAX_HEADER_BYTES = 8 * 1024;
+
+const REFUSED_HEADERS = new Set(['authorization', 'host', 'cookie', 'accept-encoding']);
+const TOKEN = /^[A-Za-z0-9!#$%&'*+\-.^_`|~]+$/;
+const PRINTABLE = /^[\t\x20-\x7e]*$/;
+
+/** Why the host would refuse to send a header, in its words (`RawRequestService.HeaderProblem`), or null when it would send it. */
+export function headerProblem(name: string, value: string): string | null {
+  if (!TOKEN.test(name)) {
+    return "A header name can only have letters, digits and !#$%&'*+-.^_`|~.";
+  }
+  if (REFUSED_HEADERS.has(name.toLowerCase())) {
+    return `The ${name} header can't be set from the raw tab.`;
+  }
+  return PRINTABLE.test(value) ? null : `The ${name} header's value can only have printable ASCII characters.`;
 }
 
-// The session keeps a tab's id, title, text and parameters, and the host drops fields it doesn't know. A raw tab's text is its
-// path; its version and headers go in its parameters, which a raw tab has no other use for, as entries of these types.
-const VERSION_TYPE = 'raw-version';
-const HEADER_TYPE = 'raw-header';
-
-/** A raw tab's request as its parameters keep it: the version it was last sent with or set to (none: the settings' default),
- * and its headers in order. */
-export function rawRequest(tab: Pick<Tab, 'parameters'>): { version?: string; headers: RawHeader[] } {
-  const version = tab.parameters.find((p) => p.type === VERSION_TYPE)?.value;
-  return {
-    version: version && (RAW_VERSIONS as readonly string[]).includes(version) ? version : undefined,
-    headers: tab.parameters.filter((p) => p.type === HEADER_TYPE).map((p) => ({ name: p.name, value: p.value })),
-  };
+/** The headers the raw tab could send, in order, within the host's caps: what the session keeps. */
+export function sendableHeaders(headers: RawTabHeader[]): RawTabHeader[] {
+  const kept: RawTabHeader[] = [];
+  let total = 0;
+  for (const h of headers) {
+    if (kept.length === MAX_HEADERS) {
+      break;
+    }
+    if (headerProblem(h.name, h.value) === null && total + h.name.length + h.value.length <= MAX_HEADER_BYTES) {
+      total += h.name.length + h.value.length;
+      kept.push(h);
+    }
+  }
+  return kept;
 }
 
-/** A raw tab's version and headers as its parameters keep them. */
-export function requestParameters(version: string | undefined, headers: RawHeader[]): ParameterDef[] {
-  return [
-    ...(version ? [{ name: 'version', type: VERSION_TYPE, value: version, required: false }] : []),
-    ...headers.map((h) => ({ name: h.name, type: HEADER_TYPE, value: h.value, required: false })),
-  ];
+/** A raw tab's request: its version (none: the settings' default) and its headers in order. */
+export function rawRequest(tab: Pick<Tab, 'raw'>): RawTabRequest {
+  return tab.raw ?? { version: null, headers: [] };
 }
 
 /** Opens a raw Graph request tab, numbered after the raw tabs already open, with `path` and `version` when given. */
@@ -40,7 +51,7 @@ export function openRaw(seed: { path?: string; version?: string } = {}): string 
   while (used.has(`Raw request ${n}`)) {
     n++;
   }
-  return useTabs.getState().openWith({ source: 'raw', title: `Raw request ${n}`, text: seed.path ?? '', parameters: requestParameters(seed.version, []) });
+  return useTabs.getState().openWith({ source: 'raw', title: `Raw request ${n}`, text: seed.path ?? '', raw: { version: seed.version ?? null, headers: [] } });
 }
 
 export interface RawState {
@@ -49,7 +60,8 @@ export interface RawState {
   /** The account active when the first page was sent: a next page with another account would mix tenants. */
   accountKey: string | undefined;
   sending: boolean;
-  error: { code: string; message: string } | null;
+  /** The last request's error, and the control it is about: a refusal shows beside it. */
+  error: { code: string; message: string; about: 'path' | 'version' | 'headers' | 'next' } | null;
 }
 
 export const IDLE: RawState = { pages: [], accountKey: undefined, sending: false, error: null };

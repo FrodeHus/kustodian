@@ -1,4 +1,4 @@
-import type { SchemaView } from '../wire';
+import type { SchemaTable, SchemaView } from '../wire';
 
 /** The OData query options a Graph GET takes. */
 const QUERY_OPTIONS = ['$count', '$expand', '$filter', '$orderby', '$search', '$select', '$skip', '$top'];
@@ -14,10 +14,23 @@ export interface PathCompletion {
 
 const startsWith = (prefix: string) => (name: string) => name.toLowerCase().startsWith(prefix.toLowerCase()) && name !== prefix;
 
+/** The table for a typed path: the one whose Graph path is the longest prefix of it, ending at a segment boundary. */
+export function tableForPath(schema: SchemaView, path: string): SchemaTable | undefined {
+  const typed = path.toLowerCase();
+  let best: SchemaTable | undefined;
+  for (const table of schema.tables) {
+    const own = table.path.toLowerCase();
+    if ((typed === own || typed.startsWith(`${own}/`)) && own.length > (best?.path.length ?? -1)) {
+      best = table;
+    }
+  }
+  return best;
+}
+
 /**
- * What the raw tab's path can be completed with at `caret` (spec 6.9), from the schema: an entity set in the first segment, a
- * query option after `?` or `&`, and a property of the entity set in `$select`, `$orderby`, `$expand` and `$filter`. Nothing
- * deeper in the path, where the schema has no navigation.
+ * What the raw tab's path can be completed with at `caret` (spec 6.9), from the schema's Graph paths (`auditLogs/signIns`, not
+ * the KQL name `auditLogs_signIns`): a collection while typing the path, a query option after `?` or `&`, and a property in
+ * `$select`, `$orderby`, `$expand` and `$filter` of the table whose path is the longest prefix of the typed path.
  */
 export function completePath(schema: SchemaView | null, path: string, caret: number): PathCompletion {
   const before = path.slice(0, caret);
@@ -27,10 +40,7 @@ export function completePath(schema: SchemaView | null, path: string, caret: num
   }
   const query = before.indexOf('?');
   if (query < 0) {
-    if (before.includes('/')) {
-      return none;
-    }
-    return { from: 0, items: schema.tables.map((t) => t.name).filter(startsWith(before)).sort().slice(0, MAX_ITEMS) };
+    return { from: 0, items: schema.tables.map((t) => t.path).filter(startsWith(before)).sort().slice(0, MAX_ITEMS) };
   }
 
   const partStart = Math.max(before.lastIndexOf('&'), query) + 1;
@@ -39,12 +49,10 @@ export function completePath(schema: SchemaView | null, path: string, caret: num
   if (equals < 0) {
     return { from: partStart, items: QUERY_OPTIONS.filter(startsWith(part)) };
   }
-  const option = part.slice(0, equals).toLowerCase();
-  if (!PROPERTY_OPTIONS.has(option)) {
+  if (!PROPERTY_OPTIONS.has(part.slice(0, equals).toLowerCase())) {
     return none;
   }
-  const entitySet = path.slice(0, query).split('/')[0] ?? '';
-  const table = schema.tables.find((t) => t.name.toLowerCase() === entitySet.toLowerCase());
+  const table = tableForPath(schema, path.slice(0, query));
   if (!table) {
     return none;
   }

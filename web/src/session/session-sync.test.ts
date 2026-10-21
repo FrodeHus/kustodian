@@ -47,6 +47,34 @@ afterEach(() => {
 });
 
 describe('session sync', () => {
+  it('session_sync_keeps_a_raw_tabs_request_but_never_a_header_it_could_not_send', async () => {
+    vi.useFakeTimers();
+    host({ session: { ...saved, tabs: [] }, corrupt: false });
+    stop = startSessionSync();
+    await vi.waitFor(() => expect(useTabs.getState().tabs).toHaveLength(1));
+
+    const id = useTabs.getState().openWith({
+      source: 'raw',
+      title: 'Raw request 1',
+      text: 'me',
+      raw: {
+        version: 'v1.0',
+        headers: [
+          { name: 'Authorization', value: 'Bearer typed-token' },
+          { name: 'ConsistencyLevel', value: 'eventual' },
+          { name: 'X-Line', value: 'a\r\nb' },
+        ],
+      },
+    });
+    await vi.advanceTimersByTimeAsync(1000);
+
+    const tabs = saves().at(-1)!.tabs;
+    expect(tabs.find((t) => t.id === id)!.raw).toEqual({ version: 'v1.0', headers: [{ name: 'ConsistencyLevel', value: 'eventual' }] });
+    expect(JSON.stringify(saves())).not.toContain('typed-token');
+    // Other tabs have no raw request.
+    expect(tabs.find((t) => t.id !== id)).not.toHaveProperty('raw');
+  });
+
   it('session_sync_debounces_saves_1s', async () => {
     vi.useFakeTimers();
     host({ session: saved, corrupt: false });

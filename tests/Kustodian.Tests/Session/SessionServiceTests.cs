@@ -119,4 +119,74 @@ public sealed class SessionServiceTests : IDisposable
         Assert.Empty(read.Value.Tabs);
         Assert.False(File.Exists(Path.Combine(_dir, "session.json")));
     }
+
+    private static SessionTab RawTab(string id, RawTabRequest raw) => new(id, "raw", "Raw " + id, "me", false, null, [], null, raw);
+
+    [Fact]
+    public async Task Session_keeps_a_raw_tabs_version_and_headers_but_never_a_refused_header()
+    {
+        var raw = new RawTabRequest("v1.0",
+        [
+            new RawTabHeader("ConsistencyLevel", "eventual"),
+            new RawTabHeader("Authorization", "Bearer secret-token"),
+            new RawTabHeader("authorization", "Bearer secret-token"),
+            new RawTabHeader("Host", "evil.example"),
+            new RawTabHeader("Cookie", "a=b"),
+            new RawTabHeader("Accept-Encoding", "gzip"),
+            new RawTabHeader("Bad Name", "x"),
+            new RawTabHeader("X-Split", "a\r\nAuthorization: Bearer secret-token"),
+            new RawTabHeader("", "orphan"),
+            new RawTabHeader("Prefer", "odata.maxpagesize=5"),
+        ]);
+
+        await NewService().SaveAsync(new Session(1, "r", [RawTab("r", raw)]), Ct);
+        var read = await NewService().GetAsync(Ct);
+        var text = await File.ReadAllTextAsync(Path.Combine(_dir, "session.json"), Ct);
+
+        var kept = read.Value.Tabs.Single().Raw;
+        Assert.NotNull(kept);
+        Assert.Equal("v1.0", kept.Version);
+        Assert.Equal(["ConsistencyLevel", "Prefer"], kept.Headers.Select(h => h.Name));
+        Assert.DoesNotContain("secret-token", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("authorization", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("evil.example", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Session_raw_headers_are_capped_by_count_and_size_and_an_unknown_version_is_dropped()
+    {
+        var many = Enumerable.Range(0, 25).Select(i => new RawTabHeader($"X-H{i}", "v")).ToList();
+        var big = new[] { new RawTabHeader("X-A", new string('a', 5000)), new RawTabHeader("X-B", new string('b', 5000)), new RawTabHeader("X-C", "c") };
+
+        await NewService().SaveAsync(new Session(1, null, [RawTab("m", new RawTabRequest("v2", many)), RawTab("b", new RawTabRequest(null, big))]), Ct);
+        var read = await NewService().GetAsync(Ct);
+
+        var first = read.Value.Tabs[0].Raw!;
+        Assert.Null(first.Version);
+        Assert.Equal(20, first.Headers.Count);
+        Assert.Equal("X-H19", first.Headers[^1].Name);
+        // 8 KB in all: the second big header doesn't fit, the small one after it does.
+        Assert.Equal(["X-A", "X-C"], read.Value.Tabs[1].Raw!.Headers.Select(h => h.Name));
+    }
+
+    [Fact]
+    public async Task Session_raw_request_with_missing_fields_takes_defaults()
+    {
+        Directory.CreateDirectory(_dir);
+        await File.WriteAllTextAsync(Path.Combine(_dir, "session.json"), """
+            {"version":1,"tabs":[
+              {"id":"r","source":"raw","raw":{"headers":[{"name":"Prefer"},{"value":"x"}]}},
+              {"id":"g","source":"graph"},
+              {"id":"e","source":"raw","raw":{}}]}
+            """, Ct);
+
+        var read = await NewService().GetAsync(Ct);
+
+        Assert.False(read.Corrupt);
+        var raw = read.Value.Tabs[0].Raw!;
+        Assert.Null(raw.Version);
+        Assert.Equal([("Prefer", ""), ("", "x")], raw.Headers.Select(h => (h.Name, h.Value)));
+        Assert.Null(read.Value.Tabs[1].Raw);
+        Assert.Empty(read.Value.Tabs[2].Raw!.Headers);
+    }
 }

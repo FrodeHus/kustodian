@@ -65,14 +65,20 @@ describe('SettingsView', () => {
     expect(within(field('Engine workers')).getByText('1 to 8')).toBeTruthy();
     expect(screen.queryByText('Limits apply the next time Kustodian starts.')).toBeNull();
 
-    onSet = () => Promise.reject(new BridgeError('bad_request', 'Engine workers must be between 1 and 8.'));
-    fireEvent.change(workers, { target: { value: '9' } });
+    // Out of range is caught before sending, huge numbers too, in the host's words.
+    fireEvent.change(workers, { target: { value: '99999999999999999999' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-
-    const error = await within(field('Engine workers')).findByRole('alert');
-    expect(error.textContent).toBe('Engine workers must be between 1 and 8.');
+    expect(within(field('Engine workers')).getByRole('alert').textContent).toBe('Engine workers must be between 1 and 8.');
     expect(workers.getAttribute('aria-invalid')).toBe('true');
-    expect(within(field('Engine timeout (seconds)')).queryByRole('alert')).toBeNull();
+    expect(bridge.call).not.toHaveBeenCalledWith('settings.set', expect.anything());
+
+    // The host's own message finds its field too.
+    onSet = () => Promise.reject(new BridgeError('bad_request', 'Engine timeout (seconds) must be between 10 and 3,600.'));
+    fireEvent.change(workers, { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    const error = await within(field('Engine timeout (seconds)')).findByRole('alert');
+    expect(error.textContent).toBe('Engine timeout (seconds) must be between 10 and 3,600.');
+    expect(within(field('Engine workers')).queryByRole('alert')).toBeNull();
 
     onSet = (settings) => ({ settings, restartNeeded: true, corrupt: false });
     fireEvent.change(workers, { target: { value: '4' } });
