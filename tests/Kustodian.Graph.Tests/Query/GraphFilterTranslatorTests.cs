@@ -169,6 +169,18 @@ public sealed class GraphFilterTranslatorTests
     public void Not_is_never_pushed(string kql) =>
         Assert.Null(Translate(kql.StartsWith("applications", StringComparison.Ordinal) ? Applications : Incidents, kql));
 
+    [Theory]
+    // A column is only filtered with the operators Graph says it supports (weight: eq and gt only; id: eq and in only).
+    [InlineData("applications | where weight < 2")]
+    [InlineData("applications | where weight >= 2")]
+    [InlineData("applications | where id != 'x'")]
+    [InlineData("security_incidents | where weight < 2")]
+    [InlineData("security_incidents | where isnotnull(weight)")]
+    [InlineData("security_incidents | where id != 'x'")]
+    [InlineData("security_incidents | where displayName != 'x'")]
+    public void Disallowed_operators_are_not_pushed(string kql) =>
+        Assert.Null(Translate(kql.StartsWith("applications", StringComparison.Ordinal) ? Applications : Incidents, kql));
+
     [Fact]
     public void Pushes_the_pushable_conjuncts_only() =>
         Assert.Equal("appId eq 'a'", Translate("applications | where appId == 'a' and displayName has 'b'"));
