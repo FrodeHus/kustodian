@@ -3,9 +3,13 @@
  * request `{ id, method, params }`, response `{ id, result }` or `{ id, error: { code, message } }`,
  * event `{ event, data }`.
  *
- * Under Photino the transport is `window.external.sendMessage` / `receiveMessage`. Without them (`vite dev`, tests) the
- * bridge talks to `bridge.mock.ts`.
+ * Under Photino the transport is `window.external.sendMessage` / `receiveMessage`. Without them, a development build
+ * (`vite dev`, tests) talks to `bridge.mock.ts`; a production build never does (the mock and its fixtures are left out of
+ * it) and answers every call with {@link NO_HOST_MESSAGE} instead.
  */
+
+/** What the window shows, and every call rejects with, when a production build has no host to talk to. */
+export const NO_HOST_MESSAGE = "Kustodian couldn't connect to its host.";
 
 export class BridgeError extends Error {
   readonly code: string;
@@ -152,6 +156,32 @@ function photinoExternal(): PhotinoExternal | null {
     : null;
 }
 
+/** Whether the page runs inside the Kustodian host (Photino's message transport is there). */
+export function hasHost(): boolean {
+  return photinoExternal() !== null;
+}
+
+/** A transport for a production build without a host: every request is answered with {@link NO_HOST_MESSAGE}, never with
+ * fake data. */
+export function noHostTransport(): Transport {
+  let receive: (message: string) => void = () => undefined;
+  return {
+    send: (message) => {
+      let id: unknown;
+      try {
+        id = (JSON.parse(message) as { id?: unknown }).id;
+      } catch {
+        return;
+      }
+      const reply = JSON.stringify({ id, error: { code: 'no_host', message: NO_HOST_MESSAGE } });
+      queueMicrotask(() => receive(reply));
+    },
+    onMessage: (callback) => {
+      receive = callback;
+    },
+  };
+}
+
 function defaultTransport(): Transport {
   const photino = photinoExternal();
   if (photino) {
@@ -161,7 +191,12 @@ function defaultTransport(): Transport {
     };
   }
 
-  // No host: answer from fixtures. The mock is loaded on demand, so a hosted build never needs it.
+  // A production build compiles this branch away, so the mock and its fixtures are not in it.
+  if (!import.meta.env.DEV) {
+    return noHostTransport();
+  }
+
+  // Development without a host: answer from fixtures. The mock is loaded on demand.
   const mock = import('./bridge.mock').then((m) => m.createMockTransport());
   let receive: (message: string) => void = () => undefined;
   void mock.then((m) => m.onMessage((message) => receive(message)));

@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import { BridgeError, createBridge, type Transport } from './bridge';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { BridgeError, createBridge, NO_HOST_MESSAGE, noHostTransport, type Transport } from './bridge';
 
 /** A transport that records what the page sends and lets a test play the host. */
 function fakeTransport() {
@@ -117,5 +117,39 @@ describe('bridge', () => {
     expect(() => host.reply({ event: 'query.progress', data: 5 })).not.toThrow();
     expect(seen).toEqual([5]);
     expect(log).toHaveBeenCalledOnce();
+  });
+
+  it('no_host_transport_rejects_every_call_with_the_host_message', async () => {
+    const { call } = createBridge(noHostTransport());
+
+    const error = await call('schema.get').catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(BridgeError);
+    expect(error).toMatchObject({ code: 'no_host', message: NO_HOST_MESSAGE });
+  });
+});
+
+describe('bridge in a production build', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.doUnmock('./bridge.mock');
+    vi.resetModules();
+  });
+
+  it('production_without_host_never_loads_the_mock_and_rejects_calls', async () => {
+    vi.stubEnv('DEV', false);
+    vi.resetModules();
+    const mockLoaded = vi.fn();
+    vi.doMock('./bridge.mock', () => {
+      mockLoaded();
+      return { createMockTransport: () => noHostTransport() };
+    });
+    const production = await import('./bridge');
+
+    const error = await production.call('account.list').catch((e: unknown) => e);
+
+    expect(production.hasHost()).toBe(false);
+    expect(error).toMatchObject({ code: 'no_host', message: "Kustodian couldn't connect to its host." });
+    expect(mockLoaded).not.toHaveBeenCalled();
   });
 });
