@@ -1,3 +1,4 @@
+using Kustodian.Graph.Run;
 using Kustodian.Library;
 using Kustodian.Storage;
 using Microsoft.Extensions.Time.Testing;
@@ -25,6 +26,52 @@ public sealed class LibraryServiceTests : IDisposable
     private static SavedQueryInput Input(string name = "Stale apps", string? folder = null, string? id = null,
         IReadOnlyList<ParameterDef>? parameters = null) =>
         new(id, name, folder, "graph", "applications | take 5", parameters ?? []);
+
+    [Fact]
+    public async Task Options_round_trip_through_recent_library_and_session()
+    {
+        var service = NewService();
+        var scope = new ArgScope("managementGroup", ["contoso-root"]);
+        var arg = await service.SaveAsync(Input(name: "Arg") with { Source = "arg", Options = new QueryOptions(null, scope) }, Ct);
+        var hunting = await service.SaveAsync(Input(name: "Hunting") with { Source = "hunting", Options = new QueryOptions("P30D", null) }, Ct);
+        var graph = await service.SaveAsync(Input(name: "Graph"), Ct);
+
+        var listed = (await NewService().ListAsync(Ct)).Queries.ToDictionary(q => q.Id);
+
+        Assert.Equal("managementGroup", arg.Options?.Scope?.Kind);
+        Assert.Equal("managementGroup", listed[arg.Id].Options?.Scope?.Kind);
+        Assert.Equal(["contoso-root"], listed[arg.Id].Options?.Scope?.Ids);
+        Assert.Equal("P30D", listed[hunting.Id].Options?.Timespan);
+        Assert.Null(listed[graph.Id].Options);
+    }
+
+    [Fact]
+    public async Task Old_files_without_options_load_with_null_options()
+    {
+        const string id = "22222222-2222-2222-2222-222222222222";
+        Directory.CreateDirectory(SavedDir);
+        await File.WriteAllTextAsync(Path.Combine(SavedDir, id + ".json"),
+            $$"""{"version":1,"id":"{{id}}","name":"Old","folder":null,"source":"graph","text":"users","parameters":[],"createdAt":"2026-10-01T00:00:00Z","modifiedAt":"2026-10-01T00:00:00Z"}""",
+            Ct);
+
+        var list = await NewService().ListAsync(Ct);
+
+        Assert.Equal(0, list.Skipped);
+        Assert.Null(Assert.Single(list.Queries).Options);
+    }
+
+    [Fact]
+    public void Input_with_partial_options_takes_defaults()
+    {
+        var node = System.Text.Json.Nodes.JsonNode.Parse("""{"name":"q","source":"arg","options":{"scope":{"kind":"subscriptions"}}}""");
+
+        var input = LibraryService.ReadInput(node, JsonFileStore.Options);
+
+        Assert.NotNull(input);
+        Assert.Null(input.Options?.Timespan);
+        Assert.Equal("subscriptions", input.Options?.Scope?.Kind);
+        Assert.Empty(input.Options?.Scope?.Ids ?? ["missing"]);
+    }
 
     [Fact]
     public async Task Save_creates_file_per_query_with_guid_name()

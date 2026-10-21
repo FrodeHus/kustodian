@@ -151,6 +151,32 @@ export interface ParameterValue {
   required: boolean;
 }
 
+/** Where an Azure Resource Graph query looks: subscription GUIDs (1 to 100), one management group's name, or every
+ * subscription the account can see (no ids). */
+export interface ArgScope {
+  kind: 'subscriptions' | 'managementGroup' | 'all';
+  ids: string[];
+}
+
+/** A run's options for the server-side sources: advanced hunting's `timespan` (an ISO 8601 duration such as `P7D`, or an
+ * interval `start/end`, at most 30 days) and Resource Graph's `scope`. Null parts, and null options, take the source's defaults
+ * (P30D; "all I can see"). Graph ignores both. */
+export interface QueryOptions {
+  timespan: string | null;
+  scope: ArgScope | null;
+}
+
+/** `query.run`'s params. The host refuses options that aren't valid with `bad_request`. */
+export interface QueryRunParams {
+  tabId: string;
+  source: Source;
+  kql: string;
+  refresh: boolean;
+  parameters?: ParameterValue[];
+  runId?: string;
+  options?: QueryOptions | null;
+}
+
 /** A raw request header as the raw tab's editor holds it. */
 export interface RawTabHeader {
   name: string;
@@ -166,7 +192,7 @@ export interface RawTabRequest {
 }
 
 /** A tab as `session.json` keeps it. The host nulls a `filePath` the user didn't choose. `raw` is a raw request tab's request,
- * and null (or left out) for other tabs. */
+ * and null (or left out) for other tabs. `options` are the tab's timespan or scope; null (or left out) for none. */
 export interface SessionTab {
   id: string;
   source: Source;
@@ -177,6 +203,7 @@ export interface SessionTab {
   parameters: ParameterDef[];
   filePath: string | null;
   raw?: RawTabRequest | null;
+  options?: QueryOptions | null;
 }
 
 export interface Session {
@@ -201,6 +228,8 @@ export interface SavedQuery {
   parameters: ParameterDef[];
   createdAt: string;
   modifiedAt: string;
+  /** The timespan or scope saved with the query; null (or left out) for none. */
+  options?: QueryOptions | null;
 }
 
 /** `library.list`'s answer. `skipped`: files that couldn't be read and were moved aside. */
@@ -250,6 +279,8 @@ export interface RecentRun {
   durationMs: number;
   rows: number;
   outcome: string;
+  /** The options the run had; null (or left out) for none. */
+  options?: QueryOptions | null;
 }
 
 /** A file dialog's filter: a name and extensions without the dot. */

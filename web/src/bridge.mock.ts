@@ -1,4 +1,5 @@
 import type { Transport } from './bridge';
+import type { QueryOptions } from './wire';
 import schema from './fixtures/graph-schema.json';
 
 /**
@@ -146,6 +147,7 @@ interface MockRequest {
     path?: string;
     nextLink?: string;
     accountKey?: string;
+    options?: QueryOptions | null;
   };
 }
 
@@ -156,6 +158,7 @@ interface SavedQueryInput {
   source?: string;
   text?: string;
   parameters?: unknown[];
+  options?: QueryOptions | null;
 }
 
 interface SavedQuery extends SavedQueryInput {
@@ -237,6 +240,7 @@ export function createMockTransport(): Transport {
           parameters: input.parameters ?? [],
           createdAt: saved.get(key)?.createdAt ?? now,
           modifiedAt: now,
+          options: input.options ?? null,
         };
         saved.set(key, query);
         reply(id, query);

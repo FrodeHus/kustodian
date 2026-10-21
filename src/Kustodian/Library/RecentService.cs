@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Kustodian.Graph.Query;
+using Kustodian.Graph.Run;
 using Kustodian.Storage;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -9,14 +10,14 @@ namespace Kustodian.Library;
 
 /// <summary>One finished run, as Recent lists it (spec 6.6): what was run and how it went, but no rows. <see cref="Outcome"/> is
 /// the run's outcome as the UI names it (<c>ok</c>, <c>queryError</c>, ...). <see cref="Parameters"/> are the values it ran with,
-/// typed, so a run opened again from Recent has them as they were.</summary>
+/// typed, so a run opened again from Recent has them as they were, and so are its <see cref="Options"/> (null when it had none).</summary>
 public sealed record RecentRun(string Id, string Source, string Text, IReadOnlyList<ParameterValue> Parameters,
-    DateTimeOffset StartedAt, long DurationMs, int Rows, string Outcome);
+    DateTimeOffset StartedAt, long DurationMs, int Rows, string Outcome, QueryOptions? Options = null);
 
 /// <summary>
 /// Owns <c>recent.json</c>, <c>{version:1, runs:[...]}</c>: the last <see cref="Capacity"/> runs, newest first. A run missing a
-/// field in the file takes that field's default (<see cref="JsonDefaults.Fill"/>, per run and per parameter), so a missing number
-/// is 0 and missing parameters are none. A file that is corrupt, or holds a run of the wrong shape, is moved aside and Recent starts empty.
+/// field in the file takes that field's default (<see cref="JsonDefaults.Fill"/>, per run, per parameter and in its options,
+/// <see cref="QueryOptionsDefaults"/>), so a missing number is 0, missing parameters are none and missing options are null. A file that is corrupt, or holds a run of the wrong shape, is moved aside and Recent starts empty.
 /// </summary>
 public sealed class RecentService(JsonFileStore store, ILogger<RecentService>? logger = null)
 {
@@ -102,9 +103,9 @@ public sealed class RecentService(JsonFileStore store, ILogger<RecentService>? l
         {
             var defaults = JsonSerializer.SerializeToNode(DefaultRun, JsonFileStore.Options)!.AsObject();
             var parameterDefaults = JsonSerializer.SerializeToNode(DefaultParameter, JsonFileStore.Options)!.AsObject();
-            var run = JsonDefaults.FillElements(JsonDefaults.Fill(value, defaults), nameof(RecentRun.Parameters), parameterDefaults)
-                .Deserialize<RecentRun>(JsonFileStore.Options);
-            return run is null || run.Parameters.Any(p => p is null) ? null : run;
+            var filled = JsonDefaults.FillElements(JsonDefaults.Fill(value, defaults), nameof(RecentRun.Parameters), parameterDefaults);
+            var run = QueryOptionsDefaults.Fill(filled, JsonFileStore.Options).Deserialize<RecentRun>(JsonFileStore.Options);
+            return run is null || run.Parameters.Any(p => p is null) || !QueryOptionsDefaults.IsComplete(run.Options) ? null : run;
         }
         catch (JsonException)
         {

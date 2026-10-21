@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Kustodian.Graph.Run;
 using Kustodian.Library;
 using Kustodian.Raw;
 using Kustodian.Storage;
@@ -10,9 +11,10 @@ namespace Kustodian.Sessions;
 /// <summary>A tab as the session keeps it. <see cref="SavedId"/> is the library query it was opened from, if any;
 /// <see cref="Dirty"/> says its text differs from the saved one.
 /// <see cref="FilePath"/> is the <c>.kql</c> file it was opened from or saved to, if any. <see cref="Raw"/> is a raw request
-/// tab's version and headers (its text is the path); null for other tabs.</summary>
+/// tab's version and headers (its text is the path); null for other tabs. <see cref="Options"/> are the tab's timespan or scope,
+/// null for none.</summary>
 public sealed record SessionTab(string Id, string Source, string Title, string Text, bool Dirty, string? SavedId,
-    IReadOnlyList<ParameterDef> Parameters, string? FilePath = null, RawTabRequest? Raw = null);
+    IReadOnlyList<ParameterDef> Parameters, string? FilePath = null, RawTabRequest? Raw = null, QueryOptions? Options = null);
 
 /// <summary>A raw request tab's request: <see cref="Version"/> is <c>beta</c> or <c>v1.0</c>, or null for the settings'
 /// default; <see cref="Headers"/> are in the order the user typed them, only those the raw tab could send.</summary>
@@ -27,7 +29,8 @@ public sealed record Session(int Version, string? ActiveId, IReadOnlyList<Sessio
 }
 
 /// <summary>
-/// Owns <c>session.json</c>. Fields missing from the file take their defaults, in each tab and each tab's parameters too, so
+/// Owns <c>session.json</c>. Fields missing from the file take their defaults, in each tab and each tab's parameters and options
+/// too (<see cref="QueryOptionsDefaults"/>; missing options are null), so
 /// a file written by an older version restores. A file that can't be read is moved aside and reads as an empty session, marked
 /// corrupt. Saving drops tabs over the caps (<see cref="MaxTabs"/> tabs, <see cref="MaxTextBytes"/> of text each) and says how
 /// many it dropped. A raw tab's headers are written only when the raw tab could send them
@@ -139,7 +142,8 @@ public sealed class SessionService(JsonFileStore store)
                         withParameters[rawKey] = JsonDefaults.FillElements(JsonDefaults.Fill(raw, rawDefaults), nameof(RawTabRequest.Headers), headerDefaults);
                     }
 
-                    tabs[i] = withParameters;
+                    // A tab's options (null when absent) and their scope take their defaults too.
+                    tabs[i] = QueryOptionsDefaults.Fill(withParameters, options);
                 }
             }
         }
@@ -152,5 +156,6 @@ public sealed class SessionService(JsonFileStore store)
         session.Version == 1 && session.Tabs is not null
         && session.Tabs.All(t => t is { Id: not null, Source: not null, Title: not null, Text: not null, Parameters: not null }
             && t.Parameters.All(p => p is { Name: not null, Type: not null, Value: not null })
-            && (t.Raw is null || (t.Raw.Headers is not null && t.Raw.Headers.All(h => h is { Name: not null, Value: not null }))));
+            && (t.Raw is null || (t.Raw.Headers is not null && t.Raw.Headers.All(h => h is { Name: not null, Value: not null })))
+            && QueryOptionsDefaults.IsComplete(t.Options));
 }

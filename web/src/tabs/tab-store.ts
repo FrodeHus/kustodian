@@ -3,7 +3,7 @@ import { BridgeError, call, on } from '../bridge';
 import { blockAt } from '../editor/block-at';
 import { findParams, mergeParameters } from '../params/find-params';
 import { newId } from '../shell/ids';
-import type { ParameterDef, ParameterValue, RawTabRequest, RunProgress, RunResult, Session, Source } from '../wire';
+import type { ParameterDef, ParameterValue, QueryRunParams, RawTabRequest, RunProgress, RunResult, Session, Source } from '../wire';
 
 export type { Source } from '../wire';
 
@@ -275,7 +275,7 @@ export const useTabs = create<TabsState>()((set, get) => {
       try {
         const result = await call<RunResult>(
           'query.run',
-          { tabId: id, source: tab.source, kql, refresh: opts?.refresh ?? false, parameters, runId },
+          { tabId: id, source: tab.source, kql, refresh: opts?.refresh ?? false, parameters, runId } satisfies QueryRunParams,
           controller.signal,
         );
         run = { state: 'done', runId, result, startedAt, origin, kql };

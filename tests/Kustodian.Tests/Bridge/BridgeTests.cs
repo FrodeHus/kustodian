@@ -598,13 +598,13 @@ public class BridgeTests
 
     private static TaskCompletionSource<string?> NewGate() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    private Messaging.Bridge NewBridge(GraphRun run, string? account = "acct-1") =>
+    private Messaging.Bridge NewBridge(FakeRun run, string? account = "acct-1") =>
         NewBridge(run, () => Task.FromResult(account));
 
-    private Messaging.Bridge NewBridge(GraphRun run, Func<Task<string?>> accountLookup)
+    private Messaging.Bridge NewBridge(FakeRun run, Func<Task<string?>> accountLookup)
     {
         var bridge = NewBridge();
-        new QueryHandler(GraphSchemaCatalog.Beta, accountLookup, run).Register(bridge);
+        new QueryHandler(GraphSchemaCatalog.Beta, accountLookup, FakeSource.Graph(run)).Register(bridge);
         return bridge;
     }
 

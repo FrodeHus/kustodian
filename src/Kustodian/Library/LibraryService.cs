@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Kustodian.Graph.Run;
 using Kustodian.Storage;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -12,13 +13,13 @@ namespace Kustodian.Library;
 public sealed record ParameterDef(string Name, string Type, string Value, bool Required, IReadOnlyList<string>? Choices);
 
 /// <summary>A query in the library. <see cref="Id"/> is a GUID and the file name (<c>saved/&lt;id&gt;.json</c>);
-/// <see cref="Folder"/> is one level or null.</summary>
+/// <see cref="Folder"/> is one level or null. <see cref="Options"/> are the timespan or scope it runs with, null for none.</summary>
 public sealed record SavedQuery(int Version, string Id, string Name, string? Folder, string Source, string Text,
-    IReadOnlyList<ParameterDef> Parameters, DateTimeOffset CreatedAt, DateTimeOffset ModifiedAt);
+    IReadOnlyList<ParameterDef> Parameters, DateTimeOffset CreatedAt, DateTimeOffset ModifiedAt, QueryOptions? Options = null);
 
 /// <summary>What the UI sends to save a query: a null <see cref="Id"/> creates, any other updates.</summary>
 public sealed record SavedQueryInput(string? Id, string Name, string? Folder, string Source, string Text,
-    IReadOnlyList<ParameterDef> Parameters)
+    IReadOnlyList<ParameterDef> Parameters, QueryOptions? Options = null)
 {
     public static SavedQueryInput Default { get; } = new(null, "", null, "graph", "", []);
 }
@@ -33,7 +34,8 @@ public sealed class LibraryRejectedException(string message) : Exception(message
 /// Owns <c>saved/</c>: one JSON file per query, <c>saved/&lt;id&gt;.json</c>. One gate serialises every read and write of the
 /// folder. A file that can't be read (not JSON, the wrong shape, or not the query its name says) is moved aside as
 /// <c>*.corrupt</c> and counted in <see cref="LibraryList.Skipped"/>; the others are listed. Fields missing from a file take
-/// their defaults (<see cref="JsonDefaults.Fill"/>), the query's and each parameter's.
+/// their defaults (<see cref="JsonDefaults.Fill"/>), the query's, each parameter's and its options'
+/// (<see cref="QueryOptionsDefaults"/>; missing options are null).
 /// </summary>
 public sealed class LibraryService(JsonFileStore store, TimeProvider time, ILogger<LibraryService>? logger = null)
 {
@@ -98,7 +100,7 @@ public sealed class LibraryService(JsonFileStore store, TimeProvider time, ILogg
             var now = time.GetUtcNow();
             var existing = input.Id is null ? null : await ReadAsync(RelativePath(id), ct);
             var saved = new SavedQuery(1, id, input.Name, input.Folder, input.Source, input.Text, input.Parameters.ToList(),
-                existing?.CreatedAt ?? now, now);
+                existing?.CreatedAt ?? now, now, input.Options);
             await store.WriteAsync(RelativePath(id), saved, ct);
             return saved;
         }
@@ -124,7 +126,7 @@ public sealed class LibraryService(JsonFileStore store, TimeProvider time, ILogg
     }
 
     /// <summary>Reads a bridge payload as a <see cref="SavedQueryInput"/>: fields missing from it (or null) take their defaults,
-    /// and so do those of each parameter. Null when it isn't an object or a value has the wrong type.</summary>
+    /// and so do those of each parameter and of its options. Null when it isn't an object or a value has the wrong type.</summary>
     public static SavedQueryInput? ReadInput(JsonNode? node, JsonSerializerOptions options)
     {
         if (node is not JsonObject value)
@@ -136,8 +138,8 @@ public sealed class LibraryService(JsonFileStore store, TimeProvider time, ILogg
         {
             var inputDefaults = JsonSerializer.SerializeToNode(SavedQueryInput.Default, options)!.AsObject();
             var parameterDefaults = JsonSerializer.SerializeToNode(DefaultParameter, options)!.AsObject();
-            return JsonDefaults.FillElements(JsonDefaults.Fill(value, inputDefaults), nameof(SavedQueryInput.Parameters), parameterDefaults)
-                .Deserialize<SavedQueryInput>(options);
+            var filled = JsonDefaults.FillElements(JsonDefaults.Fill(value, inputDefaults), nameof(SavedQueryInput.Parameters), parameterDefaults);
+            return QueryOptionsDefaults.Fill(filled, options).Deserialize<SavedQueryInput>(options);
         }
         catch (JsonException)
         {
@@ -193,8 +195,8 @@ public sealed class LibraryService(JsonFileStore store, TimeProvider time, ILogg
         {
             var queryDefaults = JsonSerializer.SerializeToNode(DefaultQuery, JsonFileStore.Options)!.AsObject();
             var parameterDefaults = JsonSerializer.SerializeToNode(DefaultParameter, JsonFileStore.Options)!.AsObject();
-            return JsonDefaults.FillElements(JsonDefaults.Fill(value, queryDefaults), nameof(SavedQuery.Parameters), parameterDefaults)
-                .Deserialize<SavedQuery>(JsonFileStore.Options);
+            var filled = JsonDefaults.FillElements(JsonDefaults.Fill(value, queryDefaults), nameof(SavedQuery.Parameters), parameterDefaults);
+            return QueryOptionsDefaults.Fill(filled, JsonFileStore.Options).Deserialize<SavedQuery>(JsonFileStore.Options);
         }
         catch (JsonException)
         {
@@ -202,7 +204,7 @@ public sealed class LibraryService(JsonFileStore store, TimeProvider time, ILogg
         }
     }
 
-    private static SavedQueryInput ToInput(SavedQuery q) => new(q.Id, q.Name, q.Folder, q.Source, q.Text, q.Parameters);
+    private static SavedQueryInput ToInput(SavedQuery q) => new(q.Id, q.Name, q.Folder, q.Source, q.Text, q.Parameters, q.Options);
 
     private static string NormalizeId(string id) =>
         Guid.TryParseExact(id, "D", out var guid) ? guid.ToString("D") : throw new LibraryRejectedException("The saved query id isn't valid.");
@@ -234,6 +236,11 @@ public sealed class LibraryService(JsonFileStore store, TimeProvider time, ILogg
         if (Encoding.UTF8.GetByteCount(input.Text) > MaxTextBytes)
         {
             return "The query text can be at most 1 MB.";
+        }
+
+        if (!QueryOptionsDefaults.IsComplete(input.Options))
+        {
+            return "The saved query's scope is incomplete.";
         }
 
         return ParameterProblem(input.Parameters);

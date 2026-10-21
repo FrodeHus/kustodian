@@ -3,6 +3,7 @@
     <Project Path="src/Kustodian/Kustodian.csproj" />
     <Project Path="src/Kustodian.Graph/Kustodian.Graph.csproj" />
     <Project Path="src/Kustodian.Engine/Kustodian.Engine.csproj" />
+    <Project Path="src/Kustodian.Sources/Kustodian.Sources.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/schema/schema.csproj" />
@@ -11,6 +12,7 @@
     <Project Path="tests/Kustodian.Graph.Tests/Kustodian.Graph.Tests.csproj" />
     <Project Path="tests/Kustodian.Engine.Tests/Kustodian.Engine.Tests.csproj" />
     <Project Path="tests/Kustodian.Tests/Kustodian.Tests.csproj" />
+    <Project Path="tests/Kustodian.Sources.Tests/Kustodian.Sources.Tests.csproj" />
     <Project Path="tests/Kustodian.EngineWorker/Kustodian.EngineWorker.csproj" />
   </Folder>
 </Solution>

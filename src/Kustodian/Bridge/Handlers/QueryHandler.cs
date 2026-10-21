@@ -4,28 +4,30 @@ using Kustodian.Graph.Query;
 using Kustodian.Graph.Run;
 using Kustodian.Graph.Schema;
 using Kustodian.Library;
+using Kustodian.Sources;
 using Kustodian.Storage;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Kustodian.Messaging.Handlers;
 
-/// <summary>One Graph run with its parameters, as <see cref="GraphRunner"/> does it. <c>runId</c> is the UI's name for the run,
-/// used when it is a GUID in <c>D</c> format (<see cref="RunDiagnostics.IsRunId"/>), otherwise the run gets a new one.</summary>
-public delegate Task<RunResult> GraphRun(string accountKey, string kql, IReadOnlyList<ParameterValue> parameters, bool refresh,
-    string? runId, IProgress<RunEvent>? progress, CancellationToken ct);
-
-/// <summary><c>query.complete</c>, <c>query.explain</c>, <c>query.run</c> and <c>query.cancel</c>. Each tab has at most one
+/// <summary><c>query.complete</c>, <c>query.explain</c>, <c>query.run</c> and <c>query.cancel</c>. A run goes to the source
+/// its <c>source</c> names in <paramref name="sources"/> (an unknown one is a <c>bad_request</c>), with its <c>options</c>
+/// (<see cref="QueryOptions"/>; options that aren't valid are a <c>bad_request</c> and nothing runs). Each tab has at most one
 /// run: a new run on a tab cancels the one before, and <c>query.cancel</c> cancels it. A cancelled run answers with the error
 /// code <c>cancelled</c>. Every run that finishes is added to <paramref name="recent"/> (when given); a cancelled run is not,
 /// and a failure to write Recent is logged and never fails the run. A run's (and an explain's) <c>parameters</c> are a list of
-/// <see cref="ParameterValue"/>; fields missing from (or null in) one take their defaults. A run's optional <c>runId</c> names
-/// it (progress events and the answer carry it) when it is a GUID in <c>D</c> format; otherwise the host names it. <c>query.explain</c> describes what
-/// a run would send, within <paramref name="limits"/> (<see cref="GraphExplain"/>): it needs no account and sends nothing.</summary>
-public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeAccount, GraphRun run, RecentService? recent = null,
-    TimeProvider? time = null, ILogger<QueryHandler>? logger = null, GraphLimits? limits = null)
+/// <see cref="ParameterValue"/>; fields missing from (or null in) one take their defaults, and so do those of its options. A
+/// run's optional <c>runId</c> names it (progress events and the answer carry it) when it is a GUID in <c>D</c> format;
+/// otherwise the host names it. <c>query.explain</c> describes what a Graph run would send, within <paramref name="limits"/>
+/// (<see cref="GraphExplain"/>): it needs no account and sends nothing. Explain and completion are Graph's only: for another
+/// source they are a <c>bad_request</c>.</summary>
+public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeAccount, IReadOnlyDictionary<string, IQuerySource> sources,
+    RecentService? recent = null, TimeProvider? time = null, ILogger<QueryHandler>? logger = null, GraphLimits? limits = null)
 {
     private const string GraphSource = "graph";
+    private const string ExplainRefused = "Explain is only available for Microsoft Graph.";
+    private const string CompletionRefused = "Completion comes from the editor for this source.";
     private static readonly ParameterValue DefaultParameter = new("", "text", "", false);
 
     private readonly TimeProvider _time = time ?? TimeProvider.System;
@@ -58,7 +60,7 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
 
     private IReadOnlyList<GraphCompletionItem> Complete(CompleteParams p)
     {
-        RequireGraph(p.Source);
+        RequireGraph(p.Source, CompletionRefused);
         if (p.Kql is null || p.Position < 0 || p.Position > p.Kql.Length)
         {
             throw new BridgeException(BridgeErrorCodes.BadRequest, "The completion request needs kql and a position inside it.");
@@ -69,7 +71,7 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
 
     private ExplainView Explain(ExplainParams p)
     {
-        RequireGraph(p.Source);
+        RequireGraph(p.Source, ExplainRefused);
         if (p.Kql is null)
         {
             throw new BridgeException(BridgeErrorCodes.BadRequest, "Explain needs kql.");
@@ -80,10 +82,19 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
 
     private async Task<RunResult> RunAsync(Bridge bridge, RunParams p, CancellationToken closing)
     {
-        RequireGraph(p.Source);
+        if (p.Source is null || !sources.TryGetValue(p.Source, out var source))
+        {
+            throw new BridgeException(BridgeErrorCodes.BadRequest, $"Unknown source {p.Source}.");
+        }
+
         if (string.IsNullOrEmpty(p.TabId) || p.Kql is null)
         {
             throw new BridgeException(BridgeErrorCodes.BadRequest, "A run needs a tabId and kql.");
+        }
+
+        if (QueryOptions.Problem(p.Options) is { } problem)
+        {
+            throw new BridgeException(BridgeErrorCodes.BadRequest, problem);
         }
 
         // The tab's run is registered before the first await, so runs and cancels on a tab take effect in the order they
@@ -116,7 +127,8 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
             cts.Token.ThrowIfCancellationRequested();
             var progress = new TabProgress(bridge, tabId);
             var started = _time.GetUtcNow();
-            var result = await run(account, p.Kql, p.Parameters ?? [], p.Refresh, p.RunId, progress, cts.Token);
+            var request = new QueryRunRequest(account, p.Kql, p.Parameters ?? [], p.Refresh, p.RunId, p.Options);
+            var result = await source.RunAsync(request, progress, cts.Token);
             await RecordAsync(p, started, result);
             return result;
         }
@@ -147,7 +159,7 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
         {
             var run = new RecentRun(Guid.NewGuid().ToString("D"), p.Source!, p.Kql!, p.Parameters ?? [],
                 started, (long)Math.Round(result.Duration.TotalMilliseconds), result.Total,
-                JsonNamingPolicy.CamelCase.ConvertName(result.Outcome.ToString()));
+                JsonNamingPolicy.CamelCase.ConvertName(result.Outcome.ToString()), p.Options);
             await recent.AddAsync(run, CancellationToken.None);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -157,7 +169,8 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
     }
 
     /// <summary>A <c>query.run</c>'s or <c>query.explain</c>'s params, each parameter's missing fields taken from
-    /// <see cref="DefaultParameter"/>. A parameter that isn't an object is a <c>bad_request</c>.</summary>
+    /// <see cref="DefaultParameter"/>, and the options' from theirs (<see cref="QueryOptionsDefaults"/>). A parameter that isn't
+    /// an object, or options with a null among their ids, are a <c>bad_request</c>.</summary>
     private static T ReadWithParameters<T>(JsonElement p)
         where T : class, IHasParameters
     {
@@ -167,9 +180,11 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
         }
 
         var defaults = JsonSerializer.SerializeToNode(DefaultParameter, BridgeJson.Options)!.AsObject();
-        var filled = JsonDefaults.FillElements(JsonObject.Create(p)!, nameof(IHasParameters.Parameters), defaults);
+        var filled = QueryOptionsDefaults.Fill(
+            JsonDefaults.FillElements(JsonObject.Create(p)!, nameof(IHasParameters.Parameters), defaults), BridgeJson.Options);
         var request = BridgeJson.Params<T>(JsonSerializer.SerializeToElement(filled, BridgeJson.Options));
-        if (request.Parameters?.Any(parameter => parameter is null) == true)
+        if (request.Parameters?.Any(parameter => parameter is null) == true
+            || (request is RunParams run && !QueryOptionsDefaults.IsComplete(run.Options)))
         {
             throw new BridgeException(BridgeErrorCodes.BadRequest, "The request's params are not valid.");
         }
@@ -209,11 +224,13 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
         }
     }
 
-    private static void RequireGraph(string? source)
+    /// <summary>Explain and completion are Graph's: another known source is refused with <paramref name="refusal"/>.</summary>
+    private void RequireGraph(string? source, string refusal)
     {
         if (source != GraphSource)
         {
-            throw new BridgeException(BridgeErrorCodes.BadRequest, $"Unknown source {source}.");
+            throw new BridgeException(BridgeErrorCodes.BadRequest,
+                source is not null && sources.ContainsKey(source) ? refusal : $"Unknown source {source}.");
         }
     }
 
@@ -236,7 +253,7 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
     }
 
     private sealed record RunParams(string? TabId, string? Source, string? Kql, bool Refresh,
-        IReadOnlyList<ParameterValue>? Parameters = null, string? RunId = null) : IHasParameters;
+        IReadOnlyList<ParameterValue>? Parameters = null, string? RunId = null, QueryOptions? Options = null) : IHasParameters;
 
     private sealed record ExplainParams(string? Source, string? Kql, IReadOnlyList<ParameterValue>? Parameters = null) : IHasParameters;
 

@@ -13,6 +13,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Kustodian.Graph\Kustodian.Graph.csproj" />
     <ProjectReference Include="..\Kustodian.Engine\Kustodian.Engine.csproj" />
+    <ProjectReference Include="..\Kustodian.Sources\Kustodian.Sources.csproj" />
   </ItemGroup>
 
   <ItemGroup>

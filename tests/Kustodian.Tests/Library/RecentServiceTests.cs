@@ -109,7 +109,7 @@ public sealed class RecentServiceTests : IDisposable
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var bridge = new Messaging.Bridge(_ => { });
-        new QueryHandler(GraphSchemaCatalog.Beta, () => Task.FromResult<string?>("acct"), async (_, kql, _, _, _, _, ct) =>
+        new QueryHandler(GraphSchemaCatalog.Beta, () => Task.FromResult<string?>("acct"), FakeSource.Graph(async (_, kql, _, _, _, _, ct) =>
         {
             if (kql == "slow")
             {
@@ -118,7 +118,7 @@ public sealed class RecentServiceTests : IDisposable
             }
 
             return new RunResult(RunOutcome.QueryError, "bad", null, [], [], 42, [], TimeSpan.FromMilliseconds(250));
-        }, recent).Register(bridge);
+        }), recent).Register(bridge);
 
         var finished = await bridge.HandleAsync(RunRequest("r1", "t1", "users"));
         var slow = bridge.HandleAsync(RunRequest("r2", "t2", "slow"));
@@ -144,13 +144,77 @@ public sealed class RecentServiceTests : IDisposable
         Directory.CreateDirectory(RecentPath);
         var bridge = new Messaging.Bridge(_ => { });
         new QueryHandler(GraphSchemaCatalog.Beta, () => Task.FromResult<string?>("acct"),
-            (_, _, _, _, _, _, _) => Task.FromResult(new RunResult(RunOutcome.Ok, null, null, [], [], 0, [], TimeSpan.Zero)), NewService())
+            FakeSource.Graph((_, _, _, _, _, _, _) => Task.FromResult(new RunResult(RunOutcome.Ok, null, null, [], [], 0, [], TimeSpan.Zero))),
+            NewService())
             .Register(bridge);
 
         var reply = await bridge.HandleAsync(RunRequest("r1", "t1", "users"));
 
         using var doc = JsonDocument.Parse(reply!);
         Assert.Equal("ok", doc.RootElement.GetProperty("result").GetProperty("outcome").GetString());
+    }
+
+    [Fact]
+    public async Task Options_round_trip_through_recent_library_and_session()
+    {
+        var scope = new ArgScope("subscriptions", ["11111111-1111-1111-1111-111111111111"]);
+        await NewService().AddAsync(Run(1) with { Source = "arg", Options = new QueryOptions(null, scope) }, Ct);
+        await NewService().AddAsync(Run(2) with { Source = "hunting", Options = new QueryOptions("P7D", null) }, Ct);
+
+        var runs = await NewService().ListAsync(Ct);
+
+        Assert.Equal("P7D", runs[0].Options?.Timespan);
+        Assert.Null(runs[0].Options?.Scope);
+        Assert.Null(runs[1].Options?.Timespan);
+        Assert.Equal("subscriptions", runs[1].Options?.Scope?.Kind);
+        Assert.Equal(["11111111-1111-1111-1111-111111111111"], runs[1].Options?.Scope?.Ids);
+    }
+
+    [Fact]
+    public async Task Old_files_without_options_load_with_null_options()
+    {
+        await File.WriteAllTextAsync(Directory.CreateDirectory(_dir).FullName + "/recent.json",
+            """{"version":1,"runs":[{"id":"a","source":"graph","text":"users","parameters":[],"startedAt":"2026-10-21T08:00:00Z","durationMs":5,"rows":1,"outcome":"ok"}]}""",
+            Ct);
+
+        var run = Assert.Single(await NewService().ListAsync(Ct));
+
+        Assert.Equal("users", run.Text);
+        Assert.Null(run.Options);
+    }
+
+    [Fact]
+    public async Task Options_missing_their_own_fields_take_defaults()
+    {
+        await File.WriteAllTextAsync(Directory.CreateDirectory(_dir).FullName + "/recent.json",
+            """{"version":1,"runs":[{"id":"a","source":"arg","text":"resources","options":{"scope":{}}}]}""", Ct);
+
+        var run = Assert.Single(await NewService().ListAsync(Ct));
+
+        Assert.Null(run.Options?.Timespan);
+        Assert.Equal("all", run.Options?.Scope?.Kind);
+        Assert.Empty(run.Options?.Scope?.Ids ?? ["missing"]);
+    }
+
+    [Fact]
+    public async Task Run_options_are_recorded_in_recent()
+    {
+        var recent = NewService();
+        var bridge = new Messaging.Bridge(_ => { });
+        var hunting = new FakeSource("hunting", (_, _, _, _, _, _, _) =>
+            Task.FromResult(new RunResult(RunOutcome.Ok, null, null, [], [], 0, [], TimeSpan.Zero)));
+        new QueryHandler(GraphSchemaCatalog.Beta, () => Task.FromResult<string?>("acct"), FakeSource.Map(hunting), recent).Register(bridge);
+
+        await bridge.HandleAsync(JsonSerializer.Serialize(new
+        {
+            id = "r1",
+            method = "query.run",
+            @params = new { tabId = "t1", source = "hunting", kql = "DeviceInfo", refresh = false, options = new { timespan = "P1D" } },
+        }));
+
+        var run = Assert.Single(await recent.ListAsync(Ct));
+        Assert.Equal("hunting", run.Source);
+        Assert.Equal("P1D", run.Options?.Timespan);
     }
 
     private static string RunRequest(string id, string tabId, string kql) => JsonSerializer.Serialize(new

@@ -11,6 +11,7 @@ using Kustodian.Raw;
 using Kustodian.Sessions;
 using Kustodian.Settings;
 using Kustodian.Snippets;
+using Kustodian.Sources;
 using Kustodian.Storage;
 
 namespace Kustodian.App;
@@ -85,7 +86,7 @@ public sealed class AppServices : IAsyncDisposable
         new AppHandler(Objects).Register(bridge);
         new SettingsHandler(_settings, _startup.Limits).Register(bridge);
         new SchemaHandler(_schema).Register(bridge);
-        new QueryHandler(_schema, ActiveAccountAsync, Runner.RunAsync, _recent, _time, new StderrLogger<QueryHandler>(), Limits)
+        new QueryHandler(_schema, ActiveAccountAsync, Sources(), _recent, _time, new StderrLogger<QueryHandler>(), Limits)
             .Register(bridge);
         new LibraryHandler(_library, _recent).Register(bridge);
         new SessionHandler(_session, _allowedFiles).Register(bridge);
@@ -93,6 +94,13 @@ public sealed class AppServices : IAsyncDisposable
         new FileHandler(new PhotinoFileDialogs(Window), _allowedFiles).Register(bridge);
         new AccountHandler(_accounts, _tokenCache, Objects).Register(bridge);
         new RawHandler(new RawRequestService(_http, _time), ActiveAccountAsync).Register(bridge);
+    }
+
+    /// <summary>The query sources by the name <c>query.run</c> gives them.</summary>
+    private Dictionary<string, IQuerySource> Sources()
+    {
+        IQuerySource[] sources = [new GraphQuerySource(Runner)];
+        return sources.ToDictionary(s => s.Name, StringComparer.Ordinal);
     }
 
     public async ValueTask DisposeAsync()

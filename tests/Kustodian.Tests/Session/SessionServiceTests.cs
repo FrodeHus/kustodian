@@ -1,3 +1,4 @@
+using Kustodian.Graph.Run;
 using Kustodian.Library;
 using Kustodian.Sessions;
 using Kustodian.Storage;
@@ -40,6 +41,51 @@ public sealed class SessionServiceTests : IDisposable
         Assert.Equal("11111111-1111-1111-1111-111111111111", read.Value.Tabs[1].SavedId);
         Assert.Equal(new ParameterDef("days", "number", "30", true, ["7", "30"]), read.Value.Tabs[1].Parameters.Single(),
             ParameterComparer.Instance);
+    }
+
+    [Fact]
+    public async Task Options_round_trip_through_recent_library_and_session()
+    {
+        var scope = new ArgScope("all", []);
+        var session = new Session(1, "a", [
+            Tab("a") with { Source = "arg", Options = new QueryOptions(null, scope) },
+            Tab("b") with { Source = "hunting", Options = new QueryOptions("2026-10-01T00:00:00Z/2026-10-02T00:00:00Z", null) },
+            Tab("c"),
+        ]);
+
+        await NewService().SaveAsync(session, Ct);
+        var tabs = (await NewService().GetAsync(Ct)).Value.Tabs;
+
+        Assert.Equal("all", tabs[0].Options?.Scope?.Kind);
+        Assert.Empty(tabs[0].Options?.Scope?.Ids ?? ["missing"]);
+        Assert.Equal("2026-10-01T00:00:00Z/2026-10-02T00:00:00Z", tabs[1].Options?.Timespan);
+        Assert.Null(tabs[2].Options);
+    }
+
+    [Fact]
+    public async Task Old_files_without_options_load_with_null_options()
+    {
+        await File.WriteAllTextAsync(Directory.CreateDirectory(_dir).FullName + "/session.json",
+            """{"version":1,"activeId":"a","tabs":[{"id":"a","source":"graph","title":"A","text":"users","dirty":false,"savedId":null,"parameters":[]}]}""",
+            Ct);
+
+        var read = await NewService().GetAsync(Ct);
+
+        Assert.False(read.Corrupt);
+        Assert.Null(Assert.Single(read.Value.Tabs).Options);
+    }
+
+    [Fact]
+    public void Session_input_with_partial_options_takes_defaults()
+    {
+        var node = System.Text.Json.Nodes.JsonNode.Parse("""{"tabs":[{"id":"a","source":"arg","options":{"scope":{"ids":[]}}}]}""");
+
+        var session = SessionService.ReadInput(node, JsonFileStore.Options);
+
+        Assert.NotNull(session);
+        var options = Assert.Single(session.Tabs).Options;
+        Assert.Null(options?.Timespan);
+        Assert.Equal("all", options?.Scope?.Kind);
     }
 
     [Fact]
