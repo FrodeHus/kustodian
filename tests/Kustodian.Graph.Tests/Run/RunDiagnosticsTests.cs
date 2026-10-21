@@ -203,6 +203,42 @@ public sealed class RunDiagnosticsTests
         Assert.All(events.All, e => Assert.Equal(r.RunId, e.RunId));
     }
 
+    [Theory]
+    [InlineData("3d8e2f6a-5b1c-4c7e-9a2d-1f4b6c8e0a12", true)]
+    [InlineData("not-a-guid", false)]
+    [InlineData("3d8e2f6a5b1c4c7e9a2d1f4b6c8e0a12", false)]   // a GUID, but not in "D" format
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public async Task A_supplied_run_id_is_used_when_it_is_a_guid(string? supplied, bool used)
+    {
+        await using var engine = Pool();
+        var graph = new FakeGraph();
+        graph.Answer = (_, _) => Task.FromResult(FakeGraph.Collection([new { id = "1", displayName = "Payroll" }]));
+        var events = new Events();
+
+        var r = await Runner(graph, engine).RunAsync(Account, "applications | project displayName", [], false, supplied, events, Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        if (used)
+            Assert.Equal(supplied, r.RunId);
+        else
+            Assert.True(Guid.TryParseExact(r.RunId, "D", out _) && r.RunId != supplied);
+        Assert.NotEmpty(events.All);
+        Assert.All(events.All, e => Assert.Equal(r.RunId, e.RunId));
+    }
+
+    [Fact]
+    public async Task A_supplied_run_id_names_a_parameter_error_too()
+    {
+        await using var engine = Pool();
+        const string RunId = "3d8e2f6a-5b1c-4c7e-9a2d-1f4b6c8e0a12";
+
+        var r = await Runner(new FakeGraph(), engine).RunAsync(Account, "applications | where displayName == name",
+            [new ParameterValue("name", "text", "", true)], false, RunId, null, Ct);
+
+        Assert.Equal((RunOutcome.QueryError, RunId), (r.Outcome, r.RunId));
+    }
+
     [Fact]
     public async Task Engine_start_and_kill_are_logged()
     {

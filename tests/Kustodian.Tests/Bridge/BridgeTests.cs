@@ -52,7 +52,7 @@ public class BridgeTests
     {
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var observed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var bridge = NewBridge(async (_, _, _, _, _, ct) =>
+        var bridge = NewBridge(async (_, _, _, _, _, _, ct) =>
         {
             started.SetResult();
             try
@@ -82,7 +82,7 @@ public class BridgeTests
     public async Task Second_run_on_same_tab_cancels_the_first()
     {
         var firstStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var bridge = NewBridge(async (_, kql, _, _, _, ct) =>
+        var bridge = NewBridge(async (_, kql, _, _, _, _, ct) =>
         {
             if (kql == "slow")
             {
@@ -106,7 +106,7 @@ public class BridgeTests
     [Fact]
     public async Task Runs_on_other_tabs_are_not_cancelled()
     {
-        var bridge = NewBridge((_, _, _, _, _, _) => Task.FromResult(Ok()));
+        var bridge = NewBridge((_, _, _, _, _, _, _) => Task.FromResult(Ok()));
 
         var a = Parse(await bridge.HandleAsync(Run("r1", "t1", "users")));
         var b = Parse(await bridge.HandleAsync(Run("r2", "t2", "users")));
@@ -119,7 +119,7 @@ public class BridgeTests
     public async Task Progress_events_carry_tab_id_and_run_id()
     {
         const string RunId = "6f1c0a52-8d1e-4f57-9a43-0b8f6a1f2c11";
-        var bridge = NewBridge((_, _, _, _, progress, _) =>
+        var bridge = NewBridge((_, _, _, _, _, progress, _) =>
         {
             progress?.Report(new RunEvent("planning", "Planning the query", RunId));
             progress?.Report(new RunEvent("fetching", "users", RunId));
@@ -144,7 +144,7 @@ public class BridgeTests
     public async Task Run_without_account_returns_sign_in_needed_without_calling_graph()
     {
         var called = false;
-        var bridge = NewBridge((_, _, _, _, _, _) =>
+        var bridge = NewBridge((_, _, _, _, _, _, _) =>
         {
             called = true;
             return Task.FromResult(Ok());
@@ -161,7 +161,7 @@ public class BridgeTests
     public async Task Run_passes_active_account_kql_and_refresh()
     {
         (string Account, string Kql, bool Refresh)? seen = null;
-        var bridge = NewBridge((account, kql, _, refresh, _, _) =>
+        var bridge = NewBridge((account, kql, _, refresh, _, _, _) =>
         {
             seen = (account, kql, refresh);
             return Task.FromResult(Ok());
@@ -176,7 +176,7 @@ public class BridgeTests
     public async Task Run_passes_parameters_with_missing_fields_defaulted()
     {
         IReadOnlyList<ParameterValue>? seen = null;
-        var bridge = NewBridge((_, _, parameters, _, _, _) =>
+        var bridge = NewBridge((_, _, parameters, _, _, _, _) =>
         {
             seen = parameters;
             return Task.FromResult(Ok());
@@ -195,7 +195,7 @@ public class BridgeTests
     public async Task Run_without_parameters_passes_none()
     {
         IReadOnlyList<ParameterValue>? seen = null;
-        var bridge = NewBridge((_, _, parameters, _, _, _) =>
+        var bridge = NewBridge((_, _, parameters, _, _, _, _) =>
         {
             seen = parameters;
             return Task.FromResult(Ok());
@@ -210,7 +210,7 @@ public class BridgeTests
     [Fact]
     public async Task Run_with_malformed_parameters_returns_bad_request()
     {
-        var bridge = NewBridge((_, _, _, _, _, _) => Task.FromResult(Ok()));
+        var bridge = NewBridge((_, _, _, _, _, _, _) => Task.FromResult(Ok()));
 
         var reply = Parse(await bridge.HandleAsync(
             """{"id":"1","method":"query.run","params":{"tabId":"t","source":"graph","kql":"x","parameters":{"n":"1"}}}"""));
@@ -226,7 +226,7 @@ public class BridgeTests
     public async Task Run_with_a_parameter_that_is_not_an_object_returns_bad_request(string parameters)
     {
         var called = false;
-        var bridge = NewBridge((_, _, _, _, _, _) =>
+        var bridge = NewBridge((_, _, _, _, _, _, _) =>
         {
             called = true;
             return Task.FromResult(Ok());
@@ -242,7 +242,7 @@ public class BridgeTests
     [Fact]
     public async Task Run_with_unknown_source_returns_bad_request()
     {
-        var bridge = NewBridge((_, _, _, _, _, _) => Task.FromResult(Ok()));
+        var bridge = NewBridge((_, _, _, _, _, _, _) => Task.FromResult(Ok()));
 
         var reply = Parse(await bridge.HandleAsync("""{"id":"1","method":"query.run","params":{"tabId":"t","source":"hunting","kql":"x"}}"""));
 
@@ -291,7 +291,7 @@ public class BridgeTests
     [Fact]
     public async Task Query_complete_returns_fields_of_the_complex_value()
     {
-        var bridge = NewBridge((_, _, _, _, _, _) => Task.FromResult(Ok()));
+        var bridge = NewBridge((_, _, _, _, _, _, _) => Task.FromResult(Ok()));
         var kql = "users | where passwordProfile.";
 
         var reply = Parse(await bridge.HandleAsync(JsonSerializer.Serialize(new
@@ -309,7 +309,7 @@ public class BridgeTests
     public async Task Explain_needs_no_account()
     {
         var bridge = NewBridge(
-            (_, _, _, _, _, _) => throw new InvalidOperationException("Explain must not run the query."),
+            (_, _, _, _, _, _, _) => throw new InvalidOperationException("Explain must not run the query."),
             () => throw new InvalidOperationException("Explain must not look up the account."));
 
         var reply = Parse(await bridge.HandleAsync(JsonSerializer.Serialize(new
@@ -340,7 +340,7 @@ public class BridgeTests
     [Fact]
     public async Task Explain_returns_the_error_with_its_position()
     {
-        var bridge = NewBridge((_, _, _, _, _, _) => Task.FromResult(Ok()));
+        var bridge = NewBridge((_, _, _, _, _, _, _) => Task.FromResult(Ok()));
 
         var reply = Parse(await bridge.HandleAsync(
             """{"id":"e","method":"query.explain","params":{"source":"graph","kql":"users\n| where nope == 1"}}"""));
@@ -356,7 +356,7 @@ public class BridgeTests
     [InlineData("""{"source":"graph","kql":"x","parameters":[null]}""")]
     public async Task Explain_with_a_bad_request_returns_bad_request(string parameters)
     {
-        var bridge = NewBridge((_, _, _, _, _, _) => Task.FromResult(Ok()));
+        var bridge = NewBridge((_, _, _, _, _, _, _) => Task.FromResult(Ok()));
 
         var reply = Parse(await bridge.HandleAsync("""{"id":"e","method":"query.explain","params":""" + parameters + "}"));
 
@@ -424,7 +424,7 @@ public class BridgeTests
     [Fact]
     public async Task Run_result_duration_goes_out_as_duration_ms()
     {
-        var bridge = NewBridge((_, _, _, _, _, _) =>
+        var bridge = NewBridge((_, _, _, _, _, _, _) =>
             Task.FromResult(Ok() with { Duration = TimeSpan.FromMilliseconds(1234.4) }));
 
         var result = Parse(await bridge.HandleAsync(Run("r1", "t1", "users"))).GetProperty("result");
@@ -441,7 +441,7 @@ public class BridgeTests
     public async Task Run_result_wire_has_run_id_and_diagnostics()
     {
         const string RunId = "0b9f4c1e-2a7d-4e36-8f15-7c2d9e4a6b80";
-        var bridge = NewBridge((_, _, _, _, _, _) => Task.FromResult(Ok() with
+        var bridge = NewBridge((_, _, _, _, _, _, _) => Task.FromResult(Ok() with
         {
             RunId = RunId,
             Diagnostics =
@@ -468,9 +468,59 @@ public class BridgeTests
     }
 
     [Fact]
+    public async Task Run_passes_the_web_s_run_id_to_the_run()
+    {
+        const string RunId = "3d8e2f6a-5b1c-4c7e-9a2d-1f4b6c8e0a12";
+        string? seen = "unset";
+        string? missing = "unset";
+        var bridge = NewBridge((_, _, _, _, runId, _, _) =>
+        {
+            if (seen == "unset")
+            {
+                seen = runId;
+            }
+            else
+            {
+                missing = runId;
+            }
+
+            return Task.FromResult(Ok());
+        });
+
+        await bridge.HandleAsync(JsonSerializer.Serialize(new
+        {
+            id = "r1", method = "query.run", @params = new { tabId = "t1", source = "graph", kql = "users", refresh = false, runId = RunId },
+        }));
+        await bridge.HandleAsync(Run("r2", "t1", "users"));
+
+        Assert.Equal(RunId, seen);
+        Assert.Null(missing);
+    }
+
+    [Fact]
+    public async Task A_run_without_an_account_answers_with_the_web_s_run_id_or_a_new_one()
+    {
+        const string RunId = "3d8e2f6a-5b1c-4c7e-9a2d-1f4b6c8e0a12";
+        var bridge = NewBridge((_, _, _, _, _, _, _) => Task.FromResult(Ok()), account: null);
+
+        string RunIdOf(string? reply) => Parse(reply).GetProperty("result").GetProperty("runId").GetString()!;
+        var valid = RunIdOf(await bridge.HandleAsync(RunWithId("r1", RunId)));
+        var invalid = RunIdOf(await bridge.HandleAsync(RunWithId("r2", "not-a-guid")));
+
+        Assert.Equal(RunId, valid);
+        Assert.NotEqual("not-a-guid", invalid);
+        Assert.True(Guid.TryParseExact(invalid, "D", out _));
+
+        static string RunWithId(string id, string runId) => JsonSerializer.Serialize(new
+        {
+            id, method = "query.run", @params = new { tabId = "t1", source = "graph", kql = "users", refresh = false, runId },
+        });
+    }
+
+    [Fact]
     public async Task A_run_without_an_account_still_has_a_run_id()
     {
-        var bridge = NewBridge((_, _, _, _, _, _) => Task.FromResult(Ok()), account: null);
+        var bridge = NewBridge((_, _, _, _, _, _, _) => Task.FromResult(Ok()), account: null);
 
         var result = Parse(await bridge.HandleAsync(Run("r1", "t1", "users"))).GetProperty("result");
 
@@ -485,7 +535,7 @@ public class BridgeTests
         // The older run's account lookup finishes last: the newer run must still be the one left running.
         var lookups = new Queue<TaskCompletionSource<string?>>([NewGate(), NewGate()]);
         var gates = lookups.ToArray();
-        var bridge = NewBridge((_, kql, _, _, _, ct) =>
+        var bridge = NewBridge((_, kql, _, _, _, _, ct) =>
         {
             ct.ThrowIfCancellationRequested();
             return Task.FromResult(Ok() with { Message = kql });
@@ -508,7 +558,7 @@ public class BridgeTests
     {
         var lookup = NewGate();
         var called = false;
-        var bridge = NewBridge((_, _, _, _, _, _) =>
+        var bridge = NewBridge((_, _, _, _, _, _, _) =>
         {
             called = true;
             return Task.FromResult(Ok());
@@ -527,7 +577,7 @@ public class BridgeTests
     public async Task Bridge_close_cancels_an_in_flight_run()
     {
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var bridge = NewBridge(async (_, _, _, _, _, ct) =>
+        var bridge = NewBridge(async (_, _, _, _, _, _, ct) =>
         {
             started.SetResult();
             await Task.Delay(Timeout.Infinite, ct);

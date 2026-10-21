@@ -103,6 +103,7 @@ interface MockRequest {
   method?: string;
   params?: {
     tabId?: string;
+    runId?: string;
     settings?: typeof defaultSettings;
     query?: SavedQueryInput;
     id?: string;
@@ -272,13 +273,17 @@ export function createMockTransport(): Transport {
         break;
       case 'query.run': {
         const tabId = params?.tabId ?? '';
+        // As the host does: the UI's run id when it sends one, else one of the mock's own.
+        const runId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params?.runId ?? '')
+          ? (params?.runId ?? '')
+          : runResult.runId;
         cancelRun(tabId);
         const timer = setTimeout(() => {
           runs.delete(tabId);
-          reply(id, runResult);
+          reply(id, { ...runResult, runId });
         }, RUN_DELAY_MS);
         runs.set(tabId, { id, timer });
-        receive(JSON.stringify({ event: 'query.progress', data: { tabId, runId: runResult.runId, stage: 'fetch', detail: 'applications' } }));
+        receive(JSON.stringify({ event: 'query.progress', data: { tabId, runId, stage: 'fetch', detail: 'applications' } }));
         break;
       }
       default:

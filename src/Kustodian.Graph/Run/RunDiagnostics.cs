@@ -38,9 +38,10 @@ public static class DiagnosticKinds
 /// One run's diagnostics log, with the run's id. Safe to add to from the run's parallel reads. Keeps at most
 /// <see cref="MaxEntries"/> entries; after that one final entry says how many more there were. Requests carry it on
 /// <see cref="HttpRequestMessage.Options"/> (<see cref="RunDiagnosticsRequest.ForRun"/>), and the HTTP pipeline logs each request
-/// it sends into it. Nothing in it is a token or a header.
+/// it sends into it. Nothing in it is a token or a header. The run's id is <paramref name="runId"/> when that is a GUID in
+/// <c>D</c> format (the UI names its runs, so it can tell their progress apart from the first event), otherwise a new one.
 /// </summary>
-public sealed class RunDiagnostics(TimeProvider time)
+public sealed class RunDiagnostics(TimeProvider time, string? runId = null)
 {
     public const int MaxEntries = 5_000;
 
@@ -54,7 +55,10 @@ public sealed class RunDiagnostics(TimeProvider time)
     private long _lastDroppedAt;
     private int _dropped;
 
-    public string RunId { get; } = Guid.NewGuid().ToString("D");
+    public string RunId { get; } = IsRunId(runId) ? runId! : Guid.NewGuid().ToString("D");
+
+    /// <summary>Whether <paramref name="id"/> can be a run's id: a GUID in <c>D</c> format.</summary>
+    public static bool IsRunId(string? id) => Guid.TryParseExact(id, "D", out _);
 
     /// <summary>Milliseconds since the run started.</summary>
     public long NowMs => (long)time.GetElapsedTime(_started).TotalMilliseconds;

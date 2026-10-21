@@ -76,7 +76,8 @@ export interface RunResult {
   tables: TableFetch[];
   durationMs: number;
   droppedValues: number;
-  /** The run's id; its `query.progress` events carry it too. */
+  /** The run's id: the `runId` sent with `query.run` when it is a GUID ("D" format), else one the host chose. Its
+   * `query.progress` events carry it too. */
   runId: string;
   /** The run's log, in time order. */
   diagnostics: DiagnosticEntry[];

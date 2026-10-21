@@ -41,10 +41,17 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
     /// (<see cref="ParameterSubstitution.Apply"/>). A required parameter without a value, or a value that isn't of its type, is
     /// a <see cref="RunOutcome.QueryError"/> without a position; a query error's position is in <paramref name="kql"/> as
     /// written, not in the substituted text.</summary>
-    public async Task<RunResult> RunAsync(string accountKey, string kql, IReadOnlyList<ParameterValue> parameters, bool refresh,
+    public Task<RunResult> RunAsync(string accountKey, string kql, IReadOnlyList<ParameterValue> parameters, bool refresh,
         IProgress<RunEvent>? progress, CancellationToken ct)
+        => RunAsync(accountKey, kql, parameters, refresh, null, progress, ct);
+
+    /// <summary>As <see cref="RunAsync(string, string, IReadOnlyList{ParameterValue}, bool, IProgress{RunEvent}?, CancellationToken)"/>,
+    /// named <paramref name="runId"/> when that is a GUID in <c>D</c> format (<see cref="RunDiagnostics.IsRunId"/>), otherwise
+    /// with a new id.</summary>
+    public async Task<RunResult> RunAsync(string accountKey, string kql, IReadOnlyList<ParameterValue> parameters, bool refresh,
+        string? runId, IProgress<RunEvent>? progress, CancellationToken ct)
     {
-        var diagnostics = new RunDiagnostics(time);
+        var diagnostics = new RunDiagnostics(time, runId);
         var substitution = ParameterSubstitution.Apply(kql, parameters);
         if (substitution.Missing is { } missing)
             return new RunResult(RunOutcome.QueryError, $"Fill in {missing} before running.", null, [], [], 0, [], TimeSpan.Zero)

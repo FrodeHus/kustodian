@@ -10,15 +10,17 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Kustodian.Messaging.Handlers;
 
-/// <summary>One Graph run with its parameters, as <see cref="GraphRunner"/> does it.</summary>
+/// <summary>One Graph run with its parameters, as <see cref="GraphRunner"/> does it. <c>runId</c> is the UI's name for the run,
+/// used when it is a GUID in <c>D</c> format (<see cref="RunDiagnostics.IsRunId"/>), otherwise the run gets a new one.</summary>
 public delegate Task<RunResult> GraphRun(string accountKey, string kql, IReadOnlyList<ParameterValue> parameters, bool refresh,
-    IProgress<RunEvent>? progress, CancellationToken ct);
+    string? runId, IProgress<RunEvent>? progress, CancellationToken ct);
 
 /// <summary><c>query.complete</c>, <c>query.explain</c>, <c>query.run</c> and <c>query.cancel</c>. Each tab has at most one
 /// run: a new run on a tab cancels the one before, and <c>query.cancel</c> cancels it. A cancelled run answers with the error
 /// code <c>cancelled</c>. Every run that finishes is added to <paramref name="recent"/> (when given); a cancelled run is not,
 /// and a failure to write Recent is logged and never fails the run. A run's (and an explain's) <c>parameters</c> are a list of
-/// <see cref="ParameterValue"/>; fields missing from (or null in) one take their defaults. <c>query.explain</c> describes what
+/// <see cref="ParameterValue"/>; fields missing from (or null in) one take their defaults. A run's optional <c>runId</c> names
+/// it (progress events and the answer carry it) when it is a GUID in <c>D</c> format; otherwise the host names it. <c>query.explain</c> describes what
 /// a run would send, within <paramref name="limits"/> (<see cref="GraphExplain"/>): it needs no account and sends nothing.</summary>
 public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeAccount, GraphRun run, RecentService? recent = null,
     TimeProvider? time = null, ILogger<QueryHandler>? logger = null, GraphLimits? limits = null)
@@ -107,14 +109,14 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
                 // No run starts, but the answer still names one, as every run's does.
                 return new RunResult(RunOutcome.SignInNeeded, GraphRunner.SignInMessage, null, [], [], 0, [], TimeSpan.Zero)
                 {
-                    RunId = Guid.NewGuid().ToString("D"),
+                    RunId = new RunDiagnostics(_time, p.RunId).RunId,
                 };
             }
 
             cts.Token.ThrowIfCancellationRequested();
             var progress = new TabProgress(bridge, tabId);
             var started = _time.GetUtcNow();
-            var result = await run(account, p.Kql, p.Parameters ?? [], p.Refresh, progress, cts.Token);
+            var result = await run(account, p.Kql, p.Parameters ?? [], p.Refresh, p.RunId, progress, cts.Token);
             await RecordAsync(p, started, result);
             return result;
         }
@@ -234,7 +236,7 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
     }
 
     private sealed record RunParams(string? TabId, string? Source, string? Kql, bool Refresh,
-        IReadOnlyList<ParameterValue>? Parameters = null) : IHasParameters;
+        IReadOnlyList<ParameterValue>? Parameters = null, string? RunId = null) : IHasParameters;
 
     private sealed record ExplainParams(string? Source, string? Kql, IReadOnlyList<ParameterValue>? Parameters = null) : IHasParameters;
 
