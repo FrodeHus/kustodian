@@ -4,8 +4,8 @@ import { IS_MAC, MOD } from './keys';
  * An action of the window (spec 6.11: every action is a command, and the palette lists each with its shortcut).
  *
  * `shortcut` is written as `Mod+Shift+P`: `Mod` is Ctrl, or Cmd on macOS; `Ctrl` is the Control key on every platform; then
- * `Shift` and `Alt`, and last the key (a letter, a digit, `.`, or a key name such as `Enter`, `Tab` or `F5`). Alternatives are
- * separated by commas: `Mod+K, Mod+Shift+P`.
+ * `Shift` and `Alt`, and last the key (a letter, a digit, `.`, `Comma`, or a key name such as `Enter`, `Tab` or `F5`).
+ * Alternatives are separated by commas: `Mod+K, Mod+Shift+P`, which is why the comma key is written `Comma`.
  */
 export type Command = {
   id: string;
@@ -113,7 +113,7 @@ export function parseShortcut(shortcut: string | undefined): Chord[] {
 /** How a shortcut is shown: one string per alternative, such as `Ctrl Shift P` or `⌘ Shift P`. */
 export function formatShortcut(shortcut: string | undefined): string[] {
   return parseShortcut(shortcut).map((c) =>
-    [c.mod && MOD, c.ctrl && 'Ctrl', c.shift && 'Shift', c.alt && 'Alt', c.key].filter((p): p is string => !!p).join(' '),
+    [c.mod && MOD, c.ctrl && 'Ctrl', c.shift && 'Shift', c.alt && 'Alt', c.key === 'Comma' ? ',' : c.key].filter((p): p is string => !!p).join(' '),
   );
 }
 
@@ -130,6 +130,9 @@ export function matchesChord(e: KeyboardEvent, c: Chord): boolean {
   }
   if (/^[0-9]$/.test(c.key)) {
     return e.code === `Digit${c.key}`;
+  }
+  if (c.key === 'Comma') {
+    return e.code === 'Comma';
   }
   return c.key === '.' ? e.code === 'Period' : e.key === c.key;
 }

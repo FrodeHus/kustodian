@@ -14,13 +14,31 @@ interface SignInProps {
   onBack?: () => void;
   /** Why the accounts couldn't be read, if they couldn't. */
   error?: string | null;
+  /** The settings' default client ID and tenant: with a client ID, "My own app registration" starts chosen and filled in. */
+  defaults?: { clientId: string | null; tenant: string | null };
 }
 
 /** Sign-in and accounts (spec 6.7, mockup SignIn). */
-export function SignIn({ list, onChanged, onBack, error: listError = null }: SignInProps) {
-  const [own, setOwn] = useState(false);
-  const [clientId, setClientId] = useState('');
-  const [tenant, setTenant] = useState('');
+export function SignIn({ list, onChanged, onBack, error: listError = null, defaults }: SignInProps) {
+  const [ownChoice, setOwn] = useState(false);
+  const [typedClientId, setClientId] = useState('');
+  const [typedTenant, setTenant] = useState('');
+  // The settings' defaults show until the user changes the form; they may arrive after the screen opened.
+  const [touched, setTouched] = useState(false);
+  const defaultClient = defaults?.clientId ?? null;
+  const prefilled = !touched && defaultClient !== null;
+  const own = prefilled || ownChoice;
+  const clientId = prefilled ? defaultClient : typedClientId;
+  const tenant = prefilled ? (defaults?.tenant ?? '') : typedTenant;
+  /** The user changes the form: from now on it holds what it shows, defaults included. */
+  const touch = () => {
+    if (prefilled) {
+      setOwn(true);
+      setClientId(clientId);
+      setTenant(tenant);
+    }
+    setTouched(true);
+  };
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deviceCode, setDeviceCode] = useState<string | null>(null);
@@ -94,14 +112,26 @@ export function SignIn({ list, onChanged, onBack, error: listError = null }: Sig
         )}
         <div className="flex flex-col gap-1" role="radiogroup" aria-label="Signing in as">
           <span className="muted text-[12px]">Signing in as</span>
-          <ClientChoice checked={!own} onChange={() => setOwn(false)}>
+          <ClientChoice
+            checked={!own}
+            onChange={() => {
+              touch();
+              setOwn(false);
+            }}
+          >
             <b>Azure CLI</b> <span className="faint">(default)</span>
             <br />
             <span className="muted text-[12px]">
               Microsoft’s public client {AZURE_CLI_CLIENT_ID}. Most tenants have already consented to what it asks for.
             </span>
           </ClientChoice>
-          <ClientChoice checked={own} onChange={() => setOwn(true)}>
+          <ClientChoice
+            checked={own}
+            onChange={() => {
+              touch();
+              setOwn(true);
+            }}
+          >
             <b>My own app registration</b>
             <br />
             <span className="muted text-[12px]">A public client with http://localhost as a redirect URI.</span>
@@ -116,7 +146,10 @@ export function SignIn({ list, onChanged, onBack, error: listError = null }: Sig
               placeholder="00000000-0000-0000-0000-000000000000"
               disabled={!own}
               value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
+              onChange={(e) => {
+                touch();
+                setClientId(e.target.value);
+              }}
             />
           </div>
           <div className="field">
@@ -127,7 +160,10 @@ export function SignIn({ list, onChanged, onBack, error: listError = null }: Sig
               placeholder="organizations or a tenant ID"
               disabled={!own}
               value={tenant}
-              onChange={(e) => setTenant(e.target.value)}
+              onChange={(e) => {
+                touch();
+                setTenant(e.target.value);
+              }}
             />
           </div>
         </div>

@@ -35,6 +35,25 @@ export function editorPosition(origin: TabRun['origin'], error: { line: number; 
   };
 }
 
+/** The text a run of `mode` sends from the tab, and where it begins in the editor: the whole tab, the selection (when there is
+ * one), or the block at the cursor. */
+export function sentText(tab: Pick<Tab, 'text'>, cursor: TabCursor | undefined, mode: RunMode): { kql: string; origin: TabRun['origin'] } {
+  const at = cursor ?? { line: 1, column: 1, selection: '', selectionLine: 1, selectionColumn: 1 };
+  if (mode === 'all') {
+    return { kql: tab.text, origin: { line: 1, column: 1 } };
+  }
+  if (mode === 'selection' && at.selection) {
+    return { kql: at.selection, origin: { line: at.selectionLine, column: at.selectionColumn } };
+  }
+  const block = blockAt(tab.text, at.line);
+  return { kql: block.text, origin: { line: block.start, column: 1 } };
+}
+
+/** Every placeholder in the tab with its value, as the parameters form shows it: the tab's definition, or an optional text one. */
+export function runParameters(tab: Pick<Tab, 'text' | 'parameters'>): ParameterValue[] {
+  return mergeParameters(findParams(tab.text), tab.parameters).map(({ name, type, value, required }) => ({ name, type, value, required }));
+}
+
 export interface Tab {
   id: string;
   source: Source;
@@ -213,7 +232,8 @@ export const useTabs = create<TabsState>()((set, get) => {
     },
 
     setText(id, text) {
-      update(id, (t) => (t.text === text ? {} : { text, dirty: true }));
+      // A raw request tab can't be saved, so it never has unsaved changes to warn about.
+      update(id, (t) => (t.text === text ? {} : { text, dirty: t.source !== 'raw' }));
     },
 
     setCursor(id, cursor) {
@@ -226,20 +246,7 @@ export const useTabs = create<TabsState>()((set, get) => {
       if (!tab || tab.source === 'raw') {
         return;
       }
-      const cursor = get().cursors[id] ?? { line: 1, column: 1, selection: '', selectionLine: 1, selectionColumn: 1 };
-      let kql: string;
-      let origin: TabRun['origin'];
-      if (mode === 'all') {
-        kql = tab.text;
-        origin = { line: 1, column: 1 };
-      } else if (mode === 'selection' && cursor.selection) {
-        kql = cursor.selection;
-        origin = { line: cursor.selectionLine, column: cursor.selectionColumn };
-      } else {
-        const block = blockAt(tab.text, cursor.line);
-        kql = block.text;
-        origin = { line: block.start, column: 1 };
-      }
+      const { kql, origin } = sentText(tab, get().cursors[id], mode);
       if (kql.trim() === '') {
         return;
       }
@@ -252,13 +259,7 @@ export const useTabs = create<TabsState>()((set, get) => {
       // Ruling 19: the page names the run, so progress for an older run of this tab can be told apart from the first event.
       const runId = newId();
       update(id, () => ({ run: { state: 'running', runId, startedAt, origin, kql } }));
-      // Every placeholder in the tab, as the parameters form shows it: the tab's definition, or an optional text one.
-      const parameters: ParameterValue[] = mergeParameters(findParams(tab.text), tab.parameters).map(({ name, type, value, required }) => ({
-        name,
-        type,
-        value,
-        required,
-      }));
+      const parameters = runParameters(tab);
 
       let run: TabRun;
       try {

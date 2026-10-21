@@ -2,6 +2,7 @@ import { Component, Suspense, lazy, useEffect, useRef, useState, type ReactNode 
 import { call } from './bridge';
 import { blockAt } from './editor/block-at';
 import type { KqlEditorHandle } from './editor/kql-editor';
+import { ExplainView, type ExplainRequest } from './explain/explain-view';
 import { SaveDialog } from './library/save-dialog';
 import { openDroppedFile, openKqlFile, save, saveToFile } from './library/saving';
 import { findParams } from './params/find-params';
@@ -9,8 +10,11 @@ import { ParamsForm } from './params/params-form';
 import { EXPORT_FORMATS, EXPORT_NAMES, exportResult } from './results/export';
 import { ResultPanel } from './results/result-panel';
 import { RunStatus } from './results/run-status';
+import { openRaw } from './raw/raw-request';
+import { RawTab } from './raw/raw-tab';
 import { startSessionSync } from './session/session-sync';
-import { bindGlobalKeys, registerCommands, type Command } from './shell/commands';
+import { SettingsView } from './settings/settings-view';
+import { bindGlobalKeys, registerCommands, runCommand, type Command } from './shell/commands';
 import { errorText } from './shell/errors';
 import { MOD } from './shell/keys';
 import { Palette } from './shell/palette';
@@ -19,9 +23,9 @@ import { TitleBar } from './shell/title-bar';
 import { SignIn } from './signin/sign-in';
 import { PANELS, type PanelName } from './side/panels';
 import { Rail, SidePanel } from './side/side-panel';
-import { useTabs, type RunMode, type Tab, type TabCursor } from './tabs/tab-store';
+import { runParameters, sentText, useTabs, type RunMode, type Tab, type TabCursor } from './tabs/tab-store';
 import { TabStrip } from './tabs/tab-strip';
-import type { AccountList, SchemaView } from './wire';
+import type { AccountList, SchemaView, SettingsAnswer } from './wire';
 
 // Monaco and the Kusto language service are several megabytes: a chunk of their own, loaded after the window is up.
 const KqlEditor = lazy(() => import('./editor/kql-editor'));
@@ -74,6 +78,12 @@ function runText(tab: Tab, cursor: TabCursor | undefined): string {
   return cursor?.selection ? cursor.selection : blockAt(tab.text, cursor?.line ?? 1).text;
 }
 
+/** What Explain describes for the tab: what Run would send (the selection, or else the block at the cursor) with its parameters. */
+function explainRequest(tab: Tab, cursor: TabCursor | undefined): ExplainRequest {
+  const { kql, origin } = sentText(tab, cursor, cursor?.selection ? 'selection' : 'block');
+  return { kql, origin, parameters: runParameters(tab) };
+}
+
 /** Activates the tab `step` places along, wrapping around. */
 function cycleTab(step: number) {
   const { tabs, activeId, activate } = useTabs.getState();
@@ -113,6 +123,10 @@ export function App() {
   const [paramsOpen, setParamsOpen] = useState(false);
   /** The tab the save dialog is open for. */
   const [saving, setSaving] = useState<string | null>(null);
+  const [settings, setSettings] = useState<SettingsAnswer | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  /** The tab Explain is showing for, what it explains, and the run it was opened after: a later run shows its result instead. */
+  const [explain, setExplain] = useState<{ tabId: string; request: ExplainRequest; runId: string | undefined } | null>(null);
   const editor = useRef<KqlEditorHandle>(null);
   const theme = useTheme();
 
@@ -128,6 +142,11 @@ export function App() {
     call<SchemaView>('schema.get', { source: 'graph' }).then(setSchema, (e: unknown) =>
       setProblem(`The Graph schema couldn’t be loaded: ${errorText(e)}`),
     );
+    // The raw tab's default version and sign-in's default client; without them the built-in defaults apply.
+    call<SettingsAnswer | null>('settings.get').then(
+      (answer) => answer?.settings && setSettings(answer),
+      (e: unknown) => setProblem(`The settings couldn’t be read: ${errorText(e)}`),
+    );
   }, []);
 
   // The last session's tabs come back, or one empty Graph tab.
@@ -139,6 +158,7 @@ export function App() {
       const tab = activeTab();
       return !!tab && tab.source !== 'raw';
     };
+    const explainable = () => activeTab()?.source === 'graph';
     const withTab = (action: (tab: Tab) => void) => () => {
       const tab = activeTab();
       if (tab) {
@@ -174,6 +194,7 @@ export function App() {
     const commands: Command[] = [
       { id: 'palette', title: 'Command palette', group: 'Window', shortcut: 'Mod+K, Mod+Shift+P', run: () => setPaletteOpen(true) },
       { id: 'tab.new', title: 'New Microsoft Graph query', group: 'Tabs', shortcut: 'Mod+T', run: () => useTabs.getState().open('graph') },
+      { id: 'tab.newRaw', title: 'New raw Graph request', group: 'Tabs', run: () => openRaw() },
       { id: 'tab.next', title: 'Next tab', group: 'Tabs', shortcut: 'Ctrl+Tab', run: () => cycleTab(1), enabled: () => useTabs.getState().tabs.length > 1 },
       { id: 'tab.previous', title: 'Previous tab', group: 'Tabs', shortcut: 'Ctrl+Shift+Tab', run: () => cycleTab(-1), enabled: () => useTabs.getState().tabs.length > 1 },
       { id: 'run.block', title: 'Run the block at the cursor', group: 'Run', shortcut: 'Mod+Enter', run: () => runActive('block'), enabled: runnable },
@@ -192,6 +213,21 @@ export function App() {
         },
         enabled: () => activeTab()?.run?.state === 'running',
       },
+      {
+        id: 'explain',
+        title: 'Explain the query',
+        group: 'Run',
+        shortcut: 'Mod+E',
+        run: withTab((tab) =>
+          setExplain((open) =>
+            open?.tabId === tab.id && open.runId === tab.run?.runId
+              ? null
+              : { tabId: tab.id, request: explainRequest(tab, useTabs.getState().cursors[tab.id]), runId: tab.run?.runId },
+          ),
+        ),
+        enabled: explainable,
+      },
+      { id: 'settings.open', title: 'Settings', group: 'Window', shortcut: 'Mod+Comma', run: () => setSettingsOpen(true) },
       { id: 'editor.format', title: 'Format the query', group: 'Editor', shortcut: 'Shift+Alt+F', run: () => editor.current?.format(), enabled: runnable },
       {
         id: 'file.save',
@@ -235,7 +271,7 @@ export function App() {
   // its own keys, Esc included).
   const shortcutsOn = useRef(false);
   useEffect(() => {
-    shortcutsOn.current = !signingIn && !paletteOpen && saving === null;
+    shortcutsOn.current = !signingIn && !settingsOpen && !paletteOpen && saving === null;
   });
   useEffect(() => bindGlobalKeys(() => shortcutsOn.current), []);
 
@@ -269,12 +305,16 @@ export function App() {
   }, []);
 
   const cursor = active ? cursors[active.id] : undefined;
-  const paramCount = active ? findParams(active.text).length : 0;
+  const raw = active?.source === 'raw';
+  const paramCount = active && !raw ? findParams(active.text).length : 0;
+  const explaining = active && explain?.tabId === active.id && explain.runId === active.run?.runId ? explain.request : null;
+  // Schema and snippet text goes into the editor, never into a raw tab's path.
+  const insert = (text: string) => (raw ? false : (editor.current?.insert(text) ?? false));
   const savingTab = tabs.find((t) => t.id === saving);
 
   return (
     <div className="flex h-full flex-col">
-      <TitleBar account={account} onAccount={() => setAccountsOpen(true)} />
+      <TitleBar account={account} onAccount={() => setAccountsOpen(true)} onSettings={() => setSettingsOpen(true)} />
       {problem && (
         <div className="flex items-center gap-3 border-b border-line bg-bad-soft px-3 py-1.5 text-[12px] text-bad" role="alert">
           {problem}
@@ -297,39 +337,71 @@ export function App() {
             });
           }}
           onBack={account && !accountsError ? () => setAccountsOpen(false) : undefined}
+          defaults={settings?.settings.signIn}
+        />
+      )}
+      {settingsOpen && !signingIn && (
+        <SettingsView
+          onClose={() => {
+            setSettingsOpen(false);
+            editor.current?.focus();
+          }}
+          onChange={setSettings}
         />
       )}
       {/* Hidden rather than unmounted while signing in, so the editor keeps each tab's undo history. */}
-      <div className="flex min-h-0 flex-1 flex-col" hidden={signingIn}>
+      <div className="flex min-h-0 flex-1 flex-col" hidden={signingIn || settingsOpen}>
         <TabStrip />
         <div className="panes">
           <Rail panel={panel} onChoose={setPanel} />
-          <SidePanel panel={panel} schema={schema} text={active?.text ?? ''} onInsert={(text) => editor.current?.insert(text) ?? false} />
+          <SidePanel panel={panel} schema={schema} text={active?.text ?? ''} onInsert={insert} />
           <main className="workspace">
             {active ? (
               <>
-                <Toolbar
-                  tab={active}
-                  onRun={(mode) => runActive(mode)}
-                  onFormat={() => editor.current?.format()}
-                  paramCount={paramCount}
-                  paramsOpen={paramsOpen}
-                  onParams={() => setParamsOpen((o) => !o)}
-                />
-                <div className="relative min-h-[160px] shrink-0 basis-[38%] border-b border-line">
+                {!raw && (
+                  <Toolbar
+                    tab={active}
+                    onRun={(mode) => runActive(mode)}
+                    onFormat={() => editor.current?.format()}
+                    paramCount={paramCount}
+                    paramsOpen={paramsOpen}
+                    onParams={() => setParamsOpen((o) => !o)}
+                    explaining={explaining !== null}
+                    onExplain={() => runCommand('explain')}
+                  />
+                )}
+                {/* A raw tab has no query: the editor stays mounted for the other tabs, hidden. */}
+                <div className="relative min-h-[160px] shrink-0 basis-[38%] border-b border-line" hidden={raw}>
                   <EditorFailed>
                     <Suspense fallback={<p className="faint m-0 p-4 text-[12px]">Loading the editor…</p>}>
                       <KqlEditor ref={editor} schema={schema} onRun={(mode) => void useTabs.getState().run(active.id, mode)} />
                     </Suspense>
                   </EditorFailed>
                 </div>
-                {paramsOpen && paramCount > 0 && (
-                  <div className="max-h-[50%] shrink-0 overflow-y-auto border-b border-line">
-                    <ParamsForm tab={active} query={runText(active, cursor)} onRun={() => runActive('block')} />
-                  </div>
+                {raw ? (
+                  <RawTab
+                    key={active.id}
+                    tab={active}
+                    schema={schema}
+                    defaultVersion={settings?.settings.rawDefaultVersion ?? 'beta'}
+                    accountKey={account?.key}
+                    onSignIn={() => setAccountsOpen(true)}
+                  />
+                ) : (
+                  <>
+                    {paramsOpen && paramCount > 0 && (
+                      <div className="max-h-[50%] shrink-0 overflow-y-auto border-b border-line">
+                        <ParamsForm tab={active} query={runText(active, cursor)} onRun={() => runActive('block')} />
+                      </div>
+                    )}
+                    <RunStatus run={active.run} onSignIn={() => setAccountsOpen(true)} />
+                    {explaining ? (
+                      <ExplainView request={explaining} onOpenRaw={(url) => openRaw({ path: url, version: 'beta' })} />
+                    ) : (
+                      <Results tab={active} dialogOpen={paletteOpen || saving !== null} />
+                    )}
+                  </>
                 )}
-                <RunStatus run={active.run} onSignIn={() => setAccountsOpen(true)} />
-                <Results tab={active} dialogOpen={paletteOpen || saving !== null} />
               </>
             ) : (
               <div className="flex flex-1 flex-col items-center justify-center gap-3">
@@ -342,12 +414,12 @@ export function App() {
           </main>
         </div>
         <footer className="statusbar">
-          {cursor && (
+          {cursor && !raw && (
             <span>
               Ln {cursor.line}, Col {cursor.column}
             </span>
           )}
-          <span>KQL</span>
+          <span>{raw ? 'Raw request' : 'KQL'}</span>
           {schema && (
             <span>
               Schema: {schema.source} · {formatDate(schema.generatedAt)}
@@ -372,7 +444,7 @@ export function App() {
             setPaletteOpen(false);
             editor.current?.focus();
           }}
-          onInsert={(text) => editor.current?.insert(text)}
+          onInsert={insert}
         />
       )}
     </div>
@@ -387,9 +459,12 @@ interface ToolbarProps {
   paramCount: number;
   paramsOpen: boolean;
   onParams: () => void;
+  /** Explain is showing for the tab. The button is there on Graph tabs only. */
+  explaining: boolean;
+  onExplain: () => void;
 }
 
-function Toolbar({ tab, onRun, onFormat, paramCount, paramsOpen, onParams }: ToolbarProps) {
+function Toolbar({ tab, onRun, onFormat, paramCount, paramsOpen, onParams, explaining, onExplain }: ToolbarProps) {
   const running = tab.run?.state === 'running';
   return (
     <div className="toolbar">
@@ -411,6 +486,11 @@ function Toolbar({ tab, onRun, onFormat, paramCount, paramsOpen, onParams }: Too
       <button type="button" className="btn ghost" onClick={onFormat}>
         Format
       </button>
+      {tab.source === 'graph' && (
+        <button type="button" className="btn" aria-pressed={explaining} title={`Explain the query (${MOD} E)`} onClick={onExplain}>
+          Explain
+        </button>
+      )}
       {paramCount > 0 && (
         <button type="button" className="btn" aria-pressed={paramsOpen} onClick={onParams}>
           Parameters · {paramCount}

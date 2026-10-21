@@ -18,6 +18,7 @@ describe('TitleBar', () => {
           scopes: [],
         }}
         onAccount={onAccount}
+        onSettings={() => undefined}
       />,
     );
 
@@ -28,7 +29,15 @@ describe('TitleBar', () => {
   });
 
   it('title_bar_without_account_says_not_signed_in', () => {
-    render(<TitleBar account={undefined} onAccount={() => undefined} />);
+    render(<TitleBar account={undefined} onAccount={() => undefined} onSettings={() => undefined} />);
     expect(screen.getByRole('button', { name: 'Not signed in' })).toHaveProperty('title', 'Sign in');
+  });
+
+  it('title_bar_settings_button_opens_settings', () => {
+    const onSettings = vi.fn();
+    render(<TitleBar account={undefined} onAccount={() => undefined} onSettings={onSettings} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    expect(onSettings).toHaveBeenCalledOnce();
   });
 });

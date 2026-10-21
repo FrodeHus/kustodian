@@ -250,3 +250,47 @@ export interface SavedFile {
   path: string;
   name: string;
 }
+
+/** A `where` condition Explain says runs locally, and why it isn't sent to Graph. */
+export interface LocalCondition {
+  condition: string;
+  reason: string;
+}
+
+/** What a Graph run would ask one table for. `url` is relative to the Graph version (Graph KQL tabs always use beta). */
+export interface ExplainTable {
+  table: string;
+  url: string;
+  select: string[];
+  filter: string | null;
+  pushed: string[];
+  local: LocalCondition[];
+  perObject: string[];
+  permissions: string[];
+  docsUrl: string;
+}
+
+export interface ExplainLimits {
+  objectsPerTable: number;
+  fetchBudgetMb: number;
+  perObjectReadsPerTable: number;
+}
+
+/** `query.explain`'s answer: the error (line and column are 0 for a parameter error, which has no position) or the refusal,
+ * or the tables a run would fetch. */
+export interface ExplainResult {
+  error: { line: number; column: number; message: string } | null;
+  refusal: string | null;
+  tables: ExplainTable[];
+  limits: ExplainLimits;
+}
+
+/** `raw.send`'s and `raw.next`'s answer. `truncated`: the body was cut off at the host's limit. */
+export interface RawResponse {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+  durationMs: number;
+  nextLink: string | null;
+  truncated: boolean;
+}

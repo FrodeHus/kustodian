@@ -84,4 +84,35 @@ describe('SignIn', () => {
     await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('account.signOut', { key: 'k1' }));
     expect(onChanged).toHaveBeenCalledTimes(2);
   });
+
+  it('sign_in_prefills_default_client', async () => {
+    bridge.call.mockResolvedValue(kari);
+    const onChanged = vi.fn();
+    const { rerender } = render(<SignIn list={none} onChanged={onChanged} defaults={{ clientId: null, tenant: null }} />);
+    // No default client: the Azure CLI stays chosen.
+    expect(screen.getByRole('radio', { name: /Azure CLI/ })).toHaveProperty('checked', true);
+
+    // The settings arrive with a default client ID and tenant: "My own app registration" is chosen and filled in.
+    rerender(<SignIn list={none} onChanged={onChanged} defaults={{ clientId: 'c0ffee00-0000-0000-0000-000000000001', tenant: 'contoso.example' }} />);
+    expect(screen.getByRole('radio', { name: /My own app registration/ })).toHaveProperty('checked', true);
+    expect(screen.getByLabelText('Client ID')).toHaveProperty('value', 'c0ffee00-0000-0000-0000-000000000001');
+    expect(screen.getByLabelText('Tenant')).toHaveProperty('value', 'contoso.example');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with your browser' }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+    expect(bridge.call).toHaveBeenCalledWith('account.signIn', {
+      clientId: 'c0ffee00-0000-0000-0000-000000000001',
+      tenant: 'contoso.example',
+      deviceCode: false,
+    });
+  });
+
+  it('sign_in_prefill_leaves_what_the_user_typed', () => {
+    const { rerender } = render(<SignIn list={none} onChanged={vi.fn()} />);
+    fireEvent.click(screen.getByRole('radio', { name: /My own app registration/ }));
+    fireEvent.change(screen.getByLabelText('Client ID'), { target: { value: 'typed' } });
+
+    rerender(<SignIn list={none} onChanged={vi.fn()} defaults={{ clientId: 'from-settings', tenant: null }} />);
+    expect(screen.getByLabelText('Client ID')).toHaveProperty('value', 'typed');
+  });
 });

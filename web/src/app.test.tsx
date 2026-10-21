@@ -469,4 +469,67 @@ describe('App', () => {
     expect(within(form).getByRole('group', { name: 'first' })).toBeTruthy();
     expect(within(form).getByRole('group', { name: 'second' })).toBeTruthy();
   });
+
+  it('app_explain_shows_what_the_query_would_send_on_graph_tabs_only', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    answers['query.explain'] = () => ({
+      error: null,
+      refusal: null,
+      tables: [
+        {
+          table: 'applications',
+          url: 'applications?$select=id&$top=999',
+          select: ['id'],
+          filter: null,
+          pushed: [],
+          local: [],
+          perObject: [],
+          permissions: ['Application.Read.All'],
+          docsUrl: 'https://learn.microsoft.com/graph/api/resources/application',
+        },
+      ],
+      limits: { objectsPerTable: 50000, fetchBudgetMb: 512, perObjectReadsPerTable: 2000 },
+    });
+    render(<App />);
+    fireEvent.change(await screen.findByRole('textbox', { name: 'KQL query' }), { target: { value: 'applications' } });
+
+    act(() => void runCommand('explain'));
+    expect(await screen.findByRole('region', { name: 'applications' })).toBeTruthy();
+    expect(bridge.call).toHaveBeenCalledWith('query.explain', { source: 'graph', kql: 'applications', parameters: [] });
+    expect(screen.getByRole('button', { name: 'Explain' }).getAttribute('aria-pressed')).toBe('true');
+
+    // Open in a raw request tab: the plan's URL as the path, beta as Graph tabs use.
+    fireEvent.click(screen.getByRole('button', { name: 'Open in a raw request tab' }));
+    const raw = useTabs.getState().tabs.find((t) => t.source === 'raw');
+    expect(raw).toMatchObject({ text: 'applications?$select=id&$top=999' });
+    expect(screen.getByRole('combobox', { name: 'Request path' })).toHaveProperty('value', 'applications?$select=id&$top=999');
+    // A raw tab has no explain, no run and no editor.
+    expect(runCommand('explain')).toBe(false);
+    expect(runCommand('run.all')).toBe(false);
+    expect(screen.queryByRole('button', { name: 'Explain' })).toBeNull();
+    expect(screen.getByRole('textbox', { name: 'KQL query', hidden: true }).closest('[hidden]')).not.toBeNull();
+  });
+
+  it('app_settings_open_from_the_title_bar_and_the_shortcut', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '← Back to queries' }));
+    expect(screen.queryByRole('heading', { name: 'Settings' })).toBeNull();
+
+    fireEvent.keyDown(window, { key: ',', code: 'Comma', ctrlKey: true });
+    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeTruthy();
+  });
+
+  it('app_sign_in_prefills_the_default_client_from_settings', async () => {
+    host({ accounts: [], cache: 'persistent' });
+    answers['settings.get'] = () => ({ ...settings, settings: { ...settings.settings, signIn: { clientId: 'c-1', tenant: 't-1' } } });
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByLabelText('Client ID')).toHaveProperty('value', 'c-1'));
+    expect(screen.getByLabelText('Tenant')).toHaveProperty('value', 't-1');
+  });
 });

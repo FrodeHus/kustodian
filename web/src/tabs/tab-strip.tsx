@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { openRaw } from '../raw/raw-request';
 import { registerCommands } from '../shell/commands';
 import { MOD } from '../shell/keys';
 import type { Source } from '../wire';
@@ -19,7 +20,6 @@ function SourceBadge({ source, titled = false }: { source: Source; titled?: bool
     </span>
   );
 }
-
 
 /** The open queries (spec 6.1): a tab each with its source badge and a dot while it has unsaved changes, and `+` for a new one. */
 export function TabStrip() {
@@ -87,7 +87,11 @@ export function TabStrip() {
 
   const openNew = (source: Source) => {
     setMenu(false);
-    open(source);
+    if (source === 'raw') {
+      openRaw();
+    } else {
+      open(source);
+    }
   };
 
   return (
@@ -123,6 +127,10 @@ export function TabStrip() {
               Microsoft Graph query
               <span className="grow" />
               <span className="kbd">{MOD} T</span>
+            </button>
+            <button type="button" role="menuitem" onClick={() => openNew('raw')}>
+              <SourceBadge source="raw" />
+              Raw Graph request
             </button>
           </div>
         )}

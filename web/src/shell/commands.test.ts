@@ -145,6 +145,16 @@ describe('commands', () => {
     expect(formatShortcut(undefined)).toEqual([]);
   });
 
+  it('comma_shortcut_is_written_as_a_comma_and_matches_the_comma_key', () => {
+    const settings = vi.fn();
+    keep(registerCommands([{ id: 'settings', title: 'Settings', group: 'Window', shortcut: 'Mod+Comma', run: settings }]));
+    keep(bindGlobalKeys());
+
+    expect(formatShortcut('Mod+Comma')).toEqual(['Ctrl ,']);
+    key({ key: ',', code: 'Comma', ctrlKey: true });
+    expect(settings).toHaveBeenCalledOnce();
+  });
+
   it('match_is_a_case_insensitive_subsequence', () => {
     expect(matchScore('exp', 'Explain the query')).not.toBeNull();
     expect(matchScore('rnal', 'Run all')).not.toBeNull();

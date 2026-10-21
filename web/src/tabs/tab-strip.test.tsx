@@ -14,15 +14,26 @@ describe('TabStrip', () => {
     render(<TabStrip />);
 
     fireEvent.click(screen.getByRole('button', { name: 'New tab' }));
-    // Plan 1 offers Graph queries only.
     const items = screen.getAllByRole('menuitem');
-    expect(items.map((i) => i.textContent)).toEqual([expect.stringContaining('Microsoft Graph query')]);
+    expect(items.map((i) => i.textContent)).toEqual([expect.stringContaining('Microsoft Graph query'), expect.stringContaining('Raw Graph request')]);
     fireEvent.click(items[0]!);
 
     const tab = screen.getByRole('tab', { selected: true });
     expect(within(tab).getByTitle('Microsoft Graph')).toHaveProperty('textContent', 'GR');
     expect(screen.queryByRole('menu')).toBeNull();
     expect(useTabs.getState().tabs).toHaveLength(1);
+  });
+
+  it('plus_menu_opens_a_raw_graph_request_tab', () => {
+    render(<TabStrip />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'New tab' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /Raw Graph request/ }));
+
+    expect(useTabs.getState().tabs).toMatchObject([{ source: 'raw', title: 'Raw request 1', text: '' }]);
+    const tab = screen.getByRole('tab', { selected: true });
+    expect(within(tab).getByTitle('Raw Graph request')).toBeTruthy();
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 
   it('closing_dirty_tab_asks_to_confirm', () => {
