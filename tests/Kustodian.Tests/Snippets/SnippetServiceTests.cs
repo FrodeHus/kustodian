@@ -1,7 +1,11 @@
 using Kustodian.Graph.Query;
 using Kustodian.Graph.Schema;
+using Kusto.Language;
+using Kusto.Language.Symbols;
 using Kustodian.Library;
 using Kustodian.Snippets;
+using Kustodian.Sources.Arg;
+using Kustodian.Sources.Hunting;
 using Kustodian.Storage;
 
 namespace Kustodian.Tests.Snippets;
@@ -41,6 +45,41 @@ public sealed class SnippetServiceTests : IDisposable
             Assert.True(plan.Error is null && plan.Refusal is null, $"{snippet.Name}: {plan.Error?.Message}{plan.Refusal}");
         }
     }
+
+    [Fact]
+    public async Task Builtin_hunting_and_arg_snippets_parse_against_their_schemas()
+    {
+        var hunting = Globals(BuiltInHuntingSchema.Tables.Select(t => (t.Name, t.Columns.Select(c => (c.Name, c.Type)))));
+        var arg = Globals(BuiltInArgSchema.Tables.Select(t => (t.Name, t.Columns.Select(c => (c.Name, c.Type)))));
+        var all = (await NewService().ListAsync(Ct)).Where(s => s.BuiltIn).ToList();
+        var huntingSnippets = all.Where(s => s.Source == "hunting").ToList();
+        var argSnippets = all.Where(s => s.Source == "arg").ToList();
+
+        Assert.Equal(2, huntingSnippets.Count);
+        Assert.Equal(3, argSnippets.Count);
+        Assert.All(huntingSnippets, s => Assert.Equal("Threat hunting", s.Group));
+        Assert.All(argSnippets, s => Assert.Equal("Azure posture", s.Group));
+        foreach (var (snippet, globals) in huntingSnippets.Select(s => (s, hunting)).Concat(argSnippets.Select(s => (s, arg))))
+        {
+            Assert.False(string.IsNullOrWhiteSpace(snippet.Description), snippet.Name);
+            Assert.Equal(ParameterSubstitution.Find(snippet.Text).Order(), snippet.Parameters.Select(p => p.Name).Order());
+            var substituted = ParameterSubstitution.Apply(snippet.Text,
+                snippet.Parameters.Select(p => new ParameterValue(p.Name, p.Type, p.Value, p.Required)).ToList());
+            Assert.True(substituted.Text is not null, $"{snippet.Name}: {substituted.Missing}{substituted.Error?.Message}");
+
+            var errors = KustoCode.ParseAndAnalyze(substituted.Text, globals).GetDiagnostics()
+                .Where(d => d.Severity == "Error").Select(d => d.Message).ToList();
+
+            Assert.True(errors.Count == 0, $"{snippet.Name}: {string.Join("; ", errors)}");
+        }
+
+        Assert.Contains(huntingSnippets, s => s.Name == "Sign-ins from TOR exit nodes" && s.Parameters.Any(p => p.Name == "ips" && p.Type == "list"));
+        Assert.Contains(argSnippets, s => s.Name == "Role assignments at subscription scope" && s.Text.StartsWith("AuthorizationResources", StringComparison.Ordinal));
+    }
+
+    private static GlobalState Globals(IEnumerable<(string Name, IEnumerable<(string Name, string Type)> Columns)> tables) =>
+        GlobalState.Default.WithDatabase(new DatabaseSymbol("db",
+            tables.Select(t => new TableSymbol(t.Name, t.Columns.Select(c => new ColumnSymbol(c.Name, ScalarTypes.GetSymbol(c.Type)))))));
 
     [Fact]
     public async Task Builtin_snippets_are_listed_first_and_have_stable_guid_ids()
