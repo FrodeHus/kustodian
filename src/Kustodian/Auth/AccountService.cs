@@ -150,9 +150,10 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
                 throw new SignInRequiredException("The sign-in has expired. Sign in again.", ex);
             }
 
-            _expired.Remove(stored.Info.Key);
             if (audience == Audience.Graph)
             {
+                // Only a Graph token says the sign-in works again; an ARM token says nothing about Graph.
+                _expired.Remove(stored.Info.Key);
                 var scopes = ScopesOf(token.AccessToken);
                 if (scopes.Count > 0 && !scopes.SequenceEqual(stored.Info.Scopes))
                 {
@@ -175,33 +176,50 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
     /// flow is used instead and its message goes to <paramref name="showCode"/>. The account list, the active account and the
     /// Graph sign-in are left as they are; the token lands in MSAL's cache, where <see cref="GetTokenAsync"/> finds it.</summary>
     /// <exception cref="SignInRequiredException">That account is not signed in.</exception>
+    /// <exception cref="InvalidOperationException">The user granted access as another account (removed again from MSAL's cache
+    /// unless it was already there); the message names both.</exception>
     public async Task ConsentAsync(string accountKey, Audience audience, CancellationToken ct, Action<string>? showCode = null)
     {
         IMsalClient client;
-        string username;
+        StoredAccount stored;
         await _gate.WaitAsync(ct);
         try
         {
             var state = await LoadAsync(ct);
-            var stored = state.Accounts.FirstOrDefault(a => a.Info.Key == accountKey)
+            stored = state.Accounts.FirstOrDefault(a => a.Info.Key == accountKey)
                 ?? throw new SignInRequiredException("That account is not signed in.");
             client = ClientFor(new ClientConfig(stored.Info.ClientId, stored.Tenant));
-            username = stored.Info.Username;
         }
         finally
         {
             _gate.Release();
         }
 
+        var known = (await client.GetAccountsAsync()).Select(a => a.HomeAccountId).ToHashSet(StringComparer.Ordinal);
+
         // As with sign-in, the browser or device-code wait happens outside the gate.
         var scope = audience.ScopeFor();
+        MsalSignIn granted;
         try
         {
-            await client.AcquireInteractiveAsync(scope, username, ct);
+            granted = await client.AcquireInteractiveAsync(scope, stored.Info.Username, ct);
         }
         catch (Exception ex) when (showCode is not null && NoBrowser(ex))
         {
-            await client.AcquireDeviceCodeAsync(scope, showCode, ct);
+            granted = await client.AcquireDeviceCodeAsync(scope, showCode, ct);
+        }
+
+        if (!string.Equals(granted.Account.HomeAccountId, stored.HomeAccountId, StringComparison.Ordinal))
+        {
+            // The user picked another account in the browser. Its token is of no use to this account: drop it from MSAL's
+            // cache unless that account was there before (then it is someone's sign-in and stays).
+            if (!known.Contains(granted.Account.HomeAccountId))
+            {
+                await client.RemoveAsync(granted.Account.HomeAccountId);
+            }
+
+            throw new InvalidOperationException(
+                $"You granted access as {granted.Account.Username}; sign in as {stored.Info.Username}.");
         }
     }
 

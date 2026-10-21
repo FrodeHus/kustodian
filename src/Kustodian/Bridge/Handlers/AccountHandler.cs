@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Kustodian.Auth;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Run;
+using Microsoft.Identity.Client;
 
 namespace Kustodian.Messaging.Handlers;
 
@@ -9,7 +10,7 @@ namespace Kustodian.Messaging.Handlers;
 /// A device-code sign-in sends the code to the UI as an <c>account.deviceCode</c> event. Signing out also drops the account's
 /// cached Graph objects. <c>account.consent {key, audience: "arm"}</c> asks the user to grant Azure access to that account
 /// (<see cref="AccountService.ConsentAsync"/>; a device code, when no browser opens, goes out as the same event) and answers
-/// <c>{}</c>.</summary>
+/// <c>{}</c>; the user cancelling answers <c>cancelled</c>.</summary>
 public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cache, IGraphObjectCache objects)
 {
     public void Register(Bridge bridge)
@@ -47,6 +48,11 @@ public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cac
             catch (SignInRequiredException ex)
             {
                 throw new BridgeException(BridgeErrorCodes.SignInNeeded, ex.Message);
+            }
+            catch (MsalClientException ex) when (ex.ErrorCode == MsalError.AuthenticationCanceledError)
+            {
+                // The user closed the browser or said no: the same answer as any other cancelled request.
+                throw new OperationCanceledException(ex.Message, ex);
             }
 
             return null;

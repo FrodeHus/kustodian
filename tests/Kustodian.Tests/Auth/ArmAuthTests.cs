@@ -5,6 +5,7 @@ using Kustodian.Auth;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Run;
 using Kustodian.Graph.Schema;
+using Kustodian.Library;
 using Kustodian.Messaging.Handlers;
 using Kustodian.Storage;
 using Microsoft.Identity.Client;
@@ -189,12 +190,92 @@ public sealed class ArmAuthTests : IDisposable
     }
 
     [Fact]
+    public async Task Consent_as_another_account_is_refused_and_the_stray_account_removed()
+    {
+        var msal = new ArmMsal();
+        var service = new AccountService(_ => msal, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.AzureCli, Ct);
+        msal.ArmNeedsUi = true;
+        msal.GrantAs = new MsalAccount("home-9", "mallory@fabrikam.com", "tenant-9");
+
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => service.ConsentAsync(account.Key, Audience.Arm, Ct));
+
+        Assert.Equal("You granted access as mallory@fabrikam.com; sign in as ada@contoso.com.", refused.Message);
+        Assert.Equal(["home-9"], msal.Removed);
+        Assert.Equal(["home-1"], msal.Cached);
+        await Assert.ThrowsAsync<ConsentRequiredException>(() => service.GetTokenAsync(account.Key, Audience.Arm, Ct));
+    }
+
+    [Fact]
+    public async Task Consent_as_another_account_already_cached_keeps_it()
+    {
+        var msal = new ArmMsal();
+        var service = new AccountService(_ => msal, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.AzureCli, Ct);
+        var bob = new MsalAccount("home-2", "bob@fabrikam.com", "tenant-2");
+        msal.Cache(bob);
+        msal.GrantAs = bob;
+
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => service.ConsentAsync(account.Key, Audience.Arm, Ct));
+
+        Assert.Equal("You granted access as bob@fabrikam.com; sign in as ada@contoso.com.", refused.Message);
+        Assert.Empty(msal.Removed);
+        Assert.Contains("home-2", msal.Cached);
+    }
+
+    [Fact]
+    public async Task Arm_token_for_an_account_msal_no_longer_has_needs_sign_in_but_is_not_marked_expired()
+    {
+        var msal = new ArmMsal();
+        var service = new AccountService(_ => msal, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.AzureCli, Ct);
+        msal.ForgetAccount = true;
+
+        await Assert.ThrowsAsync<SignInRequiredException>(() => service.GetTokenAsync(account.Key, Audience.Arm, Ct));
+
+        msal.ForgetAccount = false;
+        Assert.False(Assert.Single(await service.ListAccountsAsync()).Expired);
+    }
+
+    [Fact]
+    public async Task Arm_success_leaves_an_expired_graph_sign_in_expired()
+    {
+        var msal = new ArmMsal();
+        var service = new AccountService(_ => msal, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.AzureCli, Ct);
+        msal.GraphNeedsUi = true;
+        await Assert.ThrowsAsync<SignInRequiredException>(() => service.GetTokenAsync(account.Key, Audience.Graph, Ct));
+
+        Assert.Equal("arm-token", await service.GetTokenAsync(account.Key, Audience.Arm, Ct));
+
+        Assert.True(Assert.Single(await service.ListAccountsAsync()).Expired);
+    }
+
+    [Fact]
+    public async Task Account_consent_cancelled_by_the_user_answers_cancelled()
+    {
+        var msal = new ArmMsal();
+        var service = new AccountService(_ => msal, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.AzureCli, Ct);
+        msal.InteractiveFails = new MsalClientException(MsalError.AuthenticationCanceledError, "User canceled authentication.");
+        var bridge = new Messaging.Bridge(_ => { });
+        new AccountHandler(service, new MemoryOnly("x"), new MemoryGraphObjectCache(TimeProvider.System)).Register(bridge);
+
+        var reply = await Send(bridge, "account.consent", new { key = account.Key, audience = "arm" });
+
+        Assert.Equal("cancelled", reply.GetProperty("error").GetProperty("code").GetString());
+        Assert.Empty(msal.DeviceCodes);
+    }
+
+    [Fact]
     public async Task Consent_needed_maps_to_run_outcome()
     {
         var arg = new FakeSource("arg", (_, _, _, _, _, _, _) =>
             throw new HttpRequestException("wrapped", new ConsentRequiredException("arm")));
+        var recent = new RecentService(new JsonFileStore(_dir));
         var bridge = new Messaging.Bridge(_ => { });
-        new QueryHandler(GraphSchemaCatalog.Beta, () => Task.FromResult<string?>("acct-1"), FakeSource.Map(arg)).Register(bridge);
+        new QueryHandler(GraphSchemaCatalog.Beta, () => Task.FromResult<string?>("acct-1"), FakeSource.Map(arg), recent)
+            .Register(bridge);
 
         var reply = await Send(bridge, "query.run", new { tabId = "t1", source = "arg", kql = "resources", refresh = false, runId = RunId });
 
@@ -203,6 +284,8 @@ public sealed class ArmAuthTests : IDisposable
         Assert.Equal(ConsentMessage, result.GetProperty("message").GetString());
         Assert.Equal(RunId, result.GetProperty("runId").GetString());
         Assert.Single(arg.Requests);
+        var recorded = Assert.Single(await recent.ListAsync(Ct));
+        Assert.Equal(("arg", "resources", "consentNeeded"), (recorded.Source, recorded.Text, recorded.Outcome));
     }
 
     private static async Task SendForAccountAsync(HttpClient client, string url, bool leak = false)
@@ -247,23 +330,33 @@ public sealed class ArmAuthTests : IDisposable
     }
 
     /// <summary>MSAL with one account whose Graph and ARM tokens can each need the user. An interactive or device-code acquire
-    /// for the ARM scope grants it.</summary>
+    /// for the ARM scope grants it, as <see cref="GrantAs"/> when set (the user picked another account in the browser).</summary>
     private sealed class ArmMsal : IMsalClient
     {
         public const string DeviceCodeMessage = "Go to https://microsoft.com/devicelogin and enter ARM";
 
         private readonly MsalAccount _account = new("home-1", "ada@contoso.com", "tenant-1");
-        private bool _signedIn;
+        private readonly Dictionary<string, MsalAccount> _cached = [];
 
         public bool GraphNeedsUi { get; set; }
 
         public bool ArmNeedsUi { get; set; }
 
+        public bool ForgetAccount { get; set; }
+
         public Exception? InteractiveFails { get; set; }
+
+        public MsalAccount? GrantAs { get; set; }
 
         public List<(string Scope, string? LoginHint)> Interactive { get; } = [];
 
         public List<string> DeviceCodes { get; } = [];
+
+        public List<string> Removed { get; } = [];
+
+        public IReadOnlyCollection<string> Cached => _cached.Keys;
+
+        public void Cache(MsalAccount account) => _cached[account.HomeAccountId] = account;
 
         public Task<MsalSignIn> AcquireInteractiveAsync(string scope, string? loginHint, CancellationToken ct)
         {
@@ -285,8 +378,13 @@ public sealed class ArmAuthTests : IDisposable
 
         public Task<MsalToken> AcquireSilentAsync(string homeAccountId, string scope, CancellationToken ct)
         {
+            if (ForgetAccount || !_cached.ContainsKey(homeAccountId))
+            {
+                throw new MsalUiRequiredException(MsalError.UserNullError, "The account is no longer in the token cache.");
+            }
+
             var arm = scope == Audience.Arm.ScopeFor();
-            if (!_signedIn || (arm ? ArmNeedsUi : GraphNeedsUi))
+            if (arm ? ArmNeedsUi : GraphNeedsUi)
             {
                 throw new MsalUiRequiredException("ui_required", "interaction required");
             }
@@ -295,23 +393,25 @@ public sealed class ArmAuthTests : IDisposable
         }
 
         public Task<IReadOnlyList<MsalAccount>> GetAccountsAsync() =>
-            Task.FromResult<IReadOnlyList<MsalAccount>>(_signedIn ? [_account] : []);
+            Task.FromResult<IReadOnlyList<MsalAccount>>(ForgetAccount ? [] : [.. _cached.Values]);
 
         public Task RemoveAsync(string homeAccountId)
         {
-            _signedIn = false;
+            Removed.Add(homeAccountId);
+            _cached.Remove(homeAccountId);
             return Task.CompletedTask;
         }
 
         private MsalSignIn Grant(string scope)
         {
-            _signedIn = true;
-            if (scope == Audience.Arm.ScopeFor())
+            var account = scope == Audience.Arm.ScopeFor() && GrantAs is { } other ? other : _account;
+            _cached[account.HomeAccountId] = account;
+            if (scope == Audience.Arm.ScopeFor() && account == _account)
             {
                 ArmNeedsUi = false;
             }
 
-            return new MsalSignIn(_account, new MsalToken("not-a-jwt", DateTimeOffset.UtcNow.AddHours(1)));
+            return new MsalSignIn(account, new MsalToken("not-a-jwt", DateTimeOffset.UtcNow.AddHours(1)));
         }
     }
 }
