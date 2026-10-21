@@ -148,7 +148,7 @@ against an account; Windows "owner" = no account on the VM, workbench behind sig
 | Options saved with the query, in recent runs and in the session; reopening restores them | owner | owner | owner |
 | "Pick timespan" and "Pick scope" commands in the palette, each enabled on its source's tabs | owner | owner | owner |
 | Built-in snippets: "Threat hunting" (2) and "Azure posture" (3) groups insert and run | owner | owner | owner |
-| Snippet wording as it reads in the app: "VMs without disk encryption" says Azure Disk Encryption (the extension) is not detected and only the OS disk is checked. No snippet mentions Copilot; the only Copilot text is the `copilot/*` Graph tables, which sit under "Other" | owner | owner | owner |
+| Snippet wording as it reads in the app: "VMs without host encryption or a disk encryption set" says Azure Disk Encryption (the extension) is not detected and only the OS disk is checked. No snippet mentions Copilot; the only Copilot text is the `copilot/*` Graph tables, which sit under "Other" (`copilot/agentRegistrations` under "Apps and permissions") | owner | owner | owner |
 | `invoke FileProfile()` on a hunting tab shows no squiggle | owner | owner | owner |
 | Run log (Diagnostics) shows the full hunting and ARG URLs, statuses and sizes; no tokens | owner | owner | owner |
 
