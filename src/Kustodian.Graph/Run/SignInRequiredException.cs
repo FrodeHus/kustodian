@@ -15,4 +15,13 @@ public sealed class SignInRequiredException : Exception
     public SignInRequiredException(string message, Exception inner) : base(message, inner)
     {
     }
+
+    /// <summary>Whether <paramref name="ex"/> is, or wraps (inner exceptions, aggregates), a <see cref="SignInRequiredException"/>.</summary>
+    internal static bool IsIn(Exception? ex) => ex switch
+    {
+        null => false,
+        SignInRequiredException => true,
+        AggregateException aggregate => aggregate.InnerExceptions.Any(IsIn),
+        _ => IsIn(ex.InnerException),
+    };
 }

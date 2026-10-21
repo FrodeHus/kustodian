@@ -30,4 +30,4 @@ public sealed record TableFetch(string Table, IReadOnlyList<string> Requests, bo
 /// <summary>A run's answer. <see cref="Message"/> is the text to show when the outcome isn't <see cref="RunOutcome.Ok"/>;
 /// <see cref="Error"/> carries the position of a <see cref="RunOutcome.QueryError"/>.</summary>
 public sealed record RunResult(RunOutcome Outcome, string? Message, GraphQueryError? Error, IReadOnlyList<EngineColumn> Columns,
-    IReadOnlyList<JsonElement[]> Rows, int Total, IReadOnlyList<TableFetch> Tables, TimeSpan Duration);
+    IReadOnlyList<JsonElement[]> Rows, int Total, IReadOnlyList<TableFetch> Tables, TimeSpan Duration, int DroppedValues = 0);

@@ -98,7 +98,7 @@ public sealed class GraphRunnerTests
     }
 
     [Fact]
-    public async Task Run_with_400_on_probe_marks_column_unreadable_and_continues()
+    public async Task Run_with_400_on_probe_reads_column_per_object_and_continues()
     {
         await using var h = NewHost();
         h.Graph.Answer = (request, _) => Task.FromResult(
@@ -143,12 +143,14 @@ public sealed class GraphRunnerTests
         using var cancel = CancellationTokenSource.CreateLinkedTokenSource(Ct);
 
         var running = h.RunAsync(SlowQuery, ct: cancel.Token);
-        while (h.Engine.Snapshot().Busy == 0)
+        while (h.Engine.Snapshot().Busy == 0 && !running.IsCompleted)
             await Task.Delay(10, Ct);
         await cancel.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
-        Assert.Equal(0, h.Engine.Snapshot().Busy);
+        var snapshot = h.Engine.Snapshot();
+        Assert.Equal(0, snapshot.Busy);
+        Assert.True(snapshot.Alive == 0 || snapshot.KillsLastMinute == 1, "the worker was not killed");
 
         var again = await h.RunAsync("print 1", ct: Ct);
         Assert.Equal(RunOutcome.Ok, again.Outcome);
@@ -191,6 +193,38 @@ public sealed class GraphRunnerTests
         Assert.Equal(RunOutcome.Refused, r.Outcome);
         Assert.False(string.IsNullOrEmpty(r.Message));
         Assert.Empty(h.Graph.Requests);
+    }
+
+    [Fact]
+    public async Task Cluster_query_is_a_query_error_with_a_position()
+    {
+        await using var h = NewHost();
+
+        var r = await h.RunAsync("cluster('x').database('y').T", ct: Ct);
+
+        Assert.Equal(RunOutcome.QueryError, r.Outcome);
+        Assert.Equal("Only Microsoft Graph tables can be queried.", r.Message);
+        Assert.NotNull(r.Error);
+        Assert.Equal(1, r.Error.Line);
+        Assert.True(r.Error.Column > 0);
+    }
+
+    [Fact]
+    public async Task Sign_in_required_inside_a_batch_read_is_sign_in_needed_not_failed_items()
+    {
+        await using var h = NewHost();
+        h.Graph.Answer = (request, _) =>
+        {
+            if (request.Method == HttpMethod.Post)
+                throw new HttpRequestException("wrapped", new SignInRequiredException("No token"));
+            return Task.FromResult(FakeGraph.Select(request).Contains("onPremisesPublishing")
+                ? FakeGraph.Error(HttpStatusCode.BadRequest, "Request_BadRequest", "Invalid object identifier '[sourceEntityId]'.")
+                : FakeGraph.Collection([App("Payroll")]));
+        };
+
+        var r = await h.RunAsync("applications | project displayName, onPremisesPublishing", ct: Ct);
+
+        Assert.Equal((RunOutcome.SignInNeeded, "Sign in again to run this query."), (r.Outcome, r.Message));
     }
 
     [Fact]
@@ -254,7 +288,7 @@ public sealed class GraphRunnerTests
         var r = await h.RunAsync(ct: Ct);
 
         Assert.Equal(RunOutcome.Throttled, r.Outcome);
-        Assert.False(string.IsNullOrEmpty(r.Message));
+        Assert.Equal("Graph is throttling requests. Try again in 30 s.", r.Message);
     }
 
     [Fact]

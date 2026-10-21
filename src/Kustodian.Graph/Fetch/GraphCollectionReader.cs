@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Kustodian.Graph.Run;
 using Kustodian.Graph.Query;
 
 namespace Kustodian.Graph.Fetch;
@@ -48,7 +49,8 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
     public GraphFetchLease Lease() => budget.Lease();
 
     /// <summary>Reads the collection. <paramref name="accountKey"/> keys the cache. <paramref name="refresh"/>: per-object reads skip the cache (and refill it). Throws
-    /// <see cref="GraphReadException"/> for every failure that isn't the caller cancelling.</summary>
+    /// <see cref="GraphReadException"/> for every failure that isn't the caller cancelling; a <see cref="SignInRequiredException"/>
+    /// from the HTTP pipeline (also wrapped in an <see cref="HttpRequestException"/>) passes through.</summary>
     public async Task<GraphCollection> ReadAsync(string accountKey, GraphFetch fetch, GraphFetchLease lease, bool refresh,
         CancellationToken ct)
     {
@@ -110,7 +112,8 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         {
             throw ex.WithRequests([.. requests]);
         }
-        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException or JsonException && !ct.IsCancellationRequested)
+        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException or JsonException && !ct.IsCancellationRequested
+            && !SignInRequiredException.IsIn(ex))
         {
             throw new GraphReadException(GraphReadFailure.Failed, "Graph didn't answer: " + ex.Message, inner: ex) { Requests = [.. requests] };
         }

@@ -4,6 +4,8 @@ using Kustodian.Graph.Engine;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Query;
 using Kustodian.Graph.Schema;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Kustodian.Graph.Run;
 
@@ -14,9 +16,11 @@ namespace Kustodian.Graph.Run;
 /// exception, except that the caller cancelling throws <see cref="OperationCanceledException"/>.
 /// </summary>
 public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader, GraphFetchBudget budget, GraphEnginePool engine,
-    TimeProvider time)
+    TimeProvider time, ILogger<GraphRunner>? logger = null)
 {
-    public const int MaxRows = 10_000;
+    /// <summary>The most rows the engine sends back; <see cref="RunResult.Total"/> counts them all.</summary>
+    public const int MaxRows = 50_000;
+    private readonly ILogger<GraphRunner> _log = logger ?? NullLogger<GraphRunner>.Instance;
     public const string SignInMessage = "Sign in again to run this query.";
     public const string Unexpected = "The query couldn't be run because of an unexpected error. Try again.";
     private const long BytesPerMegabyte = 1L << 20;
@@ -43,7 +47,7 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
             if (failed is not null)
                 tables.Add(new TableFetch(failed.Table.Name, failedRequests, false, [], [], [], 0, false, 0));
             return new RunResult(outcome, message, error, answer?.Columns ?? [], answer?.Rows ?? [], answer?.Total ?? 0, tables,
-                time.GetElapsedTime(started));
+                time.GetElapsedTime(started), answer?.DroppedValues ?? 0);
         }
 
         try
@@ -96,7 +100,11 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
         }
         catch (Exception ex)
         {
-            return IsSignIn(ex) ? End(RunOutcome.SignInNeeded, SignInMessage) : End(RunOutcome.Failed, Unexpected);
+            if (IsSignIn(ex))
+                return End(RunOutcome.SignInNeeded, SignInMessage);
+            // The reason is logged, not shown.
+            _log.LogError(ex, "A Graph query failed unexpectedly");
+            return End(RunOutcome.Failed, Unexpected);
         }
     }
 
@@ -108,7 +116,9 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
         return read.Failure switch
         {
             GraphReadFailure.NoPermission => (RunOutcome.NoPermission, NoPermissionMessage(table)),
-            GraphReadFailure.Throttled => (RunOutcome.Throttled, read.Message),
+            GraphReadFailure.Throttled => (RunOutcome.Throttled, read.RetryAfterSeconds is { } seconds
+                ? string.Create(CultureInfo.InvariantCulture, $"Graph is throttling requests. Try again in {seconds} s.")
+                : read.Message),
             GraphReadFailure.TooLarge => (RunOutcome.TooLarge,
                 $"Too much data from {table.Name} for one run ({(budget.MaxBytes / BytesPerMegabyte).ToString(CultureInfo.InvariantCulture)} MB). "
                 + "Add a filter or project fewer columns."),
@@ -122,13 +132,12 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
             : $"You don't have permission to read {table.Name}. {table.DocsUrl}";
 
     /// <summary>Whether the failure is, or was caused by, the account needing to sign in again.</summary>
-    private static bool IsSignIn(Exception? ex) => ex switch
+    private static bool IsSignIn(Exception? ex) => SignInRequiredException.IsIn(ex) || ex switch
     {
-        null => false,
-        SignInRequiredException => true,
         GraphReadException { Failure: GraphReadFailure.SignInNeeded } => true,
         AggregateException aggregate => aggregate.InnerExceptions.Any(IsSignIn),
-        _ => IsSignIn(ex.InnerException),
+        { InnerException: { } inner } => IsSignIn(inner),
+        _ => false,
     };
 
     /// <summary>Reads the plan's collections in parallel under the run's lease. The first read that fails stops the others and

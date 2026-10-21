@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Kustodian.Graph.Run;
 
 namespace Kustodian.Graph.Fetch;
 
@@ -83,7 +84,8 @@ public sealed class GraphBatchReader(HttpClient http)
             if (!response.IsSuccessStatusCode)
                 return new Sent(chunk.Length, [], 0);
         }
-        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException && !ct.IsCancellationRequested)
+        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException && !ct.IsCancellationRequested
+            && !SignInRequiredException.IsIn(ex))
         {
             return new Sent(chunk.Length, [], 0);
         }
