@@ -172,7 +172,7 @@ public sealed class EntraAppClient(HttpClient graph, TimeProvider time)
 
             return roles.Any(r => (string?)r?["roleTemplateId"] is { } id && GrantingRoles.Contains(id));
         }
-        catch (Exception ex) when (ex is not OperationCanceledException && !SignInRequiredException.IsIn(ex))
+        catch (Exception ex) when (IsTransportFailure(ex, ct))
         {
             return null;
         }
@@ -296,9 +296,9 @@ public sealed class EntraAppClient(HttpClient graph, TimeProvider time)
 
             return (false, Join("You were not added as owner.", reply.ErrorMessage));
         }
-        catch (Exception ex) when (ex is HttpRequestException)
+        catch (Exception ex) when (IsTransportFailure(ex, ct))
         {
-            return (false, "You were not added as owner.");
+            return (false, "You were not added as owner. Kustodian couldn't reach Microsoft Graph.");
         }
     }
 
@@ -308,10 +308,39 @@ public sealed class EntraAppClient(HttpClient graph, TimeProvider time)
         Reply reply;
         for (var attempt = 0; ; attempt++)
         {
-            reply = await SendAsync(accountKey, HttpMethod.Post, V1 + "servicePrincipals", body, ct);
+            try
+            {
+                reply = await SendAsync(accountKey, HttpMethod.Post, V1 + "servicePrincipals", body, ct);
+            }
+            catch (Exception ex) when (IsTransportFailure(ex, ct))
+            {
+                return (null, "The application was created, but its enterprise application was not: Kustodian couldn't reach Microsoft Graph.");
+            }
+
             if (reply.Ok && (string?)reply.Body?["id"] is { } id)
             {
                 return (id, null);
+            }
+
+            if (reply.Status == HttpStatusCode.BadRequest
+                && reply.ErrorMessage?.Contains("already exist", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                // An earlier POST went through but its answer was lost: the principal is there, so use it.
+                try
+                {
+                    var existing = await SendAsync(accountKey, HttpMethod.Get,
+                        V1 + $"servicePrincipals(appId='{Uri.EscapeDataString(appId)}')?$select=id", null, ct);
+                    if (existing.Ok && (string?)existing.Body?["id"] is { } existingId)
+                    {
+                        return (existingId, null);
+                    }
+                }
+                catch (Exception ex) when (IsTransportFailure(ex, ct))
+                {
+                    // Fall through to the message below.
+                }
+
+                return (null, Join("The application was created, but its enterprise application could not be read back.", reply.ErrorMessage));
             }
 
             if (reply.Status == HttpStatusCode.Forbidden)
@@ -358,6 +387,11 @@ public sealed class EntraAppClient(HttpClient graph, TimeProvider time)
 
         return new Reply(response.StatusCode, parsed);
     }
+
+    /// <summary>A failure to reach Graph (including <see cref="HttpClient.Timeout"/>), as opposed to the caller cancelling or
+    /// a sign-in problem, which must propagate.</summary>
+    private static bool IsTransportFailure(Exception ex, CancellationToken ct)
+        => ex is HttpRequestException || (ex is OperationCanceledException && !ct.IsCancellationRequested);
 
     private static string Join(string text, string? graphMessage)
         => string.IsNullOrWhiteSpace(graphMessage) ? text : $"{text} {graphMessage}";

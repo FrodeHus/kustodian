@@ -63,11 +63,40 @@ public sealed class EntraAppClientTests
         _ => (HttpStatusCode.NotFound, Error("Request_ResourceNotFound", "nope")),
     };
 
-    private static (EntraAppClient Client, StubHandler Handler, FakeTimeProvider Time) New(
+    /// <summary>A fake clock that counts the timers asked of it, so a test advances only once the client is waiting.</summary>
+    private sealed class CountingTime : FakeTimeProvider
+    {
+        private int _timers;
+
+        public int Timers => Volatile.Read(ref _timers);
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = base.CreateTimer(callback, state, dueTime, period);
+            Interlocked.Increment(ref _timers);
+            return timer;
+        }
+    }
+
+    private static async Task WaitForTimersAsync(CountingTime time, int atLeast)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (time.Timers < atLeast)
+        {
+            if (DateTime.UtcNow > deadline)
+            {
+                Assert.Fail($"Timed out waiting for timer {atLeast}; saw {time.Timers}.");
+            }
+
+            await Task.Delay(1, TestContext.Current.CancellationToken);
+        }
+    }
+
+    private static (EntraAppClient Client, StubHandler Handler, CountingTime Time) New(
         Func<Seen, (HttpStatusCode, string)> answer)
     {
         var handler = new StubHandler(answer);
-        var time = new FakeTimeProvider();
+        var time = new CountingTime();
         return (new EntraAppClient(new HttpClient(handler), time), handler, time);
     }
 
@@ -189,29 +218,22 @@ public sealed class EntraAppClientTests
         });
 
         var task = client.CreateAsync(Account, Tenant, Request(Perm("User.Read.All")), _ => { }, TestContext.Current.CancellationToken);
-        await WaitForPostsAsync(() => spPosts, 1);
+        await WaitForTimersAsync(time, 1);
         Assert.Equal(1, spPosts);
         time.Advance(TimeSpan.FromMilliseconds(999));
         await Task.Delay(20, TestContext.Current.CancellationToken);
         Assert.Equal(1, spPosts);
         time.Advance(TimeSpan.FromMilliseconds(1));
-        await WaitForPostsAsync(() => spPosts, 2);
+        await WaitForTimersAsync(time, 2);
+        Assert.Equal(2, spPosts);
         time.Advance(TimeSpan.FromSeconds(1));
         await Task.Delay(20, TestContext.Current.CancellationToken);
         Assert.Equal(2, spPosts);
         time.Advance(TimeSpan.FromSeconds(1));
 
-        var result = await task;
+        var result = await task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         Assert.Equal("sp-late", result.ServicePrincipalId);
         Assert.Equal(3, spPosts);
-    }
-
-    private static async Task WaitForPostsAsync(Func<int> count, int atLeast)
-    {
-        for (var i = 0; i < 500 && count() < atLeast; i++)
-        {
-            await Task.Delay(2, TestContext.Current.CancellationToken);
-        }
     }
 
     [Fact]
@@ -233,7 +255,7 @@ public sealed class EntraAppClientTests
         var expected = new[] { 1, 2, 4, 8, 8 };
         for (var i = 0; i < expected.Length; i++)
         {
-            await WaitForPostsAsync(() => spPosts, i + 1);
+            await WaitForTimersAsync(time, i + 1);
             Assert.Equal(i + 1, spPosts);
             // One tick short of the delay: no new attempt yet.
             time.Advance(TimeSpan.FromSeconds(expected[i]) - TimeSpan.FromMilliseconds(1));
@@ -242,7 +264,7 @@ public sealed class EntraAppClientTests
             time.Advance(TimeSpan.FromMilliseconds(1));
         }
 
-        var result = await task;
+        var result = await task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         Assert.Equal(6, spPosts);
         Assert.Null(result.ServicePrincipalId);
         Assert.False(string.IsNullOrEmpty(result.ServicePrincipalMessage));
@@ -287,6 +309,81 @@ public sealed class EntraAppClientTests
         var only = handler.Requests.Single();
         Assert.Equal("https://graph.microsoft.com/v1.0/servicePrincipals", only.Uri);
         Assert.Equal("app-1", (string?)JsonNode.Parse(only.Body!)!["appId"]);
+    }
+
+    [Fact]
+    public async Task Service_principal_400_already_exists_reads_the_existing_principal_without_retry()
+    {
+        var spPosts = 0;
+        var (client, handler, _) = New(s =>
+        {
+            if (s.Method == HttpMethod.Post && s.Uri.EndsWith("/servicePrincipals"))
+            {
+                spPosts++;
+                return (HttpStatusCode.BadRequest, Error("Request_MultipleObjectsWithSameKeyValue", "A service principal with that appId already exists."));
+            }
+
+            return s.Uri.Contains("servicePrincipals(appId='app-1')") ? (HttpStatusCode.OK, """{"id":"sp-there"}""") : Happy(s);
+        });
+
+        var result = await client.CreateAsync(Account, Tenant, Request(Perm("User.Read.All")), _ => { }, TestContext.Current.CancellationToken)
+            .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        Assert.Equal("sp-there", result.ServicePrincipalId);
+        Assert.Null(result.ServicePrincipalMessage);
+        Assert.Equal(1, spPosts);
+        Assert.Contains(handler.Requests, r => r.Uri == "https://graph.microsoft.com/v1.0/servicePrincipals(appId='app-1')?$select=id");
+    }
+
+    public static TheoryData<string> Transport => ["http", "timeout"];
+
+    private static Exception Failure(string kind) => kind == "http"
+        ? new HttpRequestException("connection reset")
+        : new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout");
+
+    [Theory]
+    [MemberData(nameof(Transport))]
+    public async Task Owner_step_transport_failure_keeps_the_created_app(string kind)
+    {
+        var (client, _, _) = New(s => s.Uri.EndsWith("/owners/$ref") ? throw Failure(kind) : Happy(s));
+
+        var result = await client.CreateAsync(Account, Tenant, Request(Perm("User.Read.All")), _ => { }, TestContext.Current.CancellationToken);
+
+        Assert.False(result.OwnerAdded);
+        Assert.Contains("You were not added as owner", result.OwnerMessage);
+        Assert.Equal(("app-1", "obj-1", "sp-new"), (result.AppId, result.ObjectId, result.ServicePrincipalId));
+    }
+
+    [Theory]
+    [MemberData(nameof(Transport))]
+    public async Task Service_principal_step_transport_failure_keeps_the_created_app(string kind)
+    {
+        var (client, _, _) = New(s => s.Method == HttpMethod.Post && s.Uri.EndsWith("/servicePrincipals") ? throw Failure(kind) : Happy(s));
+
+        var result = await client.CreateAsync(Account, Tenant, Request(Perm("User.Read.All")), _ => { }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(("app-1", "obj-1"), (result.AppId, result.ObjectId));
+        Assert.Null(result.ServicePrincipalId);
+        Assert.False(string.IsNullOrEmpty(result.ServicePrincipalMessage));
+    }
+
+    [Fact]
+    public async Task Caller_cancellation_still_propagates_from_the_service_principal_step()
+    {
+        using var cts = new CancellationTokenSource();
+        var (client, _, _) = New(s =>
+        {
+            if (s.Uri.EndsWith("/servicePrincipals") && s.Method == HttpMethod.Post)
+            {
+                cts.Cancel();
+                throw new OperationCanceledException(cts.Token);
+            }
+
+            return Happy(s);
+        });
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            client.CreateAsync(Account, Tenant, Request(Perm("User.Read.All")), _ => { }, cts.Token));
     }
 
     [Fact]
@@ -393,6 +490,12 @@ public sealed class EntraAppClientTests
 
         var (failed, _, _) = New(_ => (HttpStatusCode.Forbidden, Error("Authorization_RequestDenied", "x")));
         Assert.Null(await failed.CanGrantAsync(Account, TestContext.Current.CancellationToken));
+
+        var (timedOut, _, _) = New(_ => throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout"));
+        Assert.Null(await timedOut.CanGrantAsync(Account, TestContext.Current.CancellationToken));
+
+        var (reset, _, _) = New(_ => throw new HttpRequestException("reset"));
+        Assert.Null(await reset.CanGrantAsync(Account, TestContext.Current.CancellationToken));
     }
 
     [Fact]
