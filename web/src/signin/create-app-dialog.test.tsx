@@ -319,9 +319,11 @@ describe('CreateAppDialog created view', () => {
     route({ 'account.signIn': () => Promise.reject(new BridgeError('failed', 'AADSTS65001: The user has not consented.')) });
     const { onSwitched } = await toCreated();
     fireEvent.click(screen.getByRole('button', { name: 'Switch and sign in' }));
-    expect(await screen.findByText(/This app still needs an admin to grant its permissions/)).toBeTruthy();
+    const message = await screen.findByText('This app still needs an admin to grant its permissions');
     expect(onSwitched).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'Open admin consent page' })).toBeTruthy();
+    // It is shown in step 1, and that step's primary button has the focus.
+    expect(message.closest('.card')?.textContent).toMatch(/1\. Grant for the whole tenant/);
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Open admin consent page' })));
   });
 
   it('other_switch_errors_are_shown_as_they_are', async () => {
@@ -347,5 +349,45 @@ describe('CreateAppDialog created view', () => {
     // The earlier result's other fields are kept.
     expect(screen.getByRole('button', { name: 'Open admin consent page' })).toBeTruthy();
     expect(screen.queryByText(/Could not add you/)).toBeNull();
+  });
+
+  it('clipboard_missing_shows_a_note', async () => {
+    route();
+    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+    await toCreated();
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Client ID' }));
+    expect(await screen.findByText(/Couldn’t copy client id/)).toBeTruthy();
+  });
+
+  it('does_not_close_while_switching', async () => {
+    let finish: (v: unknown) => void = () => undefined;
+    route({ 'account.signIn': () => new Promise((resolve) => (finish = resolve)) });
+    const { onClose } = await toCreated();
+    fireEvent.click(screen.getByRole('button', { name: 'Switch and sign in' }));
+    await waitFor(() => expect(calls('account.signIn')).toHaveLength(1));
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    fireEvent.click(screen.getByTestId('create-app-scrim'));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Just show me the client ID' }).disabled).toBe(true);
+    await act(async () => finish({}));
+  });
+
+  it('nothing_needing_an_admin_hides_check_again', async () => {
+    route({}, { ...created, adminScopes: [] });
+    await toCreated();
+    expect(screen.getByText('No permissions need an admin’s consent.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Check again' })).toBeNull();
+    expect(screen.queryByText(/0 of 0/)).toBeNull();
+  });
+
+  it('just_show_hands_the_app_to_the_caller', async () => {
+    route();
+    const onClientId = vi.fn();
+    render(<CreateAppDialog onClose={vi.fn()} onSwitched={vi.fn()} onClientId={onClientId} />);
+    await screen.findByRole('checkbox', { name: 'Security' });
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await screen.findByText(created.appId);
+    fireEvent.click(screen.getByRole('button', { name: 'Just show me the client ID' }));
+    expect(onClientId).toHaveBeenCalledWith({ name: 'Kustodian (kari@contoso.com)', appId: created.appId });
   });
 });

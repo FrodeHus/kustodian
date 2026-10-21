@@ -12,10 +12,13 @@ interface CreatedViewProps {
   listed: number;
   onClose: () => void;
   onSwitched: () => void;
+  /** Signing in with the app starts and ends: the dialog can't be closed meanwhile. */
+  onSwitching: (switching: boolean) => void;
+  onClientId?: (app: { name: string; appId: string }) => void;
 }
 
 /** The dialog after Create (spec 6.5, 7, 8; mockups EntraAppCreated and EntraAppRefused): the ids, admin consent, then what now. */
-export function CreatedView({ name, initial, listed, onClose, onSwitched }: CreatedViewProps) {
+export function CreatedView({ name, initial, listed, onClose, onSwitched, onSwitching, onClientId }: CreatedViewProps) {
   const [result, setResult] = useState(initial);
   const [canGrant, setCanGrant] = useState<boolean | null>(null);
   const [status, setStatus] = useState<EntraAppConsentStatus | null>(null);
@@ -23,11 +26,20 @@ export function CreatedView({ name, initial, listed, onClose, onSwitched }: Crea
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [switchProblem, setSwitchProblem] = useState<string | null>(null);
-  const consent = useRef<HTMLDivElement>(null);
+  const [consentProblem, setConsentProblem] = useState<string | null>(null);
+  const grantButton = useRef<HTMLButtonElement>(null);
 
   const { appId, objectId, tenantId, adminScopes } = result;
   const needsAdmin = adminScopes.length > 0;
+  const focusGrant = useRef(false);
   const noPrincipal = result.servicePrincipalId === null;
+
+  useEffect(() => {
+    if (focusGrant.current && !busy) {
+      focusGrant.current = false;
+      grantButton.current?.focus();
+    }
+  }, [busy]);
 
   useEffect(() => {
     let live = true;
@@ -54,10 +66,12 @@ export function CreatedView({ name, initial, listed, onClose, onSwitched }: Crea
   }
 
   const copy = (text: string, what: string) =>
-    navigator.clipboard.writeText(text).then(
-      () => setNote(`${what} copied.`),
-      () => setNote(`Couldn’t copy ${what.toLowerCase()}; select it and copy by hand.`),
-    );
+    Promise.resolve()
+      .then(() => navigator.clipboard.writeText(text))
+      .then(
+        () => setNote(`${what} copied.`),
+        () => setNote(`Couldn’t copy ${what.toLowerCase()}; select it and copy by hand.`),
+      );
 
   const openConsent = () => run(async () => void (await call('entraApp.openConsent', { appId })));
   const copyLink = () =>
@@ -78,8 +92,10 @@ export function CreatedView({ name, initial, listed, onClose, onSwitched }: Crea
 
   async function switchToApp() {
     setBusy(true);
+    onSwitching(true);
     setProblem(null);
     setSwitchProblem(null);
+    setConsentProblem(null);
     try {
       const current = await call<SettingsAnswer>('settings.get');
       const next: AppSettings = { ...current.settings, signIn: { clientId: appId, tenant: tenantId } };
@@ -88,11 +104,15 @@ export function CreatedView({ name, initial, listed, onClose, onSwitched }: Crea
       onSwitched();
     } catch (e) {
       const text = errorText(e);
-      setSwitchProblem(NEEDS_ADMIN.test(text) ? 'This app still needs an admin to grant its permissions. Grant them below, then switch again.' : text);
       if (NEEDS_ADMIN.test(text)) {
-        consent.current?.scrollIntoView?.({ block: 'start' });
+        // Back to step 1: the message is shown there and its primary button takes the focus.
+        setConsentProblem('This app still needs an admin to grant its permissions');
+        focusGrant.current = true;
+      } else {
+        setSwitchProblem(text);
       }
       setBusy(false);
+      onSwitching(false);
     }
   }
 
@@ -149,33 +169,42 @@ export function CreatedView({ name, initial, listed, onClose, onSwitched }: Crea
         </div>
       )}
 
-      <div ref={consent} className="card flex flex-col gap-2.5 px-3.5 py-3">
+      <div className="card flex flex-col gap-2.5 px-3.5 py-3">
         <div className="flex items-baseline gap-2">
           <b>1. Grant for the whole tenant</b>
           <span className="faint text-[12px]">optional</span>
         </div>
-        {needsAdmin && (
-          <span className="muted text-[12.5px]">
-            {`${adminScopes.length} of the ${listed} permissions need an admin’s consent. Until an admin grants them, signing in with this app will ask for admin approval. Microsoft’s page shows the admin exactly what is granted.`}
+        {consentProblem && (
+          <span className="text-[12.5px] text-bad" role="alert">
+            {consentProblem}
           </span>
         )}
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className={`btn${openPrimary ? ' primary' : ''}`} disabled={busy} onClick={() => void openConsent()}>
-            Open admin consent page
-          </button>
-          <button type="button" className={`btn${copyPrimary ? ' primary' : ''}`} disabled={busy} onClick={() => void copyLink()}>
-            Copy link for an admin
-          </button>
-          <button type="button" className="btn" disabled={busy} onClick={() => void checkAgain()}>
-            Check again
-          </button>
-        </div>
-        {copyPrimary && <span className="muted text-[12px]">You can’t grant this yourself. Send the link to an admin, then click Check again.</span>}
-        {status && (
-          <span className={status.missing.length > 0 ? 'text-[12.5px] text-warn' : 'text-[12.5px] text-ok'} role="status">
-            {`Granted for the tenant: ${grantedCount} of ${adminScopes.length}`}
-            {status.missing.length > 0 ? ` · missing ${status.missing.join(', ')}` : ''}
-          </span>
+        {needsAdmin ? (
+          <>
+            <span className="muted text-[12.5px]">
+              {`${adminScopes.length} of the ${listed} permissions need an admin’s consent. Until an admin grants them, signing in with this app will ask for admin approval. Microsoft’s page shows the admin exactly what is granted.`}
+            </span>
+            <div className="flex flex-wrap gap-2">
+              <button ref={grantButton} type="button" className={`btn${openPrimary ? ' primary' : ''}`} disabled={busy} onClick={() => void openConsent()}>
+                Open admin consent page
+              </button>
+              <button type="button" className={`btn${copyPrimary ? ' primary' : ''}`} disabled={busy} onClick={() => void copyLink()}>
+                Copy link for an admin
+              </button>
+              <button type="button" className="btn" disabled={busy} onClick={() => void checkAgain()}>
+                Check again
+              </button>
+            </div>
+            {copyPrimary && <span className="muted text-[12px]">You can’t grant this yourself. Send the link to an admin, then click Check again.</span>}
+            {status && (
+              <span className={status.missing.length > 0 ? 'text-[12.5px] text-warn' : 'text-[12.5px] text-ok'} role="status">
+                {`Granted for the tenant: ${grantedCount} of ${adminScopes.length}`}
+                {status.missing.length > 0 ? ` · missing ${status.missing.join(', ')}` : ''}
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="muted text-[12.5px]">No permissions need an admin’s consent.</span>
         )}
         {problem && (
           <span className="text-[12px] text-bad" role="alert">
@@ -198,7 +227,15 @@ export function CreatedView({ name, initial, listed, onClose, onSwitched }: Crea
             </button>
           </Choice>
           <Choice text="Nothing is saved. Use it later under “My own app registration”.">
-            <button type="button" className="btn" disabled={busy} onClick={onClose}>
+            <button
+              type="button"
+              className="btn"
+              disabled={busy}
+              onClick={() => {
+                onClientId?.({ name, appId });
+                onClose();
+              }}
+            >
               Just show me the client ID
             </button>
           </Choice>

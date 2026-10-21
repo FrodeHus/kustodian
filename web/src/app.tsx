@@ -20,7 +20,7 @@ import { bindGlobalKeys, registerCommands, runCommand, type Command } from './sh
 import { errorText } from './shell/errors';
 import { MOD } from './shell/keys';
 import { Palette } from './shell/palette';
-import { canOfferCreateApp } from './signin/permission-plan';
+import { canCreateApp } from './signin/permission-plan';
 import { chooseTheme, useTheme, type Theme } from './shell/theme';
 import { TitleBar } from './shell/title-bar';
 import { SignIn } from './signin/sign-in';
@@ -390,7 +390,7 @@ export function App() {
   const account = accounts?.accounts.find((a) => a.active);
   const accountKey = account?.key;
   useEffect(() => {
-    createAppAllowed.current = canOfferCreateApp(account);
+    createAppAllowed.current = canCreateApp(account);
   }, [account]);
   const graphSchema = useSchemas((s) => s.byKey.graph);
   const schemas = useSchemas((s) => s.byKey);
@@ -610,7 +610,7 @@ export function App() {
                       scope={active.run?.options?.scope}
                       onSignIn={() => setAccountsOpen(true)}
                       accountKey={accountKey}
-                      createApp={canOfferCreateApp(account)}
+                      createApp={canCreateApp(account)}
                       onConsented={() => void useTabs.getState().rerun(active.id)}
                     />
                     {explaining ? (

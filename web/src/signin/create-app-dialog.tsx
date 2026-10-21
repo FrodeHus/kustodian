@@ -20,7 +20,16 @@ type Phase = 'loading' | 'choose' | 'creating' | 'failed' | 'created';
  * Nothing is created until Create. While it runs the dialog can't be closed, so the request is never orphaned.
  * `onSwitched` fires once the user has signed in with the new app (the created view's "Switch and sign in").
  */
-export function CreateAppDialog({ onClose, onSwitched }: { onClose: () => void; onSwitched: () => void }) {
+export function CreateAppDialog({
+  onClose,
+  onSwitched,
+  onClientId,
+}: {
+  onClose: () => void;
+  onSwitched: () => void;
+  /** "Just show me the client ID": the app to keep a note of on the sign-in screen. */
+  onClientId?: (app: { name: string; appId: string }) => void;
+}) {
   const [phase, setPhase] = useState<Phase>('loading');
   const [plan, setPlan] = useState<EntraAppPlan | null>(null);
   const [planError, setPlanError] = useState<string | null>(null);
@@ -33,7 +42,9 @@ export function CreateAppDialog({ onClose, onSwitched }: { onClose: () => void; 
   const [result, setResult] = useState<EntraAppCreateResult | null>(null);
 
   const name = (typedName ?? plan?.defaultName ?? '').trim();
-  const idle = phase !== 'creating';
+  /** Signing in with the new app is running: like creating, it can't be closed under. */
+  const [switching, setSwitching] = useState(false);
+  const idle = phase !== 'creating' && !switching;
   const dialog = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -223,7 +234,7 @@ export function CreateAppDialog({ onClose, onSwitched }: { onClose: () => void; 
             )}
           </div>
         ) : phase === 'created' && result !== null ? (
-          <CreatedView name={name} initial={result} listed={chosen.length} onClose={onClose} onSwitched={onSwitched} />
+          <CreatedView name={name} initial={result} listed={chosen.length} onClose={onClose} onSwitched={onSwitched} onSwitching={setSwitching} onClientId={onClientId} />
         ) : (
           <div className="flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col border-r border-line">

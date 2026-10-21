@@ -151,5 +151,32 @@ describe('SignIn', () => {
       render(<SignIn list={list({})} onChanged={vi.fn()} createAppOpen onCreateAppOpen={vi.fn()} />);
       expect(await screen.findByRole('dialog', { name: 'Create Entra ID application' })).toBeTruthy();
     });
+    it('just_show_keeps_a_note_with_copy_until_the_screen_is_left', async () => {
+      const writeText = vi.fn(() => Promise.resolve());
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+      const appId = '11111111-2222-3333-4444-555555555555';
+      bridge.call.mockImplementation((method: string) => {
+        if (method === 'entraApp.plan') {
+          return Promise.resolve({ ...planAnswer(), defaultName: 'Kustodian (kari)', groups: [{ id: 'g', title: 'Graph', subgroups: [{ title: 'Dir', permissions: [{ resource: 'Microsoft Graph', resourceAppId: 'g', name: 'A.Read.All', adminConsent: false, description: '', tables: ['x'], unlocks: null, ticked: true }] }] }] });
+        }
+        if (method === 'entraApp.create') {
+          return Promise.resolve({ appId, objectId: 'o', servicePrincipalId: 's', tenantId: 't1', ownerAdded: true, ownerMessage: null, dropped: [], servicePrincipalMessage: null, adminScopes: [] });
+        }
+        return Promise.resolve({});
+      });
+      const { unmount } = render(<SignIn list={list({})} onChanged={vi.fn()} />);
+      await waitFor(() => expect(button()?.hasAttribute('disabled')).toBe(false));
+      fireEvent.click(button() as HTMLElement);
+      fireEvent.click(await screen.findByRole('button', { name: 'Create' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Just show me the client ID' }));
+      expect(screen.queryByRole('dialog')).toBeNull();
+      const note = screen.getByRole('note', { name: 'Created app' });
+      expect(note.textContent).toContain(appId);
+      fireEvent.click(screen.getByRole('button', { name: 'Copy client ID' }));
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith(appId));
+      unmount();
+      render(<SignIn list={list({})} onChanged={vi.fn()} />);
+      expect(screen.queryByRole('note', { name: 'Created app' })).toBeNull();
+    });
   });
 });

@@ -25,6 +25,9 @@ interface SignInProps {
 
 /** Sign-in and accounts (spec 6.7, mockup SignIn). */
 export function SignIn({ list, onChanged, onBack, error: listError = null, defaults, createAppOpen, onCreateAppOpen }: SignInProps) {
+  /** The app "Just show me the client ID" left behind: its note stays in the account card until this screen is left. */
+  const [shownApp, setShownApp] = useState<{ name: string; appId: string } | null>(null);
+  const [copyNote, setCopyNote] = useState<string | null>(null);
   const [localCreateOpen, setLocalCreateOpen] = useState(false);
   const createOpen = createAppOpen ?? localCreateOpen;
   const setCreateOpen = onCreateAppOpen ?? setLocalCreateOpen;
@@ -285,6 +288,35 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
               ))}
             </div>
             <span className="faint text-[12px]">Delegated permissions are also limited by your own Entra roles.</span>
+            {shownApp && (
+              <div className="flex flex-col items-start gap-1 border-t border-line pt-2.5" role="note" aria-label="Created app">
+                <span className="text-[12.5px]">
+                  {shownApp.name} was created. Client ID <span className="mono">{shownApp.appId}</span>
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() =>
+                      void Promise.resolve()
+                        .then(() => navigator.clipboard.writeText(shownApp.appId))
+                        .then(
+                          () => setCopyNote('Client ID copied.'),
+                          () => setCopyNote('Couldn’t copy; select it and copy by hand.'),
+                        )
+                    }
+                  >
+                    Copy client ID
+                  </button>
+                  {copyNote && (
+                    <span className="faint text-[12px]" role="status">
+                      {copyNote}
+                    </span>
+                  )}
+                </div>
+                <span className="muted text-[12px]">Use it later under “My own app registration”.</span>
+              </div>
+            )}
             {offerCreate && (
               <div className="flex flex-col items-start gap-1.5 border-t border-line pt-2.5">
                 <button type="button" className="btn" disabled={planned === null || !planned.canCreate} onClick={() => setCreateOpen(true)}>
@@ -299,6 +331,7 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
       {createOpen && (
         <CreateAppDialog
           onClose={() => setCreateOpen(false)}
+          onClientId={setShownApp}
           onSwitched={() => {
             setCreateOpen(false);
             onChanged(true);

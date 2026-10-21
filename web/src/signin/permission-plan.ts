@@ -24,5 +24,13 @@ export function allPermissions(groups: PlannedGroup[]): PlannedPermission[] {
   return groups.flatMap((g) => g.subgroups.flatMap((s) => s.permissions));
 }
 
+/** The scopes that let a token create app registrations and their service principals (spec 6.1). */
+const CREATE_SCOPES = ['application.readwrite.all', 'directory.accessasuser.all'];
+
+/** The command and the run status offer the dialog only when the sign-in can also create: Azure CLI, not expired, and a token
+ * with one of the create scopes. */
+export const canCreateApp = (account: AccountInfo | undefined): boolean =>
+  canOfferCreateApp(account) && (account?.scopes ?? []).some((s) => CREATE_SCOPES.includes(s.toLowerCase()));
+
 /** The host answered `signInNeeded`: the sign-in expired or is missing, so nothing more can be asked of it. */
 export const isSignInNeeded = (e: unknown): boolean => e instanceof BridgeError && e.code === 'signInNeeded';
