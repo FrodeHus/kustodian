@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+  <edmx:DataServices>
+    <Schema Namespace="microsoft.graph" Alias="graph" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+      <EntityType Name="entity" Abstract="true">
+        <Key><PropertyRef Name="id" /></Key>
+        <Property Name="id" Type="Edm.String" Nullable="false" />
+      </EntityType>
+      <EntityType Name="directoryObject" BaseType="graph.entity">
+        <Property Name="deletedDateTime" Type="Edm.DateTimeOffset" />
+      </EntityType>
+      <EntityType Name="application" BaseType="graph.directoryObject">
+        <Property Name="appId" Type="Edm.String">
+          <Annotation Term="Org.OData.Core.V1.Description" String="The unique identifier for the application. Supports $filter (eq)." />
+        </Property>
+        <Property Name="displayName" Type="Edm.String">
+          <Annotation Term="Org.OData.Core.V1.Description" String="The display name. Supports $filter (eq, ne, not, ge, le, in, startsWith)." />
+        </Property>
+        <Property Name="createdDateTime" Type="Edm.DateTimeOffset" />
+        <Property Name="passwordCredentials" Type="Collection(graph.passwordCredential)" Nullable="false" />
+        <Property Name="onPremisesPublishing" Type="graph.onPremisesPublishing" />
+        <Property Name="signInActivity" Type="graph.signInActivity">
+          <Annotation Term="Org.OData.Core.V1.Description" String="Last sign-in. Requires $select to retrieve." />
+        </Property>
+        <Property Name="eqOnly" Type="Edm.String">
+          <Annotation Term="Org.OData.Core.V1.Description" String="Supports $filter (eq only)." />
+        </Property>
+        <Property Name="withNullClause" Type="Edm.String">
+          <Annotation Term="Org.OData.Core.V1.Description" String="Supports $filter (eq, ne, not, in, and eq on null values)." />
+        </Property>
+        <Property Name="withUnknown" Type="Edm.String">
+          <Annotation Term="Org.OData.Core.V1.Description" String="Supports $filter (eq, contains)." />
+        </Property>
+        <Property Name="operatorEq" Type="Edm.String">
+          <Annotation Term="Org.OData.Core.V1.Description" String="Supports $filter operator 'eq'." />
+        </Property>
+        <Property Name="operatorLt" Type="Edm.String">
+          <Annotation Term="Org.OData.Core.V1.Description" String="Supports $filter operator 'lt'." />
+        </Property>
+        <Property Name="note" Type="self.note" />
+        <Property Name="tree" Type="graph.node" />
+        <Property Name="getOnlyGroup" Type="Edm.Boolean">
+          <Annotation Term="Org.OData.Core.V1.Description" String="Hidden from Outlook. The default value is false. Requires $select to retrieve. Supported only on the Get group API (GET /groups/{ID})." />
+        </Property>
+        <Property Name="getOnlyById" Type="Edm.String">
+          <Annotation Term="Org.OData.Core.V1.Description" String="Notes. The value of this property is available only when reading this bookingAppointment by its ID." />
+        </Property>
+        <Property Name="logo" Type="Edm.Stream" Nullable="false">
+          <Annotation Term="Org.OData.Core.V1.Description" String="The main logo for the application. Not nullable." />
+        </Property>
+        <NavigationProperty Name="owners" Type="Collection(graph.directoryObject)" />
+      </EntityType>
+      <EntityType Name="incident" BaseType="graph.entity">
+        <Property Name="status" Type="Edm.String" />
+      </EntityType>
+      <EntityType Name="security">
+        <NavigationProperty Name="incidents" Type="Collection(graph.incident)" ContainsTarget="true" />
+        <NavigationProperty Name="related" Type="Collection(graph.directoryObject)" />
+      </EntityType>
+      <EntityType Name="user" BaseType="graph.directoryObject">
+        <NavigationProperty Name="incidents" Type="Collection(graph.incident)" ContainsTarget="true" />
+      </EntityType>
+      <ComplexType Name="passwordCredential">
+        <Property Name="keyId" Type="Edm.Guid" />
+        <Property Name="endDateTime" Type="Edm.DateTimeOffset" />
+      </ComplexType>
+      <ComplexType Name="onPremisesPublishing">
+        <Property Name="externalAuthenticationType" Type="graph.externalAuthenticationType" />
+      </ComplexType>
+      <ComplexType Name="signInActivity">
+        <Property Name="lastSignInDateTime" Type="Edm.DateTimeOffset" />
+      </ComplexType>
+      <ComplexType Name="node">
+        <Property Name="name" Type="Edm.String" />
+        <Property Name="children" Type="Collection(graph.node)" />
+      </ComplexType>
+      <ComplexType Name="unreachable">
+        <Property Name="x" Type="Edm.String" />
+      </ComplexType>
+      <EnumType Name="externalAuthenticationType">
+        <Member Name="passthru" Value="0" />
+        <Member Name="aadPreAuthentication" Value="1" />
+      </EnumType>
+      <EntityContainer Name="GraphService">
+        <EntitySet Name="applications" EntityType="graph.application" />
+        <Singleton Name="security" Type="graph.security" />
+        <Singleton Name="me" Type="graph.user" />
+      </EntityContainer>
+    </Schema>
+    <Schema Namespace="microsoft.graph.security" Alias="self" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+      <ComplexType Name="note">
+        <Property Name="text" Type="Edm.String" />
+      </ComplexType>
+      <Annotations Target="self.note/text">
+        <Annotation Term="Org.OData.Core.V1.Description" String="The note body." />
+      </Annotations>
+    </Schema>
+  </edmx:DataServices>
+</edmx:Edmx>

@@ -1,0 +1,488 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoftgraph/kibali/main/specs/permissions-schema.json",
+  "permissions": {
+    "AgentIdUser.ReadWrite.All": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "DelegatedWork": {},
+        "Application": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "DelegatedWork",
+            "Application"
+          ],
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "paths": {
+            "/users": ""
+          }
+        }
+      ]
+    },
+    "AgentIdUser.ReadWrite.IdentityParentedBy": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "DelegatedWork": {},
+        "Application": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "DelegatedWork",
+            "Application"
+          ],
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "paths": {
+            "/users": ""
+          }
+        }
+      ]
+    },
+    "Application.Read.All": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "DelegatedWork": {},
+        "DelegatedPersonal": {},
+        "Application": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "DelegatedWork",
+            "DelegatedPersonal",
+            "Application"
+          ],
+          "methods": [
+            "GET"
+          ],
+          "paths": {
+            "/applications": "least=DelegatedWork,DelegatedPersonal,Application"
+          }
+        }
+      ]
+    },
+    "Application.ReadWrite.All": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "DelegatedWork": {},
+        "DelegatedPersonal": {},
+        "Application": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "DelegatedWork",
+            "DelegatedPersonal",
+            "Application"
+          ],
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "paths": {
+            "/applications": "least=DelegatedWork,DelegatedPersonal"
+          }
+        }
+      ]
+    },
+    "Application.ReadWrite.OwnedBy": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "Application": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "Application"
+          ],
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "paths": {
+            "/applications": "least=Application"
+          }
+        }
+      ]
+    },
+    "AppRegistration.Create": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "DelegatedWork": {},
+        "Application": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "DelegatedWork",
+            "Application"
+          ],
+          "methods": [
+            "POST"
+          ],
+          "paths": {
+            "/applications": "least=DelegatedWork,Application"
+          }
+        }
+      ]
+    },
+    "AuditLog.Read.All": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "DelegatedWork": {},
+        "Application": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "DelegatedWork",
+            "Application"
+          ],
+          "methods": [
+            "GET"
+          ],
+          "paths": {
+            "/auditlogs/signins": "least=DelegatedWork,Application"
+          }
+        }
+      ]
+    },
+    "DeviceManagementApps.Read.All": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "DelegatedWork": {},
+        "Application": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "DelegatedWork",
+            "Application"
+          ],
+          "methods": [
+            "GET"
+          ],
+          "paths": {
+            "/users": ""
+          }
+        }
+      ]
+    },
+    "DeviceManagementApps.ReadWrite.All": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "DelegatedWork": {},
+        "Application": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "DelegatedWork",
+            "Application"
+          ],
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "paths": {
+            "/users": ""
+          }
+        }
+      ]
+    },
+    "DeviceManagementConfiguration.Read.All": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "DelegatedWork": {},
+        "Application": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "DelegatedWork",
+            "Application"
+          ],
+          "methods": [
+            "GET"
+          ],
+          "paths": {
+            "/users": ""
+          }
+        }
+      ]
+    },
+    "DeviceManagementConfiguration.ReadWrite.All": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "DelegatedWork": {},
+        "Application": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "DelegatedWork",
+            "Application"
+          ],
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "paths": {
+            "/users": ""
+          }
+        }
+      ]
+    },
+    "DeviceManagementManagedDevices.Read.All": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "DelegatedWork": {},
+        "Application": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "DelegatedWork",
+            "Application"
+          ],
+          "methods": [
+            "GET"
+          ],
+          "paths": {
+            "/users": ""
+          }
+        }
+      ]
+    },
+    "DeviceManagementManagedDevices.ReadWrite.All": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "DelegatedWork": {},
+        "Application": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "DelegatedWork",
+            "Application"
+          ],
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "paths": {
+            "/users": ""
+          }
+        }
+      ]
+    },
+    "DeviceManagementServiceConfig.Read.All": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "DelegatedWork": {},
+        "Application": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "DelegatedWork",
+            "Application"
+          ],
+          "methods": [
+            "GET"
+          ],
+          "paths": {
+            "/users": ""
+          }
+        }
+      ]
+    },
+    "DeviceManagementServiceConfig.ReadWrite.All": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "DelegatedWork": {},
+        "Application": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "DelegatedWork",
+            "Application"
+          ],
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "paths": {
+            "/users": ""
+          }
+        }
+      ]
+    },
+    "Directory.Read.All": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "DelegatedWork": {},
+        "Application": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "DelegatedWork",
+            "Application"
+          ],
+          "methods": [
+            "GET"
+          ],
+          "paths": {
+            "/applications": "",
+            "/users": ""
+          }
+        }
+      ]
+    },
+    "Directory.ReadWrite.All": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "DelegatedWork": {},
+        "Application": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "DelegatedWork",
+            "Application"
+          ],
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "paths": {
+            "/users": ""
+          }
+        },
+        {
+          "schemeKeys": [
+            "DelegatedWork"
+          ],
+          "methods": [
+            "GET"
+          ],
+          "paths": {
+            "/applications": ""
+          }
+        }
+      ]
+    },
+    "User.Read": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "DelegatedWork": {},
+        "DelegatedPersonal": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "DelegatedPersonal"
+          ],
+          "methods": [
+            "GET"
+          ],
+          "paths": {
+            "/applications": ""
+          }
+        }
+      ]
+    },
+    "User.Read.All": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "DelegatedWork": {},
+        "Application": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "DelegatedWork",
+            "Application"
+          ],
+          "methods": [
+            "GET"
+          ],
+          "paths": {
+            "/users": ""
+          }
+        }
+      ]
+    },
+    "User.ReadBasic.All": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "DelegatedWork": {},
+        "Application": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "DelegatedWork",
+            "Application"
+          ],
+          "methods": [
+            "GET"
+          ],
+          "paths": {
+            "/users": "least=DelegatedWork,Application"
+          }
+        }
+      ]
+    },
+    "User.ReadWrite.All": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "DelegatedWork": {},
+        "Application": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "DelegatedWork",
+            "Application"
+          ],
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "paths": {
+            "/users": "least=DelegatedWork,Application"
+          }
+        }
+      ]
+    },
+    "User.ReadWrite.CrossCloud": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "Application": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "Application"
+          ],
+          "methods": [
+            "GET"
+          ],
+          "paths": {
+            "/users": ""
+          }
+        }
+      ]
+    }
+  }
+}

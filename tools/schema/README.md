@@ -1,0 +1,60 @@
+# Schema tool
+
+Regenerates `src/Kustodian.Graph/Schema/graph-beta.json`, the Graph beta schema embedded in the app, and prints what changed.
+
+```
+dotnet run --project tools/schema -- [--metadata <path|url>] [--permissions <path|url>] [--out <path>]
+```
+
+With no arguments it downloads both inputs. Set `GITHUB_TOKEN` to avoid API rate limits when resolving the metadata commit.
+Exit codes: 0 ok, 2 usage, 3 an input could not be read or downloaded.
+
+## Inputs
+
+1. **Metadata** (`--metadata`): `clean_beta_metadata/cleanMetadataWithDescriptionsAndAnnotationsbeta.xml` in
+   `microsoftgraph/msgraph-metadata`, fetched at the commit `master` points to. The commit is recorded in the file's `source`.
+2. **Permissions** (`--permissions`), default
+   `https://raw.githubusercontent.com/microsoftgraph/microsoft-graph-devx-content/master/permissions/new/permissions.json`.
+   The `msgraph-metadata` repository has no permissions file; this one, in `microsoftgraph/microsoft-graph-devx-content`, is
+   Microsoft's permissions data (schema: `microsoftgraph/kibali`, `specs/permissions-schema.json`).
+
+### Shape of the permissions file
+
+It is keyed by permission, with the API paths inside path sets:
+
+```json
+{
+  "permissions": {
+    "Application.Read.All": {
+      "schemes": { "DelegatedWork": {}, "DelegatedPersonal": {}, "Application": {} },
+      "pathSets": [
+        {
+          "schemeKeys": ["DelegatedWork", "DelegatedPersonal", "Application"],
+          "methods": ["GET"],
+          "paths": { "/applications": "least=DelegatedWork,DelegatedPersonal,Application", "/applications/{id}": "..." }
+        }
+      ]
+    }
+  }
+}
+```
+
+A path's value is empty, or `least=<schemes>` when the permission is the least-privileged one for those schemes.
+
+### How a table gets its permissions
+
+`GraphPermissions.ReadDelegated` inverts the file into path to permissions:
+
+- only path sets whose `methods` are exactly `["GET"]` and whose `schemeKeys` include a `Delegated*` scheme count. A read-write
+  permission is marked least-privileged on a path set that also lists `POST`; that is least-privileged for writing, not listing,
+  so it is skipped;
+- a path counts when its value is `least=` naming a `Delegated*` scheme;
+- paths are compared case-insensitively with a leading `/`, and every `{...}` placeholder is one segment (`{}`).
+
+A table's `Permissions` are the entries for `/{table.Path}`, sorted and distinct. Many tables get none (Microsoft marks no
+least-privileged delegated permission); Explain and the No permission error then fall back to the table's docs link.
+
+`tests/Kustodian.Graph.Tests/Schema/permissions-excerpt.json` is an excerpt of this file for `/applications`, `/users` and
+`/auditLogs/signIns` (all permissions listing those paths), in the same shape.
+
+Column permissions are not published by Microsoft: `GraphPermissions.KnownColumns` is a hand-kept list.

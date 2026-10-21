@@ -1,2 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <EmbeddedResource Include="Schema/graph-beta.json" LogicalName="graph-beta.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Kustodian.Graph.Tests" />
+  </ItemGroup>
+
 </Project>
