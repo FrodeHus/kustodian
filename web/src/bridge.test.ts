@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { BridgeError, createBridge, type Transport } from './bridge';
 
 /** A transport that records what the page sends and lets a test play the host. */
@@ -82,5 +82,40 @@ describe('bridge', () => {
     expect(error).toMatchObject({ code: 'cancelled' });
     expect(host.sent.map((m) => m.method)).toEqual(['query.run', 'query.cancel']);
     expect(host.sent[1]?.params).toEqual({ tabId: 'tab-7' });
+
+    // The host's late answer for the cancelled run changes nothing.
+    expect(() => host.reply({ id: host.sent[0]?.id, error: { code: 'cancelled', message: 'The run was cancelled.' } })).not.toThrow();
+    expect(() => host.reply({ id: host.sent[0]?.id, result: { outcome: 'ok' } })).not.toThrow();
+  });
+
+  it('settled_call_removes_its_abort_listener', async () => {
+    const host = fakeTransport();
+    const { call } = createBridge(host.transport);
+    const controller = new AbortController();
+    const removed = vi.spyOn(controller.signal, 'removeEventListener');
+
+    const pending = call('app.info', undefined, controller.signal);
+    host.reply({ id: host.sent[0]?.id, result: 1 });
+    await pending;
+
+    expect(removed).toHaveBeenCalledWith('abort', expect.any(Function));
+    controller.abort();
+    expect(host.sent).toHaveLength(1);
+  });
+
+  it('throwing_handler_does_not_stop_others', () => {
+    const host = fakeTransport();
+    const { on } = createBridge(host.transport);
+    const seen: unknown[] = [];
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    on('query.progress', () => {
+      throw new Error('boom');
+    });
+    on('query.progress', (data) => seen.push(data));
+
+    expect(() => host.reply({ event: 'query.progress', data: 5 })).not.toThrow();
+    expect(seen).toEqual([5]);
+    expect(log).toHaveBeenCalledOnce();
   });
 });

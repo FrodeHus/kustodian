@@ -29,7 +29,7 @@ export interface Bridge {
 }
 
 interface Pending {
-  resolve: (value: never) => void;
+  resolve: (value: unknown) => void;
   reject: (reason: BridgeError) => void;
 }
 
@@ -58,7 +58,12 @@ export function createBridge(transport: Transport): Bridge {
 
     if (typeof message.event === 'string') {
       for (const handler of [...(handlers.get(message.event) ?? [])]) {
-        handler(message.data);
+        try {
+          handler(message.data);
+        } catch (error) {
+          // One failing handler must not stop the others or throw into the host's callback.
+          console.error(`A handler for ${message.event} threw.`, error);
+        }
       }
       return;
     }
@@ -75,7 +80,7 @@ export function createBridge(transport: Transport): Bridge {
       const { code, message: text } = message.error;
       entry.reject(new BridgeError(typeof code === 'string' ? code : 'failed', typeof text === 'string' ? text : 'The request failed.'));
     } else {
-      entry.resolve(message.result as never);
+      entry.resolve(message.result);
     }
   });
 
@@ -91,26 +96,32 @@ export function createBridge(transport: Transport): Bridge {
     }
 
     return new Promise<T>((resolve, reject) => {
-      const id = send(method, params);
-      pending.set(id, { resolve, reject });
+      const onAbort = () => {
+        if (!pending.delete(id)) {
+          return;
+        }
+        // A cancelled run also stops on the host; its late answer is ignored.
+        if (method === 'query.run') {
+          const tabId = (params as { tabId?: unknown } | undefined)?.tabId;
+          if (typeof tabId === 'string') {
+            send('query.cancel', { tabId });
+          }
+        }
+        reject(new BridgeError('cancelled', 'The request was cancelled.'));
+      };
 
-      signal?.addEventListener(
-        'abort',
-        () => {
-          if (!pending.delete(id)) {
-            return;
-          }
-          // A cancelled run also stops on the host; its late answer is ignored.
-          if (method === 'query.run') {
-            const tabId = (params as { tabId?: unknown } | undefined)?.tabId;
-            if (typeof tabId === 'string') {
-              send('query.cancel', { tabId });
-            }
-          }
-          reject(new BridgeError('cancelled', 'The request was cancelled.'));
+      const id = send(method, params);
+      pending.set(id, {
+        resolve: (value) => {
+          signal?.removeEventListener('abort', onAbort);
+          resolve(value as T);
         },
-        { once: true },
-      );
+        reject: (reason) => {
+          signal?.removeEventListener('abort', onAbort);
+          reject(reason);
+        },
+      });
+      signal?.addEventListener('abort', onAbort, { once: true });
     });
   }
 

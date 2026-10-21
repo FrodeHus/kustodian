@@ -46,7 +46,7 @@
     <ItemGroup>
       <!-- Items made inside a target can't read their own %(RecursiveDir): list the files first, then batch over that list. -->
       <KustodianWebFile Include="$(KustodianWebDist)**\*" />
-      <EmbeddedResource Include="@(KustodianWebFile)" LogicalName="wwwroot/%(KustodianWebFile.RecursiveDir)%(KustodianWebFile.Filename)%(KustodianWebFile.Extension)" />
+      <EmbeddedResource Include="@(KustodianWebFile)" LogicalName="wwwroot/$([System.String]::Copy('%(KustodianWebFile.RecursiveDir)').Replace('\', '/'))%(KustodianWebFile.Filename)%(KustodianWebFile.Extension)" />
     </ItemGroup>
   </Target>
 
