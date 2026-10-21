@@ -7,6 +7,7 @@
     {
       "name": "applications",
       "path": "applications",
+      "area": "Apps and permissions",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/application?view=graph-rest-beta",
       "permissions": [
@@ -81,6 +82,7 @@
     {
       "name": "users",
       "path": "users",
+      "area": "Users, groups and directory",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/user?view=graph-rest-beta",
       "permissions": [
@@ -137,6 +139,7 @@
     {
       "name": "servicePrincipals",
       "path": "servicePrincipals",
+      "area": "Apps and permissions",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/serviceprincipal?view=graph-rest-beta",
       "permissions": [
@@ -184,6 +187,7 @@
     {
       "name": "groups",
       "path": "groups",
+      "area": "Users, groups and directory",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/group?view=graph-rest-beta",
       "permissions": [
@@ -232,6 +236,7 @@
     {
       "name": "auditLogs_signIns",
       "path": "auditLogs/signIns",
+      "area": "Sign-in and audit logs",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/signin?view=graph-rest-beta",
       "permissions": [
@@ -279,6 +284,120 @@
           "type": "string",
           "description": "The IP address of the client from where the sign-in occurred.  Supports $filter (eq, startsWith).",
           "filterable": true,
+          "listable": true,
+          "complexType": null,
+          "collection": false
+        }
+      ]
+    },
+    {
+      "name": "devices",
+      "path": "devices",
+      "area": "Devices and Intune",
+      "description": "",
+      "docsUrl": "https://learn.microsoft.com/graph/api/resources/device?view=graph-rest-beta",
+      "permissions": [
+        "Device.Read.All"
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "type": "string",
+          "description": "The unique identifier for an entity. Read-only.",
+          "filterable": false,
+          "listable": true,
+          "complexType": null,
+          "collection": false
+        },
+        {
+          "name": "approximateLastSignInDateTime",
+          "type": "datetime",
+          "description": "The timestamp type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z. Read-only. Supports $filter (eq, ne, not, ge, le, and eq on null values) and $orderby.",
+          "filterable": true,
+          "listable": true,
+          "complexType": null,
+          "collection": false
+        },
+        {
+          "name": "deviceId",
+          "type": "string",
+          "description": "Unique identifier set by Azure Device Registration Service at the time of registration. This ID is an alternate key that can be used to reference the device object. Also supports $filter (eq, ne, not, startsWith).",
+          "filterable": false,
+          "listable": true,
+          "complexType": null,
+          "collection": false
+        },
+        {
+          "name": "displayName",
+          "type": "string",
+          "description": "The display name for the device. Maximum length is 256 characters. Required. Supports $filter (eq, ne, not, ge, le, in, startsWith, and eq on null values), $search, and $orderby.",
+          "filterable": true,
+          "listable": true,
+          "complexType": null,
+          "collection": false
+        },
+        {
+          "name": "operatingSystem",
+          "type": "string",
+          "description": "The type of operating system on the device. Required. Supports $filter (eq, ne, not, ge, le, startsWith, and eq on null values).",
+          "filterable": true,
+          "listable": true,
+          "complexType": null,
+          "collection": false
+        }
+      ]
+    },
+    {
+      "name": "deviceManagement_managedDevices",
+      "path": "deviceManagement/managedDevices",
+      "area": "Devices and Intune",
+      "description": "Devices that are managed or pre-enrolled through Intune. Limited support for $filter: Only properties whose descriptions mention support for $filter may be used, and combinations of those filtered properties must use 'and', not 'or'.",
+      "docsUrl": "https://learn.microsoft.com/graph/api/resources/manageddevice?view=graph-rest-beta",
+      "permissions": [
+        "DeviceManagementManagedDevices.Read.All"
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "type": "string",
+          "description": "The unique identifier for an entity. Read-only.",
+          "filterable": false,
+          "listable": true,
+          "complexType": null,
+          "collection": false
+        },
+        {
+          "name": "complianceState",
+          "type": "string",
+          "description": "Compliance state of the device. Examples: Compliant, Conflict, Error, etc. Default is unknown. Supports $filter operator 'eq' and 'or'. This property is read-only. The possible values are: unknown, compliant, noncompliant, conflict, error, inGracePeriod, configManager.",
+          "filterable": true,
+          "listable": true,
+          "complexType": null,
+          "collection": false
+        },
+        {
+          "name": "deviceName",
+          "type": "string",
+          "description": "Name of the device. Supports $filter operator 'eq' and 'contains'. This property is read-only.",
+          "filterable": true,
+          "listable": true,
+          "complexType": null,
+          "collection": false
+        },
+        {
+          "name": "lastSyncDateTime",
+          "type": "datetime",
+          "description": "The date and time that the device last completed a successful sync with Intune. Supports $filter operator 'lt' and 'gt'. This property is read-only.",
+          "filterable": true,
+          "listable": true,
+          "complexType": null,
+          "collection": false
+        },
+        {
+          "name": "operatingSystem",
+          "type": "string",
+          "description": "Operating system of the device. Windows, iOS, etc. This property is read-only.",
+          "filterable": false,
           "listable": true,
           "complexType": null,
           "collection": false

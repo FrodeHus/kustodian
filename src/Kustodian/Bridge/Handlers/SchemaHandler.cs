@@ -46,20 +46,21 @@ public sealed record SchemaView(
         HuntingSchemaView.BuiltIn,
         null,
         schema.GeneratedAt,
-        [.. schema.Tables.Select(t => new SchemaTableView(t.Name, t.Path, t.Description, t.DocsUrl, t.Permissions,
+        [.. schema.Tables.Select(t => new SchemaTableView(t.Name, t.Path, GraphAreas.Bundled.Of(t.Path), t.Description,
+            t.DocsUrl, t.Permissions,
             [.. t.Columns.Select(c => new SchemaColumnView(c.Name, c.Type, c.Description, c.Filter.Count > 0, c.Listable,
                 c.ComplexType, c.Collection))]))],
         [],
         schema.ComplexTypes);
 
-    /// <summary>Advanced hunting's schema: the Graph-only fields (path, docs link, permissions, filterable, listable, complex
-    /// type) are null.</summary>
+    /// <summary>Advanced hunting's schema: the Graph-only fields (path, area, docs link, permissions, filterable, listable,
+    /// complex type) are null.</summary>
     public static SchemaView From(HuntingSchemaView hunting) => new(
         "hunting",
         hunting.Origin,
         hunting.FallbackReason,
         hunting.RetrievedAt,
-        [.. hunting.Tables.Select(t => new SchemaTableView(t.Name, null, t.Description, null, null,
+        [.. hunting.Tables.Select(t => new SchemaTableView(t.Name, null, null, t.Description, null, null,
             [.. t.Columns.Select(c => new SchemaColumnView(c.Name, c.Type, c.Description, null, null, null, false))]))],
         [.. hunting.Functions.Select(f => new SchemaFunctionView(f.Name, f.Description,
             [.. f.Parameters.Select(p => new SchemaParameterView(p.Name, p.Type))]))],
@@ -71,17 +72,18 @@ public sealed record SchemaView(
         HuntingSchemaView.BuiltIn,
         null,
         BuiltInArgSchema.DocumentedAt,
-        [.. BuiltInArgSchema.Tables.Select(t => new SchemaTableView(t.Name, null, t.Description, null, null,
+        [.. BuiltInArgSchema.Tables.Select(t => new SchemaTableView(t.Name, null, null, t.Description, null, null,
             [.. t.Columns.Select(c => new SchemaColumnView(c.Name, c.Type, "", null, null, null, false))]))],
         [],
         new Dictionary<string, IReadOnlyList<GraphField>>());
 }
 
 /// <summary>A table as the UI sees it. <paramref name="Path"/> is its Graph collection relative to the version
-/// (<c>auditLogs/signIns</c> for <c>auditLogs_signIns</c>), which the raw tab completes; it, <paramref name="DocsUrl"/> and
-/// <paramref name="Permissions"/> are Graph's, null for other sources.</summary>
+/// (<c>auditLogs/signIns</c> for <c>auditLogs_signIns</c>), which the raw tab completes. <paramref name="Area"/> is the data area
+/// the panel groups it under (<see cref="GraphAreas"/>, from the path; <c>Other</c> when unmapped). They,
+/// <paramref name="DocsUrl"/> and <paramref name="Permissions"/> are Graph's, null for other sources.</summary>
 public sealed record SchemaTableView(
-    string Name, string? Path, string Description, string? DocsUrl, IReadOnlyList<string>? Permissions, IReadOnlyList<SchemaColumnView> Columns);
+    string Name, string? Path, string? Area, string Description, string? DocsUrl, IReadOnlyList<string>? Permissions, IReadOnlyList<SchemaColumnView> Columns);
 
 /// <summary>A column as the UI sees it. <paramref name="Filterable"/> is true when Graph's <c>$filter</c> accepts any operator
 /// on it; it, <paramref name="Listable"/> and <paramref name="ComplexType"/> are Graph's, null for other sources.</summary>

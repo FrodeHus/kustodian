@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 import type { SchemaColumn, SchemaFunction, SchemaTable, SchemaView, Source } from '../wire';
 
 interface Listed {
@@ -18,6 +18,64 @@ function search(tables: SchemaTable[], text: string): Listed[] {
     const columns = table.columns.filter((c) => c.name.toLowerCase().includes(needle));
     return columns.length > 0 ? [{ table, columns, open: true }] : [];
   });
+}
+
+/** Graph's data areas in display order (owner-approved). The host decides each table's area (`graph-areas.json`); an area this
+ * list doesn't know (a newer host) shows just before Other, which is always last. */
+const AREAS = [
+  'Users, groups and directory',
+  'Apps and permissions',
+  'Sign-in and audit logs',
+  'Risk and identity protection',
+  'Access reviews and privileged roles',
+  'Policies and Conditional Access',
+  'Devices and Intune',
+  'Security',
+  'Mail, Teams and files',
+  'Reports and usage',
+];
+const OTHER = 'Other';
+/** The area big enough (about 170 tables) to split once more by first path segment. */
+const SPLIT_AREA = 'Devices and Intune';
+const TOP_LEVEL = 'Top level';
+
+interface Group {
+  name: string;
+  items: Listed[];
+}
+
+function grouped(items: Listed[], keyOf: (table: SchemaTable) => string): Map<string, Listed[]> {
+  const groups = new Map<string, Listed[]>();
+  for (const item of items) {
+    const key = keyOf(item.table);
+    const list = groups.get(key);
+    if (list) {
+      list.push(item);
+    } else {
+      groups.set(key, [item]);
+    }
+  }
+  return groups;
+}
+
+/** The tables by area, in the fixed order; areas without tables are left out. */
+function byArea(items: Listed[]): Group[] {
+  const rank = (area: string) => (area === OTHER ? AREAS.length + 1 : AREAS.includes(area) ? AREAS.indexOf(area) : AREAS.length);
+  return [...grouped(items, (t) => t.area ?? OTHER)]
+    .map(([name, list]) => ({ name, items: list }))
+    .sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name));
+}
+
+/** The tables by their path's first segment, largest first; top-level collections ("Top level") last. */
+function bySegment(items: Listed[]): Group[] {
+  const segmentOf = (t: SchemaTable) => {
+    const slash = t.path?.indexOf('/') ?? -1;
+    return t.path && slash > 0 ? t.path.slice(0, slash) : TOP_LEVEL;
+  };
+  const last = (name: string) => (name === TOP_LEVEL ? 1 : 0);
+  return [...grouped(items, segmentOf)]
+    .map(([name, list]) => ({ name, items: list }))
+    .sort((a, b) => last(a.name) - last(b.name) || b.items.length - a.items.length || a.name.localeCompare(b.name));
 }
 
 /** The tables a query names, in schema order. */
@@ -77,15 +135,20 @@ export function SchemaPanel({ source = 'graph', schema, error, resourceTypes, re
   const title = TITLES[source];
 
   const toggle = (key: string, open: boolean) => setToggled((t) => ({ ...t, [key]: !open }));
+  // Graph's tables carry their data area; advanced hunting's and Resource Graph's don't, and stay a flat list.
+  const byAreas = tables.some((t) => Boolean(t.area));
 
   const renderTable = (key: string, table: SchemaTable, columns: SchemaColumn[], openByDefault: boolean) => {
     const open = toggled[key] ?? openByDefault;
+    // A nested Graph table's path (auditLogs/signIns) follows its name in faint text and in the hover text, since a narrow
+    // panel truncates it first.
+    const path = table.path && table.path !== table.name ? table.path : null;
     return (
       <li key={key}>
         <button
           type="button"
           aria-expanded={open}
-          title={describe(table.name, table.description)}
+          title={describe(path ? `${table.name} (${path})` : table.name, table.description)}
           onClick={() => toggle(key, open)}
           onDoubleClick={() => onInsert(table.name)}
         >
@@ -93,6 +156,7 @@ export function SchemaPanel({ source = 'graph', schema, error, resourceTypes, re
           <span className="mono truncate" style={{ color: open ? 'var(--tbl)' : undefined }}>
             {table.name}
           </span>
+          {path && <span className="faint mono truncate text-[11px] shrink-[100]">{path}</span>}
           <span className="ty">{table.columns.length} columns</span>
         </button>
         {open && (
@@ -121,6 +185,46 @@ export function SchemaPanel({ source = 'graph', schema, error, resourceTypes, re
     );
   };
 
+  /** A collapsible area or subgroup row, with its table count. */
+  const renderGroup = (key: string, name: string, count: number, openByDefault: boolean, children: () => ReactNode) => {
+    const open = toggled[key] ?? openByDefault;
+    return (
+      <li key={key}>
+        <button type="button" className="group" aria-expanded={open} onClick={() => toggle(key, open)}>
+          <span aria-hidden="true">{open ? '▾' : '▸'}</span>
+          <span className="truncate">{name}</span>
+          <span className="ty">{count.toLocaleString('en-US')}</span>
+        </button>
+        {open && (
+          <ul className="schema-tree" aria-label={name}>
+            {children()}
+          </ul>
+        )}
+      </li>
+    );
+  };
+
+  /** The tables of "All tables" or "Matches": by area for Graph (areas and subgroups open when `groupsOpen`), else flat. */
+  const renderTables = (prefix: string, items: Listed[], groupsOpen: boolean) => {
+    const rows = (list: Listed[]) => list.map((i) => renderTable(`${prefix}:${i.table.name}`, i.table, i.columns, i.open));
+    if (!byAreas) {
+      return rows(items);
+    }
+    return byArea(items).map((area) =>
+      renderGroup(`${prefix}-area:${area.name}`, area.name, area.items.length, groupsOpen, () =>
+        area.name === SPLIT_AREA
+          ? bySegment(area.items).map((segment) =>
+              renderGroup(`${prefix}-area:${area.name}/${segment.name}`, segment.name, segment.items.length, groupsOpen, () =>
+                rows(segment.items),
+              ),
+            )
+          : rows(area.items),
+      ),
+    );
+  };
+
+  const all = useMemo(() => tables.map((table): Listed => ({ table, columns: table.columns, open: false })), [tables]);
+
   return (
     <aside className="side" aria-label={title}>
       <h2>{title}</h2>
@@ -145,7 +249,9 @@ export function SchemaPanel({ source = 'graph', schema, error, resourceTypes, re
             {found.length === 0 && functions.length === 0 && types.length === 0 ? (
               <p className="faint m-0 px-[14px] text-[12px]">No table or column matches.</p>
             ) : (
-              <ul className="schema-tree">{found.map((f) => renderTable(`find:${f.table.name}`, f.table, f.columns, f.open))}</ul>
+              <ul className="schema-tree" aria-label="Matches">
+                {renderTables('find', found, true)}
+              </ul>
             )}
           </>
         ) : (
@@ -153,11 +259,15 @@ export function SchemaPanel({ source = 'graph', schema, error, resourceTypes, re
             {inQuery.length > 0 && (
               <>
                 <h2 className="pt-1">In this query</h2>
-                <ul className="schema-tree">{inQuery.map((t) => renderTable(`query:${t.name}`, t, t.columns, true))}</ul>
+                <ul className="schema-tree" aria-label="In this query">
+                  {inQuery.map((t) => renderTable(`query:${t.name}`, t, t.columns, true))}
+                </ul>
               </>
             )}
             <h2>All tables</h2>
-            <ul className="schema-tree">{tables.map((t) => renderTable(`all:${t.name}`, t, t.columns, false))}</ul>
+            <ul className="schema-tree" aria-label="All tables">
+              {renderTables('all', all, false)}
+            </ul>
           </>
         )}
         {functions.length > 0 && (

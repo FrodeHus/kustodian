@@ -27,10 +27,128 @@ describe('SchemaPanel', () => {
     fireEvent.click(column);
 
     expect(onInsert).toHaveBeenCalledWith('onPremisesPublishing');
-    expect(screen.getAllByRole('button', { expanded: true }).map((b) => b.textContent)).toEqual([expect.stringContaining('applications')]);
+    // The match keeps its area, opened.
+    expect(screen.getAllByRole('button', { expanded: true }).map((b) => b.textContent)).toEqual([
+      expect.stringContaining('Apps and permissions'),
+      expect.stringContaining('applications'),
+    ]);
   });
 
   const column = (name: string, type: string) => ({ name, type, description: '', filterable: null, listable: null, complexType: null, collection: false });
+
+  /** A Graph table as `SchemaView.From` writes it: the name is the path with `/` as `_`, and the host gives its area. */
+  const graphTable = (path: string, area: string) => ({
+    name: path.replaceAll('/', '_'),
+    path,
+    area,
+    description: '',
+    docsUrl: null,
+    permissions: [],
+    columns: [column('id', 'string')],
+  });
+
+  const graph: SchemaView = {
+    ...view,
+    // Schema order is by name, as the host sends it; the panel orders the areas itself.
+    tables: [
+      graphTable('auditLogs/signIns', 'Sign-in and audit logs'),
+      graphTable('authenticationMethodDevices', 'Devices and Intune'),
+      graphTable('copilot/conversations', 'Other'),
+      graphTable('deviceAppManagement/mobileApps', 'Devices and Intune'),
+      graphTable('deviceManagement/deviceCompliancePolicies', 'Devices and Intune'),
+      graphTable('deviceManagement/managedDevices', 'Devices and Intune'),
+      graphTable('devices', 'Devices and Intune'),
+      graphTable('security/alerts_v2', 'Security'),
+      graphTable('users', 'Users, groups and directory'),
+    ],
+  };
+
+  const allTables = () => screen.getByRole('list', { name: 'All tables' });
+  /** The rows directly in a list: its areas, subgroups or tables, not what they hold. */
+  const rows = (list: HTMLElement) => [...list.children].map((li) => li.querySelector('button')?.textContent);
+
+  it('schema_panel_groups_graph_tables_by_area_in_order_with_counts', () => {
+    render(<SchemaPanel schema={graph} text="" onInsert={() => undefined} />);
+
+    // Closed by default, in the fixed order, with counts; areas without tables don't show.
+    expect(rows(allTables())).toEqual([
+      '▸Users, groups and directory1',
+      '▸Sign-in and audit logs1',
+      '▸Devices and Intune5',
+      '▸Security1',
+      '▸Other1',
+    ]);
+    expect(screen.queryByRole('button', { name: /^users/ })).toBeNull();
+  });
+
+  it('schema_panel_splits_devices_and_intune_by_first_path_segment', () => {
+    render(<SchemaPanel schema={graph} text="" onInsert={() => undefined} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Devices and Intune/ }));
+    const subgroups = screen.getByRole('list', { name: 'Devices and Intune' });
+    expect(rows(subgroups)).toEqual(['▸deviceManagement2', '▸deviceAppManagement1', '▸Top level2']);
+
+    fireEvent.click(within(subgroups).getByRole('button', { name: /^Top level/ }));
+    expect(rows(screen.getByRole('list', { name: 'Top level' }))).toEqual([
+      expect.stringMatching(/^▸authenticationMethodDevices/),
+      expect.stringMatching(/^▸devices/),
+    ]);
+  });
+
+  it('schema_panel_nested_table_shows_its_graph_path_and_keeps_its_behaviour', () => {
+    const onInsert = vi.fn();
+    render(<SchemaPanel schema={graph} text="" onInsert={onInsert} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Sign-in and audit logs/ }));
+    const signIns = screen.getByRole('button', { name: /auditLogs_signIns/ });
+    expect(within(signIns).getByText('auditLogs/signIns')).toBeTruthy();
+    expect(signIns.title).toBe('auditLogs_signIns (auditLogs/signIns)');
+    fireEvent.doubleClick(signIns);
+    expect(onInsert).toHaveBeenCalledWith('auditLogs_signIns');
+    fireEvent.click(signIns);
+    expect(screen.getByRole('button', { name: /^id/ })).toBeTruthy();
+
+    // A top-level collection's path is its name: not repeated.
+    fireEvent.click(screen.getByRole('button', { name: /Users, groups and directory/ }));
+    expect(screen.getByRole('button', { name: /^users/ }).textContent).toBe('▸users1 columns');
+  });
+
+  it('schema_panel_search_keeps_the_grouping_and_opens_matching_areas', () => {
+    render(<SchemaPanel schema={graph} text="" onInsert={() => undefined} />);
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find a table or column' }), { target: { value: 'managedDev' } });
+
+    expect(rows(screen.getByRole('list', { name: 'Matches' }))).toEqual(['▾Devices and Intune1']);
+    expect(rows(screen.getByRole('list', { name: 'Devices and Intune' }))).toEqual(['▾deviceManagement1']);
+    expect(rows(screen.getByRole('list', { name: 'deviceManagement' }))).toEqual([expect.stringMatching(/^▸deviceManagement_managedDevices/)]);
+  });
+
+  it('schema_panel_in_this_query_stays_flat', () => {
+    render(<SchemaPanel schema={graph} text="users | join (auditLogs_signIns) on id" onInsert={() => undefined} />);
+
+    expect(rows(screen.getByRole('list', { name: 'In this query' }))).toEqual([
+      expect.stringMatching(/^▾auditLogs_signIns/),
+      expect.stringMatching(/^▾users/),
+    ]);
+  });
+
+  it('schema_panel_keeps_hunting_and_arg_tables_flat', () => {
+    const arg: SchemaView = {
+      source: 'arg',
+      origin: 'builtIn',
+      fallbackReason: null,
+      generatedAt: '2026-10-21T00:00:00Z',
+      complexTypes: {},
+      functions: [],
+      tables: [
+        { name: 'Resources', path: null, area: null, description: '', docsUrl: null, permissions: null, columns: [column('name', 'string')] },
+        { name: 'ResourceContainers', path: null, area: null, description: '', docsUrl: null, permissions: null, columns: [column('name', 'string')] },
+      ],
+    };
+    render(<SchemaPanel source="arg" schema={arg} text="" resourceTypes={[]} onInsert={() => undefined} />);
+
+    expect(rows(allTables())).toEqual(['▸Resources1 columns', '▸ResourceContainers1 columns']);
+  });
 
   it('schema_panel_shows_hunting_tables_and_functions', () => {
     const onInsert = vi.fn();
@@ -40,7 +158,7 @@ describe('SchemaPanel', () => {
       fallbackReason: null,
       generatedAt: '2026-10-21T00:00:00Z',
       complexTypes: {},
-      tables: [{ name: 'DeviceInfo', path: null, description: 'Devices.', docsUrl: null, permissions: null, columns: [column('DeviceId', 'string')] }],
+      tables: [{ name: 'DeviceInfo', path: null, area: null, description: 'Devices.', docsUrl: null, permissions: null, columns: [column('DeviceId', 'string')] }],
       functions: [{ name: 'FileProfile', description: 'What Microsoft knows about a file.', parameters: [{ name: 'SHA1', type: 'string' }, { name: 'limit', type: 'long' }] }],
     };
     render(<SchemaPanel source="hunting" schema={hunting} text="DeviceInfo" onInsert={onInsert} />);
@@ -67,7 +185,7 @@ describe('SchemaPanel', () => {
       generatedAt: '2026-10-21T00:00:00Z',
       complexTypes: {},
       functions: [],
-      tables: [{ name: 'Resources', path: null, description: '', docsUrl: null, permissions: null, columns: [column('name', 'string'), column('properties', 'dynamic')] }],
+      tables: [{ name: 'Resources', path: null, area: null, description: '', docsUrl: null, permissions: null, columns: [column('name', 'string'), column('properties', 'dynamic')] }],
     };
     const types = ['microsoft.compute/virtualmachines', 'microsoft.storage/storageaccounts'];
     const view = render(<SchemaPanel source="arg" schema={arg} text="" resourceTypes={types} onInsert={onInsert} />);

@@ -19,6 +19,9 @@ export interface SchemaTable {
   name: string;
   /** The Graph collection relative to the version (`auditLogs/signIns` for `auditLogs_signIns`). */
   path: string | null;
+  /** The data area the schema panel groups a Graph table under (the host's `graph-areas.json`; `Other` when unmapped); null for
+   * other sources. */
+  area: string | null;
   description: string;
   docsUrl: string | null;
   permissions: string[] | null;

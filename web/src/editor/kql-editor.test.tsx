@@ -90,7 +90,7 @@ const huntingView: SchemaView = {
   origin: 'tenant',
   fallbackReason: null,
   generatedAt: '2026-10-21T00:00:00Z',
-  tables: [{ name: 'DeviceInfo', path: null, description: '', docsUrl: null, permissions: null, columns: [] }],
+  tables: [{ name: 'DeviceInfo', path: null, area: null, description: '', docsUrl: null, permissions: null, columns: [] }],
   functions: [],
   complexTypes: {},
 };

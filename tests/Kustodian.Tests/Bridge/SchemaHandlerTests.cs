@@ -49,7 +49,7 @@ public class SchemaHandlerTests
         Assert.Equal(JsonValueKind.Null, view.GetProperty("fallbackReason").ValueKind);
         var table = view.GetProperty("tables")[0];
         Assert.Equal("DeviceProcessEvents", table.GetProperty("name").GetString());
-        foreach (var graphOnly in new[] { "path", "docsUrl", "permissions" })
+        foreach (var graphOnly in new[] { "path", "area", "docsUrl", "permissions" })
         {
             Assert.Equal(JsonValueKind.Null, table.GetProperty(graphOnly).ValueKind);
         }
@@ -102,6 +102,7 @@ public class SchemaHandlerTests
         Assert.Equal(40, tables.Count);
         var resources = tables.Single(t => t.GetProperty("name").GetString() == "Resources");
         Assert.Equal(JsonValueKind.Null, resources.GetProperty("path").ValueKind);
+        Assert.Equal(JsonValueKind.Null, resources.GetProperty("area").ValueKind);
         var properties = resources.GetProperty("columns").EnumerateArray().Single(c => c.GetProperty("name").GetString() == "properties");
         Assert.Equal("dynamic", properties.GetProperty("type").GetString());
         Assert.Equal(JsonValueKind.Null, properties.GetProperty("filterable").ValueKind);

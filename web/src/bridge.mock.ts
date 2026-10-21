@@ -115,6 +115,7 @@ const column = (name: string, type: string) => ({ name, type, description: '', f
 const table = (name: string, description: string, columns: [string, string][]) => ({
   name,
   path: null,
+  area: null,
   description,
   docsUrl: null,
   permissions: null,

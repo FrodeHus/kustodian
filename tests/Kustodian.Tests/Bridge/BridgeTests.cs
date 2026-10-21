@@ -271,6 +271,10 @@ public class BridgeTests
         // The raw tab completes Graph paths, not KQL table names.
         var signIns = tables.Single(t => t.GetProperty("name").GetString() == "auditLogs_signIns");
         Assert.Equal("auditLogs/signIns", signIns.GetProperty("path").GetString());
+        // Every Graph table carries its data area, worked out from the path; the panel groups by it.
+        Assert.Equal("Users, groups and directory", users.GetProperty("area").GetString());
+        Assert.Equal("Sign-in and audit logs", signIns.GetProperty("area").GetString());
+        Assert.All(tables, t => Assert.Contains(t.GetProperty("area").GetString(), GraphAreas.Names));
         Assert.NotEmpty(users.GetProperty("permissions").EnumerateArray());
         Assert.False(string.IsNullOrEmpty(users.GetProperty("docsUrl").GetString()));
         Assert.Equal(JsonValueKind.String, users.GetProperty("description").ValueKind);

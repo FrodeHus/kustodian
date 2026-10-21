@@ -13,6 +13,7 @@ const view: SchemaView = {
     {
       name: 'applications',
       path: 'applications',
+      area: 'Apps and permissions',
       description: 'App registrations.',
       docsUrl: '',
       permissions: ['Application.Read.All'],
@@ -77,6 +78,7 @@ describe('toKustoSchema', () => {
         {
           name: 'DeviceInfo',
           path: null,
+          area: null,
           description: '',
           docsUrl: null,
           permissions: null,
@@ -182,6 +184,7 @@ describe('toKustoSchema', () => {
         {
           name: 'Resources',
           path: null,
+          area: null,
           description: '',
           docsUrl: null,
           permissions: null,

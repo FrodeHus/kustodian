@@ -147,7 +147,7 @@ describe('App', () => {
       generatedAt: '2026-10-21T00:00:00Z',
       complexTypes: {},
       functions: [],
-      tables: [{ name: source === 'arg' ? 'Resources' : 'DeviceInfo', path: null, description: '', docsUrl: null, permissions: null, columns: [] }],
+      tables: [{ name: source === 'arg' ? 'Resources' : 'DeviceInfo', path: null, area: null, description: '', docsUrl: null, permissions: null, columns: [] }],
     });
     answers['schema.get'] = (p) => {
       const { source } = p as { source: string };
@@ -190,7 +190,7 @@ describe('App', () => {
     render(<App />);
 
     expect(await screen.findByRole('tab', { name: /Query 1/ })).toBeTruthy();
-    expect(await screen.findByRole('searchbox', { name: 'Find a table or column' })).toHaveProperty('placeholder', 'Find among 5 tables');
+    expect(await screen.findByRole('searchbox', { name: 'Find a table or column' })).toHaveProperty('placeholder', 'Find among 7 tables');
     fireEvent.change(await screen.findByRole('textbox', { name: 'KQL query' }), { target: { value: 'applications' } });
     fireEvent.click(screen.getByRole('button', { name: 'Run all Shift Enter' }));
 
