@@ -1,0 +1,85 @@
+using System.Globalization;
+using System.Net;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
+
+namespace Kustodian.Graph.Fetch;
+
+/// <summary>Turns what Graph answered with into a message fit to show: its <c>error.message</c>, or a short line for a web page
+/// a backend behind Graph passed through (an IIS 404 when a selected property can't be read in a list).</summary>
+public static partial class GraphErrorText
+{
+    private const int MaxLength = 200;
+
+    /// <summary>What a sign-in failure says.</summary>
+    public const string SignInMessage = "Graph rejected the sign-in. Sign in again to continue.";
+
+    [GeneratedRegex("<title[^>]*>(?<text>.*?)(?:</title>|$)", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.CultureInvariant)]
+    private static partial Regex Title();
+
+    [GeneratedRegex("<h[1-6][^>]*>(?<text>.*?)(?:</h[1-6]>|$)", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.CultureInvariant)]
+    private static partial Regex Heading();
+
+    [GeneratedRegex("<[^>]*>", RegexOptions.CultureInvariant)]
+    private static partial Regex Tags();
+
+    /// <summary>A message for a failed answer. A web page gives <c>"{status} from Graph's backend: {title or first heading}"</c>,
+    /// cut to 200 characters; JSON gives its <c>error.message</c>; anything else gives the status alone.</summary>
+    public static string Summarize(int status, string? body)
+    {
+        var raw = Extract(body);
+        return raw is null ? $"{status.ToString(CultureInfo.InvariantCulture)} from Graph" : Describe(status, raw);
+    }
+
+    /// <summary>The message for a raw one (see <see cref="Extract(string?)"/>): itself, or the short line for a web page.</summary>
+    internal static string Describe(int status, string raw)
+    {
+        if (!IsHtml(raw))
+            return raw;
+        var code = status.ToString(CultureInfo.InvariantCulture);
+        var text = Plain(Title().Match(raw)) ?? Plain(Heading().Match(raw));
+        var summary = $"{code} from Graph's backend" + (text is null ? "" : ": " + text);
+        return summary.Length <= MaxLength ? summary : summary[..MaxLength];
+    }
+
+    /// <summary>Whether <paramref name="text"/> is a web page, not a message.</summary>
+    public static bool IsHtml(string? text) => text is not null && text.TrimStart().StartsWith('<');
+
+    /// <summary>The message in a response body: the <c>error.message</c> of JSON, else the body itself when it is a web page
+    /// (a web page inside the JSON message is returned as it is), else null.</summary>
+    internal static string? Extract(byte[] body) => Extract(Encoding.UTF8.GetString(body));
+
+    /// <inheritdoc cref="Extract(byte[])"/>
+    internal static string? Extract(string? body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+            return null;
+        if (IsHtml(body))
+            return body;
+        try
+        {
+            return JsonNode.Parse(body)?["error"]?["message"]?.GetValue<string>();
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Whether the answer is a 401 whose <c>WWW-Authenticate</c> says <c>error="invalid_token"</c>: the token is
+    /// bad (expired, revoked), not a permission missing.</summary>
+    internal static bool IsInvalidToken(HttpResponseMessage response)
+        => response.StatusCode == HttpStatusCode.Unauthorized
+            && response.Headers.TryGetValues("WWW-Authenticate", out var values)
+            && values.Any(v => v.Contains("error=\"invalid_token\"", StringComparison.OrdinalIgnoreCase));
+
+    private static string? Plain(Match match)
+    {
+        if (!match.Success)
+            return null;
+        var text = WebUtility.HtmlDecode(Tags().Replace(match.Groups["text"].Value, "")).Trim();
+        return text.Length == 0 ? null : text;
+    }
+}
