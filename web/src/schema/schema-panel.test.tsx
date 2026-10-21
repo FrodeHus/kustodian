@@ -292,4 +292,14 @@ describe('SchemaPanel', () => {
     render(<SchemaPanel source="hunting" schema={undefined} error="Graph is down." text="" onInsert={() => undefined} />);
     expect(screen.getByRole('alert').textContent).toBe('The schema couldn’t be loaded: Graph is down.');
   });
+
+  it('schema_panel_tags_the_columns_graph_lists_by_default_once_a_table_is_read', () => {
+    const { rerender } = render(<SchemaPanel schema={view} text="applications | take 5" onInsert={() => undefined} />);
+    // Not read yet: nothing is known, so no column is tagged.
+    expect(within(screen.getByRole('button', { name: /^appId/ })).queryByText('default')).toBeNull();
+
+    rerender(<SchemaPanel schema={view} listedByDefault={{ applications: ['id', 'appId'] }} text="applications | take 5" onInsert={() => undefined} />);
+    expect(within(screen.getByRole('button', { name: /^appId/ })).getByText('default')).toBeTruthy();
+    expect(within(screen.getByRole('button', { name: /^identifierUris/ })).queryByText('default')).toBeNull();
+  });
 });

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { BridgeError, call } from '../bridge';
 import { errorText } from '../shell/errors';
 import { useTabs } from '../tabs/tab-store';
-import type { ArmResourceTypesAnswer, SchemaView, Source } from '../wire';
+import type { ArmResourceTypesAnswer, ListedByDefault, SchemaView, Source } from '../wire';
 
 /** The sources with a schema of their own. A raw request tab completes against Graph's. */
 export type SchemaSource = Exclude<Source, 'raw'>;
@@ -23,6 +23,11 @@ interface SchemasState {
   resourceTypesError: string | null;
   /** What helps when they couldn't be read: granting Azure access, signing in again, or nothing the panel can offer. */
   resourceTypesFix: ResourceTypesFix;
+  /** For the active account, the columns Graph lists by default for each Graph table read so far, by table name
+   * (`schema.listedByDefault`). A table not in it hasn't been read yet, so its columns get no "default" tag. */
+  listedByDefault: Record<string, string[]>;
+  /** Reads `listedByDefault` again: after the Graph schema is read, and after each Graph run, which may have read new tables. */
+  loadListedByDefault(): Promise<void>;
   /** Reads `source`'s schema (`schema.get`); `refresh` skips the host's cache. Resolves once it is read or has failed. */
   load(source: SchemaSource, opts?: { refresh?: boolean }): Promise<void>;
   /** Reads the resource types again (Azure access was granted, or the account signed in again), when a Resource Graph tab is
@@ -34,13 +39,17 @@ interface SchemasState {
 
 export type ResourceTypesFix = 'consent' | 'signIn' | null;
 
-const empty = (): Pick<SchemasState, 'byKey' | 'errors' | 'loading' | 'resourceTypes' | 'resourceTypesError' | 'resourceTypesFix'> => ({
+const empty = (): Pick<
+  SchemasState,
+  'byKey' | 'errors' | 'loading' | 'resourceTypes' | 'resourceTypesError' | 'resourceTypesFix' | 'listedByDefault'
+> => ({
   byKey: { graph: undefined, hunting: undefined, arg: undefined, raw: undefined },
   errors: {},
   loading: {},
   resourceTypes: undefined,
   resourceTypesError: null,
   resourceTypesFix: null,
+  listedByDefault: {},
 });
 
 const fixOf = (e: unknown): ResourceTypesFix =>
@@ -50,7 +59,7 @@ const fixOf = (e: unknown): ResourceTypesFix =>
 let generation = 0;
 /** Counts each source's reads, and the resource types' reads: only the latest read's answer is kept, so an older read that answers
  * after a refresh can't replace it. */
-const requests: Record<SchemaSource | 'types', number> = { graph: 0, hunting: 0, arg: 0, types: 0 };
+const requests: Record<SchemaSource | 'types' | 'defaults', number> = { graph: 0, hunting: 0, arg: 0, types: 0, defaults: 0 };
 
 /**
  * One schema per source (spec 8), read lazily: a source is read when its first tab opens ({@link startSchemaLoading}), and read
@@ -69,6 +78,19 @@ export const useSchemas = create<SchemasState>()((set) => ({
     await readTypes();
   },
 
+  async loadListedByDefault() {
+    const at = generation;
+    const request = ++requests.defaults;
+    try {
+      const answer = await call<ListedByDefault>('schema.listedByDefault', { source: 'graph' });
+      if (at === generation && request === requests.defaults) {
+        set({ listedByDefault: answer.tables });
+      }
+    } catch {
+      // Only the tags are missing; the schema itself is unaffected, so nothing is shown.
+    }
+  },
+
   async load(source, opts) {
     const refresh = opts?.refresh ?? false;
     const at = generation;
@@ -84,6 +106,9 @@ export const useSchemas = create<SchemasState>()((set) => ({
           delete errors[source];
           return { byKey: { ...s.byKey, [source]: view }, errors };
         });
+        if (source === 'graph') {
+          void useSchemas.getState().loadListedByDefault();
+        }
       }
     } catch (e) {
       if (latest()) {
@@ -131,11 +156,24 @@ function loadMissing() {
   }
 }
 
+type Tabs = ReturnType<typeof useTabs.getState>['tabs'];
+
+/** Whether a Graph run finished since `previous`: the host may have learnt a table's default columns during it. */
+function graphRunFinished(tabs: Tabs, previous: Tabs): boolean {
+  const before = new Map(previous.map((t) => [t.id, t.run]));
+  return tabs.some(
+    (t) => t.run && t.run !== before.get(t.id) && t.run.state === 'done' && (t.run.source ?? 'graph') === 'graph' && before.get(t.id)?.state === 'running',
+  );
+}
+
 /** Starts reading schemas as tabs of each source open, and again after a reset; returns the function that stops it. */
 export function startSchemaLoading(): () => void {
   const stopTabs = useTabs.subscribe((state, previous) => {
     if (state.tabs !== previous.tabs) {
       loadMissing();
+      if (graphRunFinished(state.tabs, previous.tabs)) {
+        void useSchemas.getState().loadListedByDefault();
+      }
     }
   });
   const stopSchemas = useSchemas.subscribe((state, previous) => {
