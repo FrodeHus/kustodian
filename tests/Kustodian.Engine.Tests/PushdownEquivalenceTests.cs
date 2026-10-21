@@ -24,10 +24,21 @@ public sealed class PushdownEquivalenceTests
         new("weight", "real", "", ["eq", "ne", "gt", "ge", "lt", "le"], false, null),
         new("isDisabled", "bool", "", ["eq", "ne"], false, null),
         new("notes", "string", "", [], false, null),
+        new("mail", "string", "", ["eq", "ne", "startsWith", "endsWith"], false, null),
+        new("tags", "dynamic", "", ["eq", "not"], false, null, Collection: true),
+        new("signIn", "dynamic", "Supports $filter (eq, ne, not, ge, le) but not with any other filterable properties.", ["eq", "ne", "not", "ge", "le"],
+            false, "test.signIn"),
     ], DirectoryObject: true);
 
     private static readonly GraphSchema Schema = new("test", DateTimeOffset.UnixEpoch, [Applications],
-        new Dictionary<string, IReadOnlyList<GraphField>>());
+        new Dictionary<string, IReadOnlyList<GraphField>>
+        {
+            ["test.signIn"] = [new("lastSignInDateTime", "datetime", false, null, ""), new("requestId", "string", false, null, "")],
+        });
+
+    private static readonly string[] Mails = ["adele@contoso.com", "ADELE@Contoso.com", "megan@fabrikam.com", "it@contoso.co", ""];
+
+    private static readonly string[] Tags = ["HideApp", "hideapp", "WindowsAzureActiveDirectoryIntegratedApp", "Finance", ""];
 
     // "" is where Graph and KQL part ways: Graph keeps an empty string apart from a missing value, KQL reads both as "".
     // Objects get "", a value, or no property at all.
@@ -66,7 +77,34 @@ public sealed class PushdownEquivalenceTests
         "signInAudience in ('azureadmyorg', 'AzureADMultipleOrgs')",
         "createdDateTime < now()",
         "isnull(createdDateTime) or keyCount > 3",
+        "mail endswith '@CONTOSO.com'",
+        "mail endswith_cs '@contoso.com'",
+        "isnotempty(mail)",
+        "isnotempty(createdDateTime)",
+        "tolower(displayName) == 'payroll portal'",
+        "toupper(displayName) == 'payroll portal'",
+        "tolower(mail) =~ 'ADELE@contoso.com'",
+        "set_has_element(tags, 'HideApp')",
+        "set_has_element(tags, 'hideapp') and keyCount > 1",
+        "todatetime(signIn.lastSignInDateTime) < ago(1d)",
+        "todatetime(signIn.lastSignInDateTime) between (datetime(2026-01-01) .. now()) and keyCount > 2",
+        "signIn.requestId == 'r1'",
+        "keyCount between (2 .. 4)",
+        "weight between (1.0 .. 2.5)",
+        "tags has 'HideApp'",
     ];
+
+    /// <summary>The second round's forms, each of which must actually be sent, so the property covers them.</summary>
+    [Theory]
+    [InlineData("mail endswith '@CONTOSO.com'", "endswith(mail,'@CONTOSO.com')")]
+    [InlineData("isnotempty(mail)", "mail ne null")]
+    [InlineData("tolower(displayName) == 'payroll portal'", "displayName eq 'payroll portal'")]
+    [InlineData("set_has_element(tags, 'HideApp')", "tags/any(p:p eq 'HideApp')")]
+    [InlineData("todatetime(signIn.lastSignInDateTime) < ago(1d)", "signIn/lastSignInDateTime le 2026-10-19T08:00:00Z")]
+    [InlineData("signIn.requestId == 'r1' and keyCount > 1", "signIn/requestId eq 'r1'")]
+    [InlineData("keyCount between (2 .. 4)", "keyCount ge 2 and keyCount le 4")]
+    public void The_new_forms_are_pushed(string predicate, string filter)
+        => Assert.Equal(filter, GraphQueryPlanner.Plan(Schema, $"applications | where {predicate}", Now).Fetches.Single().Filter);
 
     [Fact]
     public void Pushed_filter_never_changes_the_answer()
@@ -77,6 +115,7 @@ public sealed class PushdownEquivalenceTests
 
         var pushed = 0;
         var narrowed = 0;
+        var counted = 0;
         foreach (var predicate in predicates)
         {
             var kql = $"applications | where {predicate} | project id | order by id asc";
@@ -94,7 +133,16 @@ public sealed class PushdownEquivalenceTests
             var filtered = Ids(kql, kept);
             Assert.True(all.SequenceEqual(filtered),
                 $"{kql}\n$filter={filter}\nall: {string.Join(",", all)}\nfiltered: {string.Join(",", filtered)}");
+
+            // A count Graph is asked for has to be the query's count: Graph keeps exactly the query's rows.
+            var count = $"applications | where {predicate} | count";
+            if (GraphQueryPlanner.Plan(Schema, count, Now).Fetches.Single().Count is not null)
+            {
+                counted++;
+                Assert.True(kept.Count == all.Count, $"{count}\n$filter={filter}\nGraph counts {kept.Count}, the query {all.Count}");
+            }
         }
+        Assert.True(counted >= 10, $"only {counted} predicates were counted by Graph");
 
         // The property is only worth something if most predicates were pushed and actually narrowed the fetch.
         Assert.True(pushed >= predicates.Count * 2 / 3, $"only {pushed} of {predicates.Count} predicates were pushed");
@@ -159,6 +207,19 @@ public sealed class PushdownEquivalenceTests
         if (random.Next(4) > 0)
             o["isDisabled"] = random.Next(2) == 0;
         o["notes"] = random.Next(2) == 0 ? "owned by finance" : "legacy";
+        if (random.Next(4) > 0)
+            o["mail"] = Mails[random.Next(Mails.Length)];
+        if (random.Next(4) > 0)
+            o["tags"] = new JsonArray([.. Enumerable.Range(0, random.Next(0, 3)).Select(_ => (JsonNode)Tags[random.Next(Tags.Length)])]);
+        if (random.Next(4) > 0)
+        {
+            var signIn = new JsonObject();
+            if (random.Next(5) > 0)
+                signIn["lastSignInDateTime"] = Instants[random.Next(Instants.Length)];
+            if (random.Next(2) > 0)
+                signIn["requestId"] = random.Next(2) == 0 ? "r1" : "R1";
+            o["signIn"] = signIn;
+        }
         return o;
     }
 
@@ -186,8 +247,14 @@ public sealed class PushdownEquivalenceTests
         string Audience() => Quote(Perturb(random, Pick(Audiences)));
         string Comparison() => Pick(["<", "<=", ">", ">=", "==", "!="]);
 
-        return random.Next(17) switch
+        return random.Next(24) switch
         {
+            17 => $"mail {Pick(["endswith", "endswith_cs"])} {Quote(Perturb(random, Pick(["@contoso.com", "contoso.co", "@fabrikam.com", "m"])))}",
+            18 => $"isnotempty({Pick(["mail", "displayName", "createdDateTime", "keyCount"])})",
+            19 => $"{Pick(["tolower", "toupper"])}({Pick(["displayName", "mail"])}) {Pick(["==", "=~"])} {Quote(Perturb(random, Pick([.. Names, .. Mails])))}",
+            20 => $"set_has_element(tags, {Quote(Perturb(random, Pick(Tags)))})",
+            21 => $"todatetime(signIn.lastSignInDateTime) {Pick(["<", "<=", ">", ">="])} {Pick(DateLiterals)}",
+            22 => $"keyCount between ({random.Next(0, 4)} .. {random.Next(2, 7)})",
             0 => $"displayName {Pick(["==", "=~"])} {Name()}",
             1 => $"displayName {Pick(["in", "in~"])} ({Name()}, {Name()})",
             2 => $"displayName {Pick(["startswith", "startswith_cs"])} {Prefix()}",

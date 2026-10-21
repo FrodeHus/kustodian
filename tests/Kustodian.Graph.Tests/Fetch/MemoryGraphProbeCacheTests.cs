@@ -85,4 +85,29 @@ public sealed class MemoryGraphProbeCacheTests
         await cache.RemoveAccountAsync("a", Ct);
         Assert.False(await cache.RefusesTopAsync("a", "users", Ct));
     }
+
+    [Fact]
+    public async Task Refused_clauses_are_kept_per_account_and_table_until_the_ttl_or_they_are_forgotten()
+    {
+        var time = new FakeTimeProvider();
+        var cache = new MemoryGraphProbeCache(time);
+        await cache.SetRefusedAsync("a", "users", "$orderby", true, Ct);
+        await cache.SetRefusedAsync("a", "users", "endswith(mail)", true, Ct);
+
+        Assert.Equal(["$orderby", "endswith(mail)"], (await cache.RefusedAsync("a", "users", Ct)).Order(StringComparer.Ordinal));
+        Assert.Empty(await cache.RefusedAsync("b", "users", Ct));
+        Assert.Empty(await cache.RefusedAsync("a", "groups", Ct));
+        await cache.SetRefusedAsync("a", "users", "$orderby", false, Ct);
+        Assert.Equal(["endswith(mail)"], await cache.RefusedAsync("a", "users", Ct));
+
+        time.Advance(GraphLimits.Default.ProbeCacheTtl);
+        Assert.Empty(await cache.RefusedAsync("a", "users", Ct));
+
+        await cache.SetRefusedAsync("a", "users", "$count", true, Ct);
+        await cache.RemoveAccountAsync("a", Ct);
+        Assert.Empty(await cache.RefusedAsync("a", "users", Ct));
+        await cache.SetRefusedAsync("a", "users", "$count", true, Ct);
+        await cache.ClearAsync(Ct);
+        Assert.Empty(await cache.RefusedAsync("a", "users", Ct));
+    }
 }

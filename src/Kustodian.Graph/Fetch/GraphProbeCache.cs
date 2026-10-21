@@ -15,8 +15,9 @@ public sealed record GraphDefaultColumns(IReadOnlyList<string> Columns, DateTime
 /// What the reader learnt about how a table lists for an account, kept for a while (<see cref="GraphLimits.ProbeCacheTtl"/>), so a
 /// run soon after another needn't ask again: some collections (sign-in logs) throttle hard. The columns probing found a table
 /// can't serve in a list are left out straight away instead of probed again, the columns Graph lists by default are what a
-/// query that names no other column selects, and a table that refused <c>$top</c> is read without it. An entry is one table (its
-/// path) of one account.
+/// query that names no other column selects, a table that refused <c>$top</c> is read without it, and a pushed clause it refused
+/// (<c>$count</c>, <c>$orderby</c>, a filter clause's feature, <see cref="Query.FilterClause.Feature"/>) isn't sent again. An entry
+/// is one table (its path) of one account.
 /// </summary>
 public interface IGraphProbeCache
 {
@@ -41,6 +42,14 @@ public interface IGraphProbeCache
 
     /// <summary>Keeps whether Graph refuses <c>$top</c> for the table, found now; false forgets an earlier refusal.</summary>
     ValueTask SetRefusesTopAsync(string accountKey, string path, bool refuses, CancellationToken ct);
+
+    /// <summary>The clauses Graph refused for the table (those that haven't expired): <c>$count</c>, <c>$orderby</c>, or a filter
+    /// clause's feature.</summary>
+    ValueTask<IReadOnlySet<string>> RefusedAsync(string accountKey, string path, CancellationToken ct);
+
+    /// <summary>Keeps whether Graph refuses <paramref name="clause"/> for the table, found now; false forgets an earlier
+    /// refusal.</summary>
+    ValueTask SetRefusedAsync(string accountKey, string path, string clause, bool refused, CancellationToken ct);
 
     /// <summary>Forgets everything of the account.</summary>
     ValueTask RemoveAccountAsync(string accountKey, CancellationToken ct);
@@ -73,6 +82,12 @@ public sealed class NoGraphProbeCache : IGraphProbeCache
 
     public ValueTask SetRefusesTopAsync(string accountKey, string path, bool refuses, CancellationToken ct) => ValueTask.CompletedTask;
 
+    public ValueTask<IReadOnlySet<string>> RefusedAsync(string accountKey, string path, CancellationToken ct)
+        => ValueTask.FromResult<IReadOnlySet<string>>(new HashSet<string>());
+
+    public ValueTask SetRefusedAsync(string accountKey, string path, string clause, bool refused, CancellationToken ct)
+        => ValueTask.CompletedTask;
+
     public ValueTask RemoveAccountAsync(string accountKey, CancellationToken ct) => ValueTask.CompletedTask;
 
     public ValueTask ClearAsync(CancellationToken ct) => ValueTask.CompletedTask;
@@ -85,6 +100,7 @@ public sealed class MemoryGraphProbeCache(TimeProvider time, GraphLimits? limits
     private readonly ConcurrentDictionary<(string Account, string Path), GraphProbeFindings> _entries = new();
     private readonly ConcurrentDictionary<(string Account, string Path), GraphDefaultColumns> _defaults = new();
     private readonly ConcurrentDictionary<(string Account, string Path), DateTimeOffset> _refusesTop = new();
+    private readonly ConcurrentDictionary<(string Account, string Path, string Clause), DateTimeOffset> _refused = new();
     private readonly TimeSpan _ttl = (limits ?? GraphLimits.Default).ProbeCacheTtl;
 
     public ValueTask<GraphProbeFindings?> GetAsync(string accountKey, string path, CancellationToken ct)
@@ -155,8 +171,28 @@ public sealed class MemoryGraphProbeCache(TimeProvider time, GraphLimits? limits
         return ValueTask.CompletedTask;
     }
 
+    public ValueTask<IReadOnlySet<string>> RefusedAsync(string accountKey, string path, CancellationToken ct)
+    {
+        var now = time.GetUtcNow();
+        return ValueTask.FromResult<IReadOnlySet<string>>(_refused
+            .Where(e => e.Key.Account == accountKey && e.Key.Path == path && now - e.Value < _ttl)
+            .Select(e => e.Key.Clause)
+            .ToHashSet(StringComparer.Ordinal));
+    }
+
+    public ValueTask SetRefusedAsync(string accountKey, string path, string clause, bool refused, CancellationToken ct)
+    {
+        if (refused)
+            _refused[(accountKey, path, clause)] = time.GetUtcNow();
+        else
+            _refused.TryRemove((accountKey, path, clause), out _);
+        return ValueTask.CompletedTask;
+    }
+
     public ValueTask RemoveAccountAsync(string accountKey, CancellationToken ct)
     {
+        foreach (var key in _refused.Keys.Where(k => k.Account == accountKey))
+            _refused.TryRemove(key, out _);
         foreach (var key in _entries.Keys.Where(k => k.Account == accountKey))
             _entries.TryRemove(key, out _);
         foreach (var key in _defaults.Keys.Where(k => k.Account == accountKey))
@@ -171,6 +207,7 @@ public sealed class MemoryGraphProbeCache(TimeProvider time, GraphLimits? limits
         _entries.Clear();
         _defaults.Clear();
         _refusesTop.Clear();
+        _refused.Clear();
         return ValueTask.CompletedTask;
     }
 }

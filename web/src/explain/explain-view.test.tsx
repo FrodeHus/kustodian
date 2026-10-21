@@ -28,6 +28,9 @@ const plan: ExplainResult = {
       perObject: ['signInActivity'],
       permissions: ['User.Read.All', 'AuditLog.Read.All'],
       docsUrl: 'https://learn.microsoft.com/graph/api/resources/user',
+      orderBy: null,
+      count: false,
+      headers: [],
     },
   ],
   limits,
@@ -75,6 +78,28 @@ describe('ExplainView', () => {
 
     const table = await screen.findByRole('region', { name: 'users' });
     expect(within(table).getByText(/sent to Graph as \$top; the read stops after 10 objects\./)).toBeTruthy();
+  });
+
+  it('explain_shows_the_sort_and_the_advanced_query_header', async () => {
+    const url = 'users?$select=id&$orderby=createdDateTime%20desc&$count=true&$top=5';
+    bridge.call.mockResolvedValue({
+      ...plan,
+      tables: [{ ...plan.tables[0]!, url, top: 5, orderBy: 'createdDateTime desc', headers: ['ConsistencyLevel: eventual'] }],
+    });
+    render(<ExplainView request={request} />);
+
+    const table = await screen.findByRole('region', { name: 'users' });
+    expect(within(table).getByText(`GET /beta/${url} ConsistencyLevel: eventual`, { normalizer: (t) => t.replace(/\s+/g, ' ') })).toBeTruthy();
+    expect(within(table).getByText('createdDateTime desc')).toBeTruthy();
+    expect(within(table).getByText(/limited to 5 in Graph \(\$orderby and \$top\)/)).toBeTruthy();
+  });
+
+  it('explain_shows_a_count_graph_answers', async () => {
+    bridge.call.mockResolvedValue({ ...plan, tables: [{ ...plan.tables[0]!, url: 'users/$count', count: true, headers: ['ConsistencyLevel: eventual'] }] });
+    render(<ExplainView request={request} />);
+
+    const table = await screen.findByRole('region', { name: 'users' });
+    expect(within(table).getByText('Graph counts the objects; none is read.')).toBeTruthy();
   });
 
   it('explain_without_a_row_limit_says_every_page_is_read', async () => {

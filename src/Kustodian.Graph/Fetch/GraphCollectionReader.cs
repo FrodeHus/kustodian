@@ -30,6 +30,9 @@ public sealed record GraphCollection(IReadOnlyList<JsonObject> Objects, IReadOnl
     /// tenant lacks (<see cref="UnlicensedReason"/>, Graph's message): their values are empty.</summary>
     public IReadOnlyList<string> Unlicensed { get; init; } = [];
     public string? UnlicensedReason { get; init; }
+    /// <summary>Graph's count of the collection's objects that pass the filter, when the fetch asked for a count
+    /// (<see cref="GraphFetch.Count"/>) and Graph gave one: then no object was read.</summary>
+    public long? Count { get; init; }
 }
 
 /// <summary>
@@ -45,7 +48,15 @@ public sealed record GraphCollection(IReadOnlyList<JsonObject> Objects, IReadOnl
 /// A request Graph throttles (429) is sent once more after its <c>Retry-After</c> (at most <see cref="MaxRetryWait"/>, on
 /// <paramref name="time"/>). With a row limit (<see cref="GraphFetch.Top"/>) the list asks for no more than that as <c>$top</c>
 /// and stops once it has that many objects; a table that refuses <c>$top</c> is read again without it (still stopping early),
-/// and with <paramref name="probes"/> later runs leave it out at once.
+/// and with <paramref name="probes"/> later runs leave it out at once. A fetch that is a count (<see cref="GraphFetch.Count"/>) asks
+/// Graph for the count first (<c>/$count</c> on directory objects, else <c>$count=true</c>), and reads the objects only when
+/// Graph won't count. A sort (<see cref="GraphFetch.OrderBy"/>) is sent as <c>$orderby</c>, and what Graph returns is checked:
+/// out of order, or with a null in the sort column, the read starts again without the sort or the row limit. On directory
+/// objects a sort or a clause that needs it (<see cref="FilterClause.Advanced"/>) sends Graph's advanced query parameters, the
+/// <c>ConsistencyLevel: eventual</c> header and <c>$count=true</c>. When Graph refuses the first page with a 400, the sort is left
+/// out first, then the filter clauses with a feature (<see cref="FilterClause.Feature"/>), then the whole filter, each read
+/// again once; with <paramref name="probes"/> a refused sort, count or feature is remembered for the account and table and left
+/// out at once next time.
 /// </summary>
 public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budget, IGraphObjectCache cache, GraphLimits limits,
     IGraphProbeCache? probes = null, TimeProvider? time = null)
@@ -54,6 +65,10 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
     /// <summary>Probes spent finding the columns a backend can't serve in a list (one for <c>id</c> alone, then halves).</summary>
     public const int MaxProbes = 16;
     private const string GraphHost = "graph.microsoft.com";
+    /// <summary>The names <see cref="IGraphProbeCache.RefusedAsync"/> keeps a refused count and sort under; a filter clause's is its
+    /// feature.</summary>
+    public const string CountClause = "$count";
+    public const string OrderByClause = "$orderby";
     private const int PageSize = 999;
     private const int DefaultRetryAfterSeconds = 60;
     /// <summary>The longest a throttled request waits before it is sent once more.</summary>
@@ -89,7 +104,6 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         RunDiagnostics? diagnostics, CancellationToken ct)
     {
         var select = fetch.Select.ToList();
-        var filter = fetch.Filter;
         // The plan's unreadable columns (never selected in a list) first, then those Graph refuses.
         var unreadable = new List<string>(fetch.Unreadable);
         var refusedSelects = 0;
@@ -101,12 +115,41 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         var objects = new List<JsonObject>();
         var unfiltered = false;
         var path = fetch.Table.Path;
+        var table = fetch.Table.Name;
         var limit = fetch.Top;
         var sendTop = true;
         var refusedTopEarlier = false;
 
         try
         {
+            // A refresh sends what Graph refused earlier again, and forgets the refusals of what Graph then takes.
+            var refusedEarlier = await _probes.RefusedAsync(accountKey, path, ct);
+            var refused = refresh ? new HashSet<string>(StringComparer.Ordinal) : refusedEarlier.ToHashSet(StringComparer.Ordinal);
+            var clauses = fetch.FilterClauses.Where(c => c.Feature is null || !refused.Contains(c.Feature)).ToList();
+            var whole = clauses.Count == fetch.FilterClauses.Count;
+            if (!whole)
+                Log(diagnostics, DiagnosticKinds.Probe, $"{table}: left out (Graph refused it earlier) "
+                    + string.Join(", ", fetch.FilterClauses.Where(c => !clauses.Contains(c)).Select(c => c.OData)));
+            var orderBy = whole && !refused.Contains(OrderByClause) ? fetch.OrderBy : null;
+            if (fetch.OrderBy is not null && whole && orderBy is null)
+                Log(diagnostics, DiagnosticKinds.Probe, $"{table}: left out $orderby (Graph refused it earlier)");
+            // Without the whole filter or the sort, the first rows Graph sends aren't the query's.
+            if (!whole || (fetch.OrderBy is not null && orderBy is null))
+                limit = null;
+
+            var countRefused = false;
+            if (fetch.Count is not null && whole && !refused.Contains(CountClause))
+            {
+                var (count, refusedCount) = await CountAsync(accountKey, fetch, Filter(clauses), lease, requests, diagnostics, ct);
+                if (count is { } n)
+                {
+                    if (refusedEarlier.Contains(CountClause))
+                        await _probes.SetRefusedAsync(accountKey, path, CountClause, false, ct);
+                    return new GraphCollection([], requests, false, unreadable) { Count = n };
+                }
+                countRefused = refusedCount;
+            }
+
             if (_learnsDefaults && await DefaultColumnsAsync(accountKey, fetch, refresh, lease, requests, diagnostics, ct) is { } defaults)
             {
                 // A column outside the default set is selected only when the query names it.
@@ -115,7 +158,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                 if (others.Count > 0)
                 {
                     select.RemoveAll(others.Contains);
-                    Log(diagnostics, DiagnosticKinds.Probe, $"{fetch.Table.Name}: selected the columns Graph lists by default; left out "
+                    Log(diagnostics, DiagnosticKinds.Probe, $"{table}: selected the columns Graph lists by default; left out "
                         + string.Join(", ", others) + " (the query doesn't name them)");
                 }
             }
@@ -124,14 +167,14 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
             var notListed = earlier?.NotListed.Where(c => !refresh || !select.Contains(c)).ToList() ?? [];
             var deniedFound = earlier?.Denied.Where(c => !refresh || !select.Contains(c)).ToList() ?? [];
             if (!refresh && earlier is not null && LeaveOut(select, earlier, unreadable, denied) is { Length: > 0 } leftOut)
-                Log(diagnostics, DiagnosticKinds.Probe, $"{fetch.Table.Name}: left out (found earlier) {leftOut}");
+                Log(diagnostics, DiagnosticKinds.Probe, $"{table}: left out (found earlier) {leftOut}");
             if (await _probes.RefusesTopAsync(accountKey, path, ct))
             {
                 // A refresh sends it again, and forgets the refusal if Graph takes it.
                 refusedTopEarlier = refresh;
                 sendTop = refresh;
                 if (!refresh)
-                    Log(diagnostics, DiagnosticKinds.Probe, $"{fetch.Table.Name}: left out $top (Graph refused it earlier)");
+                    Log(diagnostics, DiagnosticKinds.Probe, $"{table}: left out $top (Graph refused it earlier)");
             }
 
             while (true)
@@ -139,8 +182,20 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                 objects.Clear();
                 // Once only: after one license refusal nothing more is left out for it.
                 var optional = unlicensedReason is null ? Optional(fetch, select) : [];
-                var retry = await ReadPagesAsync(accountKey, fetch, select, filter, limit, sendTop, lease, requests, objects, diagnostics,
-                    optional.Count > 0, unlicensedReason is not null, ct);
+                var filter = unfiltered ? null : Filter(clauses);
+                var advanced = Advanced(fetch.Table, unfiltered ? [] : clauses, orderBy);
+                var retry = await ReadPagesAsync(accountKey, fetch, new ListRequest(select, filter, limit, sendTop, orderBy, advanced), lease,
+                    requests, objects, diagnostics, optional.Count > 0, unlicensedReason is not null, ct);
+                if (retry is null && orderBy is not null && OutOfOrder(objects, orderBy) is { } why)
+                {
+                    // Graph may ignore an $orderby it doesn't support: the rows it sent aren't the first in the query's order.
+                    Log(diagnostics, DiagnosticKinds.Probe, $"{table}: Graph's rows {why}; reading without $orderby");
+                    if (why == NotInOrder)
+                        await _probes.SetRefusedAsync(accountKey, path, OrderByClause, true, ct);
+                    orderBy = null;
+                    limit = null;
+                    continue;
+                }
                 if (retry is null)
                 {
                     if (refusedTopEarlier && sendTop)
@@ -148,6 +203,8 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                     // A refresh that read without probing found nothing in what it selected.
                     if (refresh && !probed && earlier is not null)
                         await _probes.SetAsync(accountKey, path, notListed, deniedFound, ct);
+                    await KeepRefusalsAsync(accountKey, path, refusedEarlier, unfiltered ? [] : clauses, orderBy,
+                        countRefused && !unfiltered && clauses.Count == fetch.FilterClauses.Count, ct);
                     return await ReadPerObjectAsync(accountKey, fetch, lease, requests,
                         new GraphCollection(objects, requests, unfiltered, unreadable)
                         {
@@ -163,13 +220,32 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                         select.Remove(column);
                         unlicensed.Add(column);
                     }
-                    Log(diagnostics, DiagnosticKinds.Probe, $"{fetch.Table.Name}: dropped {string.Join(", ", optional)} ({retry.Message})");
+                    Log(diagnostics, DiagnosticKinds.Probe, $"{table}: dropped {string.Join(", ", optional)} ({retry.Message})");
                 }
                 else if (retry.Top)
                 {
                     sendTop = false;
-                    Log(diagnostics, DiagnosticKinds.Probe, $"{fetch.Table.Name}: Graph refused $top; reading without it");
+                    Log(diagnostics, DiagnosticKinds.Probe, $"{table}: Graph refused $top; reading without it");
                     await _probes.SetRefusesTopAsync(accountKey, path, true, ct);
+                }
+                else if (retry.OrderBy)
+                {
+                    Log(diagnostics, DiagnosticKinds.Probe, $"{table}: Graph refused $orderby={orderBy!.OData}; reading without it");
+                    await _probes.SetRefusedAsync(accountKey, path, OrderByClause, true, ct);
+                    orderBy = null;
+                    limit = null;
+                }
+                else if (retry.Features)
+                {
+                    var featured = clauses.Where(c => c.Feature is not null).ToList();
+                    Log(diagnostics, DiagnosticKinds.Probe, $"{table}: Graph refused the filter; reading without "
+                        + string.Join(", ", featured.Select(c => c.OData)));
+                    foreach (var feature in featured.Select(c => c.Feature!).Distinct(StringComparer.Ordinal))
+                        await _probes.SetRefusedAsync(accountKey, path, feature, true, ct);
+                    clauses.RemoveAll(featured.Contains);
+                    // Without the whole filter, the first rows (and their order) aren't the query's.
+                    orderBy = null;
+                    limit = null;
                 }
                 else if (retry.Original is { } original)
                 {
@@ -179,7 +255,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                     probed = true;
                     if (await FindUnreadableAsync(accountKey, fetch, [.. select.Where(c => c != "id")], requests, diagnostics, ct) is not { Count: > 0 } found)
                         throw original;
-                    Log(diagnostics, DiagnosticKinds.Probe, $"{fetch.Table.Name}: dropped " + Dropped(found.NotListed, found.Denied));
+                    Log(diagnostics, DiagnosticKinds.Probe, $"{table}: dropped " + Dropped(found.NotListed, found.Denied));
                     foreach (var column in found.NotListed)
                     {
                         select.Remove(column);
@@ -195,19 +271,19 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                     deniedFound.AddRange(found.Denied.Except(deniedFound));
                     await _probes.SetAsync(accountKey, path, notListed, deniedFound, ct);
                 }
-                else if (retry.Select is { } refused)
+                else if (retry.Select is { } refusedSelect)
                 {
                     if (refusedSelects++ >= MaxSelectRetries)
                         throw new GraphReadException(GraphReadFailure.Failed, retry.Message);
-                    select.Remove(refused);
-                    unreadable.Add(refused);
-                    Log(diagnostics, DiagnosticKinds.Probe, $"{fetch.Table.Name}: dropped {refused} (Graph refused it in $select)");
+                    select.Remove(refusedSelect);
+                    unreadable.Add(refusedSelect);
+                    Log(diagnostics, DiagnosticKinds.Probe, $"{table}: dropped {refusedSelect} (Graph refused it in $select)");
                 }
                 else
                 {
-                    filter = null;
                     unfiltered = true;
                     // Unfiltered, the first objects aren't the query's: its where runs locally over every one.
+                    orderBy = null;
                     limit = null;
                 }
             }
@@ -222,6 +298,111 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
             throw new GraphReadException(GraphReadFailure.Failed, "Graph didn't answer: " + ex.Message, inner: ex) { Requests = [.. requests] };
         }
     }
+
+    /// <summary>After a read Graph took: the clauses it took that it had refused earlier (a refresh sends them again) are
+    /// forgotten, and a count it refused while taking the same filter is remembered.</summary>
+    private async Task KeepRefusalsAsync(string accountKey, string path, IReadOnlySet<string> refusedEarlier, List<FilterClause> sent,
+        GraphOrderBy? orderBy, bool countRefused, CancellationToken ct)
+    {
+        foreach (var feature in sent.Select(c => c.Feature).OfType<string>().Where(refusedEarlier.Contains).Distinct(StringComparer.Ordinal))
+            await _probes.SetRefusedAsync(accountKey, path, feature, false, ct);
+        if (orderBy is not null && refusedEarlier.Contains(OrderByClause))
+            await _probes.SetRefusedAsync(accountKey, path, OrderByClause, false, ct);
+        if (countRefused)
+            await _probes.SetRefusedAsync(accountKey, path, CountClause, true, ct);
+    }
+
+    private static string? Filter(IReadOnlyList<FilterClause> clauses) => clauses.Count == 0 ? null : string.Join(" and ", clauses.Select(c => c.OData));
+
+    /// <summary>Whether a read of <paramref name="table"/> with these clauses and sort needs Graph's advanced query parameters:
+    /// on directory objects, a clause that says so, or any sort (Microsoft documents most sorts there as advanced, and a sort
+    /// with a filter always is).</summary>
+    public static bool Advanced(Schema.GraphTable table, IReadOnlyList<FilterClause> clauses, GraphOrderBy? orderBy)
+        => table.DirectoryObject && (orderBy is not null || clauses.Any(c => c.Advanced));
+
+    private const string NotInOrder = "aren't in order";
+
+    /// <summary>Why the objects Graph returned for a sort aren't the first in its order, or null when they are: a null (or
+    /// missing) value, which KQL sorts last and Graph may not, or two objects out of order.</summary>
+    private static string? OutOfOrder(List<JsonObject> objects, GraphOrderBy orderBy)
+    {
+        IComparable? previous = null;
+        foreach (var o in objects)
+        {
+            if (SortValue(o[orderBy.Column]) is not { } value)
+                return $"have an empty {orderBy.Column}";
+            if (previous is not null && (orderBy.Descending ? value.CompareTo(previous) > 0 : value.CompareTo(previous) < 0))
+                return NotInOrder;
+            previous = value;
+        }
+        return null;
+    }
+
+    private static IComparable? SortValue(JsonNode? node)
+    {
+        if (node is not JsonValue value)
+            return null;
+        if (value.TryGetValue<string>(out var text))
+            return DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var instant) ? instant : null;
+        return value.TryGetValue<double>(out var number) ? number : null;
+    }
+
+    /// <summary>Graph's count of the collection's objects that pass <paramref name="filter"/>: <c>/$count</c> (text) with the
+    /// advanced query header on directory objects, where Microsoft documents it, else <c>$count=true</c> on a one-object page
+    /// (<c>@odata.count</c>). <c>Refused</c>: Graph answered with a client error, or without a count (it ignores a <c>$count</c> it
+    /// doesn't support). A permission or server error isn't a refusal: the list read that follows reports it.</summary>
+    private async Task<(long? Count, bool Refused)> CountAsync(string accountKey, GraphFetch fetch, string? filter, GraphFetchLease lease,
+        List<string> requests, RunDiagnostics? diagnostics, CancellationToken ct)
+    {
+        var table = fetch.Table.Name;
+        var url = CountUrl(fetch.Table, filter);
+        requests.Add(url);
+        using var sent = await SendAsync(accountKey, new Uri(url, UriKind.Relative), DiagnosticKinds.Request, table, diagnostics, ct,
+            advanced: fetch.Table.DirectoryObject);
+        var (response, body) = (sent.Response, sent.Body);
+        if (!response.IsSuccessStatusCode)
+        {
+            if (GraphErrorText.IsTokenRejected(response, body))
+                throw SignInNeeded();
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                throw Failure(response, null);
+            var refused = IsClientError(response.StatusCode) && response.StatusCode is not (HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden);
+            Log(diagnostics, DiagnosticKinds.Probe, $"{table}: Graph didn't count; reading the objects", (int)response.StatusCode);
+            return (null, refused);
+        }
+        await lease.AddAsync(body.Length, ct);
+        long? count = null;
+        if (fetch.Table.DirectoryObject)
+        {
+            if (long.TryParse(System.Text.Encoding.UTF8.GetString(body).Trim().Trim('\uFEFF'), NumberStyles.None, CultureInfo.InvariantCulture, out var n))
+                count = n;
+        }
+        else
+        {
+            try
+            {
+                if (JsonNode.Parse(body)?["@odata.count"] is JsonValue value && value.TryGetValue<long>(out var n))
+                    count = n;
+            }
+            catch (JsonException)
+            {
+                // Not a count: read the objects.
+            }
+        }
+        if (count is null)
+        {
+            Log(diagnostics, DiagnosticKinds.Probe, $"{table}: Graph answered without a count; reading the objects");
+            return (null, true);
+        }
+        Log(diagnostics, DiagnosticKinds.Request, string.Create(CultureInfo.InvariantCulture, $"{table}: Graph counted {count:N0} objects"));
+        return (count, false);
+    }
+
+    /// <summary>The URL a count sends, relative to the Graph version: <c>/$count</c> on directory objects (with the advanced
+    /// query header), else a one-object page with <c>$count=true</c>.</summary>
+    public static string CountUrl(Schema.GraphTable table, string? filter) => table.DirectoryObject
+        ? table.Path + "/$count" + (string.IsNullOrEmpty(filter) ? "" : "?$filter=" + Uri.EscapeDataString(filter))
+        : table.Path + "?$select=id" + (string.IsNullOrEmpty(filter) ? "" : "&$filter=" + Uri.EscapeDataString(filter)) + "&$count=true&$top=1";
 
     /// <summary>The collection with the properties the query names that the list left out read one object at a time: from the
     /// cache where it has them (unless <paramref name="refresh"/>), else from Graph, unless more objects than
@@ -377,32 +558,52 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
     private static string? Id(JsonObject o) => o["id"] is JsonValue v && v.TryGetValue<string>(out var id) ? id : null;
 
     /// <summary>The first page's URL relative to the Graph version, as a list read sends it: the <c>$select</c>, the
-    /// <c>$filter</c> when there is one, and the page size, or the row limit <paramref name="top"/> when that is smaller. Explain
-    /// shows the same URL (<see cref="GraphExplain"/>).</summary>
+    /// <c>$filter</c> when there is one, and the page size, or the row limit <paramref name="top"/> when that is smaller.</summary>
     public static string FirstPageUrl(string path, IReadOnlyList<string> select, string? filter, int? top = null) =>
-        ListUrl(path, select, filter, Math.Min(top ?? PageSize, PageSize));
+        ListUrl(path, select, filter, Math.Min(top ?? PageSize, PageSize), null, false);
 
-    /// <summary>A list read's first URL, with <c>$top</c> only when <paramref name="top"/> is given.</summary>
-    private static string ListUrl(string path, IReadOnlyList<string> select, string? filter, int? top) =>
+    /// <summary>The first URL a read of <paramref name="fetch"/> sends, relative to the Graph version: its count
+    /// (<see cref="CountUrl"/>) when it is one, else its first page, with the sort and the advanced query parameters when they
+    /// are sent. Explain shows the same URL (<see cref="GraphExplain"/>).</summary>
+    public static string FirstPageUrl(GraphFetch fetch)
+    {
+        var clauses = fetch.FilterClauses;
+        var filter = Filter(clauses);
+        if (fetch.Count is not null)
+            return CountUrl(fetch.Table, filter);
+        return ListUrl(fetch.Table.Path, fetch.Select, filter, Math.Min(fetch.Top ?? PageSize, PageSize), fetch.OrderBy,
+            Advanced(fetch.Table, clauses, fetch.OrderBy));
+    }
+
+    /// <summary>A list read's first URL, with <c>$top</c> only when <paramref name="top"/> is given, and <c>$count=true</c> for
+    /// advanced query mode.</summary>
+    private static string ListUrl(string path, IReadOnlyList<string> select, string? filter, int? top, GraphOrderBy? orderBy, bool advanced) =>
         path + "?$select=" + Uri.EscapeDataString(string.Join(",", select))
             + (string.IsNullOrEmpty(filter) ? "" : "&$filter=" + Uri.EscapeDataString(filter))
+            + (orderBy is null ? "" : "&$orderby=" + Uri.EscapeDataString(orderBy.OData))
+            + (advanced ? "&$count=true" : "")
             + (top is { } t ? "&$top=" + t.ToString(CultureInfo.InvariantCulture) : "");
+
+    /// <summary>What one run through the pages asks for: the row limit (<paramref name="Limit"/>), whether to send it as
+    /// <c>$top</c>, the sort, and whether in advanced query mode.</summary>
+    private sealed record ListRequest(List<string> Select, string? Filter, int? Limit, bool SendTop, GraphOrderBy? OrderBy, bool Advanced);
 
     /// <summary>One run through the pages. Returns null when done, or what to change when Graph refused the first page. A refusal
     /// for a license or feature the tenant lacks asks to leave the optional columns out when <paramref name="canLeaveOut"/>, and
-    /// fails the read when they already were (<paramref name="leftOut"/>); otherwise it is handled as any other. With
-    /// <paramref name="limit"/>, stops once that many objects have arrived (keeping no more) and asks for no more as <c>$top</c>;
-    /// <paramref name="sendTop"/> false sends no <c>$top</c> at all, and a refusal naming <c>$top</c> asks to read without it.</summary>
-    private async Task<Retry?> ReadPagesAsync(string accountKey, GraphFetch fetch, List<string> select, string? filter, int? limit,
-        bool sendTop, GraphFetchLease lease, List<string> requests, List<JsonObject> objects, RunDiagnostics? diagnostics,
-        bool canLeaveOut, bool leftOut, CancellationToken ct)
+    /// fails the read when they already were (<paramref name="leftOut"/>); otherwise it is handled as any other. With a row
+    /// limit, stops once that many objects have arrived (keeping no more) and asks for no more as <c>$top</c>; without
+    /// <see cref="ListRequest.SendTop"/> no <c>$top</c> is sent at all, and a refusal naming <c>$top</c> asks to read without it.
+    /// A 400 with a sort asks to read without the sort, then one with filter clauses that have a feature without those.</summary>
+    private async Task<Retry?> ReadPagesAsync(string accountKey, GraphFetch fetch, ListRequest list, GraphFetchLease lease,
+        List<string> requests, List<JsonObject> objects, RunDiagnostics? diagnostics, bool canLeaveOut, bool leftOut, CancellationToken ct)
     {
+        var (select, filter, limit, sendTop) = (list.Select, list.Filter, list.Limit, list.SendTop);
         int? top = sendTop ? Math.Min(limit ?? PageSize, PageSize) : null;
-        Uri? next = new(ListUrl(fetch.Table.Path, select, filter, top), UriKind.Relative);
+        Uri? next = new(ListUrl(fetch.Table.Path, select, filter, top, list.OrderBy, list.Advanced), UriKind.Relative);
         for (var page = 0; next is not null; page++)
         {
             requests.Add(Relative(next));
-            using var sent = await SendAsync(accountKey, next, DiagnosticKinds.Request, fetch.Table.Name, diagnostics, ct);
+            using var sent = await SendAsync(accountKey, next, DiagnosticKinds.Request, fetch.Table.Name, diagnostics, ct, list.Advanced);
             var (response, body) = (sent.Response, sent.Body);
 
             if (!response.IsSuccessStatusCode)
@@ -428,6 +629,13 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                 // Checked before the filter: a refused $top would otherwise cost the filter.
                 if (page == 0 && sendTop && response.StatusCode == HttpStatusCode.BadRequest && NamesTop(message))
                     return new Retry(null, message ?? "", Top: true);
+                // A sort or a clause with a feature (or the advanced query mode they need) is what this change sends that a
+                // table may refuse: left out first, before the whole filter.
+                if (page == 0 && response.StatusCode == HttpStatusCode.BadRequest && list.OrderBy is not null)
+                    return new Retry(null, message ?? "", OrderBy: true);
+                if (page == 0 && response.StatusCode == HttpStatusCode.BadRequest && filter is not null
+                    && Featured(filter, fetch))
+                    return new Retry(null, message ?? "", Features: true);
                 if (page == 0 && response.StatusCode == HttpStatusCode.BadRequest)
                 {
                     // A refused filter names its property too (often a selected one), so while there is a filter a 400 is
@@ -508,11 +716,15 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
     /// <summary>A GET of <paramref name="url"/>, with Graph's answer read. A 429 is logged as throttled, waited for (its
     /// <c>Retry-After</c>, at most <see cref="MaxRetryWait"/>) and sent once more, logged as a retry; the answer to that is
     /// returned whatever it is (a second 429 logged as throttled too).</summary>
-    private async Task<Sent> SendAsync(string accountKey, Uri url, string kind, string table, RunDiagnostics? diagnostics, CancellationToken ct)
+    private async Task<Sent> SendAsync(string accountKey, Uri url, string kind, string table, RunDiagnostics? diagnostics, CancellationToken ct,
+        bool advanced = false)
     {
         for (var retried = false; ; retried = true)
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, url).ForAccount(accountKey).ForRun(diagnostics, kind);
+            // Graph's advanced query mode on directory objects (with $count=true in the URL).
+            if (advanced)
+                request.Headers.Add(ConsistencyLevel, "eventual");
             var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
             try
             {
@@ -568,8 +780,18 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
     /// <summary>What to change after Graph refused the first page. <see cref="Original"/> set: probe the selected columns, and
     /// throw it if probing finds none.
     /// <see cref="License"/> set: leave the optional columns out.
-    /// <see cref="Top"/> set: read without <c>$top</c>.</summary>
-    private sealed record Retry(string? Select, string Message, GraphReadException? Original = null, bool License = false, bool Top = false);
+    /// <see cref="Top"/> set: read without <c>$top</c>.
+    /// <see cref="OrderBy"/> set: read without the sort. <see cref="Features"/> set: read without the filter clauses that have a
+    /// feature.</summary>
+    private sealed record Retry(string? Select, string Message, GraphReadException? Original = null, bool License = false, bool Top = false,
+        bool OrderBy = false, bool Features = false);
+
+    /// <summary>The header that, with <c>$count=true</c>, asks for Graph's advanced query mode on directory objects.</summary>
+    public const string ConsistencyLevel = "ConsistencyLevel";
+
+    /// <summary>Whether <paramref name="filter"/> has a clause of the fetch's with a feature.</summary>
+    private static bool Featured(string filter, GraphFetch fetch)
+        => fetch.FilterClauses.Any(c => c.Feature is not null && filter.Contains(c.OData, StringComparison.Ordinal));
 
     /// <summary>Whether Graph's message for a 400 is about <c>$top</c>: it names <c>$top</c>, or OData's query option <c>'Top'</c>.</summary>
     private static bool NamesTop(string? message) => message is not null

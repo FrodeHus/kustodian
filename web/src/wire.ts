@@ -287,7 +287,9 @@ export interface LocalCondition {
 }
 
 /** What a Graph run would ask one table for. `url` is relative to the Graph version (Graph KQL tabs always use beta). `top`: the
- * query's `take` sent to Graph as `$top`; the read stops after that many objects. */
+ * query's `take` sent to Graph as `$top`; the read stops after that many objects. `orderBy`: the sort sent with it as
+ * `$orderby` (OData, `createdDateTime desc`). `count`: the query only counts, and Graph is asked for the count (`url` is the
+ * count's). `headers`: headers sent besides the token (`ConsistencyLevel: eventual` for Graph's advanced queries). */
 export interface ExplainTable {
   table: string;
   url: string;
@@ -299,6 +301,9 @@ export interface ExplainTable {
   perObject: string[];
   permissions: string[];
   docsUrl: string;
+  orderBy: string | null;
+  count: boolean;
+  headers: string[];
 }
 
 export interface ExplainLimits {

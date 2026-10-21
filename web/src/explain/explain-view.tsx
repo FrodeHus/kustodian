@@ -22,8 +22,9 @@ type Answer = { state: 'loading' } | { state: 'done'; result: ExplainResult } | 
 
 /**
  * Explain (spec 6.8, mockup Explain): what a Graph query would ask Graph for, without sending anything. Per table, the URL
- * (copyable), the `$select` and `$filter`, the conditions sent to Graph and those run locally with why, the columns read one
- * object at a time, the permissions with the table's docs, and the limits. Or the query's error, at its place in the editor, or
+ * (copyable) with any header it sends, the `$select` and `$filter`, a count or a sort sent to Graph, the conditions sent to
+ * Graph and those run locally with why, the columns read one object at a time, the permissions with the table's docs, and the
+ * limits. Or the query's error, at its place in the editor, or
  * the refusal.
  */
 export function ExplainView({ request, onOpenRaw }: { request: ExplainRequest; onOpenRaw?: (url: string) => void }) {
@@ -131,7 +132,9 @@ function TablePlan({ table, onCopy, onOpenRaw }: TablePlanProps) {
         <span className="mono">{table.table}</span> <span className="muted font-normal">· what the query will ask Graph for</span>
       </b>
       <Field label="Request">
-        <span className="codeblock whitespace-pre-wrap break-all">{`GET /beta/${table.url}`}</span>
+        <span className="codeblock whitespace-pre-wrap break-all">
+          {[`GET /beta/${table.url}`, ...table.headers].join('\n')}
+        </span>
         <div className="flex gap-2">
           <button type="button" className="btn" onClick={() => onCopy(GRAPH_BASE + table.url, 'the URL')}>
             Copy the URL
@@ -153,8 +156,18 @@ function TablePlan({ table, onCopy, onOpenRaw }: TablePlanProps) {
         </ul>
       </Field>
       <Field label="$filter">{table.filter ? <span className="codeblock whitespace-pre-wrap">{table.filter}</span> : <None>None: every object is read.</None>}</Field>
+      {table.count && (
+        <Field label="Count">
+          <span>Graph counts the objects; none is read.</span>
+        </Field>
+      )}
       <Field label="Row limit">
-        {table.top !== null ? (
+        {table.top !== null && table.orderBy !== null ? (
+          <span>
+            Sorted by <span className="mono">{table.orderBy}</span> and limited to {table.top.toLocaleString('en-US')} in Graph ($orderby
+            and $top); the read stops after {table.top.toLocaleString('en-US')} objects.
+          </span>
+        ) : table.top !== null ? (
           <span>
             <span className="mono">take {table.top.toLocaleString('en-US')}</span> sent to Graph as $top; the read stops after{' '}
             {table.top.toLocaleString('en-US')} objects.
