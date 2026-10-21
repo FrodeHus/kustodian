@@ -88,14 +88,19 @@ public sealed class GraphCollectionReaderTests
         Assert.Equal(3, parts.Count);
     }
 
-    [Fact]
-    public async Task Ignores_next_links_to_other_hosts()
+    // Stopping at such a link would pass the first page off as the whole collection; following it would send the token there.
+    [Theory]
+    [InlineData("https://evil.example/applications?x=1")]
+    [InlineData("http://graph.microsoft.com/beta/applications?$skiptoken=2")]
+    [InlineData("https://graph.microsoft.com.evil.example/beta/applications?$skiptoken=2")]
+    public async Task Fails_on_next_links_to_other_hosts_without_following_them(string link)
     {
-        var handler = new Scripted((_, _) => Json(HttpStatusCode.OK, Page(0, 2, "https://evil.example/applications?x=1")));
+        var handler = new Scripted((_, _) => Json(HttpStatusCode.OK, Page(0, 2, link)));
 
-        var result = await Read(Reader(handler), Fetch());
+        var ex = await Fails(Read(Reader(handler), Fetch()));
 
-        Assert.Equal(2, result.Objects.Count);
+        Assert.Equal(GraphReadFailure.Failed, ex.Failure);
+        Assert.Equal("Graph returned a next page link to another host; the results would be incomplete.", ex.Message);
         Assert.Equal(1, handler.Calls);
     }
 
@@ -575,7 +580,8 @@ public sealed class GraphCollectionReaderTests
         var other = new Scripted((_, _) => Json(HttpStatusCode.OK, Page(0, 1, "https://example.test/beta/applications?x=1")));
         var otherReader = new GraphCollectionReader(new HttpClient(other) { BaseAddress = new Uri("https://example.test/beta/") },
             new GraphFetchBudget(), NoGraphObjectCache.Instance);
-        await Read(otherReader, Fetch());
+        var failed = await Fails(Read(otherReader, Fetch()));
+        Assert.Equal(GraphReadFailure.Failed, failed.Failure);
         Assert.Equal(1, other.Calls);
     }
 

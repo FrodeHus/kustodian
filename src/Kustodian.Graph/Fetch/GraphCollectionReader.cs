@@ -231,10 +231,15 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
             string? link = null;
             if (linkNode is not null && !(linkNode is JsonValue linkValue && linkValue.TryGetValue(out link)))
                 throw new GraphReadException(GraphReadFailure.Failed, "Graph sent a next link that isn't text");
-            next = link is not null && Uri.TryCreate(link, UriKind.Absolute, out var uri)
-                && uri.Scheme == Uri.UriSchemeHttps && string.Equals(uri.Host, GraphHost, StringComparison.OrdinalIgnoreCase)
-                ? uri
-                : null;
+            if (link is null)
+                return null;
+            // A link anywhere else is never followed (the token would go with it), and stopping there would pass the pages
+            // read so far off as the whole collection: the read fails instead.
+            if (!Uri.TryCreate(link, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps
+                || !string.Equals(uri.Host, GraphHost, StringComparison.OrdinalIgnoreCase))
+                throw new GraphReadException(GraphReadFailure.Failed,
+                    "Graph returned a next page link to another host; the results would be incomplete.");
+            next = uri;
         }
         return null;
     }
