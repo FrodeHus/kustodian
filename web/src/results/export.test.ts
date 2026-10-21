@@ -58,8 +58,36 @@ describe('export', () => {
     expect(call).toHaveBeenCalledWith('file.saveAs', {
       suggestedName: 'Query 1.csv',
       filters: [{ name: 'CSV', extensions: ['csv'] }],
-      content: '﻿name;n\r\n"a;b";1.5',
+      content: '﻿name;n\r\n"a;b";1,5',
     });
+  });
+
+  it('Excel_csv_writes_decimal_commas_where_the_separator_is_a_semicolon', async () => {
+    numberFormat((n) => String(n).replace('.', ','));
+    call.mockResolvedValue(null);
+
+    await exportResult('excel', 'Query 1', {
+      columns: columns.slice(0, 2),
+      rows: [
+        ['whole', 2],
+        ['negative', -0.25],
+        ['tiny', 1.5e-7],
+        ['text 1.5', 1234.5],
+      ],
+    });
+
+    // Whole numbers and text stay as they are; plain CSV keeps the point.
+    expect(call.mock.calls[0]?.[1]).toMatchObject({ content: '﻿name;n\r\nwhole;2\r\nnegative;-0,25\r\ntiny;1,5e-7\r\ntext 1.5;1234,5' });
+    expect(toCsv(columns.slice(0, 2), [['x', 0.5]], { header: false })).toBe('x,0.5');
+  });
+
+  it('Excel_csv_keeps_decimal_points_where_the_separator_is_a_comma', async () => {
+    numberFormat((n) => String(n));
+    call.mockResolvedValue(null);
+
+    await exportResult('excel', 'Query 1', { columns: columns.slice(0, 2), rows: [['a', 0.5]] });
+
+    expect(call.mock.calls[0]?.[1]).toMatchObject({ content: '﻿name,n\r\na,0.5' });
   });
 
   it('Excel_csv_keeps_comma_for_decimal_point_locale', async () => {

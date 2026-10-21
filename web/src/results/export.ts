@@ -21,9 +21,15 @@ export function cellText(value: unknown): string {
 const FORMULA_START = /^[=+\-@\t\r]/;
 
 /** One CSV field (RFC 4180): quoted, with its quotes doubled, when it holds the separator, a quote, CR or LF. With
- * `escapeFormulas`, a text value that Excel would run as a formula gets a leading `'`; numbers and other values never do. */
-function csvField(value: unknown, separator: string, escapeFormulas: boolean): string {
-  const text = escapeFormulas && typeof value === 'string' && FORMULA_START.test(value) ? `'${value}` : cellText(value);
+ * `escapeFormulas`, a text value that Excel would run as a formula gets a leading `'`; numbers and other values never do. With
+ * `decimalComma`, a number that isn't whole is written with `,` as its decimal mark. */
+function csvField(value: unknown, separator: string, escapeFormulas: boolean, decimalComma: boolean): string {
+  const text =
+    escapeFormulas && typeof value === 'string' && FORMULA_START.test(value)
+      ? `'${value}`
+      : decimalComma && typeof value === 'number' && !Number.isInteger(value)
+        ? String(value).replace('.', ',')
+        : cellText(value);
   return text.includes(separator) || /["\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
@@ -33,16 +39,18 @@ function csvField(value: unknown, separator: string, escapeFormulas: boolean): s
  *
  * By default it is plain RFC 4180, every value written as it is. The Excel variant passes `bom`, which starts the text with a
  * UTF-8 byte order mark (Excel needs it to read UTF-8), and `escapeFormulas`, which puts `'` before text values that start
- * with `=`, `+`, `-`, `@`, a tab or CR, so Excel shows them rather than running them as formulas.
+ * with `=`, `+`, `-`, `@`, a tab or CR, so Excel shows them rather than running them as formulas. Where Excel's separator is
+ * `;` (a locale with a decimal comma) it also passes `decimalComma`, so Excel reads 1.5 as the number it is, written 1,5.
  */
 export function toCsv(
   columns: ResultColumn[],
   rows: Row[],
-  opts: { separator?: string; bom?: boolean; header?: boolean; escapeFormulas?: boolean } = {},
+  opts: { separator?: string; bom?: boolean; header?: boolean; escapeFormulas?: boolean; decimalComma?: boolean } = {},
 ): string {
   const separator = opts.separator ?? ',';
   const escape = opts.escapeFormulas ?? false;
-  const line = (values: unknown[]) => values.map((v) => csvField(v, separator, escape)).join(separator);
+  const decimalComma = opts.decimalComma ?? false;
+  const line = (values: unknown[]) => values.map((v) => csvField(v, separator, escape, decimalComma)).join(separator);
   const lines = rows.map(line);
   if (opts.header !== false) {
     lines.unshift(line(columns.map((c) => c.name)));
@@ -95,8 +103,10 @@ function content(format: ExportFormat, { columns, rows }: ResultTable): string {
   switch (format) {
     case 'csv':
       return toCsv(columns, rows);
-    case 'excel':
-      return toCsv(columns, rows, { separator: excelSeparator(), bom: true, escapeFormulas: true });
+    case 'excel': {
+      const separator = excelSeparator();
+      return toCsv(columns, rows, { separator, bom: true, escapeFormulas: true, decimalComma: separator === ';' });
+    }
     case 'json':
       return toJson(columns, rows);
     case 'markdown':
