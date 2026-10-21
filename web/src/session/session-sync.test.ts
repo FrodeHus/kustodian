@@ -64,6 +64,9 @@ describe('session sync', () => {
           { name: ' ConsistencyLevel ', value: 'eventual' },
           { name: ' Authorization', value: 'Bearer typed-token' },
           { name: 'X-Line', value: 'a\r\nb' },
+          { name: 'Proxy-Authorization', value: 'Basic proxy-secret' },
+          { name: 'Transfer-Encoding', value: 'chunked' },
+          { name: 'Content-Type', value: 'application/json' },
         ],
       },
     });
@@ -72,6 +75,7 @@ describe('session sync', () => {
     const tabs = saves().at(-1)!.tabs;
     expect(tabs.find((t) => t.id === id)!.raw).toEqual({ version: 'v1.0', headers: [{ name: 'ConsistencyLevel', value: 'eventual' }] });
     expect(JSON.stringify(saves())).not.toContain('typed-token');
+    expect(JSON.stringify(saves())).not.toContain('proxy-secret');
     // Other tabs have no raw request.
     expect(tabs.find((t) => t.id !== id)).not.toHaveProperty('raw');
   });

@@ -124,6 +124,23 @@ public sealed class RawRequestServiceTests : IDisposable
     [InlineData("COOKIE")]
     [InlineData("Accept-Encoding")]
     [InlineData("accept-encoding")]
+    [InlineData("Proxy-Authorization")]
+    [InlineData("proxy-connection")]
+    [InlineData("Proxy-Anything")]
+    [InlineData("Connection")]
+    [InlineData("Keep-Alive")]
+    [InlineData("TE")]
+    [InlineData("Trailer")]
+    [InlineData("Transfer-Encoding")]
+    [InlineData("Upgrade")]
+    [InlineData("Expect")]
+    [InlineData("Content-Type")]
+    [InlineData("Content-Length")]
+    [InlineData("content-encoding")]
+    [InlineData("Content-Whatever")]
+    [InlineData("Allow")]
+    [InlineData("Expires")]
+    [InlineData("Last-Modified")]
     public async Task Authorization_header_is_refused(string name)
     {
         var error = await SendErrorAsync(new
@@ -159,6 +176,31 @@ public sealed class RawRequestServiceTests : IDisposable
 
         Assert.Equal("bad_request", error.GetProperty("code").GetString());
         Assert.Empty(_graph.Requests);
+    }
+
+    /// <summary>Every header .NET won't put on a request (its content headers) is refused before it gets that far, so the raw
+    /// tab and the session agree on what can be sent.</summary>
+    [Theory]
+    [InlineData("Allow")]
+    [InlineData("Content-Disposition")]
+    [InlineData("Content-Encoding")]
+    [InlineData("Content-Language")]
+    [InlineData("Content-Length")]
+    [InlineData("Content-Location")]
+    [InlineData("Content-MD5")]
+    [InlineData("Content-Range")]
+    [InlineData("Content-Type")]
+    [InlineData("Expires")]
+    [InlineData("Last-Modified")]
+    [InlineData("ConsistencyLevel")]
+    [InlineData("Prefer")]
+    [InlineData("X-Custom")]
+    public void A_header_dotnet_refuses_on_a_request_is_a_header_problem(string name)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "https://graph.microsoft.com/beta/me");
+        var dotnetRefuses = !request.Headers.TryAddWithoutValidation(name, "v");
+
+        Assert.True(!dotnetRefuses || RawRequestService.HeaderProblem(name, "v") is not null, name);
     }
 
     [Fact]
@@ -230,7 +272,8 @@ public sealed class RawRequestServiceTests : IDisposable
         var first = await SendAsync(new { version = "v1.0", path = "users", headers = new { } });
         Assert.Equal(Next, first.GetProperty("nextLink").GetString());
 
-        await Call("raw.next", new { nextLink = Next });
+        Assert.Equal(Account, first.GetProperty("accountKey").GetString());
+        await Call("raw.next", new { nextLink = Next, accountKey = Account });
 
         Assert.Equal(Next, _graph.Requests.Last().Uri.AbsoluteUri);
         Assert.All(_graph.Requests, r => Assert.Equal("Bearer tok-" + Account, r.Headers["Authorization"]));
@@ -251,7 +294,7 @@ public sealed class RawRequestServiceTests : IDisposable
     [InlineData("")]
     public async Task Next_link_to_another_host_is_refused(string nextLink)
     {
-        var reply = await Call("raw.next", new { nextLink });
+        var reply = await Call("raw.next", new { nextLink, accountKey = Account });
 
         Assert.Equal("bad_request", reply.GetProperty("error").GetProperty("code").GetString());
         Assert.Empty(_graph.Requests);
@@ -305,7 +348,7 @@ public sealed class RawRequestServiceTests : IDisposable
         foreach (var (method, p) in new (string, object)[]
         {
             ("raw.send", new { version = "beta", path = "me", headers = new { } }),
-            ("raw.next", new { nextLink = "https://graph.microsoft.com/beta/users?$skiptoken=1" }),
+            ("raw.next", new { nextLink = "https://graph.microsoft.com/beta/users?$skiptoken=1", accountKey = "expired" }),
         })
         {
             var error = (await Call(bridge, method, p)).GetProperty("error");
@@ -323,6 +366,39 @@ public sealed class RawRequestServiceTests : IDisposable
         var error = (await Call(bridge, "raw.send", new { version = "beta", path = "me", headers = new { } })).GetProperty("error");
 
         Assert.Equal(("signInNeeded", GraphRunner.SignInMessage), (error.GetProperty("code").GetString(), error.GetProperty("message").GetString()));
+        Assert.Empty(_graph.Requests);
+    }
+
+    [Fact]
+    public async Task Next_goes_out_for_the_first_pages_account_not_the_active_one()
+    {
+        // The first page was sent for account-1; account-2 has since become active.
+        var bridge = NewBridge("account-2");
+
+        var reply = await Call(bridge, "raw.next", new { nextLink = "https://graph.microsoft.com/beta/users?$skiptoken=1", accountKey = Account });
+
+        Assert.False(reply.TryGetProperty("error", out var error), error.ToString());
+        Assert.Equal(Account, reply.GetProperty("result").GetProperty("accountKey").GetString());
+        Assert.Equal([Account], _tokens.Asked);
+        Assert.Equal("Bearer tok-" + Account, Assert.Single(_graph.Requests).Headers["Authorization"]);
+    }
+
+    [Fact]
+    public async Task Next_for_an_account_no_longer_signed_in_needs_sign_in()
+    {
+        var error = (await Call("raw.next", new { nextLink = "https://graph.microsoft.com/beta/users?$skiptoken=1", accountKey = "expired" }))
+            .GetProperty("error");
+
+        Assert.Equal(("signInNeeded", GraphRunner.SignInMessage), (error.GetProperty("code").GetString(), error.GetProperty("message").GetString()));
+        Assert.Empty(_graph.Requests);
+    }
+
+    [Fact]
+    public async Task Next_without_an_account_key_is_refused()
+    {
+        var error = (await Call("raw.next", new { nextLink = "https://graph.microsoft.com/beta/users?$skiptoken=1" })).GetProperty("error");
+
+        Assert.Equal("bad_request", error.GetProperty("code").GetString());
         Assert.Empty(_graph.Requests);
     }
 

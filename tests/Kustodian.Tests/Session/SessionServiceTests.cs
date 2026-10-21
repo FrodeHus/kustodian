@@ -154,6 +154,30 @@ public sealed class SessionServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Session_never_keeps_a_proxy_hop_by_hop_or_content_header()
+    {
+        var raw = new RawTabRequest("beta",
+        [
+            new RawTabHeader("Proxy-Authorization", "Basic proxy-secret"),
+            new RawTabHeader(" proxy-authorization ", "Basic proxy-secret"),
+            new RawTabHeader("Connection", "close"),
+            new RawTabHeader("Transfer-Encoding", "chunked"),
+            new RawTabHeader("Expect", "100-continue"),
+            new RawTabHeader("Content-Type", "application/json"),
+            new RawTabHeader("Last-Modified", "x"),
+            new RawTabHeader("ConsistencyLevel", "eventual"),
+        ]);
+
+        await NewService().SaveAsync(new Session(1, "r", [RawTab("r", raw)]), Ct);
+        var read = await NewService().GetAsync(Ct);
+        var text = await File.ReadAllTextAsync(Path.Combine(_dir, "session.json"), Ct);
+
+        Assert.Equal(["ConsistencyLevel"], read.Value.Tabs.Single().Raw!.Headers.Select(h => h.Name));
+        Assert.DoesNotContain("proxy", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Content-Type", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Session_raw_headers_are_capped_by_count_and_size_and_an_unknown_version_is_dropped()
     {
         var many = Enumerable.Range(0, 25).Select(i => new RawTabHeader($"X-H{i}", "v")).ToList();

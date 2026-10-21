@@ -6,7 +6,7 @@ import schema from '../fixtures/graph-schema.json';
 import { useTabs } from '../tabs/tab-store';
 import type { RawResponse, SchemaView } from '../wire';
 import { completePath } from './path-completion';
-import { openRaw, rawRequest, useRawResponses } from './raw-request';
+import { headerProblem, openRaw, rawRequest, sendableHeaders, useRawResponses } from './raw-request';
 import { RawTab } from './raw-tab';
 
 const bridge = vi.hoisted(() => ({ call: vi.fn() }));
@@ -26,6 +26,7 @@ function response(body: unknown, nextLink: string | null = null): RawResponse {
     durationMs: 120,
     nextLink,
     truncated: false,
+    accountKey: 'k1',
   };
 }
 
@@ -108,7 +109,7 @@ describe('RawTab', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Next page' }));
 
     await screen.findByText('"Second"');
-    expect(bridge.call).toHaveBeenLastCalledWith('raw.next', { nextLink: NEXT });
+    expect(bridge.call).toHaveBeenLastCalledWith('raw.next', { nextLink: NEXT, accountKey: 'k1' });
     expect(screen.getByText('"First"')).toBeTruthy();
     expect(screen.getByText('Page 2')).toBeTruthy();
     // The last page has no next link.
@@ -125,6 +126,55 @@ describe('RawTab', () => {
     view.switchAccount('k2');
     expect(screen.getByRole('button', { name: 'Next page' })).toHaveProperty('disabled', true);
     expect(screen.getByText(/The account changed since the first page/)).toBeTruthy();
+  });
+
+  it('raw_next_page_goes_out_for_the_account_the_host_sent_the_first_page_for', async () => {
+    // The host answered for k3 (the active account changed while the request was out): next pages go out for k3.
+    bridge.call
+      .mockResolvedValueOnce({ ...response({ value: [] }, NEXT), accountKey: 'k3' })
+      .mockResolvedValueOnce({ ...response({ value: [] }), accountKey: 'k3' });
+    const view = renderTab(openTab());
+
+    fireEvent.click(screen.getByRole('button', { name: /^Send/ }));
+    await screen.findByRole('button', { name: 'Next page' });
+    view.switchAccount('k3');
+    fireEvent.click(screen.getByRole('button', { name: 'Next page' }));
+
+    await waitFor(() => expect(bridge.call).toHaveBeenLastCalledWith('raw.next', { nextLink: NEXT, accountKey: 'k3' }));
+  });
+
+  it('raw_next_page_for_an_account_no_longer_signed_in_offers_sign_in', async () => {
+    bridge.call
+      .mockResolvedValueOnce(response({ value: [] }, NEXT))
+      .mockRejectedValueOnce(new BridgeError('signInNeeded', 'Sign in to run this query.'));
+    const onSignIn = vi.fn();
+    renderTab(openTab(), 'k1', onSignIn);
+
+    fireEvent.click(screen.getByRole('button', { name: /^Send/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Next page' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign in' }));
+
+    expect(onSignIn).toHaveBeenCalledOnce();
+  });
+
+  it('raw_proxy_hop_by_hop_and_content_headers_are_refused_and_never_kept', async () => {
+    bridge.call.mockResolvedValue(response({ value: [] }));
+    const id = openTab();
+    renderTab(id);
+    const add = screen.getByRole('button', { name: 'Add header' });
+    fireEvent.click(add);
+    fireEvent.click(add);
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Header 1 name' }), { target: { value: 'Proxy-Authorization' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Header 1 value' }), { target: { value: 'Basic proxy-secret' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Header 2 name' }), { target: { value: 'ConsistencyLevel' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Header 2 value' }), { target: { value: 'eventual' } });
+    expect(screen.getByText("The Proxy-Authorization header can't be set from the raw tab.")).toBeTruthy();
+    for (const name of ['Connection', 'Keep-Alive', 'TE', 'Trailer', 'Transfer-Encoding', 'Upgrade', 'Expect', 'Content-Type', 'Content-Length', 'Content-Encoding', 'proxy-connection']) {
+      expect(headerProblem(name, 'x')).toBe(`The ${name} header can't be set from the raw tab.`);
+    }
+    // What the session would keep of the tab's headers.
+    expect(sendableHeaders(rawRequest(useTabs.getState().tabs[0]!).headers)).toEqual([{ name: 'ConsistencyLevel', value: 'eventual' }]);
   });
 
   it('raw_path_completion_offers_entity_sets', () => {
@@ -217,7 +267,7 @@ describe('RawTab', () => {
     expect(bridge.call).toHaveBeenCalledWith('raw.send', expect.objectContaining({ path: 'me/memberOf' }));
 
     act(() => void runCommand('raw.next'));
-    await waitFor(() => expect(bridge.call).toHaveBeenLastCalledWith('raw.next', { nextLink: NEXT }));
+    await waitFor(() => expect(bridge.call).toHaveBeenLastCalledWith('raw.next', { nextLink: NEXT, accountKey: 'k1' }));
     unbind();
   });
 

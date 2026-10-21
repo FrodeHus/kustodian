@@ -8,7 +8,25 @@ export const RAW_VERSIONS = ['beta', 'v1.0'] as const;
 export const MAX_HEADERS = 20;
 export const MAX_HEADER_BYTES = 8 * 1024;
 
-const REFUSED_HEADERS = new Set(['authorization', 'host', 'cookie', 'accept-encoding']);
+/** The headers the host refuses (`RawRequestService.RefusedHeaders` and `RefusedHeaderPrefixes`), lower-cased: credentials and
+ * routing, hop-by-hop headers, and content headers (a GET has no body, and .NET won't put them on a request). */
+const REFUSED_HEADERS = new Set([
+  'authorization',
+  'host',
+  'cookie',
+  'accept-encoding',
+  'connection',
+  'keep-alive',
+  'te',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+  'expect',
+  'allow',
+  'expires',
+  'last-modified',
+]);
+const REFUSED_PREFIXES = ['proxy-', 'content-'];
 const TOKEN = /^[A-Za-z0-9!#$%&'*+\-.^_`|~]+$/;
 const PRINTABLE = /^[\t\x20-\x7e]*$/;
 
@@ -17,7 +35,8 @@ export function headerProblem(name: string, value: string): string | null {
   if (!TOKEN.test(name)) {
     return "A header name can only have letters, digits and !#$%&'*+-.^_`|~.";
   }
-  if (REFUSED_HEADERS.has(name.toLowerCase())) {
+  const lower = name.toLowerCase();
+  if (REFUSED_HEADERS.has(lower) || REFUSED_PREFIXES.some((prefix) => lower.startsWith(prefix))) {
     return `The ${name} header can't be set from the raw tab.`;
   }
   return PRINTABLE.test(value) ? null : `The ${name} header's value can only have printable ASCII characters.`;
@@ -59,7 +78,8 @@ export function openRaw(seed: { path?: string; version?: string } = {}): string 
 export interface RawState {
   /** The pages of the last request, the first from `raw.send` and the rest from `raw.next`. */
   pages: RawResponse[];
-  /** The account active when the first page was sent: a next page with another account would mix tenants. */
+  /** The account the host sent the first page for (`raw.send` says which): every next page goes out for it, so pages never
+   * mix tenants. */
   accountKey: string | undefined;
   sending: boolean;
   /** The last request's error, and the control it is about: a refusal shows beside it. */

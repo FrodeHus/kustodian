@@ -97,7 +97,7 @@ const defaultSettings = {
 };
 
 /** `raw.send`'s and `raw.next`'s answer, as the host builds it: never a `Set-Cookie` or `Authorization` header. */
-function rawResponse(url: string) {
+function rawResponse(url: string, accountKey: string) {
   const body = JSON.stringify({
     '@odata.context': url,
     value: [{ id: '11111111-1111-1111-1111-111111111111', displayName: 'Contoso Portal' }],
@@ -109,6 +109,7 @@ function rawResponse(url: string) {
     durationMs: 120,
     nextLink: null,
     truncated: false,
+    accountKey,
   };
 }
 
@@ -144,6 +145,7 @@ interface MockRequest {
     version?: string;
     path?: string;
     nextLink?: string;
+    accountKey?: string;
   };
 }
 
@@ -326,14 +328,14 @@ export function createMockTransport(): Transport {
           fail(id, 'bad_request', 'A raw request needs a version and a path.');
           break;
         }
-        reply(id, rawResponse(`https://graph.microsoft.com/${params.version}/${params.path}`));
+        reply(id, rawResponse(`https://graph.microsoft.com/${params.version}/${params.path}`, account.key));
         break;
       case 'raw.next':
-        if (!params?.nextLink) {
-          fail(id, 'bad_request', 'A next request needs a nextLink.');
+        if (!params?.nextLink || !params.accountKey) {
+          fail(id, 'bad_request', 'A next request needs a nextLink and the accountKey of its first page.');
           break;
         }
-        reply(id, rawResponse(params.nextLink));
+        reply(id, rawResponse(params.nextLink, params.accountKey));
         break;
       default:
         fail(id, 'unknown_method', `Unknown method ${method ?? ''}.`);

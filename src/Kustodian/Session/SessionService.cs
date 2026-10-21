@@ -31,8 +31,9 @@ public sealed record Session(int Version, string? ActiveId, IReadOnlyList<Sessio
 /// a file written by an older version restores. A file that can't be read is moved aside and reads as an empty session, marked
 /// corrupt. Saving drops tabs over the caps (<see cref="MaxTabs"/> tabs, <see cref="MaxTextBytes"/> of text each) and says how
 /// many it dropped. A raw tab's headers are written only when the raw tab could send them
-/// (<see cref="RawRequestService.HeaderProblem"/>: never <c>Authorization</c>, <c>Host</c>, <c>Cookie</c> or
-/// <c>Accept-Encoding</c>, nor a name that isn't a token or a value with CR or LF), at most
+/// (<see cref="RawRequestService.HeaderProblem"/>: never <c>Authorization</c>, <c>Host</c>, <c>Cookie</c>,
+/// <c>Accept-Encoding</c>, a <c>Proxy-*</c>, hop-by-hop or content header, nor a name that isn't a token or a value with CR or
+/// LF), at most
 /// <see cref="RawRequestService.MaxHeaders"/> of them and <see cref="RawRequestService.MaxHeaderBytes"/> in all; an unknown
 /// version is written as null.
 /// </summary>

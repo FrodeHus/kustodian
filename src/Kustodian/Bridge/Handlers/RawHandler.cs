@@ -3,10 +3,11 @@ using Kustodian.Raw;
 
 namespace Kustodian.Messaging.Handlers;
 
-/// <summary><c>raw.send {version, path, headers}</c> and <c>raw.next {nextLink}</c>: raw Graph GETs for the active account,
-/// answered with a <see cref="RawResponse"/> (<see cref="RawRequestService"/> has the guards). A refused request is a
-/// <c>bad_request</c>; no account, or one that has to sign in again, is <c>signInNeeded</c>; a request Graph didn't answer is
-/// <c>failed</c>. Graph's error statuses are answers, not errors. Error messages never repeat the page's headers.</summary>
+/// <summary><c>raw.send {version, path, headers}</c> and <c>raw.next {nextLink, accountKey}</c>: raw Graph GETs, answered with
+/// a <see cref="RawResponse"/> (<see cref="RawRequestService"/> has the guards). <c>raw.send</c> goes out for the active account
+/// and says which it was; <c>raw.next</c> goes out for the account its first page was sent for, never the active one, so pages
+/// of one answer never mix tenants. A refused request is a <c>bad_request</c>; no account, or one that is no longer signed in
+/// or has to sign in again, is <c>signInNeeded</c>; a request Graph didn't answer is <c>failed</c>. Graph's error statuses are answers, not errors. Error messages never repeat the page's headers.</summary>
 public sealed class RawHandler(RawRequestService raw, Func<Task<string?>> activeAccount)
 {
     public void Register(Bridge bridge)
@@ -20,30 +21,30 @@ public sealed class RawHandler(RawRequestService raw, Func<Task<string?>> active
             }
 
             var headers = request.Headers ?? new Dictionary<string, string>();
-            return await SendAsync(account => raw.SendAsync(account, request.Version, request.Path, headers, ct), ct);
+            if (await activeAccount() is not { } account)
+            {
+                throw new BridgeException(BridgeErrorCodes.SignInNeeded, GraphRunner.SignInMessage);
+            }
+
+            return await SendAsync(() => raw.SendAsync(account, request.Version, request.Path, headers, ct), ct);
         });
         bridge.Register("raw.next", async (p, ct) =>
         {
             var request = BridgeJson.Params<NextParams>(p);
-            if (request.NextLink is null)
+            if (request.NextLink is null || string.IsNullOrEmpty(request.AccountKey))
             {
-                throw new BridgeException(BridgeErrorCodes.BadRequest, "A next request needs a nextLink.");
+                throw new BridgeException(BridgeErrorCodes.BadRequest, "A next request needs a nextLink and the accountKey of its first page.");
             }
 
-            return await SendAsync(account => raw.NextAsync(account, request.NextLink, ct), ct);
+            return await SendAsync(() => raw.NextAsync(request.AccountKey, request.NextLink, ct), ct);
         });
     }
 
-    private async Task<object?> SendAsync(Func<string, Task<RawResponse>> send, CancellationToken ct)
+    private static async Task<object?> SendAsync(Func<Task<RawResponse>> send, CancellationToken ct)
     {
-        if (await activeAccount() is not { } account)
-        {
-            throw new BridgeException(BridgeErrorCodes.SignInNeeded, GraphRunner.SignInMessage);
-        }
-
         try
         {
-            return await send(account);
+            return await send();
         }
         catch (RawRequestRefusedException ex)
         {
@@ -73,5 +74,5 @@ public sealed class RawHandler(RawRequestService raw, Func<Task<string?>> active
 
     private sealed record SendParams(string? Version, string? Path, Dictionary<string, string>? Headers);
 
-    private sealed record NextParams(string? NextLink);
+    private sealed record NextParams(string? NextLink, string? AccountKey);
 }

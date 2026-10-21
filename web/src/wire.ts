@@ -303,7 +303,8 @@ export interface ExplainResult {
   limits: ExplainLimits;
 }
 
-/** `raw.send`'s and `raw.next`'s answer. `truncated`: the body was cut off at the host's limit. */
+/** `raw.send`'s and `raw.next`'s answer. `truncated`: the body was cut off at the host's limit. `accountKey`: the account it
+ * was sent for; `raw.next {nextLink, accountKey}` takes it back, so a next page goes out for the first page's account. */
 export interface RawResponse {
   status: number;
   headers: Record<string, string>;
@@ -311,4 +312,5 @@ export interface RawResponse {
   durationMs: number;
   nextLink: string | null;
   truncated: boolean;
+  accountKey: string;
 }

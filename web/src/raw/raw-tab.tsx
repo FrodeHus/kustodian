@@ -90,7 +90,8 @@ export function RawTab({ tab, schema, defaultVersion, accountKey, onSignIn }: Ra
     updateRaw(tab.id, { sending: true, error: null });
     try {
       const response = await call<RawResponse>('raw.send', { version, path, headers });
-      updateRaw(tab.id, { pages: [response], accountKey, sending: false });
+      // The host says which account it sent for: the next pages go out for that one, whatever is active by then.
+      updateRaw(tab.id, { pages: [response], accountKey: response.accountKey, sending: false });
       setRequest({ version });
       useTabs.getState().setTitle(tab.id, `GET /${path.split('?')[0] ?? ''}`);
     } catch (e) {
@@ -101,12 +102,13 @@ export function RawTab({ tab, schema, defaultVersion, accountKey, onSignIn }: Ra
 
   async function next() {
     const nextLink = state.pages.at(-1)?.nextLink;
-    if (!nextLink || busy() || accountChanged) {
+    const first = state.accountKey;
+    if (!nextLink || !first || busy() || accountChanged) {
       return;
     }
     updateRaw(tab.id, { sending: true, error: null });
     try {
-      const response = await call<RawResponse>('raw.next', { nextLink });
+      const response = await call<RawResponse>('raw.next', { nextLink, accountKey: first });
       const pages = useRawResponses.getState().responses[tab.id]?.pages ?? [];
       updateRaw(tab.id, { pages: [...pages, response], sending: false });
     } catch (e) {

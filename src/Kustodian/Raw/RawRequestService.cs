@@ -7,9 +7,9 @@ namespace Kustodian.Raw;
 
 /// <summary>A raw Graph answer: its status, its headers (never <c>Set-Cookie</c> or <c>Authorization</c>), its body as text
 /// (at most <see cref="RawRequestService.MaxBodyBytes"/>, <see cref="Truncated"/> when there was more), how long it took, and the
-/// body's <c>@odata.nextLink</c> when it has one.</summary>
+/// body's <c>@odata.nextLink</c> when it has one, and the account it was sent for (a next page goes out for the same one).</summary>
 public sealed record RawResponse(int Status, IReadOnlyDictionary<string, string> Headers, string Body, long DurationMs,
-    string? NextLink, bool Truncated);
+    string? NextLink, bool Truncated, string AccountKey);
 
 /// <summary>A raw request the service won't send; its message says why and is shown to the user.</summary>
 public sealed class RawRequestRefusedException(string message) : Exception(message);
@@ -20,8 +20,11 @@ public sealed class RawRequestRefusedException(string message) : Exception(messa
 /// under <c>beta</c> or <c>v1.0</c>: a path is refused if it is absolute, starts with a slash or backslash, contains a
 /// backslash, <c>#</c>, <c>://</c>, a control character, or (after percent-decoding, repeated until nothing changes) <c>..</c>;
 /// and the URL built from it must still be https on that host with the version as its first segment. A next link must be such a
-/// URL too. The page's headers are refused if they name <c>Authorization</c>, <c>Host</c>, <c>Cookie</c> or
-/// <c>Accept-Encoding</c> (the body would come back compressed, and unreadable), hold anything but
+/// URL too. The page's headers are refused if they name <c>Authorization</c>, <c>Host</c>, <c>Cookie</c>,
+/// <c>Accept-Encoding</c> (the body would come back compressed, and unreadable), any <c>Proxy-*</c> header, a hop-by-hop header
+/// (<c>Connection</c>, <c>Keep-Alive</c>, <c>TE</c>, <c>Trailer</c>, <c>Transfer-Encoding</c>, <c>Upgrade</c>, <c>Expect</c>)
+/// or a content header (any <c>Content-*</c>, <c>Allow</c>, <c>Expires</c>, <c>Last-Modified</c>: a GET has no body, and
+/// .NET won't put them on a request), hold anything but
 /// printable ASCII (so no CR or LF), or number more than <see cref="MaxHeaders"/> or <see cref="MaxHeaderBytes"/> in total.
 /// Nothing here logs a request header. Refusals throw <see cref="RawRequestRefusedException"/>.
 /// </summary>
@@ -33,8 +36,14 @@ public sealed class RawRequestService(HttpClient graph, TimeProvider? time = nul
 
     private const string GraphHost = "graph.microsoft.com";
     private static readonly string[] Versions = ["beta", "v1.0"];
-    private static readonly HashSet<string> RefusedHeaders =
-        new(["Authorization", "Host", "Cookie", "Accept-Encoding"], StringComparer.OrdinalIgnoreCase);
+    private static readonly HashSet<string> RefusedHeaders = new(
+        [
+            "Authorization", "Host", "Cookie", "Accept-Encoding",
+            "Connection", "Keep-Alive", "TE", "Trailer", "Transfer-Encoding", "Upgrade", "Expect",
+            "Allow", "Expires", "Last-Modified",
+        ],
+        StringComparer.OrdinalIgnoreCase);
+    private static readonly string[] RefusedHeaderPrefixes = ["Proxy-", "Content-"];
     private static readonly HashSet<string> HiddenResponseHeaders =
         new(["Set-Cookie", "Set-Cookie2", "Authorization", "Proxy-Authorization"], StringComparer.OrdinalIgnoreCase);
 
@@ -89,7 +98,7 @@ public sealed class RawRequestService(HttpClient graph, TimeProvider? time = nul
         var (body, truncated) = await ReadBodyAsync(response.Content, ct);
         var duration = (long)Math.Round(_time.GetElapsedTime(started).TotalMilliseconds);
         return new RawResponse((int)response.StatusCode, ResponseHeaders(response), body, duration,
-            truncated ? null : NextLinkOf(body), truncated);
+            truncated ? null : NextLinkOf(body), truncated, accountKey);
     }
 
     /// <summary>Reads at most <see cref="MaxBodyBytes"/> plus one byte, so a longer body is known to be longer without being
@@ -241,7 +250,7 @@ public sealed class RawRequestService(HttpClient graph, TimeProvider? time = nul
             return "A header name can only have letters, digits and !#$%&'*+-.^_`|~.";
         }
 
-        if (RefusedHeaders.Contains(name))
+        if (RefusedHeaders.Contains(name) || RefusedHeaderPrefixes.Any(p => name.StartsWith(p, StringComparison.OrdinalIgnoreCase)))
         {
             return $"The {name} header can't be set from the raw tab.";
         }
