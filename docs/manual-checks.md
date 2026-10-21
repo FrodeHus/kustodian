@@ -102,6 +102,67 @@ behind sign-in; Linux "owner" = headless container.
 | `crypto.randomUUID` works, or the `getRandomValues` fallback covers it; log `window.isSecureContext` in a dev build | owner (the `app://` origin may not be a secure context; not logged) | owner (`https://kustodian.invalid` is probably a secure context; not checked) | owner |
 | monaco-kusto completion in the web view (owner-only since Plan 1) | owner (WKWebView; the launch screenshot happened to show a completion list for `ta` in a restored tab, but the builder typed nothing and doesn't know why the list was open) | owner (WebView2) | owner (WebKitGTK) |
 
+## Plan 3 sources: hunting and Resource Graph (2026-10-21)
+
+Run by the builder at commit 238ae752 with no sign-in, no typing and no clicks in any app window, and nothing pressed. Every row
+that needs tenant data stays "owner". The macOS instance was a second copy built from the Plan 3 worktree, launched with `HOME`
+pointed at an empty temporary folder so it never read or wrote the owner's user-data folder; the owner's own running Kustodian
+was not touched. It still came up with an account in the title bar (see notes), so it showed the workbench, not sign-in. The
+Windows VM has no account, so it stops at the sign-in screen and every workbench row there is behind it. Linux is a headless
+container.
+
+### Automated gate
+
+| Check | macOS | Windows | Linux |
+| --- | --- | --- | --- |
+| `npm ci`, lint, typecheck, test, build in `web/` | ok (321 web tests; lint shows only the known TanStack Table warning; build only the chunk-size note) | - (no Node in the VM; `web/dist` was built on macOS and embedded) | ok (Ubuntu 24.04 arm64 container, Node 22.12.0: 321 tests, lint 1 warning (the known one), tsc clean, build only the chunk-size note) |
+| `dotnet build Kustodian.slnx -warnaserror`, 0 warnings | ok (also with `--no-incremental`) | ok (Windows 11 ARM64 VM, .NET SDK 10.0.401, Debug) | ok (.NET SDK 10.0.402, with `libwebkit2gtk-4.1-dev` and `libsecret-1-dev`) |
+| `dotnet test --solution Kustodian.slnx` | ok, 1110 passed | ok, 1106 passed, 4 skipped (1110 total) | ok, 1110 passed |
+| Window opens and renders the UI from its origin | ok (1440x900 points; workbench with a Graph tab, 436 schema tables, Run, Run all, Cancel, Format and Explain; captured with `screencapture -l`, see notes) | ok (4112x2436 physical px at 300 %; sign-in screen, "Not signed in"; captured with `PrintWindow` on the Kustodian window only) | - (headless container) |
+| Stopping the app (idle) leaves no Kustodian or `--engine` process | ok (SIGTERM to the builder's instance: it exited at once, status 143, unlike the Plan 2 check in the Backlog; no `--engine` left) | ok (`CloseMainWindow` on the builder's instance: no Kustodian process 5 s later) | - |
+
+### Plan 3 features
+
+Cell reasons: macOS "owner" = the builder cannot type or click in the window (no Accessibility permission) and never runs
+against an account; Windows "owner" = no account on the VM, workbench behind sign-in; Linux "owner" = headless container.
+
+| Check | macOS | Windows | Linux |
+| --- | --- | --- | --- |
+| Graph schema grouped by data area (Task 6b): 11 areas in order, "Other" last, closed by default with counts | ok (seen in the app without signing in: Users, groups and directory 37; Apps and permissions 14; Sign-in and audit logs 9; Risk and identity protection 8; Access reviews and privileged roles 24 (truncated with an ellipsis); Policies and Conditional Access 38; Devices and Intune 174; Security 44; Mail, Teams and files 53; Reports and usage 18; Other 17; total 436) | owner (behind sign-in: the workbench, and with it the schema panel, only shows once an account is active) | owner |
+| Graph schema search keeps the grouping | owner | owner | owner |
+| New tab per source (Graph, Defender hunting, Resource Graph) and the tab's source badge | owner | owner | owner |
+| Change a tab's source; Explain closes and only shows on Graph tabs | owner | owner | owner |
+| Hunting schema: tenant schema after sign-in (`getHuntingSchema`), bundled schema (66 tables, 4 functions) with its reason as fallback, refreshed by "Refresh schema" | owner | owner | owner |
+| Resource Graph schema: bundled tables plus the account's resource types | owner | owner | owner |
+| Editor completion and diagnostics per source (hunting functions with docstrings, ARG `properties` and `tags` dynamic) | owner | owner | owner |
+| Hunting run | owner | owner | owner |
+| Hunting timespan picker: 1, 7, 30 days, custom (30 days at most); default 30 days | owner | owner | owner |
+| ARG run across two subscriptions | owner | owner | owner |
+| ARG scope picker: subscriptions with search, a management group, "All I can see"; the trigger text | owner | owner | owner |
+| Management groups: listed in the scope picker, the note when they can't be read, a run scoped to one | owner | owner | owner |
+| ARG paging up to "ARG rows per run" (setting, 1,000–1,000,000) | owner | owner | owner |
+| Throttling: hunting 429 and ARG 429 messages with when to retry | owner | owner | owner |
+| Consent flow: an ARG tab's first run asks for consent, "Grant Azure access" opens the browser, the run reruns after it | owner | owner | owner |
+| Consent as a different account shows its error on the tab | owner | owner | owner |
+| Hunting 403 and ARG 403 messages | owner | owner | owner |
+| Options saved with the query, in recent runs and in the session; reopening restores them | owner | owner | owner |
+| "Pick timespan" and "Pick scope" commands in the palette, each enabled on its source's tabs | owner | owner | owner |
+| Built-in snippets: "Threat hunting" (2) and "Azure posture" (3) groups insert and run | owner | owner | owner |
+| Snippet wording as it reads in the app: "VMs without disk encryption" says Azure Disk Encryption (the extension) is not detected and only the OS disk is checked. No snippet mentions Copilot; the only Copilot text is the `copilot/*` Graph tables, which sit under "Other" | owner | owner | owner |
+| `invoke FileProfile()` on a hunting tab shows no squiggle | owner | owner | owner |
+| Run log (Diagnostics) shows the full hunting and ARG URLs, statuses and sizes; no tokens | owner | owner | owner |
+
+### Facts to check against a real tenant (owner)
+
+Earlier reviews parked these: the fixtures follow Microsoft Learn, but no real response was recorded.
+
+| Check | macOS | Windows | Linux |
+| --- | --- | --- | --- |
+| The real `runHuntingQuery` 400 body: does it carry a position, and in which form (the parser reads `line N` / `column M` style text) | owner | owner | owner |
+| The real `getHuntingSchema` response shape (matches `Fixtures/hunting-schema-200.json`?) | owner | owner | owner |
+| The real ARG 400 position fields: `line` and `characterPositionInLine`; is the second 0-based (the client assumes it is)? | owner | owner | owner |
+| The ARG 429 body and the `x-ms-user-quota-resets-after` header format | owner | owner | owner |
+
 ## Notes
 
 - macOS launch check: the window title was "Kustodian". It showed a signed-in account because of an earlier owner sign-in cached
@@ -146,6 +207,24 @@ behind sign-in; Linux "owner" = headless container.
   the app within 8 s (the Plan 1 note says it did); it was killed with SIGKILL, and nothing was left running.
 - Linux: only build and tests could be run (container, no display). The monaco-kusto-in-WebKitGTK question (spec 14, risk 2) is
   still open and needs a machine with a display.
+
+- Plan 3 macOS launch (Task 8): the owner's own Kustodian (from the main checkout) was running and was left alone. The builder
+  built the Plan 3 worktree and ran that build as a second instance through a small launcher script that sets `HOME` to an empty
+  temporary folder, so `AppPaths.Root` pointed there and the owner's `accounts.json`, `session.json` and `recent.json` were never
+  read or written. The log said the secure store was not available ("Tokens are kept in memory only", MSAL persistence check
+  error -60006), as expected with a foreign `HOME`. Even so, the instance wrote an `accounts.json` into the temporary folder and
+  showed an account in the title bar, so it opened the workbench rather than sign-in. The builder did not sign in and did not
+  open the file; where that account came from (probably MSAL reading the login keychain, whose location doesn't follow `HOME`)
+  was not investigated. The temporary folder was deleted afterwards. Window id from a Swift `CGWindowListCopyWindowInfo` script
+  filtered by the instance's PID (the 1440x900 window), then `screencapture -x -o -l <id>`; the PNG is 2880x1800 and shows that
+  window only. Nothing was clicked or typed, and only the bundled Graph schema was on screen (footer: msgraph-metadata commit and
+  the permissions file), so the data-area grouping row is the only Plan 3 feature the shot verifies.
+- Plan 3 Windows launch (Task 8): the worktree's tracked `kustodian/` files plus the macOS-built `web/dist` were copied into a new
+  folder in the VM (`C:\src\kustodian-p3b`; the older `C:\src\kustodian` was left alone). A first copy picked up macOS
+  AppleDouble `._*` files and failed with CS2015; copying again with `COPYFILE_DISABLE=1` fixed it. The app was started on the
+  interactive desktop, captured with the Plan 2 `PrintWindow` script (Kustodian window only, 4112x2436) and closed with
+  `CloseMainWindow`.
+- Plan 3 screenshots are not committed (Plans 1 and 2 committed none either).
 
 ## Backlog
 
