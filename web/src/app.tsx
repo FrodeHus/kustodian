@@ -174,8 +174,6 @@ export function App() {
   const cursors = useTabs((s) => s.cursors);
   const active = tabs.find((t) => t.id === activeId);
 
-  const refreshAccounts = () => readAccounts(setAccounts, setAccountsError);
-
   useEffect(() => {
     void readAccounts(setAccounts, setAccountsError);
     // The raw tab's default version and sign-in's default client; without them the built-in defaults apply.
@@ -195,6 +193,16 @@ export function App() {
 
   // The last session's tabs come back, or one empty Graph tab.
   useEffect(() => startSessionSync(setProblem, setLasting), []);
+  // Explain closes when its tab's source changes from Graph, so coming back to Graph doesn't explain the query again unasked.
+  useEffect(
+    () =>
+      useTabs.subscribe((state, previous) => {
+        if (state.tabs !== previous.tabs) {
+          setExplain((open) => (open && state.tabs.find((t) => t.id === open.tabId)?.source !== 'graph' ? null : open));
+        }
+      }),
+    [],
+  );
   // Each source's schema is read when its first tab opens. Graph's failing is said in the window, as it always was.
   useEffect(() => {
     const stopLoading = startSchemaLoading();
@@ -397,7 +405,9 @@ export function App() {
   const cursor = active ? cursors[active.id] : undefined;
   const raw = active?.source === 'raw';
   const paramCount = active && !raw ? findParams(active.text).length : 0;
-  const explaining = active && explain?.tabId === active.id && explain.runId === active.run?.runId ? explain.request : null;
+  // Explain is Graph's: a tab whose source changed never shows it (and the change closed it, below).
+  const explaining =
+    active && active.source === 'graph' && explain?.tabId === active.id && explain.runId === active.run?.runId ? explain.request : null;
   // Schema and snippet text goes into the editor, never into a raw tab's path.
   const insert = (text: string) => (raw ? false : (editor.current?.insert(text) ?? false));
   const savingTab = tabs.find((t) => t.id === saving);
@@ -435,10 +445,20 @@ export function App() {
           list={accounts}
           error={accountsError}
           onChanged={(done) => {
+            let activeKey: string | undefined;
             // The screen closes only once the accounts were read again.
-            void refreshAccounts().then((read) => {
+            void readAccounts((list) => {
+              activeKey = list.accounts.find((a) => a.active)?.key;
+              setAccounts(list);
+            }, setAccountsError).then((read) => {
               if (done && read) {
                 setAccountsOpen(false);
+              }
+              // A built-in hunting schema may have been shown for want of a sign-in: signed in again as the same account, the
+              // tenant's is read (past the host's cache of the fallback). Another account resets every schema anyway.
+              const sameAccount = activeKey !== undefined && activeKey === shownAccount.current;
+              if (read && sameAccount && useSchemas.getState().byKey.hunting?.origin === 'builtIn') {
+                void useSchemas.getState().load('hunting', { refresh: true });
               }
             });
           }}

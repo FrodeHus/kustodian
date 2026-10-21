@@ -102,6 +102,25 @@ describe('useSchemas', () => {
     expect(useSchemas.getState().byKey.hunting).toBeUndefined();
   });
 
+  it('the_latest_request_for_a_source_wins', async () => {
+    const pending: ((v: SchemaView) => void)[] = [];
+    bridge.call.mockImplementation((method: string) =>
+      method === 'schema.get' ? new Promise<SchemaView>((resolve) => pending.push(resolve)) : Promise.resolve({ types: [] }),
+    );
+    const first = useSchemas.getState().load('hunting');
+    const refresh = useSchemas.getState().load('hunting', { refresh: true });
+
+    // The refresh answers first; the older read answers after it and must not replace it.
+    pending[1]!(view('hunting', '2026-10-21T12:00:00Z'));
+    await refresh;
+    expect(useSchemas.getState().loading.hunting).toBe(false);
+    pending[0]!(view('hunting', '2026-10-20T00:00:00Z'));
+    await first;
+
+    expect(useSchemas.getState().byKey.hunting?.generatedAt).toBe('2026-10-21T12:00:00Z');
+    expect(useSchemas.getState().loading.hunting).toBe(false);
+  });
+
   it('refresh_reads_the_source_again_and_a_failure_is_kept', async () => {
     await useSchemas.getState().load('hunting');
     await useSchemas.getState().load('hunting', { refresh: true });

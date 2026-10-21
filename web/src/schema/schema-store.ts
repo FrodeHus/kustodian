@@ -37,6 +37,9 @@ const empty = (): Pick<SchemasState, 'byKey' | 'errors' | 'loading' | 'resourceT
 
 /** Counts resets: an answer to a read started before the last one belongs to another account and is dropped. */
 let generation = 0;
+/** Counts each source's reads, and the resource types' reads: only the latest read's answer is kept, so an older read that answers
+ * after a refresh can't replace it. */
+const requests: Record<SchemaSource | 'types', number> = { graph: 0, hunting: 0, arg: 0, types: 0 };
 
 /**
  * One schema per source (spec 8), read lazily: a source is read when its first tab opens ({@link startSchemaLoading}), and read
@@ -49,17 +52,21 @@ export const useSchemas = create<SchemasState>()((set) => ({
   async load(source, opts) {
     const refresh = opts?.refresh ?? false;
     const at = generation;
+    const request = ++requests[source];
+    const latest = () => at === generation && request === requests[source];
     set((s) => ({ loading: { ...s.loading, [source]: true } }));
-    const types =
-      source === 'arg'
-        ? call<ArmResourceTypesAnswer>('arm.resourceTypes').then(
-            (answer) => at === generation && set({ resourceTypes: answer.types, resourceTypesError: null }),
-            (e: unknown) => at === generation && set({ resourceTypesError: errorText(e) }),
-          )
-        : Promise.resolve();
+    let types: Promise<unknown> = Promise.resolve();
+    if (source === 'arg') {
+      const typesRequest = ++requests.types;
+      const latestTypes = () => at === generation && typesRequest === requests.types;
+      types = call<ArmResourceTypesAnswer>('arm.resourceTypes').then(
+        (answer) => latestTypes() && set({ resourceTypes: answer.types, resourceTypesError: null }),
+        (e: unknown) => latestTypes() && set({ resourceTypesError: errorText(e) }),
+      );
+    }
     try {
       const view = await call<SchemaView>('schema.get', { source, refresh });
-      if (at === generation) {
+      if (latest()) {
         set((s) => {
           const errors = { ...s.errors };
           delete errors[source];
@@ -67,11 +74,11 @@ export const useSchemas = create<SchemasState>()((set) => ({
         });
       }
     } catch (e) {
-      if (at === generation) {
+      if (latest()) {
         set((s) => ({ errors: { ...s.errors, [source]: errorText(e) } }));
       }
     } finally {
-      if (at === generation) {
+      if (latest()) {
         set((s) => ({ loading: { ...s.loading, [source]: false } }));
       }
     }

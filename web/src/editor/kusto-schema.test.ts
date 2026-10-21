@@ -85,8 +85,8 @@ describe('toKustoSchema', () => {
       ],
       functions: [
         {
-          name: 'FileProfile',
-          description: 'Adds what Microsoft knows about each file.',
+          name: 'MySavedFunction',
+          description: 'A function saved in the tenant.',
           parameters: [
             { name: 'SHA1', type: 'string' },
             { name: 'limit', type: 'long' },
@@ -102,15 +102,71 @@ describe('toKustoSchema', () => {
     expect(schema.database?.tables.map((t) => t.name)).toEqual(['DeviceInfo']);
     expect(schema.database?.functions).toEqual([
       {
-        name: 'FileProfile',
+        name: 'MySavedFunction',
         body: '{ }',
-        docstring: 'Adds what Microsoft knows about each file.',
+        docstring: 'A function saved in the tenant.',
         inputParameters: [
           { name: 'SHA1', type: 'string', cslType: 'string' },
           { name: 'limit', type: 'long', cslType: 'long' },
         ],
       },
     ]);
+  });
+
+  it('invoke_style_hunting_functions_take_the_piped_table_and_return_their_columns', () => {
+    const fn = (name: string, parameters: [string, string][]) => ({ name, description: '', parameters: parameters.map(([n, type]) => ({ name: n, type })) });
+    const hunting: SchemaView = {
+      source: 'hunting',
+      origin: 'builtIn',
+      fallbackReason: null,
+      generatedAt: '2026-10-21T00:00:00Z',
+      complexTypes: {},
+      tables: [],
+      functions: [
+        fn('AssignedIPAddresses', [
+          ['DeviceId', 'string'],
+          ['Timestamp', 'datetime'],
+        ]),
+        fn('DeviceFromIP', [
+          ['IP', 'string'],
+          ['Timestamp', 'datetime'],
+        ]),
+        fn('FileProfile', [
+          ['SHA1', 'string'],
+          ['limit', 'long'],
+        ]),
+        fn('SeenBy', [['DeviceId', 'string']]),
+      ],
+    };
+
+    const [assigned, fromIp, profile, seenBy] = toKustoSchema(hunting, 'hunting').database!.functions;
+
+    // Called on its own: its own parameters, and a body with the columns Microsoft documents, so a later `project IPAddress` is known.
+    expect(assigned?.inputParameters).toEqual([
+      { name: 'DeviceId', type: 'string', cslType: 'string' },
+      { name: 'Timestamp', type: 'datetime', cslType: 'datetime' },
+    ]);
+    expect(assigned?.body).toBe('{ datatable(Timestamp:datetime, IPAddress:string, IPType:string, NetworkAdapterType:int, ConnectedNetworks:int)[] }');
+
+    // `| invoke F()`: the piped table first, then the documented arguments, each optional.
+    expect(profile?.inputParameters).toEqual([
+      { name: 'T', columns: [] },
+      { name: 'SHA1', type: 'string', cslType: 'string', cslDefaultValue: '"SHA1"' },
+      { name: 'limit', type: 'long', cslType: 'long', cslDefaultValue: '100' },
+    ]);
+    // FileProfile adds its columns to the rows.
+    expect(profile?.body).toMatch(/^\{ T \| extend SHA1="", SHA256="", .*GlobalPrevalence=int\(null\), .*IsCertificateValid=bool\(null\), .*ProfileAvailability="" \}$/);
+    expect(seenBy?.inputParameters).toEqual([
+      { name: 'T', columns: [] },
+      { name: 'DeviceId', type: 'string', cslType: 'string', cslDefaultValue: '"DeviceId"' },
+    ]);
+    expect(seenBy?.body).toBe('{ datatable(DeviceId:string)[] }');
+    expect(fromIp?.inputParameters).toEqual([
+      { name: 'T', columns: [] },
+      { name: 'IP', type: 'string', cslType: 'string', cslDefaultValue: '"IP"' },
+      { name: 'Timestamp', type: 'datetime', cslType: 'datetime', cslDefaultValue: 'datetime(null)' },
+    ]);
+    expect(fromIp?.body).toBe('{ datatable(IP:string, DeviceId:string)[] }');
   });
 
   it('arg_properties_and_tags_are_dynamic', () => {

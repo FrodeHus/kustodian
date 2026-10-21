@@ -560,6 +560,76 @@ describe('App', () => {
     expect(screen.getByRole('textbox', { name: 'KQL query', hidden: true }).closest('[hidden]')).not.toBeNull();
   });
 
+  it('app_explain_closes_when_the_tab_leaves_graph', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    answers['query.explain'] = () => ({ error: null, refusal: null, tables: [], limits: { objectsPerTable: 50000, fetchBudgetMb: 512, perObjectReadsPerTable: 2000 } });
+    render(<App />);
+    fireEvent.change(await screen.findByRole('textbox', { name: 'KQL query' }), { target: { value: 'applications' } });
+    act(() => void runCommand('explain'));
+    await waitFor(() => expect(bridge.call.mock.calls.filter(([m]) => m === 'query.explain')).toHaveLength(1));
+    expect(screen.getByRole('button', { name: 'Explain' }).getAttribute('aria-pressed')).toBe('true');
+
+    const id = useTabs.getState().activeId!;
+    act(() => useTabs.getState().setSource(id, 'hunting'));
+    expect(screen.queryByRole('button', { name: 'Explain' })).toBeNull();
+    expect(screen.getByText(/Run a query with/)).toBeTruthy();
+
+    // Back on Graph, Explain stays closed and nothing is explained again as Graph without asking.
+    act(() => useTabs.getState().setSource(id, 'graph'));
+    expect(screen.getByRole('button', { name: 'Explain' }).getAttribute('aria-pressed')).toBe('false');
+    expect(bridge.call.mock.calls.filter(([m]) => m === 'query.explain')).toHaveLength(1);
+  });
+
+  it('app_reads_every_open_sources_schema_again_for_another_account', async () => {
+    const ola: AccountInfo = { ...kari, key: 'k2', username: 'ola@contoso.com', active: false };
+    let list: AccountList = { accounts: [kari, ola], cache: 'persistent' };
+    host(list);
+    answers['account.list'] = () => list;
+    answers['account.use'] = () => {
+      list = { ...list, accounts: [{ ...kari, active: false }, { ...ola, active: true }] };
+      return null;
+    };
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+    act(() => {
+      runCommand('tab.newHunting');
+    });
+    const schemaGets = (source: string) => bridge.call.mock.calls.filter(([m, p]) => m === 'schema.get' && (p as { source: string }).source === source).length;
+    await waitFor(() => expect(schemaGets('hunting')).toBe(1));
+    expect(schemaGets('graph')).toBe(1);
+
+    // Switching account through the accounts screen.
+    fireEvent.click(screen.getByRole('button', { name: /kari@contoso.com/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Use ola@contoso.com' }));
+
+    await waitFor(() => expect(schemaGets('hunting')).toBe(2));
+    expect(schemaGets('graph')).toBe(2);
+  });
+
+  it('app_reloads_a_built_in_hunting_schema_after_signing_in_again', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    let origin: SchemaView['origin'] = 'builtIn';
+    answers['schema.get'] = (p) =>
+      (p as { source: string }).source === 'hunting'
+        ? { ...(schema as SchemaView), source: 'hunting', origin, fallbackReason: origin === 'builtIn' ? "Sign in again to read the tenant's schema. The built-in schema is shown." : null }
+        : schema;
+    answers['account.signIn'] = () => kari;
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+    act(() => {
+      runCommand('tab.newHunting');
+    });
+    const footer = () => document.querySelector('footer.statusbar')?.textContent ?? '';
+    await waitFor(() => expect(footer()).toContain('Built-in schema (Sign in again'));
+
+    // Signing in again with the same account reads the tenant's schema again.
+    origin = 'tenant';
+    fireEvent.click(screen.getByRole('button', { name: /kari@contoso.com/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign in with your browser' }));
+    await waitFor(() => expect(footer()).toContain('Schema from your tenant (getHuntingSchema)'));
+    expect(bridge.call).toHaveBeenCalledWith('schema.get', { source: 'hunting', refresh: true });
+  });
+
   it('app_settings_open_from_the_title_bar_and_the_shortcut', async () => {
     host({ accounts: [kari], cache: 'persistent' });
     render(<App />);
