@@ -108,6 +108,24 @@ public sealed class GraphExplainTests
     }
 
     [Fact]
+    public void Explain_shows_the_row_limit_sent_to_graph()
+    {
+        var table = Assert.Single(Explain("applications | where appId == 'a' | take 10").Tables);
+
+        Assert.Equal(10, table.Top);
+        Assert.EndsWith("&$top=10", table.Url, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Explain_shows_no_row_limit_when_the_take_runs_locally()
+    {
+        var table = Assert.Single(Explain("applications | where displayName has 'x' | take 10").Tables);
+
+        Assert.Null(table.Top);
+        Assert.EndsWith("&$top=999", table.Url, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Explain_marks_per_object_columns()
     {
         var table = Assert.Single(Explain("applications | project displayName, onPremisesPublishing").Tables);

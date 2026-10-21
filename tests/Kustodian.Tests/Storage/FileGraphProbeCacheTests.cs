@@ -91,6 +91,49 @@ public sealed class FileGraphProbeCacheTests : IDisposable
     }
 
     [Fact]
+    public async Task A_top_refusal_outlasts_the_app_until_the_ttl_or_it_is_forgotten()
+    {
+        await Cache().SetRefusesTopAsync("account-1", "security/alerts_v2", true, Ct);
+
+        Assert.True(await Cache().RefusesTopAsync("account-1", "security/alerts_v2", Ct));
+        Assert.False(await Cache().RefusesTopAsync("account-2", "security/alerts_v2", Ct));
+
+        await Cache().SetRefusesTopAsync("account-1", "security/alerts_v2", false, Ct);
+        Assert.False(await Cache().RefusesTopAsync("account-1", "security/alerts_v2", Ct));
+
+        await Cache().SetRefusesTopAsync("account-1", "users", true, Ct);
+        _time.Advance(GraphLimits.Default.ProbeCacheTtl);
+        Assert.False(await Cache().RefusesTopAsync("account-1", "users", Ct));
+    }
+
+    [Fact]
+    public async Task Removing_an_account_forgets_its_top_refusals()
+    {
+        var cache = Cache();
+        await cache.SetRefusesTopAsync("account-1", "users", true, Ct);
+        await cache.SetRefusesTopAsync("account-2", "users", true, Ct);
+
+        await cache.RemoveAccountAsync("account-1", Ct);
+
+        Assert.False(await Cache().RefusesTopAsync("account-1", "users", Ct));
+        Assert.True(await Cache().RefusesTopAsync("account-2", "users", Ct));
+    }
+
+    // A file from before top refusals were kept reads as refusing none, and keeps its findings.
+    [Fact]
+    public async Task A_file_without_top_refusals_reads_as_refusing_none()
+    {
+        Directory.CreateDirectory(_dir);
+        var foundAt = _time.GetUtcNow().ToString("O", System.Globalization.CultureInfo.InvariantCulture);
+        await File.WriteAllTextAsync(Path.Combine(_dir, FileGraphProbeCache.FileName), $$"""
+            {"version":1,"tables":[{"account":"account-1","path":"users","notListed":["x"],"denied":[],"foundAt":"{{foundAt}}"}],"defaults":[]}
+            """, Ct);
+
+        Assert.False(await Cache().RefusesTopAsync("account-1", "users", Ct));
+        Assert.Equal(["x"], (await Cache().GetAsync("account-1", "users", Ct))!.NotListed);
+    }
+
+    [Fact]
     public async Task Removing_an_account_forgets_its_default_columns()
     {
         var cache = Cache();

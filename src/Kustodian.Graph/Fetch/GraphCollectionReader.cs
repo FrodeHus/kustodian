@@ -43,7 +43,9 @@ public sealed record GraphCollection(IReadOnlyList<JsonObject> Objects, IReadOnl
 /// and the list then selects only those and the columns the query names; the columns probing finds a table can't serve in a
 /// list are kept there too, so the next run leaves them out at once. Without it neither is learnt nor kept.
 /// A request Graph throttles (429) is sent once more after its <c>Retry-After</c> (at most <see cref="MaxRetryWait"/>, on
-/// <paramref name="time"/>).
+/// <paramref name="time"/>). With a row limit (<see cref="GraphFetch.Top"/>) the list asks for no more than that as <c>$top</c>
+/// and stops once it has that many objects; a table that refuses <c>$top</c> is read again without it (still stopping early),
+/// and with <paramref name="probes"/> later runs leave it out at once.
 /// </summary>
 public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budget, IGraphObjectCache cache, GraphLimits limits,
     IGraphProbeCache? probes = null, TimeProvider? time = null)
@@ -99,6 +101,9 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         var objects = new List<JsonObject>();
         var unfiltered = false;
         var path = fetch.Table.Path;
+        var limit = fetch.Top;
+        var sendTop = true;
+        var refusedTopEarlier = false;
 
         try
         {
@@ -120,16 +125,26 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
             var deniedFound = earlier?.Denied.Where(c => !refresh || !select.Contains(c)).ToList() ?? [];
             if (!refresh && earlier is not null && LeaveOut(select, earlier, unreadable, denied) is { Length: > 0 } leftOut)
                 Log(diagnostics, DiagnosticKinds.Probe, $"{fetch.Table.Name}: left out (found earlier) {leftOut}");
+            if (await _probes.RefusesTopAsync(accountKey, path, ct))
+            {
+                // A refresh sends it again, and forgets the refusal if Graph takes it.
+                refusedTopEarlier = refresh;
+                sendTop = refresh;
+                if (!refresh)
+                    Log(diagnostics, DiagnosticKinds.Probe, $"{fetch.Table.Name}: left out $top (Graph refused it earlier)");
+            }
 
             while (true)
             {
                 objects.Clear();
                 // Once only: after one license refusal nothing more is left out for it.
                 var optional = unlicensedReason is null ? Optional(fetch, select) : [];
-                var retry = await ReadPagesAsync(accountKey, fetch, select, filter, lease, requests, objects, diagnostics,
+                var retry = await ReadPagesAsync(accountKey, fetch, select, filter, limit, sendTop, lease, requests, objects, diagnostics,
                     optional.Count > 0, unlicensedReason is not null, ct);
                 if (retry is null)
                 {
+                    if (refusedTopEarlier && sendTop)
+                        await _probes.SetRefusesTopAsync(accountKey, path, false, ct);
                     // A refresh that read without probing found nothing in what it selected.
                     if (refresh && !probed && earlier is not null)
                         await _probes.SetAsync(accountKey, path, notListed, deniedFound, ct);
@@ -149,6 +164,12 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                         unlicensed.Add(column);
                     }
                     Log(diagnostics, DiagnosticKinds.Probe, $"{fetch.Table.Name}: dropped {string.Join(", ", optional)} ({retry.Message})");
+                }
+                else if (retry.Top)
+                {
+                    sendTop = false;
+                    Log(diagnostics, DiagnosticKinds.Probe, $"{fetch.Table.Name}: Graph refused $top; reading without it");
+                    await _probes.SetRefusesTopAsync(accountKey, path, true, ct);
                 }
                 else if (retry.Original is { } original)
                 {
@@ -186,6 +207,8 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                 {
                     filter = null;
                     unfiltered = true;
+                    // Unfiltered, the first objects aren't the query's: its where runs locally over every one.
+                    limit = null;
                 }
             }
         }
@@ -354,21 +377,28 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
     private static string? Id(JsonObject o) => o["id"] is JsonValue v && v.TryGetValue<string>(out var id) ? id : null;
 
     /// <summary>The first page's URL relative to the Graph version, as a list read sends it: the <c>$select</c>, the
-    /// <c>$filter</c> when there is one, and the page size. Explain shows the same URL
-    /// (<see cref="GraphExplain"/>).</summary>
-    public static string FirstPageUrl(string path, IReadOnlyList<string> select, string? filter) =>
+    /// <c>$filter</c> when there is one, and the page size, or the row limit <paramref name="top"/> when that is smaller. Explain
+    /// shows the same URL (<see cref="GraphExplain"/>).</summary>
+    public static string FirstPageUrl(string path, IReadOnlyList<string> select, string? filter, int? top = null) =>
+        ListUrl(path, select, filter, Math.Min(top ?? PageSize, PageSize));
+
+    /// <summary>A list read's first URL, with <c>$top</c> only when <paramref name="top"/> is given.</summary>
+    private static string ListUrl(string path, IReadOnlyList<string> select, string? filter, int? top) =>
         path + "?$select=" + Uri.EscapeDataString(string.Join(",", select))
             + (string.IsNullOrEmpty(filter) ? "" : "&$filter=" + Uri.EscapeDataString(filter))
-            + "&$top=" + PageSize.ToString(CultureInfo.InvariantCulture);
+            + (top is { } t ? "&$top=" + t.ToString(CultureInfo.InvariantCulture) : "");
 
     /// <summary>One run through the pages. Returns null when done, or what to change when Graph refused the first page. A refusal
     /// for a license or feature the tenant lacks asks to leave the optional columns out when <paramref name="canLeaveOut"/>, and
-    /// fails the read when they already were (<paramref name="leftOut"/>); otherwise it is handled as any other.</summary>
-    private async Task<Retry?> ReadPagesAsync(string accountKey, GraphFetch fetch, List<string> select, string? filter,
-        GraphFetchLease lease, List<string> requests, List<JsonObject> objects, RunDiagnostics? diagnostics, bool canLeaveOut,
-        bool leftOut, CancellationToken ct)
+    /// fails the read when they already were (<paramref name="leftOut"/>); otherwise it is handled as any other. With
+    /// <paramref name="limit"/>, stops once that many objects have arrived (keeping no more) and asks for no more as <c>$top</c>;
+    /// <paramref name="sendTop"/> false sends no <c>$top</c> at all, and a refusal naming <c>$top</c> asks to read without it.</summary>
+    private async Task<Retry?> ReadPagesAsync(string accountKey, GraphFetch fetch, List<string> select, string? filter, int? limit,
+        bool sendTop, GraphFetchLease lease, List<string> requests, List<JsonObject> objects, RunDiagnostics? diagnostics,
+        bool canLeaveOut, bool leftOut, CancellationToken ct)
     {
-        Uri? next = new(FirstPageUrl(fetch.Table.Path, select, filter), UriKind.Relative);
+        int? top = sendTop ? Math.Min(limit ?? PageSize, PageSize) : null;
+        Uri? next = new(ListUrl(fetch.Table.Path, select, filter, top), UriKind.Relative);
         for (var page = 0; next is not null; page++)
         {
             requests.Add(Relative(next));
@@ -395,6 +425,9 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                     && (response.StatusCode == HttpStatusCode.NotFound && GraphErrorText.IsHtml(raw)
                         || response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden))
                     return new Retry(null, message ?? "", Failure(response, message));
+                // Checked before the filter: a refused $top would otherwise cost the filter.
+                if (page == 0 && sendTop && response.StatusCode == HttpStatusCode.BadRequest && NamesTop(message))
+                    return new Retry(null, message ?? "", Top: true);
                 if (page == 0 && response.StatusCode == HttpStatusCode.BadRequest)
                 {
                     // A refused filter names its property too (often a selected one), so while there is a filter a 400 is
@@ -414,6 +447,15 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
             var root = JsonNode.Parse(body) as JsonObject;
             if (root?["value"] is JsonArray value)
                 objects.AddRange(value.OfType<JsonObject>());
+            if (limit is { } most && objects.Count >= most)
+            {
+                // Graph may send more than $top asked for: the query takes no more.
+                objects.RemoveRange(most, objects.Count - most);
+                if (root?["@odata.nextLink"] is not null)
+                    Log(diagnostics, DiagnosticKinds.Request, string.Create(CultureInfo.InvariantCulture,
+                        $"{fetch.Table.Name}: stopped after {most:N0} objects (the query takes {most:N0})"));
+                return null;
+            }
             if (objects.Count > limits.ObjectsPerTable)
                 throw new GraphReadException(GraphReadFailure.TooManyObjects, string.Create(CultureInfo.InvariantCulture,
                     $"{fetch.Table.Name} has more than {limits.ObjectsPerTable:N0} objects. Add a `where` Graph can filter on (see the schema list)."));
@@ -525,8 +567,13 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
 
     /// <summary>What to change after Graph refused the first page. <see cref="Original"/> set: probe the selected columns, and
     /// throw it if probing finds none.
-    /// <see cref="License"/> set: leave the optional columns out.</summary>
-    private sealed record Retry(string? Select, string Message, GraphReadException? Original = null, bool License = false);
+    /// <see cref="License"/> set: leave the optional columns out.
+    /// <see cref="Top"/> set: read without <c>$top</c>.</summary>
+    private sealed record Retry(string? Select, string Message, GraphReadException? Original = null, bool License = false, bool Top = false);
+
+    /// <summary>Whether Graph's message for a 400 is about <c>$top</c>: it names <c>$top</c>, or OData's query option <c>'Top'</c>.</summary>
+    private static bool NamesTop(string? message) => message is not null
+        && (message.Contains("$top", StringComparison.OrdinalIgnoreCase) || message.Contains("'Top'", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>A 4xx that isn't throttling: Graph refusing what was asked, not being unable to answer.</summary>
     private static bool IsClientError(HttpStatusCode status) => (int)status is >= 400 and < 500 && status != HttpStatusCode.TooManyRequests;

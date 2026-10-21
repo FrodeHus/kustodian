@@ -16,11 +16,14 @@ public sealed record GraphQueryPlan(IReadOnlyList<GraphFetch> Fetches, GraphQuer
 /// <summary>One table to fetch: the properties to <c>$select</c> (always explicit, always with <c>id</c>) and the
 /// <c>$filter</c> pushed down, if any. <see cref="Unreadable"/> are the columns the query names that a list never returns
 /// (not listable): left out of the <c>$select</c> and read one object at a time instead. <see cref="Named"/> are the table's
-/// columns the query names itself (not those it only passes through): only those are ever read one object at a time.</summary>
+/// columns the query names itself (not those it only passes through): only those are ever read one object at a time.
+/// <see cref="Top"/> is the most rows the query takes from the table, when nothing runs locally before its <c>take</c>: the
+/// reader asks Graph for no more and stops once it has them.</summary>
 public sealed record GraphFetch(GraphTable Table, IReadOnlyList<string> Select, string? Filter)
 {
     public IReadOnlyList<string> Unreadable { get; init; } = [];
     public IReadOnlyList<string> Named { get; init; } = [];
+    public int? Top { get; init; }
 }
 
 /// <summary>A parse or bind error at a 1-based line and column.</summary>
@@ -121,7 +124,9 @@ public static class GraphQueryPlanner
             var later = LaterPredicates(code, symbol)
                 .Select(p => new LocalCondition(GraphFilterTranslator.Text(p), PushdownReasons.NotLeading));
             filters.Add(explanation with { Local = [.. explanation.Local, .. later] });
-            fetches.Add(new GraphFetch(table, select, explanation.Filter) { Unreadable = unreadable, Named = named });
+            // Only when every leading where went to Graph whole: a condition kept local would have to see rows past the limit.
+            var top = explanation.Local.Count == 0 ? RowLimit(code, symbol) : null;
+            fetches.Add(new GraphFetch(table, select, explanation.Filter) { Unreadable = unreadable, Named = named, Top = top });
         }
         return new ExplainedPlan(new GraphQueryPlan(fetches, null, null), filters);
     }
@@ -171,6 +176,35 @@ public static class GraphQueryPlanner
             node = pipe;
         }
         return predicates;
+    }
+
+    /// <summary>The <c>take</c> or <c>limit</c> of a fixed number of rows directly after <paramref name="table"/>'s reference and
+    /// its leading <c>where</c> operators, if any: the most rows the query reads from the table. Null when the table is used more
+    /// than once, any other operator comes first (<c>top</c> included: it sorts every row), or the count isn't a positive
+    /// literal. Whether those wheres all went to Graph is the caller's to check.</summary>
+    internal static int? RowLimit(KustoCode code, TableSymbol table)
+    {
+        var uses = TableUses(code).Where(u => ReferenceEquals(u.Table, table)).ToList();
+        if (uses.Count != 1)
+            return null;
+
+        SyntaxNode node = uses[0].Node;
+        while (node.Parent is PipeExpression pipe && ReferenceEquals(pipe.Expression, node))
+        {
+            switch (pipe.Operator)
+            {
+                case FilterOperator:
+                    node = pipe;
+                    continue;
+                case TakeOperator { Expression: LiteralExpression { LiteralValue: long count } } when count is > 0 and <= int.MaxValue:
+                    return (int)count;
+                case TakeOperator { Expression: LiteralExpression { LiteralValue: int count } } when count > 0:
+                    return count;
+                default:
+                    return null;
+            }
+        }
+        return null;
     }
 
     /// <summary>Every place the query reads a table: by name (<c>applications</c>, <c>database("graph").applications</c>),
