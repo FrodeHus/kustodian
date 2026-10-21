@@ -25408,7 +25408,8 @@
           "name": "unseenConversationsCount",
           "type": "int",
           "description": "Count of conversations delivered one or more new posts since the signed-in user's last visit to the group. This property is the same as unseenCount. Requires $select to retrieve.",
-          "selectOnly": true
+          "selectOnly": true,
+          "listable": false
         },
         {
           "name": "unseenCount",
@@ -25421,7 +25422,8 @@
           "name": "unseenMessagesCount",
           "type": "int",
           "description": "Count of new posts that have been delivered to the group's conversations since the signed-in user's last visit to the group. Requires $select to retrieve.",
-          "selectOnly": true
+          "selectOnly": true,
+          "listable": false
         },
         {
           "name": "visibility",
@@ -37731,7 +37733,8 @@
           "name": "aboutMe",
           "type": "string",
           "description": "A freeform text entry field for users to describe themselves. Requires $select to retrieve.",
-          "selectOnly": true
+          "selectOnly": true,
+          "listable": false
         },
         {
           "name": "accountEnabled",
@@ -37794,7 +37797,8 @@
           "name": "birthday",
           "type": "datetime",
           "description": "The birthday of the user. The Timestamp type represents date and time information using ISO 8601 format and is always in UTC. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z Requires $select to retrieve.",
-          "selectOnly": true
+          "selectOnly": true,
+          "listable": false
         },
         {
           "name": "businessPhones",
@@ -38099,7 +38103,8 @@
           "name": "hireDate",
           "type": "datetime",
           "description": "The hire date of the user. The Timestamp type represents date and time information using ISO 8601 format and is always in UTC. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z.  Requires $select to retrieve.  Note: This property is specific to SharePoint Online. We recommend using the native employeeHireDate property to set and update hire date values using Microsoft Graph APIs.",
-          "selectOnly": true
+          "selectOnly": true,
+          "listable": false
         },
         {
           "name": "identities",
@@ -38158,6 +38163,7 @@
           "type": "dynamic",
           "description": "A list for users to describe their interests. Requires $select to retrieve.",
           "selectOnly": true,
+          "listable": false,
           "collection": true
         },
         {
@@ -38236,6 +38242,7 @@
           "type": "dynamic",
           "description": "Settings for the primary mailbox of the signed-in user. You can get or update settings for sending automatic replies to incoming messages, locale, and time zone. For more information, see User preferences for languages and regional formats. Requires $select to retrieve.",
           "selectOnly": true,
+          "listable": false,
           "complexType": "microsoft.graph.mailboxSettings"
         },
         {
@@ -38272,7 +38279,8 @@
           "name": "mySite",
           "type": "string",
           "description": "The URL for the user's site. Requires $select to retrieve.",
-          "selectOnly": true
+          "selectOnly": true,
+          "listable": false
         },
         {
           "name": "officeLocation",
@@ -38458,6 +38466,7 @@
           "type": "dynamic",
           "description": "A list for users to enumerate their past projects. Requires $select to retrieve.",
           "selectOnly": true,
+          "listable": false,
           "collection": true
         },
         {
@@ -38500,7 +38509,8 @@
           "name": "preferredName",
           "type": "string",
           "description": "The preferred name for the user. Not Supported. This attribute returns an empty string.Requires $select to retrieve.",
-          "selectOnly": true
+          "selectOnly": true,
+          "listable": false
         },
         {
           "name": "print",
@@ -38548,6 +38558,7 @@
           "type": "dynamic",
           "description": "A list for the user to enumerate their responsibilities. Requires $select to retrieve.",
           "selectOnly": true,
+          "listable": false,
           "collection": true
         },
         {
@@ -38555,6 +38566,7 @@
           "type": "dynamic",
           "description": "A list for the user to enumerate the schools they have attended. Requires $select to retrieve.",
           "selectOnly": true,
+          "listable": false,
           "collection": true
         },
         {
@@ -38602,6 +38614,7 @@
           "type": "dynamic",
           "description": "A list for the user to enumerate their skills. Requires $select to retrieve.",
           "selectOnly": true,
+          "listable": false,
           "collection": true
         },
         {

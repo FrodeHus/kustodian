@@ -429,6 +429,76 @@ public sealed class GraphCollectionReaderTests
         Assert.Contains(result.Requests, q => q.Contains("$top=1"));   // the probes are listed too
     }
 
+    // users as a tenant without Entra ID P1/P2 or SharePoint Online sees it: displayName and mail come by default; signInActivity
+    // and aboutMe only on $select, and Graph refuses the whole list when either is selected.
+    private static GraphFetch Users(params string[] named)
+    {
+        static GraphColumn Column(string name, bool selectOnly) => new(name, "string", "", [], selectOnly, null);
+        var table = new GraphTable("users", "users", "microsoft.graph.user", "", "https://learn.microsoft.com/x",
+            [Column("id", false), Column("displayName", false), Column("mail", false), Column("signInActivity", true), Column("aboutMe", true)]);
+        return new GraphFetch(table, ["displayName", "mail", "signInActivity", "aboutMe", "id"], null) { Named = named };
+    }
+
+    private const string Premium = "Neither tenant is B2C or tenant doesn't have premium license";
+
+    private static HttpResponseMessage PremiumRefused()
+        => Json(HttpStatusCode.Forbidden, Error("Authentication_RequestFromNonPremiumTenantOrB2CTenant", Premium));
+
+    private static HttpResponseMessage SpoRefused()
+        => Json(HttpStatusCode.BadRequest, Error("BadRequest", "Tenant does not have a SPO license."));
+
+    [Fact]
+    public async Task A_license_error_reads_the_list_again_without_the_optional_select_only_columns()
+    {
+        var handler = new Scripted((r, _) => SelectOf(r).Split(',').Contains("signInActivity") ? PremiumRefused() : Json(HttpStatusCode.OK, Page(0, 3)));
+
+        var result = await Read(Reader(handler), Users("displayName"));
+
+        Assert.Equal(3, result.Objects.Count);
+        Assert.Equal(["signInActivity", "aboutMe"], result.Unlicensed);
+        Assert.Equal(Premium, result.UnlicensedReason);
+        Assert.Equal(2, handler.Calls);
+        Assert.Equal("displayName,mail,id", Uri.UnescapeDataString(result.Requests[^1]).Split("$select=")[1].Split('&')[0]);
+        Assert.Empty(result.Unreadable);
+        Assert.Empty(result.Denied);
+    }
+
+    [Fact]
+    public async Task A_license_error_reads_the_list_again_only_once()
+    {
+        var handler = new Scripted((_, _) => SpoRefused());
+
+        var ex = await Fails(Read(Reader(handler), Users()));
+
+        Assert.Equal("Tenant does not have a SPO license.", ex.Message);
+        Assert.Equal(2, handler.Calls);
+    }
+
+    [Fact]
+    public async Task A_license_error_never_drops_a_column_the_query_names()
+    {
+        var handler = new Scripted((r, _) => SelectOf(r).Split(',').Contains("signInActivity") ? PremiumRefused() : Json(HttpStatusCode.OK, Page(0, 3)));
+
+        var ex = await Fails(Read(Reader(handler), Users("displayName", "signInActivity")));
+
+        Assert.Equal(Premium, ex.Message);
+        Assert.Equal(2, handler.Calls);
+        Assert.All(ex.Requests, q => Assert.Contains("signInActivity", Uri.UnescapeDataString(q)));
+    }
+
+    [Fact]
+    public async Task A_license_error_with_only_named_select_only_columns_is_handled_as_before()
+    {
+        // Nothing optional to leave out: the refusal goes the way any other does (here, probing finds the column).
+        var handler = new Scripted((r, _) => SelectOf(r).Split(',').Contains("signInActivity") ? PremiumRefused() : Json(HttpStatusCode.OK, Page(0, 3)));
+        var fetch = Users("displayName", "signInActivity") with { Select = ["displayName", "signInActivity", "id"] };
+
+        var result = await Read(Reader(handler), fetch);
+
+        Assert.Empty(result.Unlicensed);
+        Assert.Equal(["signInActivity"], result.Denied);
+    }
+
     private static HttpResponseMessage Unauthorized() =>
         Json(HttpStatusCode.Unauthorized, Error("Authorization_RequestDenied", "Unauthorized Access."));
 

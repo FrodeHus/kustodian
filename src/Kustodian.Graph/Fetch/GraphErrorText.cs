@@ -82,6 +82,13 @@ public static partial class GraphErrorText
         return code is null || string.Equals(code, "InvalidAuthenticationToken", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>Whether Graph refused for a license or feature the tenant lacks, which a property in the <c>$select</c> brings in:
+    /// "Tenant does not have a SPO license", or <c>Authentication_RequestFromNonPremiumTenantOrB2CTenant</c> ("... doesn't have
+    /// premium license").</summary>
+    internal static bool IsLicenseRefusal(byte[] body)
+        => string.Equals(ErrorCode(body), "Authentication_RequestFromNonPremiumTenantOrB2CTenant", StringComparison.OrdinalIgnoreCase)
+           || Extract(body) is { } message && !IsHtml(message) && message.Contains("license", StringComparison.OrdinalIgnoreCase);
+
     private static string? ErrorCode(byte[] body)
     {
         try

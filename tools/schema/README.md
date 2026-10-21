@@ -59,3 +59,6 @@ least-privileged delegated permission); Explain and the No permission error then
 `/auditLogs/signIns` (all permissions listing those paths), in the same shape.
 
 Column permissions are not published by Microsoft: `GraphPermissions.KnownColumns` is a hand-kept list.
+
+Columns Graph returns only on a single object's GET where the metadata doesn't say so (the `users` SharePoint profile columns
+and `mailboxSettings`) are marked not listable from `GraphSchemaBuilder.KnownGetOnly`, also a hand-kept list.

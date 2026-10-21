@@ -26,6 +26,10 @@ public sealed record GraphCollection(IReadOnlyList<JsonObject> Objects, IReadOnl
     /// <summary>Selected properties Graph refused for permission (401/403) while the rest of the table read: their values are
     /// empty, and they aren't read one object at a time either.</summary>
     public IReadOnlyList<string> Denied { get; init; } = [];
+    /// <summary>Selected properties the query doesn't name, left out after Graph refused the list for a license or feature the
+    /// tenant lacks (<see cref="UnlicensedReason"/>, Graph's message): their values are empty.</summary>
+    public IReadOnlyList<string> Unlicensed { get; init; } = [];
+    public string? UnlicensedReason { get; init; }
 }
 
 /// <summary>
@@ -73,6 +77,8 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         var refusedSelects = 0;
         var probed = false;
         var denied = new List<string>();
+        var unlicensed = new List<string>();
+        string? unlicensedReason = null;
         var requests = new List<string>();
         var objects = new List<JsonObject>();
         var unfiltered = false;
@@ -82,12 +88,28 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
             while (true)
             {
                 objects.Clear();
-                var retry = await ReadPagesAsync(accountKey, fetch, select, filter, lease, requests, objects, diagnostics, ct);
+                // Once only: after one license refusal nothing more is left out for it.
+                var optional = unlicensedReason is null ? Optional(fetch, select) : [];
+                var retry = await ReadPagesAsync(accountKey, fetch, select, filter, lease, requests, objects, diagnostics,
+                    optional.Count > 0, unlicensedReason is not null, ct);
                 if (retry is null)
                     return await ReadPerObjectAsync(accountKey, fetch, lease, requests,
-                        new GraphCollection(objects, requests, unfiltered, unreadable) { Denied = denied }, refresh, diagnostics, ct);
+                        new GraphCollection(objects, requests, unfiltered, unreadable)
+                        {
+                            Denied = denied, Unlicensed = unlicensed, UnlicensedReason = unlicensedReason,
+                        }, refresh, diagnostics, ct);
 
-                if (retry.Original is { } original)
+                if (retry.License)
+                {
+                    unlicensedReason = retry.Message;
+                    foreach (var column in optional)
+                    {
+                        select.Remove(column);
+                        unlicensed.Add(column);
+                    }
+                    Log(diagnostics, DiagnosticKinds.Probe, $"{fetch.Table.Name}: dropped {string.Join(", ", optional)} ({retry.Message})");
+                }
+                else if (retry.Original is { } original)
                 {
                     // Once only: the same failure after leaving the found columns out is the collection's own.
                     if (probed)
@@ -199,6 +221,14 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         };
     }
 
+    /// <summary>The selected columns a license or feature refusal may leave out: those Graph returns only on <c>$select</c>
+    /// (every license-gated property is one) that the query doesn't name.</summary>
+    private static List<string> Optional(GraphFetch fetch, List<string> select)
+    {
+        var selectOnly = fetch.Table.Columns.Where(c => c.SelectOnly).Select(c => c.Name).ToHashSet(StringComparer.Ordinal);
+        return [.. select.Where(c => c != "id" && selectOnly.Contains(c) && !fetch.Named.Contains(c))];
+    }
+
     private static string Objects(int count)
         => count.ToString("N0", CultureInfo.InvariantCulture) + (count == 1 ? " object" : " objects");
 
@@ -216,9 +246,12 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
             + (string.IsNullOrEmpty(filter) ? "" : "&$filter=" + Uri.EscapeDataString(filter))
             + "&$top=" + PageSize.ToString(CultureInfo.InvariantCulture);
 
-    /// <summary>One run through the pages. Returns null when done, or what to change when Graph refused the first page.</summary>
+    /// <summary>One run through the pages. Returns null when done, or what to change when Graph refused the first page. A refusal
+    /// for a license or feature the tenant lacks asks to leave the optional columns out when <paramref name="canLeaveOut"/>, and
+    /// fails the read when they already were (<paramref name="leftOut"/>); otherwise it is handled as any other.</summary>
     private async Task<Retry?> ReadPagesAsync(string accountKey, GraphFetch fetch, List<string> select, string? filter,
-        GraphFetchLease lease, List<string> requests, List<JsonObject> objects, RunDiagnostics? diagnostics, CancellationToken ct)
+        GraphFetchLease lease, List<string> requests, List<JsonObject> objects, RunDiagnostics? diagnostics, bool canLeaveOut,
+        bool leftOut, CancellationToken ct)
     {
         Uri? next = new(FirstPageUrl(fetch.Table.Path, select, filter), UriKind.Relative);
         for (var page = 0; next is not null; page++)
@@ -236,6 +269,13 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                     throw SignInNeeded();
                 var raw = GraphErrorText.Extract(body);
                 var message = raw is null ? null : GraphErrorText.Describe((int)response.StatusCode, raw);
+                if (page == 0 && GraphErrorText.IsLicenseRefusal(body))
+                {
+                    if (canLeaveOut)
+                        return new Retry(null, message ?? "", License: true);
+                    if (leftOut)
+                        throw Failure(response, message);
+                }
                 // A web page for a 404 means a backend behind Graph couldn't serve some selected property, and a 401 or 403 may
                 // be one property's permission rather than the table's: probe to find which, if any.
                 if (page == 0 && select.Any(c => c != "id")
@@ -334,8 +374,9 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
     }
 
     /// <summary>What to change after Graph refused the first page. <see cref="Original"/> set: probe the selected columns, and
-    /// throw it if probing finds none.</summary>
-    private sealed record Retry(string? Select, string Message, GraphReadException? Original = null);
+    /// throw it if probing finds none.
+    /// <see cref="License"/> set: leave the optional columns out.</summary>
+    private sealed record Retry(string? Select, string Message, GraphReadException? Original = null, bool License = false);
 
     /// <summary>A 4xx that isn't throttling: Graph refusing what was asked, not being unable to answer.</summary>
     private static bool IsClientError(HttpStatusCode status) => (int)status is >= 400 and < 500 && status != HttpStatusCode.TooManyRequests;

@@ -12,6 +12,19 @@ public static partial class GraphSchemaBuilder
     /// with an application token, so they are left out.</summary>
     private static readonly string[] DelegatedOnlySingletons = ["me"];
 
+    /// <summary>Columns Graph returns only on a single object's GET although the metadata doesn't say so, keyed by table name
+    /// and column name. Microsoft Learn's List users: the SharePoint profile properties and <c>mailboxSettings</c> "are only
+    /// supported when retrieving a single user"; selected in a list, Graph refuses the whole list (in a tenant without
+    /// SharePoint Online, "Tenant does not have a SPO license"). Learn's group resource: the unseen counters are "Supported
+    /// only on the Get group API", which their beta descriptions leave out.</summary>
+    public static readonly IReadOnlySet<(string Table, string Column)> KnownGetOnly = new HashSet<(string Table, string Column)>
+    {
+        ("users", "aboutMe"), ("users", "birthday"), ("users", "hireDate"), ("users", "interests"), ("users", "mySite"),
+        ("users", "pastProjects"), ("users", "preferredName"), ("users", "responsibilities"), ("users", "schools"),
+        ("users", "skills"), ("users", "mailboxSettings"),
+        ("groups", "unseenConversationsCount"), ("groups", "unseenMessagesCount"),
+    };
+
     public static GraphSchema Build(GraphMetadata metadata, IReadOnlyDictionary<string, IReadOnlyList<string>> permissions,
         string source, DateTimeOffset generatedAt)
     {
@@ -50,7 +63,7 @@ public static partial class GraphSchemaBuilder
             return new GraphColumn(p.Name, kusto, p.Description, FilterOf(p.Description), SelectOnlyRegex().IsMatch(p.Description),
                 ComplexOf(metadata, p), p.IsCollection,
                 // A stream (application.logo) is media read from its own URL; selecting it in a list makes Graph answer 404.
-                Listable: p.TypeName != "Edm.Stream" && !GetOnlyRegex().IsMatch(p.Description))
+                Listable: p.TypeName != "Edm.Stream" && !GetOnlyRegex().IsMatch(p.Description) && !KnownGetOnly.Contains((name, p.Name)))
             {
                 KnownPermission = GraphPermissions.KnownColumns.GetValueOrDefault((name, p.Name)),
             };

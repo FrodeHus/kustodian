@@ -126,6 +126,92 @@ public sealed class GraphRunnerTests
         Assert.Contains(table.Requests, q => q.Contains("$top=1") && !q.Contains("displayName"));   // the probes are listed
     }
 
+    // A tenant without SharePoint Online: Graph refuses any users list that selects a SharePoint profile column, and each
+    // single-user read of one.
+    private static Host SpoLessHost()
+    {
+        var h = NewHost();
+        string[] profile = ["aboutMe", "birthday", "hireDate", "interests", "mySite", "pastProjects", "preferredName",
+            "responsibilities", "schools", "skills"];
+        object User(string name) => new { id = Guid.NewGuid().ToString(), displayName = name };
+        h.Graph.Answer = (request, _) => Task.FromResult(request.Method == HttpMethod.Get
+            ? FakeGraph.Select(request).Intersect(profile).Any()
+                ? FakeGraph.Error(HttpStatusCode.BadRequest, "BadRequest", "Tenant does not have a SPO license.")
+                : FakeGraph.Collection([User("Ada"), User("Grace")])
+            : FakeGraph.BatchErrors(request, HttpStatusCode.BadRequest, "BadRequest", "Tenant does not have a SPO license."));
+        return h;
+    }
+
+    // The built-in Stale guests snippet (src/Kustodian/Snippets/builtin-snippets.json) with its default period.
+    private const string StaleGuests = "users\n| where userType == \"Guest\"\n| extend lastSignIn = todatetime(signInActivity.lastSuccessfulSignInDateTime)\n| where isnull(lastSignIn) or lastSignIn < ago(90d)\n| project displayName, userPrincipalName, mail, createdDateTime, lastSignIn\n| order by lastSignIn asc";
+
+    [Fact]
+    public async Task Stale_guests_lists_signInActivity_and_filters_on_it()
+    {
+        await using var h = NewHost();
+        var recent = DateTimeOffset.UtcNow.AddDays(-5).ToString("O");
+        var old = DateTimeOffset.UtcNow.AddDays(-200).ToString("O");
+        object Guest(string name, string? lastSignIn) => new
+        {
+            id = Guid.NewGuid().ToString(), displayName = name, userType = "Guest",
+            signInActivity = lastSignIn is null ? null : new { lastSuccessfulSignInDateTime = lastSignIn },
+        };
+        h.Graph.Answer = (_, _) => Task.FromResult(FakeGraph.Collection([Guest("Recent", recent), Guest("Old", old), Guest("Never", null)]));
+
+        var r = await h.RunAsync(StaleGuests, ct: Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        Assert.Equal(["Never", "Old"], Column(r, "displayName"));
+        var list = h.Graph.Requests.First(q => q.StartsWith("/beta/users?", StringComparison.Ordinal));
+        Assert.Contains("signInActivity", list.Split("$select=")[1].Split('&')[0].Split(','));
+        Assert.Empty(Assert.Single(r.Tables).Unlicensed);
+    }
+
+    [Fact]
+    public async Task Users_in_a_tenant_without_premium_reads_again_without_signInActivity_and_says_so()
+    {
+        await using var h = NewHost();
+        h.Graph.Answer = (request, _) => Task.FromResult(FakeGraph.Select(request).Contains("signInActivity")
+            ? FakeGraph.Error(HttpStatusCode.Forbidden, "Authentication_RequestFromNonPremiumTenantOrB2CTenant",
+                "Neither tenant is B2C or tenant doesn't have premium license")
+            : FakeGraph.Collection([new { id = "1", displayName = "Ada" }]));
+
+        var r = await h.RunAsync("users", ct: Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        Assert.Equal(["Ada"], Column(r, "displayName"));
+        var table = Assert.Single(r.Tables);
+        Assert.Contains("signInActivity", table.Unlicensed);
+        Assert.Equal("Neither tenant is B2C or tenant doesn't have premium license", table.UnlicensedReason);
+    }
+
+    [Fact]
+    public async Task Users_runs_in_a_tenant_without_sharepoint()
+    {
+        await using var h = SpoLessHost();
+
+        var r = await h.RunAsync("users", ct: Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        Assert.Equal(["Ada", "Grace"], Column(r, "displayName"));
+        Assert.Empty(Assert.Single(r.Tables).PerObject);
+    }
+
+    [Fact]
+    public async Task Users_about_me_refused_per_user_is_empty_and_reported()
+    {
+        await using var h = SpoLessHost();
+
+        var r = await h.RunAsync("users | project displayName, aboutMe", ct: Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        Assert.Equal(["Ada", "Grace"], Column(r, "displayName"));
+        Assert.Equal(["", ""], Column(r, "aboutMe"));   // a Kusto string has no null: empty
+        var table = Assert.Single(r.Tables);
+        Assert.Equal(["aboutMe"], table.PerObject);
+        Assert.Equal(2, table.PerObjectFailed);
+    }
+
     [Fact]
     public async Task Run_over_budget_reports_too_large()
     {

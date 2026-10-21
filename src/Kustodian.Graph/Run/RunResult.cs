@@ -26,7 +26,13 @@ public enum RunOutcome
 /// (<paramref name="PerObject"/>), the objects whose such read failed, whether the table had too many objects for it, and how
 /// many objects' values came from the cache.</summary>
 public sealed record TableFetch(string Table, IReadOnlyList<string> Requests, bool Unfiltered, IReadOnlyList<string> Unreadable,
-    IReadOnlyList<string> Denied, IReadOnlyList<string> PerObject, int PerObjectFailed, bool PerObjectCapped, int PerObjectCached);
+    IReadOnlyList<string> Denied, IReadOnlyList<string> PerObject, int PerObjectFailed, bool PerObjectCapped, int PerObjectCached)
+{
+    /// <summary>The columns left out after Graph refused the list for a license or feature the tenant lacks (their values are
+    /// empty), and Graph's message.</summary>
+    public IReadOnlyList<string> Unlicensed { get; init; } = [];
+    public string? UnlicensedReason { get; init; }
+}
 
 /// <summary>A run's answer. <see cref="Message"/> is the text to show when the outcome isn't <see cref="RunOutcome.Ok"/>;
 /// <see cref="Error"/> carries the position of a <see cref="RunOutcome.QueryError"/>. <see cref="RunId"/> names the run (its

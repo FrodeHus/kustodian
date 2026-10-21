@@ -44,6 +44,8 @@ const runResult = {
       perObjectFailed: 0,
       perObjectCapped: false,
       perObjectCached: 0,
+      unlicensed: [],
+      unlicensedReason: null,
     },
   ],
   durationMs: 420,

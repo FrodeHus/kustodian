@@ -44,6 +44,70 @@ public sealed class GraphSchemaBuilderTests
         Assert.Equal("string", Column("logo").Type);
     }
 
+    // Microsoft Learn's List users: these "are only supported when retrieving a single user", and the metadata doesn't say
+    // so. Selected in a list, Graph refuses the whole list (in a tenant without SharePoint Online, "Tenant does not have a
+    // SPO license").
+    public static readonly string[] UsersGetOnlyColumns =
+    [
+        "aboutMe", "birthday", "hireDate", "interests", "mySite", "pastProjects", "preferredName", "responsibilities", "schools",
+        "skills", "mailboxSettings",
+    ];
+
+    public static TheoryData<string> UsersGetOnly => new(UsersGetOnlyColumns);
+
+    [Theory]
+    [MemberData(nameof(UsersGetOnly))]
+    public void Users_columns_only_returned_on_a_single_user_get_are_not_listable(string column)
+    {
+        const string csdl = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+              <edmx:DataServices>
+                <Schema Namespace="microsoft.graph" Alias="graph" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+                  <EntityType Name="user">
+                    <Key><PropertyRef Name="id" /></Key>
+                    <Property Name="id" Type="Edm.String" Nullable="false" />
+                    <Property Name="displayName" Type="Edm.String" />
+                    <Property Name="{0}" Type="Edm.String" />
+                  </EntityType>
+                  <EntityContainer Name="GraphService">
+                    <EntitySet Name="users" EntityType="graph.user" />
+                  </EntityContainer>
+                </Schema>
+              </edmx:DataServices>
+            </edmx:Edmx>
+            """;
+        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(csdl.Replace("{0}", column, StringComparison.Ordinal)));
+        var users = GraphSchemaBuilder.Build(GraphMetadata.Load(stream), new Dictionary<string, IReadOnlyList<string>>(), "test",
+            DateTimeOffset.UnixEpoch).Find("users")!;
+
+        Assert.False(users.Columns.Single(c => c.Name == column).Listable);
+        Assert.True(users.Columns.Single(c => c.Name == "displayName").Listable);
+    }
+
+    [Theory]
+    [MemberData(nameof(UsersGetOnly))]
+    public void The_embedded_schema_marks_users_get_only_columns_not_listable(string column)
+        => Assert.False(GraphSchemaCatalog.Beta.Find("users")!.Columns.Single(c => c.Name == column).Listable);
+
+    // Learn's group resource: "Supported only on the Get group API", which these two's beta descriptions leave out.
+    [Theory]
+    [InlineData("unseenConversationsCount")]
+    [InlineData("unseenMessagesCount")]
+    public void The_embedded_schema_marks_groups_unseen_counters_not_listable(string column)
+    {
+        Assert.Contains(("groups", column), GraphSchemaBuilder.KnownGetOnly);
+        Assert.False(GraphSchemaCatalog.Beta.Find("groups")!.Columns.Single(c => c.Name == column).Listable);
+    }
+
+    // Both are served in a list (Learn's List users lists them with $select); without a license or role Graph refuses the
+    // list (signInActivity, left to the license fallback) or returns null (customSecurityAttributes).
+    [Theory]
+    [InlineData("signInActivity")]
+    [InlineData("customSecurityAttributes")]
+    public void Users_license_or_role_gated_columns_stay_listable(string column)
+        => Assert.True(GraphSchemaCatalog.Beta.Find("users")!.Columns.Single(c => c.Name == column).Listable);
+
     [Fact]
     public void Directory_object_tables_are_marked_through_the_base_chain()
     {

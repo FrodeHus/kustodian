@@ -143,6 +143,26 @@ public sealed class GraphQueryPlannerTests
     }
 
     [Fact]
+    public void Users_selects_no_column_only_a_single_user_get_returns()
+    {
+        var fetch = Fetch(GraphQueryPlanner.Plan(GraphSchemaCatalog.Beta, "users", DateTimeOffset.UnixEpoch), "users");
+
+        Assert.Contains("displayName", fetch.Select);
+        Assert.Empty(fetch.Select.Intersect(GraphSchemaBuilderTests.UsersGetOnlyColumns));
+        Assert.Empty(fetch.Unreadable);
+    }
+
+    [Fact]
+    public void Users_projecting_about_me_reads_it_one_user_at_a_time()
+    {
+        var fetch = Fetch(GraphQueryPlanner.Plan(GraphSchemaCatalog.Beta, "users | project displayName, aboutMe", DateTimeOffset.UnixEpoch), "users");
+
+        Assert.Equal(["displayName", "id"], fetch.Select.Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal(["aboutMe"], fetch.Unreadable);
+        Assert.Contains("aboutMe", fetch.Named);
+    }
+
+    [Fact]
     public void Unknown_column_is_an_error_with_position()
     {
         var plan = Plan("applications | project nope");
