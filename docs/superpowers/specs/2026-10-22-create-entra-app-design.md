@@ -169,7 +169,9 @@ The same action is the palette command **Create Entra ID application** (group "A
 conditions and opens the sign-in screen with the dialog open. Every action is a command.
 
 The hunting 403 message (`HuntingClient.NoPermission`) and the Graph No permission error currently say "use your own app
-registration". When the active account is the Azure CLI client, they add "Create one from the account screen."
+registration". The sources don't know the client ID. So when a run's outcome is `noPermission` and the active account is the
+Azure CLI client, the run status shows a **Create Entra ID application…** button beside the message, running the same command.
+**My call.**
 
 ### 6.2 The dialog (mockup EntraApp, board 1)
 
