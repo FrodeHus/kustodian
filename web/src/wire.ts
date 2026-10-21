@@ -61,6 +61,9 @@ export interface TableFetch {
   perObjectFailed: number;
   perObjectCapped: boolean;
   perObjectCached: number;
+  /** Columns left out after Graph refused the list for a license or feature the tenant lacks; `unlicensedReason` is Graph's message. */
+  unlicensed: string[];
+  unlicensedReason: string | null;
 }
 
 export interface ResultColumn {

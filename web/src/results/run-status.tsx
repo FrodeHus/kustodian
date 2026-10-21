@@ -55,6 +55,13 @@ function tableChips(tables: TableFetch[]): Chip[] {
     if (t.unreadable.length > 0) {
       chips.push({ tone: 'warn', text: `${t.unreadable.join(', ')}: Graph won't list, values empty` });
     }
+    if (t.unlicensed.length > 0) {
+      chips.push({
+        tone: 'warn',
+        text: `${t.unlicensed.join(', ')}: left out, the tenant lacks a license, values empty`,
+        title: `${t.table}: ${t.unlicensedReason ?? ''}`,
+      });
+    }
     if (t.denied.length > 0) {
       chips.push({ tone: 'warn', text: `${t.denied.join(', ')}: no permission, values empty` });
     }

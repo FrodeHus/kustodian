@@ -21,6 +21,8 @@ const fetch: TableFetch = {
   perObjectFailed: 0,
   perObjectCapped: false,
   perObjectCached: 0,
+  unlicensed: [],
+  unlicensedReason: null,
 };
 
 function result(overrides: Partial<RunResult>): RunResult {
@@ -54,6 +56,14 @@ describe('RunStatus', () => {
     expect(screen.getByText('onPremisesPublishing: no permission, values empty')).toBeTruthy();
     expect(screen.getByText('● 1 row')).toBeTruthy();
     expect(screen.getByText('1 Graph request')).toBeTruthy();
+  });
+
+  it('run_status_shows_unlicensed_columns_chip_with_names_and_graphs_reason', () => {
+    const reason = "Neither tenant is B2C or tenant doesn't have premium license";
+    render(<RunStatus run={done(result({ tables: [{ ...fetch, table: 'users', unlicensed: ['signInActivity', 'aboutMe'], unlicensedReason: reason }] }))} onSignIn={() => undefined} />);
+
+    const chip = screen.getByText('signInActivity, aboutMe: left out, the tenant lacks a license, values empty');
+    expect(chip.closest('[title]')?.getAttribute('title')).toBe(`users: ${reason}`);
   });
 
   it('status_line_shows_total_requests_and_cache', () => {

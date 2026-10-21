@@ -25408,7 +25408,8 @@
           "name": "unseenConversationsCount",
           "type": "int",
           "description": "Count of conversations delivered one or more new posts since the signed-in user's last visit to the group. This property is the same as unseenCount. Requires $select to retrieve.",
-          "selectOnly": true
+          "selectOnly": true,
+          "listable": false
         },
         {
           "name": "unseenCount",
@@ -25421,7 +25422,8 @@
           "name": "unseenMessagesCount",
           "type": "int",
           "description": "Count of new posts that have been delivered to the group's conversations since the signed-in user's last visit to the group. Requires $select to retrieve.",
-          "selectOnly": true
+          "selectOnly": true,
+          "listable": false
         },
         {
           "name": "visibility",

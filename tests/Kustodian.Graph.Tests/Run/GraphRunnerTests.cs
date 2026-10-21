@@ -142,6 +142,49 @@ public sealed class GraphRunnerTests
         return h;
     }
 
+    // The built-in Stale guests snippet (src/Kustodian/Snippets/builtin-snippets.json) with its default period.
+    private const string StaleGuests = "users\n| where userType == \"Guest\"\n| extend lastSignIn = todatetime(signInActivity.lastSuccessfulSignInDateTime)\n| where isnull(lastSignIn) or lastSignIn < ago(90d)\n| project displayName, userPrincipalName, mail, createdDateTime, lastSignIn\n| order by lastSignIn asc";
+
+    [Fact]
+    public async Task Stale_guests_lists_signInActivity_and_filters_on_it()
+    {
+        await using var h = NewHost();
+        var recent = DateTimeOffset.UtcNow.AddDays(-5).ToString("O");
+        var old = DateTimeOffset.UtcNow.AddDays(-200).ToString("O");
+        object Guest(string name, string? lastSignIn) => new
+        {
+            id = Guid.NewGuid().ToString(), displayName = name, userType = "Guest",
+            signInActivity = lastSignIn is null ? null : new { lastSuccessfulSignInDateTime = lastSignIn },
+        };
+        h.Graph.Answer = (_, _) => Task.FromResult(FakeGraph.Collection([Guest("Recent", recent), Guest("Old", old), Guest("Never", null)]));
+
+        var r = await h.RunAsync(StaleGuests, ct: Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        Assert.Equal(["Never", "Old"], Column(r, "displayName"));
+        var list = h.Graph.Requests.First(q => q.StartsWith("/beta/users?", StringComparison.Ordinal));
+        Assert.Contains("signInActivity", list.Split("$select=")[1].Split('&')[0].Split(','));
+        Assert.Empty(Assert.Single(r.Tables).Unlicensed);
+    }
+
+    [Fact]
+    public async Task Users_in_a_tenant_without_premium_reads_again_without_signInActivity_and_says_so()
+    {
+        await using var h = NewHost();
+        h.Graph.Answer = (request, _) => Task.FromResult(FakeGraph.Select(request).Contains("signInActivity")
+            ? FakeGraph.Error(HttpStatusCode.Forbidden, "Authentication_RequestFromNonPremiumTenantOrB2CTenant",
+                "Neither tenant is B2C or tenant doesn't have premium license")
+            : FakeGraph.Collection([new { id = "1", displayName = "Ada" }]));
+
+        var r = await h.RunAsync("users", ct: Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        Assert.Equal(["Ada"], Column(r, "displayName"));
+        var table = Assert.Single(r.Tables);
+        Assert.Contains("signInActivity", table.Unlicensed);
+        Assert.Equal("Neither tenant is B2C or tenant doesn't have premium license", table.UnlicensedReason);
+    }
+
     [Fact]
     public async Task Users_runs_in_a_tenant_without_sharepoint()
     {

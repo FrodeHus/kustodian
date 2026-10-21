@@ -277,7 +277,11 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
 
     private static TableFetch Describe(string table, GraphCollection read)
         => new(table, read.Requests, read.Unfiltered, read.Unreadable, read.Denied, read.PerObject, read.PerObjectFailed,
-            read.PerObjectCapped, read.PerObjectCached);
+            read.PerObjectCapped, read.PerObjectCached)
+        {
+            Unlicensed = read.Unlicensed,
+            UnlicensedReason = read.UnlicensedReason,
+        };
 
     /// <summary>The table as the engine loads it: every column of the schema's table, so it is the table the editor shows.</summary>
     private static EngineTable Table(GraphTable table, IReadOnlyList<JsonObject> rows)
