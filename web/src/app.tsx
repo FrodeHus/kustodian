@@ -4,10 +4,14 @@ import type { KqlEditorHandle } from './editor/kql-editor';
 import { ResultGrid } from './results/result-grid';
 import { RunStatus } from './results/run-status';
 import { SchemaPanel } from './schema/schema-panel';
+import { startSessionSync } from './session/session-sync';
+import { bindGlobalKeys, registerCommands, type Command } from './shell/commands';
 import { MOD } from './shell/keys';
+import { Palette } from './shell/palette';
+import { chooseTheme, useTheme, type Theme } from './shell/theme';
 import { TitleBar } from './shell/title-bar';
 import { SignIn } from './signin/sign-in';
-import { useTabs, type Tab } from './tabs/tab-store';
+import { useTabs, type RunMode, type Tab } from './tabs/tab-store';
 import { TabStrip } from './tabs/tab-strip';
 import type { AccountList, SchemaView } from './wire';
 
@@ -37,6 +41,34 @@ function formatDate(iso: string): string {
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
+const activeTab = (): Tab | undefined => {
+  const { tabs, activeId } = useTabs.getState();
+  return tabs.find((t) => t.id === activeId);
+};
+
+/** Runs the active tab: `block` runs the selection instead when there is one. */
+function runActive(mode: 'block' | 'all', refresh = false) {
+  const tab = activeTab();
+  if (!tab) {
+    return;
+  }
+  const selected = mode === 'block' && (useTabs.getState().cursors[tab.id]?.selection ?? '') !== '';
+  const run: RunMode = selected ? 'selection' : mode;
+  void useTabs.getState().run(tab.id, run, { refresh });
+}
+
+/** Activates the tab `step` places along, wrapping around. */
+function cycleTab(step: number) {
+  const { tabs, activeId, activate } = useTabs.getState();
+  const index = tabs.findIndex((t) => t.id === activeId);
+  const next = tabs[(index + step + tabs.length) % tabs.length];
+  if (next) {
+    activate(next.id);
+  }
+}
+
+const THEME_NAMES: Record<Theme, string> = { dark: 'Dark', light: 'Light', system: 'System' };
+
 /** Reads the accounts; resolves whether that worked. A failure is reported as the sign-in screen's error line. */
 function readAccounts(onList: (list: AccountList) => void, onError: (text: string | null) => void): Promise<boolean> {
   return call<AccountList>('account.list').then(
@@ -59,7 +91,9 @@ export function App() {
   const [problem, setProblem] = useState<string | null>(null);
   const [accountsOpen, setAccountsOpen] = useState(false);
   const [accountsError, setAccountsError] = useState<string | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const editor = useRef<KqlEditorHandle>(null);
+  const theme = useTheme();
 
   const tabs = useTabs((s) => s.tabs);
   const activeId = useTabs((s) => s.activeId);
@@ -73,22 +107,63 @@ export function App() {
     call<SchemaView>('schema.get', { source: 'graph' }).then(setSchema, (e: unknown) =>
       setProblem(`The Graph schema couldn’t be loaded: ${errorText(e)}`),
     );
-    if (useTabs.getState().tabs.length === 0) {
-      useTabs.getState().open('graph');
-    }
   }, []);
+
+  // The last session's tabs come back, or one empty Graph tab.
+  useEffect(() => startSessionSync(setProblem), []);
+
+  useEffect(() => {
+    const fail = (what: string) => (e: unknown) => setProblem(`${what}: ${errorText(e)}`);
+    const runnable = () => {
+      const tab = activeTab();
+      return !!tab && tab.source !== 'raw';
+    };
+    const themeCommand = (t: Theme): Command => ({
+      id: `theme.${t}`,
+      title: `Theme: ${THEME_NAMES[t].toLowerCase()}`,
+      group: 'Theme',
+      run: () => void chooseTheme(t).catch(fail('The theme couldn’t be kept for the next start')),
+    });
+    const commands: Command[] = [
+      { id: 'palette', title: 'Command palette', group: 'Window', shortcut: 'Mod+K, Mod+Shift+P', run: () => setPaletteOpen(true) },
+      { id: 'tab.new', title: 'New Microsoft Graph query', group: 'Tabs', shortcut: 'Mod+T', run: () => useTabs.getState().open('graph') },
+      { id: 'tab.next', title: 'Next tab', group: 'Tabs', shortcut: 'Ctrl+Tab', run: () => cycleTab(1), enabled: () => useTabs.getState().tabs.length > 1 },
+      { id: 'tab.previous', title: 'Previous tab', group: 'Tabs', shortcut: 'Ctrl+Shift+Tab', run: () => cycleTab(-1), enabled: () => useTabs.getState().tabs.length > 1 },
+      { id: 'run.block', title: 'Run the block at the cursor', group: 'Run', shortcut: 'Mod+Enter', run: () => runActive('block'), enabled: runnable },
+      { id: 'run.all', title: 'Run all', group: 'Run', shortcut: 'Shift+Enter', run: () => runActive('all'), enabled: runnable },
+      { id: 'run.refresh', title: 'Run without cache', group: 'Run', shortcut: 'Mod+Shift+Enter', run: () => runActive('block', true), enabled: runnable },
+      {
+        id: 'run.cancel',
+        title: 'Cancel the run',
+        group: 'Run',
+        shortcut: 'Mod+.',
+        run: () => {
+          const tab = activeTab();
+          if (tab) {
+            useTabs.getState().cancel(tab.id);
+          }
+        },
+        enabled: () => activeTab()?.run?.state === 'running',
+      },
+      { id: 'editor.format', title: 'Format the query', group: 'Editor', shortcut: 'Shift+Alt+F', run: () => editor.current?.format(), enabled: runnable },
+      themeCommand('dark'),
+      themeCommand('light'),
+      themeCommand('system'),
+      {
+        id: 'cache.clear',
+        title: 'Clear the cache',
+        group: 'Graph',
+        run: () => void call('cache.clear').catch(fail('The cache couldn’t be cleared')),
+      },
+    ];
+    return registerCommands(commands);
+  }, []);
+
+  useEffect(() => bindGlobalKeys(), []);
 
   const account = accounts?.accounts.find((a) => a.active);
   // Unreadable accounts also mean sign-in: it shows why, and signing in reads them again.
   const signingIn = accountsError !== null || (accounts !== null && (!account || accountsOpen));
-
-  const runActive = (mode: 'block' | 'all') => {
-    if (!active) {
-      return;
-    }
-    const selected = mode === 'block' && (cursors[active.id]?.selection ?? '') !== '';
-    void useTabs.getState().run(active.id, selected ? 'selection' : mode);
-  };
 
   const cursor = active ? cursors[active.id] : undefined;
 
@@ -136,7 +211,7 @@ export function App() {
           <main className="workspace">
             {active ? (
               <>
-                <Toolbar tab={active} onRun={runActive} onFormat={() => editor.current?.format()} />
+                <Toolbar tab={active} onRun={(mode) => runActive(mode)} onFormat={() => editor.current?.format()} />
                 <div className="relative min-h-[160px] shrink-0 basis-[38%] border-b border-line">
                   <EditorFailed>
                     <Suspense fallback={<p className="faint m-0 p-4 text-[12px]">Loading the editor…</p>}>
@@ -170,9 +245,18 @@ export function App() {
             </span>
           )}
           <div className="grow" />
-          <span>Dark</span>
+          <span title="Theme">{theme.theme === 'system' ? `System (${THEME_NAMES[theme.resolved]})` : THEME_NAMES[theme.theme]}</span>
         </footer>
       </div>
+      {paletteOpen && (
+        <Palette
+          onClose={() => {
+            setPaletteOpen(false);
+            editor.current?.focus();
+          }}
+          onInsert={(text) => editor.current?.insert(text)}
+        />
+      )}
     </div>
   );
 }

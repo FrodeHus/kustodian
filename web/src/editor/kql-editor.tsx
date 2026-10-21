@@ -6,12 +6,13 @@ import * as monaco from 'monaco-editor/esm/vs/editor/editor.api.js';
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker.js?worker';
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { call } from '../bridge';
+import { useTheme } from '../shell/theme';
 import { useTabs, type RunMode } from '../tabs/tab-store';
 import type { CompletionItem, SchemaView } from '../wire';
 import { createDotProvider } from './dot-completion';
 import { toKustoSchema } from './kusto-schema';
 import KustoWorker from './kusto.worker?worker';
-import { bindRunKeys } from './run-keys';
+import { bindCommandKeys, bindRunKeys } from './run-keys';
 
 // Both workers are files of the build (Vite `?worker`): the editor never loads anything from the network.
 globalThis.MonacoEnvironment = {
@@ -68,6 +69,58 @@ monaco.editor.defineTheme('kustodian-dark', {
   },
 });
 
+// The light tokens (`.theme-light` in styles.css, from studio.css), as hex.
+monaco.editor.defineTheme('kustodian-light', {
+  base: 'vs',
+  inherit: true,
+  rules: [
+    { token: '', foreground: '14171C' },
+    { token: 'plainText', foreground: '14171C' },
+    { token: 'comment', foreground: '6B7584', fontStyle: 'italic' },
+    { token: 'punctuation', foreground: '4E5867' },
+    { token: 'directive', foreground: '7A3EC8' },
+    { token: 'literal', foreground: 'B4501A' },
+    { token: 'stringLiteral', foreground: '2E7D32' },
+    { token: 'type', foreground: '2F57C9' },
+    { token: 'column', foreground: '8A5A00' },
+    { token: 'table', foreground: '0B6FAE' },
+    { token: 'database', foreground: '0B6FAE' },
+    { token: 'function', foreground: '2F57C9' },
+    { token: 'parameter', foreground: 'B4501A' },
+    { token: 'variable', foreground: '14171C' },
+    { token: 'identifier', foreground: '14171C' },
+    { token: 'clientParameter', foreground: 'B4501A' },
+    { token: 'queryParameter', foreground: 'B4501A' },
+    { token: 'scalarParameter', foreground: 'B4501A' },
+    { token: 'mathOperator', foreground: '4E5867' },
+    { token: 'queryOperator', foreground: '7A3EC8' },
+    { token: 'command', foreground: '7A3EC8' },
+    { token: 'keyword', foreground: '7A3EC8' },
+    { token: 'materializedView', foreground: '0B6FAE' },
+    { token: 'schemaMember', foreground: '8A5A00' },
+    { token: 'signatureParameter', foreground: '14171C' },
+    { token: 'option', foreground: '14171C' },
+  ],
+  colors: {
+    'editor.background': '#F4F6F8',
+    'editor.foreground': '#14171C',
+    'editorLineNumber.foreground': '#6B7584',
+    'editorLineNumber.activeForeground': '#4E5867',
+    'editor.lineHighlightBackground': '#7F8CA014',
+    'editor.selectionBackground': '#0B6FAE40',
+    'editorCursor.foreground': '#0B6FAE',
+    'editorSuggestWidget.background': '#FFFFFF',
+    'editorSuggestWidget.border': '#DCE1E8',
+    'editorSuggestWidget.selectedBackground': '#EEF2F6',
+    'editorHoverWidget.background': '#FFFFFF',
+    'editorHoverWidget.border': '#DCE1E8',
+    'editorWidget.background': '#FFFFFF',
+    'editorWidget.border': '#DCE1E8',
+  },
+});
+
+const monacoTheme = (resolved: 'dark' | 'light') => (resolved === 'light' ? 'kustodian-light' : 'kustodian-dark');
+
 const uriOf = (tabId: string) => monaco.Uri.parse(`inmemory://kustodian/${tabId}.kql`);
 
 const complete = (kql: string, position: number, signal: AbortSignal) =>
@@ -112,7 +165,7 @@ export default function KqlEditor({ schema, onRun, ref }: KqlEditorProps) {
     const editor = monaco.editor.create(host.current!, {
       model: null,
       language: 'kusto',
-      theme: 'kustodian-dark',
+      theme: monacoTheme(useTheme.getState().resolved),
       ariaLabel: 'KQL query',
       automaticLayout: true,
       minimap: { enabled: false },
@@ -130,9 +183,17 @@ export default function KqlEditor({ schema, onRun, ref }: KqlEditorProps) {
     editorRef.current = editor;
     const allModels = models.current;
 
-    bindRunKeys(editor, { CtrlCmd: monaco.KeyMod.CtrlCmd, Shift: monaco.KeyMod.Shift, Enter: monaco.KeyCode.Enter }, (mode) =>
+    const runKeys = bindRunKeys(editor, { CtrlCmd: monaco.KeyMod.CtrlCmd, Shift: monaco.KeyMod.Shift, Enter: monaco.KeyCode.Enter }, (mode) =>
       latest.current.onRun(mode),
     );
+    // The window's commands (palette, tabs, run without cache ...) work while typing too.
+    const stopBinding = bindCommandKeys(editor, { KeyMod: monaco.KeyMod, KeyCode: monaco.KeyCode }, runKeys);
+    // Monaco's theme is global: it follows the window's.
+    const stopTheme = useTheme.subscribe((t, previous) => {
+      if (t.resolved !== previous.resolved) {
+        monaco.editor.setTheme(monacoTheme(t.resolved));
+      }
+    });
 
     const subscriptions = [
       editor.onDidChangeModelContent(() => {
@@ -163,6 +224,8 @@ export default function KqlEditor({ schema, onRun, ref }: KqlEditorProps) {
     ];
 
     return () => {
+      stopBinding();
+      stopTheme();
       subscriptions.forEach((s) => s.dispose());
       editor.dispose();
       allModels.forEach((m) => m.dispose());

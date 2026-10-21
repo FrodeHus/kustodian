@@ -40,7 +40,7 @@ function result(overrides: Partial<RunResult>): RunResult {
   };
 }
 
-const done = (r: RunResult) => ({ state: 'done' as const, result: r, startedAt: Date.parse('2026-10-21T09:41:12Z'), origin: { line: 1, column: 1 } });
+const done = (r: RunResult) => ({ state: 'done' as const, runId: r.runId, result: r, startedAt: Date.parse('2026-10-21T09:41:12Z'), origin: { line: 1, column: 1 } });
 
 beforeEach(() => {
   call.mockReset();

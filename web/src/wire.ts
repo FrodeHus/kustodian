@@ -1,6 +1,7 @@
 /** The shapes the host sends over the bridge (camelCase, as its `BridgeJson` writes them). */
 
-export type Source = 'graph' | 'hunting' | 'arg';
+/** `raw` is the raw Graph request tab (Task 12); it never runs KQL. */
+export type Source = 'graph' | 'hunting' | 'arg' | 'raw';
 
 export interface SchemaColumn {
   name: string;
@@ -130,3 +131,91 @@ export interface AccountList {
 
 /** The Azure CLI's public client, Kustodian's default. */
 export const AZURE_CLI_CLIENT_ID = '04b07795-8ddb-461a-bbee-02f9e1bf7b46';
+
+/** A query's parameter as saved with it: its last value, and the choices a list offers. */
+export interface ParameterDef {
+  name: string;
+  type: string;
+  value: string;
+  required: boolean;
+  choices?: string[] | null;
+}
+
+/** A parameter's value as `query.run` takes it. */
+export interface ParameterValue {
+  name: string;
+  type: string;
+  value: string;
+  required: boolean;
+}
+
+/** A tab as `session.json` keeps it. The host nulls a `filePath` the user didn't choose. */
+export interface SessionTab {
+  id: string;
+  source: Source;
+  title: string;
+  text: string;
+  dirty: boolean;
+  savedId: string | null;
+  parameters: ParameterDef[];
+  filePath: string | null;
+}
+
+export interface Session {
+  version: number;
+  activeId: string | null;
+  tabs: SessionTab[];
+}
+
+/** `session.get`'s answer. `corrupt`: the file was moved aside and the session is empty. */
+export interface SessionAnswer {
+  session: Session;
+  corrupt: boolean;
+}
+
+export interface SavedQuery {
+  version: number;
+  id: string;
+  name: string;
+  folder: string | null;
+  source: Source;
+  text: string;
+  parameters: ParameterDef[];
+  createdAt: string;
+  modifiedAt: string;
+}
+
+/** `library.list`'s answer. `skipped`: files that couldn't be read and were moved aside. */
+export interface LibraryList {
+  queries: SavedQuery[];
+  folders: string[];
+  skipped: number;
+}
+
+export interface Snippet {
+  id: string;
+  source: Source;
+  name: string;
+  description: string;
+  text: string;
+  builtIn: boolean;
+  group: string | null;
+  parameters: ParameterDef[];
+}
+
+export type Theme = 'dark' | 'light' | 'system';
+
+export interface AppSettings {
+  version: number;
+  theme: Theme;
+  rawDefaultVersion: string;
+  signIn: { clientId: string | null; tenant: string | null };
+  limits: Record<string, number>;
+}
+
+/** `settings.get`'s and `settings.set`'s answer. */
+export interface SettingsAnswer {
+  settings: AppSettings;
+  restartNeeded: boolean;
+  corrupt: boolean;
+}

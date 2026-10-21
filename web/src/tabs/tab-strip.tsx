@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { registerCommands } from '../shell/commands';
 import { MOD } from '../shell/keys';
 import type { Source } from '../wire';
 import { useTabs, type Tab } from './tab-store';
@@ -7,6 +8,7 @@ const SOURCES: Record<Source, { badge: string; className: string; name: string }
   graph: { badge: 'GR', className: 'graph', name: 'Microsoft Graph' },
   hunting: { badge: 'AH', className: 'hunt', name: 'Defender advanced hunting' },
   arg: { badge: 'ARG', className: 'arg', name: 'Azure Resource Graph' },
+  raw: { badge: 'GR', className: 'graph', name: 'Raw Graph request' },
 };
 
 function SourceBadge({ source, titled = false }: { source: Source; titled?: boolean }) {
@@ -28,17 +30,29 @@ export function TabStrip() {
   const [closing, setClosing] = useState<Tab | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Ctrl/Cmd+T opens a Graph query from anywhere in the window.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 't') {
-        e.preventDefault();
-        useTabs.getState().open('graph');
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  // Closing from the keyboard asks first too, so the command lives with the confirmation.
+  useEffect(
+    () =>
+      registerCommands([
+        {
+          id: 'tab.close',
+          title: 'Close the tab',
+          group: 'Tabs',
+          shortcut: 'Mod+W',
+          run: () => {
+            const { tabs: open, activeId: id } = useTabs.getState();
+            const tab = open.find((t) => t.id === id);
+            if (tab?.dirty) {
+              setClosing(tab);
+            } else if (tab) {
+              useTabs.getState().close(tab.id);
+            }
+          },
+          enabled: () => useTabs.getState().activeId !== null,
+        },
+      ]),
+    [],
+  );
 
   useEffect(() => {
     if (!menu) {

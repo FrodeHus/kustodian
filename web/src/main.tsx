@@ -2,7 +2,11 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './app';
 import { hasHost, NO_HOST_MESSAGE } from './bridge';
+import { applyTheme, initialTheme } from './shell/theme';
 import './styles.css';
+
+// The host puts the saved theme in the start URL, so the first paint is already in it.
+applyTheme(initialTheme(location.search));
 
 const root = document.getElementById('root');
 if (!root) {

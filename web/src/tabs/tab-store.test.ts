@@ -60,13 +60,14 @@ describe('tab store', () => {
 
     const done = useTabs.getState().run(id, 'block');
     expect(useTabs.getState().tabs[0]?.run?.state).toBe('running');
-    bridge.progress.forEach((h) => h({ tabId: id, runId: 'run-1', stage: 'fetching', detail: 'users' }));
+    const runId = useTabs.getState().tabs[0]?.run?.runId;
+    bridge.progress.forEach((h) => h({ tabId: id, runId, stage: 'fetching', detail: 'users' }));
     expect(useTabs.getState().tabs[0]?.run).toMatchObject({ stage: 'fetching', detail: 'users' });
     await done;
 
     expect(bridge.call).toHaveBeenCalledWith(
       'query.run',
-      { tabId: id, source: 'graph', kql: 'users\n| count', refresh: false },
+      { tabId: id, source: 'graph', kql: 'users\n| count', refresh: false, parameters: [], runId: expect.any(String) },
       expect.any(AbortSignal),
     );
     expect(useTabs.getState().tabs[0]?.run).toMatchObject({ state: 'done', result: ok });
@@ -109,5 +110,134 @@ describe('tab store', () => {
     await useTabs.getState().run(id, 'all');
 
     expect(useTabs.getState().tabs[0]?.run?.result).toMatchObject({ outcome: 'failed', message: 'The host stopped.' });
+  });
+
+  it('openWith_sets_text_title_and_not_dirty', () => {
+    const params = [{ name: 'days', type: 'number', value: '30', required: true, choices: null }];
+    const id = useTabs.getState().openWith({ source: 'graph', title: 'Stale guests', text: 'users', savedId: 's1', filePath: '/q.kql', parameters: params });
+
+    const tab = useTabs.getState().tabs[0];
+    expect(tab).toMatchObject({ id, source: 'graph', title: 'Stale guests', text: 'users', dirty: false, savedId: 's1', filePath: '/q.kql', parameters: params, history: [] });
+    expect(useTabs.getState().activeId).toBe(id);
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+  });
+
+  it('restore_recreates_tabs_and_active', () => {
+    useTabs.getState().open('graph');
+    useTabs.getState().restore({
+      version: 1,
+      activeId: 'b',
+      tabs: [
+        { id: 'a', source: 'graph', title: 'Apps', text: 'applications', dirty: false, savedId: 's1', parameters: [], filePath: null },
+        { id: 'b', source: 'graph', title: 'Draft', text: 'users | take 3', dirty: true, savedId: null, parameters: [], filePath: '/d.kql' },
+      ],
+    });
+
+    const { tabs, activeId } = useTabs.getState();
+    expect(tabs.map((t) => [t.id, t.title, t.text, t.dirty, t.savedId, t.filePath])).toEqual([
+      ['a', 'Apps', 'applications', false, 's1', undefined],
+      ['b', 'Draft', 'users | take 3', true, undefined, '/d.kql'],
+    ]);
+    expect(activeId).toBe('b');
+
+    // An active id the session doesn't have falls back to the first tab.
+    useTabs.getState().restore({ version: 1, activeId: 'gone', tabs: [{ id: 'c', source: 'graph', title: 'C', text: '', dirty: false, savedId: null, parameters: [], filePath: null }] });
+    expect(useTabs.getState().activeId).toBe('c');
+  });
+
+  it('markSaved_clears_dirty', () => {
+    const id = useTabs.getState().open('graph');
+    useTabs.getState().setText(id, 'users');
+    expect(useTabs.getState().tabs[0]?.dirty).toBe(true);
+
+    useTabs.getState().markSaved(id, { savedId: 's9', title: 'All users' });
+
+    expect(useTabs.getState().tabs[0]).toMatchObject({ dirty: false, savedId: 's9', title: 'All users', filePath: undefined });
+    useTabs.getState().markSaved(id, { filePath: '/u.kql', title: 'u.kql' });
+    expect(useTabs.getState().tabs[0]).toMatchObject({ savedId: 's9', filePath: '/u.kql', title: 'u.kql' });
+  });
+
+  it('stale_progress_from_superseded_run_is_ignored', async () => {
+    const answers: ((r: RunResult) => void)[] = [];
+    bridge.call.mockImplementation(() => new Promise<RunResult>((resolve) => answers.push(resolve)));
+    const id = useTabs.getState().open('graph');
+    useTabs.getState().setText(id, 'users');
+
+    const first = useTabs.getState().run(id, 'all');
+    const firstRunId = useTabs.getState().tabs[0]?.run?.runId;
+    const second = useTabs.getState().run(id, 'all');
+    const secondRunId = useTabs.getState().tabs[0]?.run?.runId;
+    expect(firstRunId).not.toBe(secondRunId);
+
+    bridge.progress.forEach((h) => h({ tabId: id, runId: firstRunId, stage: 'fetching', detail: 'old' }));
+    expect(useTabs.getState().tabs[0]?.run?.stage).toBeUndefined();
+    bridge.progress.forEach((h) => h({ tabId: id, runId: secondRunId, stage: 'fetching', detail: 'users' }));
+    expect(useTabs.getState().tabs[0]?.run).toMatchObject({ stage: 'fetching', detail: 'users' });
+
+    answers.forEach((a) => a(ok));
+    await Promise.all([first, second]);
+    expect(bridge.call.mock.calls.map((c) => (c[1] as { runId: string }).runId)).toEqual([firstRunId, secondRunId]);
+  });
+
+  it('run_sends_parameters_and_refresh', async () => {
+    bridge.call.mockResolvedValue(ok);
+    const id = useTabs.getState().open('graph');
+    useTabs.getState().setText(id, 'users | where createdDateTime > ago({days})');
+    useTabs.getState().setParameters(id, [{ name: 'days', type: 'timespan', value: '7d', required: true, choices: null }]);
+
+    await useTabs.getState().run(id, 'all', { refresh: true });
+
+    expect(bridge.call).toHaveBeenCalledWith(
+      'query.run',
+      {
+        tabId: id,
+        source: 'graph',
+        kql: 'users | where createdDateTime > ago({days})',
+        refresh: true,
+        parameters: [{ name: 'days', type: 'timespan', value: '7d', required: true }],
+        runId: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+      },
+      expect.any(AbortSignal),
+    );
+  });
+
+  it('run_on_a_raw_tab_does_nothing', async () => {
+    const id = useTabs.getState().openWith({ source: 'raw', title: 'Raw request', text: 'GET /me' });
+
+    await useTabs.getState().run(id, 'all');
+
+    expect(bridge.call).not.toHaveBeenCalled();
+    expect(useTabs.getState().tabs[0]?.run).toBeUndefined();
+  });
+
+  it('history_keeps_5_newest', async () => {
+    let n = 0;
+    bridge.call.mockImplementation(() => Promise.resolve({ ...ok, total: ++n }));
+    const id = useTabs.getState().open('graph');
+    useTabs.getState().setText(id, 'users');
+
+    for (let i = 0; i < 7; i++) {
+      await useTabs.getState().run(id, 'all');
+    }
+
+    expect(useTabs.getState().tabs[0]?.history.map((r) => r.total)).toEqual([7, 6, 5, 4, 3]);
+  });
+
+  it('pin_keeps_the_current_result_and_unpin_drops_it', async () => {
+    bridge.call.mockResolvedValue(ok);
+    const id = useTabs.getState().open('graph');
+    useTabs.getState().setText(id, 'users');
+    await useTabs.getState().run(id, 'all');
+
+    useTabs.getState().pin(id);
+    expect(useTabs.getState().tabs[0]?.pinned).toBe(ok);
+    useTabs.getState().unpin(id);
+    expect(useTabs.getState().tabs[0]?.pinned).toBeUndefined();
+  });
+
+  it('setTitle_renames_the_tab', () => {
+    const id = useTabs.getState().open('graph');
+    useTabs.getState().setTitle(id, 'Risky apps');
+    expect(useTabs.getState().tabs[0]?.title).toBe('Risky apps');
   });
 });

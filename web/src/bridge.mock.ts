@@ -112,6 +112,22 @@ function rawResponse(url: string) {
   };
 }
 
+/** One of the host's built-in snippets (`Snippets/builtin-snippets.json`); `snippets.list` answers the built-in ones first. */
+const builtInSnippet = {
+  id: '5f0e6a6e-6d0a-4a55-9a53-0b7e3a1c0001',
+  source: 'graph',
+  name: 'Expired app credentials',
+  description: 'Application secrets and certificates that ended more than the grace period ago, one row per app.',
+  text:
+    'union\n    (applications | mv-expand cred = passwordCredentials | extend credKind = "secret"),\n' +
+    '    (applications | mv-expand cred = keyCredentials | extend credKind = "certificate")\n' +
+    '| where todatetime(cred.endDateTime) < now() - {graceDays}\n' +
+    '| summarize expired = count(), kinds = make_set(credKind) by displayName, appId\n| order by expired desc',
+  builtIn: true,
+  group: 'Identity checks',
+  parameters: [{ name: 'graceDays', type: 'timespan', value: '0d', required: false, choices: ['0d', '7d', '30d'] }],
+};
+
 const RUN_DELAY_MS = 400;
 
 interface MockRequest {
@@ -235,7 +251,7 @@ export function createMockTransport(): Transport {
         reply(id, { dropped: 0 });
         break;
       case 'snippets.list':
-        reply(id, { snippets: [...userSnippets.values()] });
+        reply(id, { snippets: [builtInSnippet, ...userSnippets.values()] });
         break;
       case 'snippets.save': {
         const input = params?.snippet;

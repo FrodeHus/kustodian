@@ -1,14 +1,17 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import schema from '../fixtures/graph-schema.json';
+import { registerCommands } from '../shell/commands';
+import { applyTheme } from '../shell/theme';
 import { useTabs } from '../tabs/tab-store';
 import type { SchemaView } from '../wire';
 
 // Monaco doesn't run in jsdom. A stand-in records what the editor registers, with Monaco's own KeyMod and KeyCode values.
 const fake = vi.hoisted(() => {
   const KeyMod = { CtrlCmd: 2048, Shift: 1024, Alt: 512, WinCtrl: 256 };
-  const KeyCode = { Enter: 3 };
+  const KeyCode = { Enter: 3, KeyK: 41, KeyP: 46, KeyT: 50, KeyW: 53 };
   const commands = new Map<number, () => void>();
+  const themes = { defined: [] as string[], set: [] as string[] };
   let selectionEmpty = true;
   const disposable = { dispose: () => undefined };
   const model = (value: string) => {
@@ -37,14 +40,15 @@ const fake = vi.hoisted(() => {
     editor: {
       create: () => editor,
       createModel: (value: string) => model(value),
-      defineTheme: () => undefined,
-      setTheme: () => undefined,
+      defineTheme: (name: string) => themes.defined.push(name),
+      setTheme: (name: string) => themes.set.push(name),
     },
     languages: { registerCompletionItemProvider: () => disposable },
   };
   return {
     monaco,
     commands,
+    themes,
     setSelectionEmpty: (empty: boolean) => (selectionEmpty = empty),
     press: (keybinding: number) => commands.get(keybinding)?.(),
     kustoWorker: (): Promise<unknown> => new Promise(() => undefined),
@@ -62,6 +66,8 @@ const { default: KqlEditor } = await import('./kql-editor');
 
 beforeEach(() => {
   fake.commands.clear();
+  fake.themes.set.length = 0;
+  applyTheme('dark');
   fake.setSelectionEmpty(true);
   fake.kustoWorker = () => new Promise(() => undefined);
   useTabs.setState({ tabs: [], activeId: null, cursors: {} });
@@ -99,5 +105,43 @@ describe('KqlEditor', () => {
     });
     await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
     expect(setSchema).toHaveBeenCalledTimes(2);
+  });
+
+  it('registered_command_shortcuts_run_from_the_editor', () => {
+    const newTab = vi.fn();
+    const palette = vi.fn();
+    const unregister = registerCommands([
+      { id: 'tab.new', title: 'New Microsoft Graph query', group: 'Tabs', shortcut: 'Mod+T', run: newTab },
+      { id: 'palette', title: 'Command palette', group: 'Window', shortcut: 'Mod+K, Mod+Shift+P', run: palette },
+    ]);
+    render(<KqlEditor schema={null} onRun={() => undefined} />);
+    const { KeyMod, KeyCode } = fake.monaco;
+
+    fake.press(KeyMod.CtrlCmd | KeyCode.KeyT);
+    fake.press(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyP);
+    fake.press(KeyMod.CtrlCmd | KeyCode.KeyK);
+    expect(newTab).toHaveBeenCalledTimes(1);
+    expect(palette).toHaveBeenCalledTimes(2);
+
+    // A command registered after the editor was made is bound too.
+    const close = vi.fn();
+    const unregisterClose = registerCommands([{ id: 'tab.close', title: 'Close the tab', group: 'Tabs', shortcut: 'Mod+W', run: close }]);
+    fake.press(KeyMod.CtrlCmd | KeyCode.KeyW);
+    expect(close).toHaveBeenCalledTimes(1);
+
+    // The run keys stay the editor's own (they know about the selection).
+    expect(fake.commands.has(KeyMod.CtrlCmd | KeyCode.Enter)).toBe(true);
+    unregisterClose();
+    unregister();
+  });
+
+  it('editor_follows_the_theme', () => {
+    render(<KqlEditor schema={null} onRun={() => undefined} />);
+    expect(fake.themes.defined).toEqual(expect.arrayContaining(['kustodian-dark', 'kustodian-light']));
+
+    act(() => applyTheme('light'));
+    expect(fake.themes.set.at(-1)).toBe('kustodian-light');
+    act(() => applyTheme('dark'));
+    expect(fake.themes.set.at(-1)).toBe('kustodian-dark');
   });
 });
