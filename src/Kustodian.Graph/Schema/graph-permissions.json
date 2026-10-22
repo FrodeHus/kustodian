@@ -1,5 +1,5 @@
 {
-  "source": "msgraph-metadata@1fd0ef510f79f3dadb3e083bdebc9496f939a11c; permissions https://raw.githubusercontent.com/microsoftgraph/microsoft-graph-devx-content/master/permissions/new/permissions.json",
+  "source": "msgraph-metadata@8c562525694550601a232cb54014e48c6c7f6da0; permissions https://raw.githubusercontent.com/microsoftgraph/microsoft-graph-devx-content/master/permissions/new/permissions.json",
   "permissions": [
     {
       "name": "APIConnectors.ReadWrite.All",

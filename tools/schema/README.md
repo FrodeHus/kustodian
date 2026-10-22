@@ -19,6 +19,15 @@ Exit codes: 0 ok, 2 usage, 3 an input could not be read or downloaded.
   every run, even when the schema is unchanged, and the tool prints `Permissions: N`. The Create Entra ID application dialog
   offers these; write permissions are filtered out there, not here.
 
+## Relationship columns
+
+`src/Kustodian.Graph/Schema/graph-relationships.json` lists, per table, the navigation properties exposed as relationship
+columns (`users.memberOf`, `groups.members`, ...): table name, then relationship name, each with `{}`. Only direct relationships
+belong there, never `transitive*`. The tool turns each into a get-only `dynamic` column of `kustodian.directoryObjectRef`
+entries, with the delegated permissions Microsoft lists for `GET /{table}/{id}/{name}`; one with none gets a warning in the
+output. A name that isn't a navigation property of the table's type, or a table the metadata doesn't have, stops the run with
+exit code 3.
+
 ## Inputs
 
 1. **Metadata** (`--metadata`): `clean_beta_metadata/cleanMetadataWithDescriptionsAndAnnotationsbeta.xml` in

@@ -49,6 +49,7 @@
           <Annotation Term="Org.OData.Core.V1.Description" String="The main logo for the application. Not nullable." />
         </Property>
         <NavigationProperty Name="owners" Type="Collection(graph.directoryObject)" />
+        <NavigationProperty Name="primaryOwner" Type="graph.directoryObject" />
       </EntityType>
       <EntityType Name="incident" BaseType="graph.entity">
         <Property Name="status" Type="Edm.String" />

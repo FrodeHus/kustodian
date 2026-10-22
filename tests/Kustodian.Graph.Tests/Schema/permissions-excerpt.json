@@ -388,6 +388,27 @@
         }
       ]
     },
+    "GroupMember.Read.All": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "DelegatedWork": {},
+        "Application": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "DelegatedWork",
+            "Application"
+          ],
+          "methods": [
+            "GET"
+          ],
+          "paths": {
+            "/applications/{id}/owners": "least=DelegatedWork"
+          }
+        }
+      ]
+    },
     "User.Read": {
       "authorizationType": "oAuth2",
       "schemes": {

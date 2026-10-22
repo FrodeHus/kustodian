@@ -25,19 +25,36 @@ public static partial class GraphSchemaBuilder
         ("groups", "unseenConversationsCount"), ("groups", "unseenMessagesCount"),
     };
 
+    /// <summary>Builds the schema with no relationship columns.</summary>
     public static GraphSchema Build(GraphMetadata metadata, IReadOnlyDictionary<string, IReadOnlyList<string>> permissions,
         string source, DateTimeOffset generatedAt)
+        => Build(metadata, permissions, new Dictionary<string, IReadOnlyList<string>>(), source, generatedAt);
+
+    /// <summary>Builds the schema. <paramref name="relationships"/> maps a table name to the navigation properties that become
+    /// relationship columns; a name or table the metadata doesn't have throws <see cref="GraphRelationshipException"/>. A
+    /// relationship Microsoft lists no delegated permission for is added to <paramref name="warnings"/>.</summary>
+    public static GraphSchema Build(GraphMetadata metadata, IReadOnlyDictionary<string, IReadOnlyList<string>> permissions,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> relationships, string source, DateTimeOffset generatedAt,
+        ICollection<string>? warnings = null)
     {
         var tables = metadata.Collections
             .Where(c => metadata.Types.ContainsKey(c.EntityType))
             .Where(c => !DelegatedOnlySingletons.Any(s => c.Path.StartsWith(s + "/", StringComparison.Ordinal)))
-            .Select(c => BuildTable(metadata, permissions, c))
+            .Select(c => BuildTable(metadata, permissions, relationships, c, warnings))
             .GroupBy(t => t.Name)
             .Select(g => g.First())
             .ToList();
 
+        foreach (var table in relationships.Keys)
+        {
+            if (!tables.Any(t => t.Name == table))
+                throw new GraphRelationshipException($"The curated relationships name the table {table}, which the metadata doesn't have.");
+        }
+
         var complexTypes = new SortedDictionary<string, IReadOnlyList<GraphField>>(StringComparer.Ordinal);
-        var pending = new Stack<string>(tables.SelectMany(t => t.Columns).Select(c => c.ComplexType).OfType<string>());
+        if (tables.Any(t => t.Columns.Any(c => c.Relationship)))
+            complexTypes[GraphSchemaJson.DirectoryObjectRef] = DirectoryObjectRefFields;
+        var pending = new Stack<string>(tables.SelectMany(t => t.Columns).Where(c => !c.Relationship).Select(c => c.ComplexType).OfType<string>());
         while (pending.TryPop(out var name))
         {
             if (complexTypes.ContainsKey(name))
@@ -52,8 +69,23 @@ public static partial class GraphSchemaBuilder
         return new GraphSchema(source, generatedAt, tables, complexTypes);
     }
 
+    /// <summary>The shape every relationship column's entries share: a directory object reduced to what identifies and names it.
+    /// Fields that don't apply to an object's type are null.</summary>
+    private static readonly IReadOnlyList<GraphField> DirectoryObjectRefFields =
+    [
+        RefField("id", "The object's ID."),
+        RefField("objectType", "The object's type: @odata.type without #microsoft.graph."),
+        RefField("displayName", "The object's display name."),
+        RefField("userPrincipalName", "The user principal name; users only."),
+        RefField("mail", "The primary email address; users and groups."),
+        RefField("appId", "The application (client) ID; applications and service principals."),
+        RefField("deviceId", "The device ID; devices."),
+    ];
+
+    private static GraphField RefField(string name, string description) => new(name, "string", false, null, description);
+
     private static GraphTable BuildTable(GraphMetadata metadata, IReadOnlyDictionary<string, IReadOnlyList<string>> permissions,
-        CsdlCollection collection)
+        IReadOnlyDictionary<string, IReadOnlyList<string>> relationships, CsdlCollection collection, ICollection<string>? warnings)
     {
         var type = metadata.Types[collection.EntityType];
         var name = collection.Path.Replace('/', '_');
@@ -68,6 +100,24 @@ public static partial class GraphSchemaBuilder
                 KnownPermission = GraphPermissions.KnownColumns.GetValueOrDefault((name, p.Name)),
             };
         }).ToList();
+        foreach (var relationship in relationships.GetValueOrDefault(name) ?? [])
+        {
+            var nav = type.Navigations.FirstOrDefault(n => n.Name == relationship)
+                ?? throw new GraphRelationshipException(
+                    $"The curated relationship {name}.{relationship} isn't a navigation property of {type.FullName}.");
+            var relationshipPermissions = (permissions.GetValueOrDefault(
+                GraphPermissions.NormalizePath($"/{collection.Path}/{{id}}/{relationship}")) ?? [])
+                .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
+            if (relationshipPermissions.Count == 0)
+                warnings?.Add($"{name}.{relationship}: Microsoft lists no delegated permission for GET /{collection.Path}/{{id}}/{relationship}.");
+            columns.Add(new GraphColumn(nav.Name, "dynamic", nav.Description, [], false, GraphSchemaJson.DirectoryObjectRef,
+                nav.IsCollection, Listable: false)
+            {
+                Relationship = true,
+                Permissions = relationshipPermissions,
+            });
+        }
+
         var tablePermissions = permissions.GetValueOrDefault(GraphPermissions.NormalizePath("/" + collection.Path)) ?? [];
         return new GraphTable(name, collection.Path, type.FullName, type.Description,
             DocsUrl(type.FullName), columns, IsDirectoryObject(metadata, type))

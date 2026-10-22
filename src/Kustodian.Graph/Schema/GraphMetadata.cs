@@ -5,10 +5,17 @@ namespace Kustodian.Graph.Schema;
 /// <summary>A property of an entity or complex type, as the CSDL declares it (the type name is resolved to its full name).</summary>
 public sealed record CsdlProperty(string Name, string TypeName, bool IsCollection, string Description);
 
+/// <summary>A navigation property of an entity type, as the CSDL declares it (the type name is resolved to its full name).</summary>
+public sealed record CsdlNavigation(string Name, string TypeName, bool IsCollection, string Description);
+
 /// <summary>An entity, complex or enum type. Properties include the inherited ones, base type first. The base type is its
 /// full name, or null.</summary>
 public sealed record CsdlType(string FullName, string Kind, IReadOnlyList<CsdlProperty> Properties, string Description,
-    string? BaseType = null);
+    string? BaseType = null)
+{
+    /// <summary>The navigation properties, inherited ones included, base type first; empty for types without any.</summary>
+    public IReadOnlyList<CsdlNavigation> Navigations { get; init; } = [];
+}
 
 /// <summary>Something Graph lets you list: an entity set (<c>/applications</c>) or a contained collection of a singleton
 /// (<c>/security/incidents</c>).</summary>
@@ -71,6 +78,9 @@ public sealed class GraphMetadata
             var properties = new List<CsdlProperty>();
             if (baseName is not null && raw.ContainsKey(baseName))
                 properties.AddRange(Build(baseName).Properties);
+            var navigations = new List<CsdlNavigation>();
+            if (baseName is not null && raw.ContainsKey(baseName))
+                navigations.AddRange(Build(baseName).Navigations);
             foreach (var p in element.Elements(Edm + "Property"))
             {
                 var name = (string)p.Attribute("Name")!;
@@ -84,10 +94,26 @@ public sealed class GraphMetadata
                 properties.RemoveAll(x => x.Name == name);
                 properties.Add(new CsdlProperty(name, Resolve(type), isCollection, description));
             }
+            foreach (var n in element.Elements(Edm + "NavigationProperty"))
+            {
+                var name = (string)n.Attribute("Name")!;
+                var type = (string)n.Attribute("Type")!;
+                var isCollection = type.StartsWith(CollectionPrefix, StringComparison.Ordinal);
+                if (isCollection)
+                    type = type[CollectionPrefix.Length..^1];
+                var description = DescriptionOf(n);
+                if (description.Length == 0)
+                    description = external.GetValueOrDefault($"{fullName}/{name}", "");
+                navigations.RemoveAll(x => x.Name == name);
+                navigations.Add(new CsdlNavigation(name, Resolve(type), isCollection, description));
+            }
             var typeDescription = DescriptionOf(element);
             if (typeDescription.Length == 0)
                 typeDescription = external.GetValueOrDefault(fullName, "");
-            return types[fullName] = new CsdlType(fullName, kind, properties, typeDescription, baseName);
+            return types[fullName] = new CsdlType(fullName, kind, properties, typeDescription, baseName)
+            {
+                Navigations = navigations,
+            };
         }
         foreach (var name in raw.Keys)
             Build(name);
