@@ -44,7 +44,8 @@ groups
 
 Limits:
 
-- Relationships are read for at most 100 objects per column and table.
+- Relationships are read for at most 100 objects per column and table. When more than 100 objects are listed, none of them
+  have the relationship read, and the values are empty.
 - At most 1,000 entries are kept per object.
 - Only direct relationships are read. A group's members don't include members of its nested groups, and `memberOf` doesn't
   include groups reached through other groups.
@@ -52,7 +53,7 @@ Limits:
 You may see these notices after a run:
 
 - A column was cut off at the entry cap for some objects. Their lists are incomplete.
-- There were too many objects. Only the first 100 had their relationships read.
+- There were too many objects (more than 100). Nothing was read for that column, and the values are empty. Filter first.
 - The filter ran locally. Every listed object's relationships were read before the filter was applied.
 - No permission. The signed-in account can't read that relationship, and the values are empty. The notice names the
   permissions that would allow it.
