@@ -38,15 +38,25 @@ function relationshipChips(t: TableFetch): Chip[] {
     if (r.truncated > 0) {
       chips.push({ tone: 'warn', text: `${name}: cut off at ${count(r.entryCap)} entries for ${plural(r.truncated, 'object')}` });
     }
+    const needs = r.permissions.length > 0 ? r.permissions.join(', ') : null;
     if (r.refused > 0 && r.refused === r.objects) {
-      chips.push({ tone: 'warn', text: `No permission to read ${name}; it needs one of: ${r.permissions.join(', ')}` });
+      chips.push({ tone: 'warn', text: `No permission to read ${name}${needs ? `; it needs one of: ${needs}` : ''}` });
     } else if (r.refused > 0) {
       chips.push({ tone: 'warn', text: `${name}: no permission for ${count(r.refused)} of ${count(r.objects)} objects, their values are empty` });
     }
-    if (r.filteredLocally) {
+    // Graph answers an entry of a type the account can't read with its id and type only, not with a refusal.
+    if (r.limited > 0) {
       chips.push({
         tone: 'warn',
-        text: `${name} read for all ${count(r.objects)} listed objects; the filter ran locally. Use a filter Graph can apply (==, startswith) to read fewer.`,
+        text: `${name}: ${plural(r.limited, 'entry', 'entries')} without details; the account can't read their type${needs ? `, it needs one of: ${needs}` : ''}`,
+      });
+    }
+    if (r.filteredLocally && r.objects > 0) {
+      chips.push({
+        tone: 'warn',
+        text: r.capped
+          ? `${name}: the filter ran locally, so all ${count(r.objects)} listed objects counted toward the cap. Use a filter Graph can apply (==, startswith) to read fewer.`
+          : `${name} read for all ${count(r.objects)} listed objects; the filter ran locally. Use a filter Graph can apply (==, startswith) to read fewer.`,
       });
     }
   }

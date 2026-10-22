@@ -54,9 +54,12 @@ You may see these notices after a run:
 
 - A column was cut off at the entry cap for some objects. Their lists are incomplete.
 - There were too many objects (more than 100). Nothing was read for that column, and the values are empty. Filter first.
-- The filter ran locally. Every listed object's relationships were read before the filter was applied.
+- The filter ran locally. Every listed object's relationships were read before the filter was applied, or, over the cap,
+  every listed object counted toward it.
 - No permission. The signed-in account can't read that relationship, and the values are empty. The notice names the
   permissions that would allow it.
+- Entries without details. Graph lists an entry whose type the account can't read (a service principal among a group's
+  members, say) with only its ID and type, so its name is empty. The notice names the permissions that would show it.
 
 Filter with something Graph can apply, such as `==` or `startswith`, before the query reads a relationship column. That keeps
 the number of objects small, so the read is quick and stays under the cap.

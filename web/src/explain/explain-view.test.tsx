@@ -195,6 +195,18 @@ describe('ExplainView', () => {
     expect(screen.getByText(/100 objects per relationship/)).toBeTruthy();
   });
 
+  it('explain_view_points_to_the_docs_when_a_relationship_has_no_permissions', async () => {
+    const rel = { column: 'memberOf', url: 'users/{id}/memberOf?$select=id&$top=999', permissions: [], entryCap: 1000 };
+    bridge.call.mockResolvedValue({ ...plan, tables: [{ ...plan.tables[0]!, relationships: [rel] }] });
+    render(<ExplainView request={request} />);
+
+    const table = await screen.findByRole('region', { name: 'users' });
+    const list = within(table).getByRole('list', { name: 'Relationships' });
+    expect(list.textContent).not.toContain('Needs');
+    expect(list.textContent).toContain(plan.tables[0]!.docsUrl);
+    expect(list.textContent).toContain('up to 1,000 entries per object');
+  });
+
   it('explain_view_hides_the_local_filter_note_without_one', async () => {
     bridge.call.mockResolvedValue(plan);
     render(<ExplainView request={request} />);

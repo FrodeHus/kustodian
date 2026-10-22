@@ -253,7 +253,16 @@ function TablePlan({ table, onCopy, onOpenRaw }: TablePlanProps) {
                   </span>
                   <span className="mono break-all select-text text-[12px]">{r.url}</span>
                   <span className="muted text-[12px]">
-                    Needs <span className="mono">{r.permissions.join(', ')}</span> · up to {count(r.entryCap)} entries per object
+                    {r.permissions.length > 0 ? (
+                      <>
+                        Needs <span className="mono">{r.permissions.join(', ')}</span>
+                      </>
+                    ) : (
+                      <>
+                        Permissions: see <span className="mono break-all select-text">{table.docsUrl}</span>
+                      </>
+                    )}{' '}
+                    · up to {count(r.entryCap)} entries per object
                   </span>
                 </li>
               ))}

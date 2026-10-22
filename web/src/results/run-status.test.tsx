@@ -274,6 +274,7 @@ describe('RunStatus', () => {
       permissions: ['GroupMember.Read.All', 'Directory.Read.All'],
       capped: false,
       filteredLocally: false,
+      limited: 0,
       ...o,
     });
     const show = (table: string, relationships: RelationshipFetch[], extra: Partial<TableFetch> = {}) =>
@@ -287,6 +288,26 @@ describe('RunStatus', () => {
     it('shows_all_refused', () => {
       show('users', [rel({ refused: 40 })]);
       expect(screen.getByText('No permission to read users.memberOf; it needs one of: GroupMember.Read.All, Directory.Read.All')).toBeTruthy();
+    });
+
+    it('shows_all_refused_without_permissions_to_name', () => {
+      show('users', [rel({ refused: 40, permissions: [] })]);
+      expect(screen.getByText('No permission to read users.memberOf')).toBeTruthy();
+      expect(screen.queryByText(/needs one of/)).toBeNull();
+    });
+
+    it('shows_limited_entries', () => {
+      show('users', [rel({ limited: 3 })]);
+      expect(
+        screen.getByText(
+          "users.memberOf: 3 entries without details; the account can't read their type, it needs one of: GroupMember.Read.All, Directory.Read.All",
+        ),
+      ).toBeTruthy();
+    });
+
+    it('shows_limited_entries_without_permissions_to_name', () => {
+      show('groups', [rel({ column: 'members', limited: 1, permissions: [] })]);
+      expect(screen.getByText("groups.members: 1 entry without details; the account can't read their type")).toBeTruthy();
     });
 
     it('shows_some_refused', () => {
@@ -324,9 +345,19 @@ describe('RunStatus', () => {
     });
 
     it('shows_capped_and_filtered_locally_together', () => {
-      show('users', [rel({ capped: true, filteredLocally: true, objects: 100 })]);
+      show('users', [rel({ capped: true, filteredLocally: true, objects: 150 })]);
       expect(screen.getByText('users: too many objects to read one at a time, values empty')).toBeTruthy();
-      expect(screen.getByText(/users\.memberOf read for all 100 listed objects/)).toBeTruthy();
+      expect(
+        screen.getByText(
+          'users.memberOf: the filter ran locally, so all 150 listed objects counted toward the cap. Use a filter Graph can apply (==, startswith) to read fewer.',
+        ),
+      ).toBeTruthy();
+      expect(screen.queryByText(/read for all/)).toBeNull();
+    });
+
+    it('shows_no_filtered_locally_chip_without_objects', () => {
+      show('users', [rel({ filteredLocally: true, objects: 0 })]);
+      expect(screen.queryByText(/the filter ran locally/)).toBeNull();
     });
 
     it('leaves_relationship_columns_out_of_the_unreadable_chip', () => {

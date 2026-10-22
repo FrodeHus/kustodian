@@ -107,7 +107,8 @@ export type RunOutcome =
 
 /** What one relationship column's reads did. `truncated`: objects whose list hit `entryCap`; `refused`: objects Graph refused for
  * permission; `capped`: the table had more objects than are read for relationships; `filteredLocally`: the filter ran here, so
- * every listed object was read. */
+ * every listed object was read; `limited`: entries Graph answered with only their id and type, as the account can't read
+ * their type. */
 export interface RelationshipFetch {
   column: string;
   objects: number;
@@ -117,6 +118,7 @@ export interface RelationshipFetch {
   permissions: string[];
   capped: boolean;
   filteredLocally: boolean;
+  limited: number;
 }
 
 export interface TableFetch {
