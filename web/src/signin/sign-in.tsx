@@ -3,6 +3,7 @@ import { call, on } from '../bridge';
 import { AZURE_CLI_CLIENT_ID, type AccountInfo, type AccountList } from '../wire';
 import { CreateAppDialog } from './create-app-dialog';
 import { CANNOT_CREATE_REASON, canCreateApp, canOfferCreateApp } from './permission-plan';
+import { TenantLicenses } from './tenant-licenses';
 
 function clientLabel(clientId: string): string {
   return clientId === AZURE_CLI_CLIENT_ID ? 'Azure CLI client' : `client ${clientId.slice(0, 4)}…${clientId.slice(-4)}`;
@@ -272,6 +273,7 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
               ))}
             </div>
             <span className="faint text-[12px]">Delegated permissions are also limited by your own Entra roles.</span>
+            <TenantLicenses accountKey={active.key} />
             {shownApp && (
               <div className="flex flex-col items-start gap-1 border-t border-line pt-2.5" role="note" aria-label="Created app">
                 <span className="text-[12.5px]">

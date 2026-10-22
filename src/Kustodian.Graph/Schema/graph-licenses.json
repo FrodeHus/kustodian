@@ -153,15 +153,6 @@
       "source": "https://learn.microsoft.com/graph/api/riskdetection-list?view=graph-rest-1.0",
       "quote": "You must have a Microsoft Entra ID P1 or P2 license to use the risk detection API."
     },
-    "identityProtection/riskyServicePrincipals": {
-      "license": "Microsoft Entra Workload ID Premium",
-      "plans": [
-        "AAD_WRKLDID_P1",
-        "AAD_WRKLDID_P2"
-      ],
-      "source": "https://learn.microsoft.com/graph/api/identityprotectionroot-list-riskyserviceprincipals?view=graph-rest-1.0",
-      "quote": "Using the riskyServicePrincipals API requires a Microsoft Entra Workload ID Premium license."
-    },
     "identityProtection/riskyUsers": {
       "license": "Microsoft Entra ID P2",
       "plans": [
@@ -169,15 +160,6 @@
       ],
       "source": "https://learn.microsoft.com/graph/api/riskyusers-list?view=graph-rest-beta",
       "quote": "Using the riskyUsers API requires a Microsoft Entra ID P2 license."
-    },
-    "identityProtection/servicePrincipalRiskDetections": {
-      "license": "Microsoft Entra Workload ID Premium",
-      "plans": [
-        "AAD_WRKLDID_P1",
-        "AAD_WRKLDID_P2"
-      ],
-      "source": "https://learn.microsoft.com/graph/api/identityprotectionroot-list-serviceprincipalriskdetections?view=graph-rest-1.0",
-      "quote": "You must have a Microsoft Entra Workload ID Premium license to use the servicePrincipalRiskDetection API."
     },
     "networkAccess/": {
       "license": "Microsoft Entra Internet Access, Private Access, or Microsoft Entra ID P1 or P2",
