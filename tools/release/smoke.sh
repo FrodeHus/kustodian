@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Smoke-tests a published Kustodian executable (macOS and Linux) without opening a window:
-#   1. copies it into a temp folder named "Kustodian smoke" (a path with a space);
+#   1. copies it into a temp folder named "Kustodian smoke" (a path with a space), with its whole .app bundle when it is
+#      the executable inside one;
 #   2. checks that --version prints exactly "Kustodian <expected-version>";
 #   3. starts it as an engine worker (--engine) the way the app's pool does, with an empty environment, sends one request
 #      that evaluates `print x=1`, checks the answer, closes stdin and checks that the worker exits by itself within 5 s.
@@ -44,9 +45,17 @@ trap cleanup EXIT
 
 dir="$work/Kustodian smoke"
 mkdir "$dir"
-exe="$dir/$(basename "$1")"
-cp "$1" "$exe"
-chmod +x "$exe"
+if [[ "$1" == *.app/Contents/MacOS/* ]]; then
+    # The executable of a signed macOS bundle: its signature covers the bundle's Info.plist, and a copy on its own is
+    # killed at launch, so the whole bundle is copied.
+    bundle="${1%/Contents/MacOS/*}"
+    cp -R "$bundle" "$dir/"
+    exe="$dir/$(basename "$bundle")/Contents/MacOS/$(basename "$1")"
+else
+    exe="$dir/$(basename "$1")"
+    cp "$1" "$exe"
+    chmod +x "$exe"
+fi
 echo "smoke: running $exe" >&2
 
 # 2. --version

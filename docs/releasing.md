@@ -71,5 +71,35 @@ The rulesets:
 ## Signing
 
 The Windows MSIs are signed with a Certum certificate held in SimplySign when the `CERTUM_USERNAME`, `CERTUM_OTP_URI` and
-`CERTUM_KEY_ID` secrets are set, and are built unsigned otherwise; the release notes say which. The macOS app has an
-ad-hoc signature and isn't notarized. The Linux packages aren't signed.
+`CERTUM_KEY_ID` secrets are set, and are built unsigned otherwise; the release notes say which. The Linux packages aren't
+signed.
+
+### macOS
+
+The macOS app and dmgs are signed with a Developer ID Application certificate and notarized when all five secrets below
+are set, and are ad-hoc signed otherwise; the release notes say which. They are the same values as Elevate's: a Developer
+ID certificate belongs to the team, not to one app, and the app needs no provisioning profile (its token cache is in the
+login keychain, which needs no entitlement).
+
+| Secret | What it is |
+| --- | --- |
+| `MACOS_CERT_P12` | Base64 of the "Developer ID Application" certificate exported as a `.p12`, with its private key |
+| `MACOS_CERT_PASSWORD` | The password set when exporting that `.p12` |
+| `APPLE_ID` | The Apple ID e-mail address used for notarization |
+| `APPLE_TEAM_ID` | The 10-character team ID (`VLJKN96D7N`) |
+| `APPLE_APP_PASSWORD` | An app-specific password for that Apple ID (appleid.apple.com → Sign-In and Security) |
+
+The macOS job imports the certificate into a temporary keychain and runs `tools/release/package.sh` with
+`MACOS_SIGN_IDENTITY="Developer ID Application"`. For each runtime identifier the script signs `Kustodian.app` with the
+hardened runtime, a secure timestamp and `tools/release/macos/Kustodian.entitlements` (JIT, writable and executable
+memory, and no library validation, which the .NET runtime and the native libraries the single-file bundle extracts need),
+runs `smoke.sh` on the signed app when it is the runner's own architecture, notarizes the app and staples the ticket,
+zips it, then signs, notarizes and staples the dmg. A notarization that doesn't end Accepted fails the build; the notary
+service's log is printed either way.
+
+To sign a local build with the certificate in your login keychain, set `MACOS_SIGN_IDENTITY` (and the three `APPLE_*`
+variables to notarize as well):
+
+```sh
+MACOS_SIGN_IDENTITY="Developer ID Application" tools/release/package.sh osx-arm64
+```
