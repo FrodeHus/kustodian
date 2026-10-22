@@ -37,7 +37,21 @@ chmod +x "$exe"
 echo "smoke: running $exe" >&2
 
 # 2. --version
-version="$("$exe" --version)" || fail "--version exited with $?"
+# Run in the background with a 10 s limit (no `timeout` on macOS).
+"$exe" --version >"$work/version" 2>"$work/version-stderr" &
+probe=$!
+for _ in $(seq 100); do
+    kill -0 "$probe" 2>/dev/null || break
+    sleep 0.1
+done
+if kill -0 "$probe" 2>/dev/null; then
+    kill -9 "$probe" 2>/dev/null || true
+    fail "--version was still running after 10 s"
+fi
+status=0
+wait "$probe" || status=$?
+[[ "$status" -eq 0 ]] || fail "--version exited with $status; stderr: $(cat "$work/version-stderr")"
+version="$(cat "$work/version")"
 expected='^Kustodian 1\.0\.0$'
 [[ "$version" =~ $expected ]] || fail "--version printed '$version', expected 'Kustodian 1.0.0'"
 echo "smoke: --version: $version" >&2

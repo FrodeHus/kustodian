@@ -4,8 +4,9 @@
 #
 #   publish.sh <rid> [outdir]
 #
-# <rid> is one of win-x64, win-arm64, osx-arm64, osx-x64, linux-x64. The default output folder is
-# kustodian/artifacts/publish/<rid>/, emptied first. dotnet's output goes to stderr; stdout carries only the output folder.
+# <rid> is one of win-x64, win-arm64, osx-arm64, osx-x64, linux-x64. The default output folder is artifacts/publish/<rid>/.
+# The output folder, given or default, is emptied first. dotnet's output goes to stderr; stdout carries only the output
+# folder.
 set -euo pipefail
 
 rids=(win-x64 win-arm64 osx-arm64 osx-x64 linux-x64)
@@ -30,14 +31,18 @@ if [[ "$known" != true ]]; then
 fi
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-if [[ $# -ge 2 ]]; then
-    mkdir -p "$2"
-    out="$(cd "$2" && pwd)"
-else
-    out="$root/artifacts/publish/$rid"
-    rm -rf "$out"
-    mkdir -p "$out"
-fi
+out="${2:-$root/artifacts/publish/$rid}"
+mkdir -p "$out"
+out="$(cd "$out" && pwd)"
+# The output folder is emptied first, so it holds this publish only; never a folder whose loss would hurt.
+case "$out" in
+    / | "$HOME" | "$root")
+        echo "publish.sh: refusing to empty '$out' as the output folder" >&2
+        exit 2
+        ;;
+esac
+rm -rf "$out"
+mkdir -p "$out"
 
 dotnet publish "$root/src/Kustodian/Kustodian.csproj" -c Release -r "$rid" -o "$out" >&2
 

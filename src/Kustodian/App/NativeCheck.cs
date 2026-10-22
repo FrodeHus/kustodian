@@ -10,10 +10,10 @@ public static class NativeCheck
     /// <summary>The exit code when a library is missing.</summary>
     public const int ExitCode = 3;
 
-    private static readonly string[] LinuxLibraries = ["libwebkit2gtk-4.1.so.0", "libsecret-1.so.0"];
+    private static readonly string[] LinuxLibraries = ["libwebkit2gtk-4.1.so.0", "libsecret-1.so.0", "libnotify.so.4"];
 
-    /// <summary>The libraries that don't load on this platform: on Linux, WebKitGTK 4.1 and libsecret, each tried with
-    /// <paramref name="canLoad"/>; elsewhere none.</summary>
+    /// <summary>The libraries that don't load on this platform: on Linux, WebKitGTK 4.1, libsecret and libnotify (Photino's
+    /// native library links all three), each tried with <paramref name="canLoad"/>; elsewhere none.</summary>
     public static IReadOnlyList<string> Missing(Func<string, bool> canLoad) => Missing(canLoad, OperatingSystem.IsLinux());
 
     /// <summary><see cref="Missing(Func{string, bool})"/> with the platform given.</summary>
@@ -32,12 +32,12 @@ public static class NativeCheck
         return true;
     }
 
-    /// <summary>What to tell the user when <paramref name="missing"/> isn't empty: both packages, for Debian/Ubuntu and
+    /// <summary>What to tell the user when <paramref name="missing"/> isn't empty: all three packages, for Debian/Ubuntu and
     /// Fedora, since installing them is the fix whichever one is missing.</summary>
     public static string Message(IReadOnlyList<string> missing)
     {
         ArgumentNullException.ThrowIfNull(missing);
-        return "Kustodian needs WebKitGTK 4.1 and libsecret: install libwebkit2gtk-4.1-0 and libsecret-1-0 (Debian/Ubuntu) or "
-            + "webkit2gtk4.1 and libsecret (Fedora).";
+        return "Kustodian needs WebKitGTK 4.1, libsecret and libnotify: install libwebkit2gtk-4.1-0, libsecret-1-0 and libnotify4 "
+            + "(Debian/Ubuntu) or webkit2gtk4.1, libsecret and libnotify (Fedora).";
     }
 }

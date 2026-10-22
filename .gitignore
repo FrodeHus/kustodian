@@ -2,9 +2,7 @@ bin/
 obj/
 node_modules/
 web/dist/
-artifacts/
-# The repository root ignores Visual Studio's Release/ folders; the release scripts are not one.
-!/tools/release/
+/artifacts/
 
 # Local agent worktrees and scratch.
 .claude/worktrees/
