@@ -69,6 +69,8 @@ body{margin:0;background:#0F1115}
 .k-split{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin-top:56px}
 .k-panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:28px}
 .k-panel-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;font-size:14px;font-weight:600;color:var(--muted)}
+.k-perm{display:flex;flex-direction:column;align-items:flex-start;gap:14px}
+.k-perm p{margin:0;color:var(--muted);font-size:16px}
 .k-req{font-family:"JetBrains Mono",monospace;font-size:13.5px;line-height:1.9;color:var(--muted);white-space:pre-wrap;word-break:break-all;margin:0}
 .k-req b{color:var(--text);font-weight:500}
 .k-req .bad{color:#F0716B}
@@ -144,6 +146,7 @@ body{margin:0;background:#0F1115}
 <a href="#explain">Explain</a>
 <a href="#features">Features</a>
 <a href="#privacy">Privacy</a>
+<a href="#permissions">Permissions</a>
 <a href="#get-started">Get started</a>
 </nav>
 <a class="k-btn k-sm" href="https://github.com/FrodeHus/kustodian">
@@ -329,10 +332,31 @@ GitHub
 <div class="k-fact"><dt>Network</dt><dd>Talks only to Microsoft’s APIs.</dd></div>
 <div class="k-fact"><dt>Tokens</dt><dd>Cached in the OS keychain (DPAPI, Keychain or libsecret), never written in plain text.</dd></div>
 <div class="k-fact"><dt>Your data</dt><dd>Settings, saved queries, snippets, history and tabs are local JSON files.</dd></div>
-<div class="k-fact"><dt>Sign-in</dt><dd>Delegated, with your work account. Use the Azure CLI’s public client, your own app registration, or let Kustodian create one.</dd></div>
+<div class="k-fact"><dt>Sign-in</dt><dd>Delegated, with your work account. Use the Azure CLI’s public client, your own app registration, or let Kustodian create one. <a href="#permissions">How permissions work</a>.</dd></div>
 <div class="k-fact"><dt>Source</dt><dd>MIT licensed. Read it, build it, <a href="https://github.com/FrodeHus/kustodian/blob/main/SECURITY.md">report a vulnerability</a>.</dd></div>
 </dl>
 </div>
+</div>
+</section>
+
+<section class="k-section" id="permissions" aria-labelledby="permissions-h">
+<div class="k-wrap">
+<p class="k-label">Permissions</p>
+<h2 class="k-h2" id="permissions-h">Start with Azure CLI.<br>Grow into your own app.</h2>
+<p class="k-lead">Kustodian uses delegated permissions: it reads what the app you sign in with is allowed to, and never more than your own roles allow.</p>
+<div class="k-split">
+<div class="k-panel k-perm">
+<span class="k-chip ok">No setup</span>
+<h3 class="k-h3">Azure CLI client (default)</h3>
+<p>Microsoft’s public client, already consented in most tenants. A good start for common Graph and Azure Resource Graph queries, but its permissions are fixed: security data, audit logs and advanced hunting are often out of reach.</p>
+</div>
+<div class="k-panel k-perm">
+<span class="k-chip">Admin consent</span>
+<h3 class="k-h3">Your own app registration</h3>
+<p>Grant exactly the read permissions your queries need. Kustodian can create the app for you, with the smallest set of permissions that covers your tables; an admin grants consent once.</p>
+</div>
+</div>
+<p style="margin: 28px 0 0"><a href="https://github.com/FrodeHus/kustodian/blob/main/docs/EntraPermissions.md">Set up an Entra ID app registration, step by step →</a></p>
 </div>
 </section>
 
