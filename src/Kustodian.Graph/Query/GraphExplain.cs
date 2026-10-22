@@ -8,7 +8,7 @@ namespace Kustodian.Graph.Query;
 /// version, exactly as the reader sends it (<see cref="GraphCollectionReader.FirstPageUrl(GraphFetch)"/>); <see cref="Pushed"/> and
 /// <see cref="Local"/> are the query's <c>where</c> conditions sent to Graph and run locally (with why); <see cref="Top"/> the row
 /// limit sent to Graph as <c>$top</c> (<see cref="GraphFetch.Top"/>), after which the read stops;
-/// <see cref="PerObject"/> the columns read one object at a time; <see cref="Permissions"/> the least-privileged delegated
+/// <see cref="PerObject"/> the property columns read one object at a time (relationship columns are in <see cref="Relationships"/>); <see cref="Permissions"/> the least-privileged delegated
 /// permissions for listing the table.</summary>
 public sealed record ExplainTable(string Table, string Url, IReadOnlyList<string> Select, string? Filter, int? Top, IReadOnlyList<string> Pushed,
     IReadOnlyList<LocalCondition> Local, IReadOnlyList<string> PerObject, IReadOnlyList<string> Permissions, string DocsUrl)
@@ -22,6 +22,13 @@ public sealed record ExplainTable(string Table, string Url, IReadOnlyList<string
     /// <summary>The headers sent besides the token: <c>ConsistencyLevel: eventual</c> in advanced query mode.</summary>
     public IReadOnlyList<string> Headers { get; init; } = [];
 
+    /// <summary>The relationship columns the query names, each read on its own after the list.</summary>
+    public IReadOnlyList<ExplainRelationship> Relationships { get; init; } = [];
+
+    /// <summary>A <c>where</c> on the table runs locally (<see cref="GraphFetch.FilteredLocally"/>), so Graph sends every object
+    /// and relationships are read for all of them.</summary>
+    public bool FilteredLocally { get; init; }
+
     /// <summary>The columns left out because the tenant lacks their license (<see cref="GraphFetch.LicenseLeftOut"/>).</summary>
     public IReadOnlyList<ExplainLicenseGap> LicenseLeftOut { get; init; } = [];
 
@@ -33,11 +40,17 @@ public sealed record ExplainTable(string Table, string Url, IReadOnlyList<string
     public string? MissingLicenseSource { get; init; }
 }
 
+/// <summary>A relationship column read one object at a time: <see cref="Url"/> is the request template (<c>{id}</c> for the
+/// object's id, relative to the Graph version), <see cref="Permissions"/> the delegated permissions Graph needs, and
+/// <see cref="EntryCap"/> the entries read per object.</summary>
+public sealed record ExplainRelationship(string Column, string Url, IReadOnlyList<string> Permissions, int EntryCap);
+
 /// <summary>A column left out for its license: the license, and the Learn page that says the column needs it.</summary>
 public sealed record ExplainLicenseGap(string Column, string License, string Source);
 
 /// <summary>The limits a run reads within (<see cref="GraphLimits"/>), the fetch budget in megabytes.</summary>
-public sealed record ExplainLimits(int ObjectsPerTable, int FetchBudgetMb, int PerObjectReadsPerTable);
+public sealed record ExplainLimits(int ObjectsPerTable, int FetchBudgetMb, int PerObjectReadsPerTable, int RelationshipObjectsPerTable,
+    int RelationshipEntriesPerObject);
 
 /// <summary>What a query would send to Graph, or why it can't run: <see cref="Error"/> (a parse or bind error with its
 /// position; line and column are 0 for a parameter that is missing or doesn't fit, which has no position) or
@@ -56,7 +69,7 @@ public static class GraphExplain
     {
         var explained = GraphQueryPlanner.PlanExplained(schema, kql, now, licenses);
         var plan = explained.Plan;
-        var tables = plan.Fetches.Select((fetch, i) => Describe(fetch, explained.Filters[i])).ToList();
+        var tables = plan.Fetches.Select((fetch, i) => Describe(fetch, explained.Filters[i], limits)).ToList();
         return new ExplainView(plan.Error, plan.Refusal, tables, Limits(limits));
     }
 
@@ -82,15 +95,19 @@ public static class GraphExplain
     private static ExplainView Failed(string message, GraphLimits limits) =>
         new(new GraphQueryError(0, 0, message), null, [], Limits(limits));
 
-    private static ExplainTable Describe(GraphFetch fetch, FilterExplanation filter)
+    private static ExplainTable Describe(GraphFetch fetch, FilterExplanation filter, GraphLimits limits)
     {
         var table = fetch.Table;
+        var relationships = table.Columns.Where(c => c.Relationship && fetch.Unreadable.Contains(c.Name)).ToList();
         var advanced = fetch.Count is not null ? table.DirectoryObject : GraphCollectionReader.Advanced(table, fetch.FilterClauses, fetch.OrderBy);
         return new ExplainTable(table.Name, GraphCollectionReader.FirstPageUrl(fetch), fetch.Select, fetch.Filter, fetch.Top, filter.Pushed,
-            filter.Local, fetch.Unreadable, table.Permissions, table.DocsUrl)
+            filter.Local, [.. fetch.Unreadable.Where(c => relationships.All(r => r.Name != c))], table.Permissions, table.DocsUrl)
         {
             OrderBy = fetch.OrderBy?.OData,
             Count = fetch.Count is not null,
+            Relationships = [.. relationships.Select(r => new ExplainRelationship(r.Name,
+                GraphRelationshipReader.Template(table.Path, r.Name, r.Collection), r.Permissions, limits.RelationshipEntriesPerObject))],
+            FilteredLocally = fetch.FilteredLocally,
             Headers = advanced ? [GraphCollectionReader.ConsistencyLevel + ": eventual"] : [],
             LicenseLeftOut = [.. fetch.LicenseLeftOut.Select(g => new ExplainLicenseGap(g.Column, g.Requirement.License, g.Requirement.Source))],
             MissingLicense = fetch.MissingLicense?.License,
@@ -99,5 +116,6 @@ public static class GraphExplain
     }
 
     private static ExplainLimits Limits(GraphLimits limits) =>
-        new(limits.ObjectsPerTable, (int)(limits.FetchBudgetBytes / BytesPerMegabyte), limits.PerObjectReadsPerTable);
+        new(limits.ObjectsPerTable, (int)(limits.FetchBudgetBytes / BytesPerMegabyte), limits.PerObjectReadsPerTable,
+            limits.RelationshipObjectsPerTable, limits.RelationshipEntriesPerObject);
 }

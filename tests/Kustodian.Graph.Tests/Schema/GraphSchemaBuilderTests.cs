@@ -120,7 +120,7 @@ public sealed class GraphSchemaBuilderTests
     [Fact]
     public void Inherited_properties_come_first()
     {
-        var columns = Build().Find("applications")!.Columns.Select(c => c.Name).ToArray();
+        var columns = TestSchemas.Plain().Find("applications")!.Columns.Select(c => c.Name).ToArray();
 
         Assert.Equal(["id", "deletedDateTime"], columns.Take(2).ToArray());
         Assert.DoesNotContain("owners", columns);
@@ -193,5 +193,80 @@ public sealed class GraphSchemaBuilderTests
         Assert.True(Column("passwordCredentials").Collection);
         Assert.False(Column("onPremisesPublishing").Collection);
         Assert.False(Column("appId").Collection);
+    }
+
+    private static GraphSchema BuildWith(IReadOnlyDictionary<string, IReadOnlyList<string>> relationships, ICollection<string>? warnings = null)
+    {
+        using var stream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Fixtures", "mini-metadata.xml"));
+        using var permissions = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Schema", "permissions-excerpt.json"));
+        var tablePermissions = GraphPermissions.ReadDelegated(permissions);
+        permissions.Position = 0;
+        return GraphSchemaBuilder.Build(GraphMetadata.Load(stream), tablePermissions,
+            GraphPermissions.ReadRelationshipDelegated(permissions), relationships, "test",
+            DateTimeOffset.UnixEpoch, warnings);
+    }
+
+    [Fact]
+    public void Curated_relationship_becomes_a_get_only_dynamic_column()
+    {
+        var warnings = new List<string>();
+        var schema = BuildWith(new Dictionary<string, IReadOnlyList<string>> { ["applications"] = ["owners", "primaryOwner"] }, warnings);
+        var columns = schema.Find("applications")!.Columns;
+
+        var owners = columns.Single(c => c.Name == "owners");
+        Assert.Equal("dynamic", owners.Type);
+        Assert.True(owners.Collection);
+        Assert.False(owners.Listable);
+        Assert.True(owners.Relationship);
+        Assert.Equal(GraphSchemaJson.DirectoryObjectRef, owners.ComplexType);
+        // Every read-only delegated permission Microsoft lists for GET /applications/{id}/owners, least-privileged first; not
+        // User.Read (the /me case), not Directory.ReadWrite.All.
+        Assert.Equal(["GroupMember.Read.All", "Directory.Read.All"], owners.Permissions);
+
+        var primaryOwner = columns.Single(c => c.Name == "primaryOwner");
+        Assert.False(primaryOwner.Collection);
+        Assert.Empty(primaryOwner.Permissions);
+        Assert.Contains("applications.primaryOwner", Assert.Single(warnings));
+    }
+
+    [Fact]
+    public void Directory_object_ref_shape_is_in_complex_types()
+    {
+        var schema = BuildWith(new Dictionary<string, IReadOnlyList<string>> { ["applications"] = ["owners"] });
+
+        var fields = schema.ComplexTypes[GraphSchemaJson.DirectoryObjectRef];
+        Assert.Equal(["id", "objectType", "displayName", "userPrincipalName", "mail", "appId", "deviceId"], fields.Select(f => f.Name));
+        Assert.All(fields, f =>
+        {
+            Assert.Equal("string", f.Type);
+            Assert.False(f.Collection);
+        });
+    }
+
+    [Fact]
+    public void Unknown_curated_name_fails()
+    {
+        var e = Assert.Throws<GraphRelationshipException>(
+            () => BuildWith(new Dictionary<string, IReadOnlyList<string>> { ["applications"] = ["nope"] }));
+
+        Assert.Contains("applications.nope", e.Message);
+    }
+
+    [Fact]
+    public void Unknown_curated_table_fails()
+    {
+        var e = Assert.Throws<GraphRelationshipException>(
+            () => BuildWith(new Dictionary<string, IReadOnlyList<string>> { ["nowhere"] = ["owners"] }));
+
+        Assert.Contains("nowhere", e.Message);
+    }
+
+    [Fact]
+    public void Uncurated_navigation_properties_stay_out()
+    {
+        var plain = TestSchemas.Plain();
+
+        Assert.DoesNotContain(plain.Find("applications")!.Columns, c => c.Name == "owners");
+        Assert.DoesNotContain(GraphSchemaJson.DirectoryObjectRef, plain.ComplexTypes.Keys);
     }
 }

@@ -43,6 +43,14 @@ public sealed record GraphColumn(
     /// <summary>A permission or role Graph is known to demand for this column beyond the table's own; hand-kept, since
     /// Microsoft publishes no column-level data.</summary>
     public string? KnownPermission { get; init; }
+
+    /// <summary>True for a navigation property exposed as a column (<c>memberOf</c>, <c>members</c>, ...), read one object
+    /// at a time (<c>GET /{table}/{id}/{relationship}</c> in <c>$batch</c>) rather than selected with <c>$select</c>.</summary>
+    public bool Relationship { get; init; }
+
+    /// <summary>For a relationship column, the read-only delegated permissions any of which lets Graph read it: the ones
+    /// Microsoft marks least-privileged first, then the rest, each part sorted ordinally; empty otherwise.</summary>
+    public IReadOnlyList<string> Permissions { get; init; } = [];
 }
 
 /// <summary>A field of a complex type, for completion inside a dynamic column.</summary>

@@ -121,4 +121,34 @@ public sealed class GraphSchemaJsonTests
         Assert.True(ReadBack(text).Find("applications")!.DirectoryObject);
         Assert.False(ReadBack(text).Find("security_incidents")!.DirectoryObject);
     }
+
+    [Fact]
+    public void Relationship_columns_round_trip()
+    {
+        var column = new GraphColumn("memberOf", "dynamic", "d", [], false, "kustodian.directoryObjectRef", Collection: true, Listable: false)
+        {
+            Relationship = true,
+            Permissions = ["GroupMember.Read.All", "Directory.Read.All"],
+        };
+        var schema = TestSchemas.Fixture();
+        var table = schema.Tables[0];
+        schema = schema with { Tables = [table with { Columns = [.. table.Columns, column] }, .. schema.Tables.Skip(1)] };
+
+        var read = ReadBack(GraphSchemaJson.Write(schema));
+
+        var back = read.Find(table.Name)!.Columns.Single(c => c.Name == "memberOf");
+        Assert.True(back.Relationship);
+        Assert.Equal(["GroupMember.Read.All", "Directory.Read.All"], back.Permissions.ToArray());
+    }
+
+    [Fact]
+    public void Plain_columns_write_no_relationship_keys()
+    {
+        var schema = TestSchemas.Plain();
+        // Tables carry their own "permissions"; only the columns are under test.
+        var text = GraphSchemaJson.Write(schema with { Tables = schema.Tables.Select(t => t with { Permissions = [] }).ToList() });
+
+        Assert.DoesNotContain("\"relationship\"", text);
+        Assert.DoesNotContain("\"permissions\"", text);
+    }
 }

@@ -5,10 +5,14 @@ namespace Kustodian.Graph.Schema;
 
 /// <summary>The committed file format. Written by hand with a fixed property order so a regeneration without
 /// upstream changes produces no diff: tables sorted by name, columns and fields in CSDL order, <c>\n</c> line ends,
-/// 2-space indent, a table's <c>directoryObject</c> omitted when false, <c>permissions</c> and a column's <c>knownPermission</c> omitted when empty, <c>filter</c> omitted when empty, a column's
+/// 2-space indent, a table's <c>directoryObject</c> omitted when false, <c>permissions</c> and a column's <c>knownPermission</c> and <c>permissions</c> omitted when empty, a column's <c>relationship</c> omitted when false, <c>filter</c> omitted when empty, a column's
 /// <c>listable</c> omitted when true, <c>collection</c> omitted when false and <c>complexType</c> omitted when null.</summary>
 public static class GraphSchemaJson
 {
+    /// <summary>The complex type behind a relationship column: the reference to a directory object that the column's
+    /// values are shown as.</summary>
+    public const string DirectoryObjectRef = "kustodian.directoryObjectRef";
+
     public static string Write(GraphSchema schema)
     {
         using var stream = new MemoryStream();
@@ -98,6 +102,16 @@ public static class GraphSchemaJson
             w.WriteString("complexType", column.ComplexType);
         if (column.KnownPermission is not null)
             w.WriteString("knownPermission", column.KnownPermission);
+        if (column.Relationship)
+            w.WriteBoolean("relationship", true);
+        if (column.Permissions.Count > 0)
+        {
+            w.WriteStartArray("permissions");
+            foreach (var permission in column.Permissions)
+                w.WriteStringValue(permission);
+            w.WriteEndArray();
+        }
+
         w.WriteEndObject();
     }
 
@@ -155,6 +169,10 @@ public static class GraphSchemaJson
         !e.TryGetProperty("listable", out var listable) || listable.GetBoolean())
     {
         KnownPermission = e.TryGetProperty("knownPermission", out var known) ? known.GetString() : null,
+        Relationship = e.TryGetProperty("relationship", out var relationship) && relationship.GetBoolean(),
+        Permissions = e.TryGetProperty("permissions", out var permissions)
+            ? permissions.EnumerateArray().Select(x => x.GetString()!).ToList()
+            : [],
     };
 
     private static GraphField ReadField(JsonElement e) => new(

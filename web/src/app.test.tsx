@@ -593,9 +593,11 @@ describe('App', () => {
           licenseLeftOut: [],
           missingLicense: null,
           missingLicenseSource: null,
+          relationships: [],
+          filteredLocally: false,
         },
       ],
-      limits: { objectsPerTable: 50000, fetchBudgetMb: 512, perObjectReadsPerTable: 2000 },
+      limits: { objectsPerTable: 50000, fetchBudgetMb: 512, perObjectReadsPerTable: 2000, relationshipObjectsPerTable: 100, relationshipEntriesPerObject: 1000 },
     });
     render(<App />);
     fireEvent.change(await screen.findByRole('textbox', { name: 'KQL query' }), { target: { value: 'applications' } });
@@ -619,7 +621,7 @@ describe('App', () => {
 
   it('app_explain_closes_when_the_tab_leaves_graph', async () => {
     host({ accounts: [kari], cache: 'persistent' });
-    answers['query.explain'] = () => ({ error: null, refusal: null, tables: [], limits: { objectsPerTable: 50000, fetchBudgetMb: 512, perObjectReadsPerTable: 2000 } });
+    answers['query.explain'] = () => ({ error: null, refusal: null, tables: [], limits: { objectsPerTable: 50000, fetchBudgetMb: 512, perObjectReadsPerTable: 2000, relationshipObjectsPerTable: 100, relationshipEntriesPerObject: 1000 } });
     render(<App />);
     fireEvent.change(await screen.findByRole('textbox', { name: 'KQL query' }), { target: { value: 'applications' } });
     act(() => void runCommand('explain'));

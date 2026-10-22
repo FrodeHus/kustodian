@@ -105,6 +105,22 @@ export type RunOutcome =
   | 'unlicensed'
   | 'failed';
 
+/** What one relationship column's reads did. `truncated`: objects whose list hit `entryCap`; `refused`: objects Graph refused for
+ * permission; `capped`: the table had more objects than are read for relationships; `filteredLocally`: the filter ran here, so
+ * every listed object was read; `limited`: entries Graph answered with only their id and type, as the account can't read
+ * their type. */
+export interface RelationshipFetch {
+  column: string;
+  objects: number;
+  truncated: number;
+  entryCap: number;
+  refused: number;
+  permissions: string[];
+  capped: boolean;
+  filteredLocally: boolean;
+  limited: number;
+}
+
 export interface TableFetch {
   table: string;
   requests: string[];
@@ -115,6 +131,8 @@ export interface TableFetch {
   perObjectFailed: number;
   perObjectCapped: boolean;
   perObjectCached: number;
+  /** Relationship columns (navigation properties such as `users.memberOf`), each read one object at a time. */
+  relationships: RelationshipFetch[];
   /** Columns left out after Graph refused the list for a license or feature the tenant lacks; `unlicensedReason` is Graph's message. */
   unlicensed: string[];
   unlicensedReason: string | null;
@@ -420,12 +438,25 @@ export interface ExplainTable {
   /** The license the table needs and the tenant lacks: a run stops before reading it. */
   missingLicense: string | null;
   missingLicenseSource: string | null;
+  /** Relationship columns a run would read one object at a time. */
+  relationships: ExplainRelationship[];
+  /** The filter runs here, so every listed object's relationships are read. */
+  filteredLocally: boolean;
+}
+
+export interface ExplainRelationship {
+  column: string;
+  url: string;
+  permissions: string[];
+  entryCap: number;
 }
 
 export interface ExplainLimits {
   objectsPerTable: number;
   fetchBudgetMb: number;
   perObjectReadsPerTable: number;
+  relationshipObjectsPerTable: number;
+  relationshipEntriesPerObject: number;
 }
 
 /** `query.explain`'s answer: the error (line and column are 0 for a parameter error, which has no position) or the refusal,

@@ -81,7 +81,7 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
         RunResult End(RunOutcome outcome, string? message = null, GraphQueryError? error = null, EngineResponse? answer = null)
         {
             var tables = fetches.Select((f, i) => (Fetch: f, Read: collections[i])).Where(x => x.Read is not null)
-                .Select(x => Describe(x.Fetch, x.Read!)).ToList();
+                .Select(x => Describe(x.Fetch, x.Read!, limits)).ToList();
             if (failed is not null)
                 tables.Add(new TableFetch(failed.Table.Name, failedRequests, false, [], [], [], 0, false, 0));
             return new RunResult(outcome, message, error, answer?.Columns ?? [], answer?.Rows ?? [], answer?.Total ?? 0, tables,
@@ -252,8 +252,10 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
         }
         for (var i = 0; i < fetches.Count; i++)
         {
-            if (collections[i]!.PerObject.Count > 0)
-                progress.Report(new RunEvent("per-object", $"{fetches[i].Table.Name}: {string.Join(", ", collections[i]!.PerObject)}"));
+            var table = fetches[i].Table.Name;
+            var reads = collections[i]!.PerObject.Concat(collections[i]!.Relationships.Select(r => $"{table}.{r.Column}")).ToList();
+            if (reads.Count > 0)
+                progress.Report(new RunEvent("per-object", $"{table}: {string.Join(", ", reads)}"));
         }
     }
 
@@ -287,13 +289,18 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
         }
     }
 
-    private static TableFetch Describe(GraphFetch fetch, GraphCollection read)
-        => new(fetch.Table.Name, read.Requests, read.Unfiltered, read.Unreadable, read.Denied, read.PerObject, read.PerObjectFailed,
-            read.PerObjectCapped, read.PerObjectCached)
+    private static TableFetch Describe(GraphFetch fetch, GraphCollection read, GraphLimits limits)
+        => new(fetch.Table.Name, read.Requests, read.Unfiltered, read.Unreadable, read.Denied, read.PerObject,
+            read.PerObjectFailed + read.Relationships.Sum(r => r.Failed), read.PerObjectCapped,
+            read.PerObjectCached + read.Relationships.Sum(r => r.Cached))
         {
             Unlicensed = read.Unlicensed,
             UnlicensedReason = read.UnlicensedReason,
             LicenseLeftOut = [.. fetch.LicenseLeftOut.Select(g => new LicenseLeftOut(g.Column, g.Requirement.License, g.Requirement.Source))],
+            Relationships = [.. read.Relationships.Select(r => new RelationshipFetch(r.Column, r.Objects, r.Truncated,
+                limits.RelationshipEntriesPerObject, r.Refused,
+                fetch.Table.Columns.FirstOrDefault(c => c.Name == r.Column)?.Permissions ?? [], r.Capped,
+                fetch.FilteredLocally || read.Unfiltered, r.Limited))],
         };
 
     /// <summary>The answer to a query that counts, given Graph's count: one row, one long column named as the query names it.</summary>

@@ -48,6 +48,7 @@ http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("kustodian-s
 
 GraphSchema generated;
 GraphPermissionCatalog catalog;
+var warnings = new List<string>();
 try
 {
     var (metadataSource, metadataStream) = metadata is null ? await DownloadMetadata(http) : await Open(http, metadata);
@@ -56,8 +57,11 @@ try
     await using (permissionsStream)
     {
         var permissions = GraphPermissions.ReadDelegated(permissionsStream);
+        permissionsStream.Position = 0;
+        var relationshipPermissions = GraphPermissions.ReadRelationshipDelegated(permissionsStream);
         var source = $"{metadataSource}; permissions {permissionsSource}";
-        generated = GraphSchemaBuilder.Build(GraphMetadata.Load(metadataStream), permissions, source, DateTimeOffset.UtcNow);
+        generated = GraphSchemaBuilder.Build(GraphMetadata.Load(metadataStream), permissions, relationshipPermissions,
+            GraphRelationships.Bundled, source, DateTimeOffset.UtcNow, warnings);
         permissionsStream.Position = 0;
         catalog = GraphPermissionCatalog.Build(permissionsStream, generated.Tables, source);
     }
@@ -67,6 +71,14 @@ catch (Exception e) when (e is HttpRequestException or TaskCanceledException or 
     Console.Error.WriteLine($"Couldn't read the inputs: {e.Message}");
     return 3;
 }
+catch (GraphRelationshipException e)
+{
+    Console.Error.WriteLine($"graph-relationships.json doesn't match the metadata: {e.Message}");
+    return 3;
+}
+
+foreach (var warning in warnings)
+    Console.WriteLine($"Warning: {warning}");
 
 GraphSchema? committed = null;
 if (File.Exists(schemaPath))

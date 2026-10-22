@@ -1,0 +1,24 @@
+{
+  "users": {
+    "memberOf": {},
+    "manager": {},
+    "directReports": {},
+    "ownedObjects": {},
+    "registeredDevices": {},
+    "ownedDevices": {}
+  },
+  "groups": {
+    "members": {},
+    "owners": {}
+  },
+  "servicePrincipals": {
+    "owners": {}
+  },
+  "applications": {
+    "owners": {}
+  },
+  "devices": {
+    "registeredOwners": {},
+    "registeredUsers": {}
+  }
+}

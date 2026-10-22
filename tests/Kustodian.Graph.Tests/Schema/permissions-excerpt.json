@@ -350,6 +350,7 @@
           ],
           "paths": {
             "/applications": "",
+            "/applications/{id}/owners": "",
             "/users": ""
           }
         }
@@ -383,7 +384,29 @@
             "GET"
           ],
           "paths": {
-            "/applications": ""
+            "/applications": "",
+            "/applications/{id}/owners": ""
+          }
+        }
+      ]
+    },
+    "GroupMember.Read.All": {
+      "authorizationType": "oAuth2",
+      "schemes": {
+        "DelegatedWork": {},
+        "Application": {}
+      },
+      "pathSets": [
+        {
+          "schemeKeys": [
+            "DelegatedWork",
+            "Application"
+          ],
+          "methods": [
+            "GET"
+          ],
+          "paths": {
+            "/applications/{id}/owners": "least=DelegatedWork"
           }
         }
       ]
@@ -404,6 +427,18 @@
           ],
           "paths": {
             "/applications": ""
+          }
+        },
+        {
+          "schemeKeys": [
+            "DelegatedWork",
+            "DelegatedPersonal"
+          ],
+          "methods": [
+            "GET"
+          ],
+          "paths": {
+            "/applications/{id}/owners": "least=DelegatedWork,DelegatedPersonal"
           }
         }
       ]

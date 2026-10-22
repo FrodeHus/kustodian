@@ -28,4 +28,11 @@ public sealed record GraphLimits
 
     /// <summary>The most rows the engine sends back for one run; the run's total still counts them all.</summary>
     public int RowsPerRun { get; init; } = 50_000;
+
+    /// <summary>The most objects per table whose relationship columns (<c>memberOf</c>, <c>members</c>, ...) are read, one request
+    /// each; over it those columns stay empty.</summary>
+    public int RelationshipObjectsPerTable { get; init; } = 100;
+
+    /// <summary>The most entries kept of one object's relationship; over it the list is cut off at this many.</summary>
+    public int RelationshipEntriesPerObject { get; init; } = 1_000;
 }

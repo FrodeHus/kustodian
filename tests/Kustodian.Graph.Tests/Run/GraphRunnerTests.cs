@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Kustodian.Graph.Engine;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Query;
@@ -37,15 +39,16 @@ public sealed class GraphRunnerTests
         public ValueTask DisposeAsync() => engine.DisposeAsync();
     }
 
-    private static Host NewHost(Action<GraphEngineOptions>? configure = null, long budgetBytes = GraphFetchBudget.DefaultMaxBytes)
+    private static Host NewHost(Action<GraphEngineOptions>? configure = null, long budgetBytes = GraphFetchBudget.DefaultMaxBytes,
+        IGraphObjectCache? cache = null)
     {
         var options = new GraphEngineOptions { Workers = 1, WorkerPath = WorkerDll, WorkerArgs = [] };
         configure?.Invoke(options);
         var graph = new FakeGraph();
         var budget = new GraphFetchBudget(budgetBytes);
         var engine = new GraphEnginePool(options, NullLogger<GraphEnginePool>.Instance, TimeProvider.System);
-        return new Host(graph, budget, engine, new GraphRunner(GraphSchemaCatalog.Beta, graph.Reader(budget), budget, engine, GraphLimits.Default,
-            TimeProvider.System));
+        return new Host(graph, budget, engine, new GraphRunner(GraphSchemaCatalog.Beta, graph.Reader(budget, cache), budget, engine,
+            GraphLimits.Default, TimeProvider.System));
     }
 
     private static object App(string name) => new { id = Guid.NewGuid().ToString(), displayName = name };
@@ -244,6 +247,125 @@ public sealed class GraphRunnerTests
         var table = Assert.Single(r.Tables);
         Assert.Equal(["aboutMe"], table.PerObject);
         Assert.Equal(2, table.PerObjectFailed);
+    }
+
+    private static Task<HttpResponseMessage> OwnersAnswer(HttpRequestMessage request, string[] ids, int refusedIndex)
+    {
+        if (request.Method == HttpMethod.Get)
+            return Task.FromResult(FakeGraph.Collection([.. ids.Select(id => new { id, displayName = id })]));
+        var batch = JsonNode.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult())!.AsObject();
+        var responses = batch["requests"]!.AsArray().Select(r =>
+        {
+            var id = r!["url"]!.GetValue<string>().Split('/')[2];
+            return id == ids[refusedIndex]
+                ? (object)new { id = r["id"]!.GetValue<string>(), status = 403, body = new { error = new { code = "Forbidden", message = "no" } } }
+                : new { id = r["id"]!.GetValue<string>(), status = 200, body = new { value = Array.Empty<object>() } };
+        }).ToList();
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(JsonSerializer.Serialize(new { responses }), System.Text.Encoding.UTF8, "application/json"),
+        });
+    }
+
+    [Fact]
+    public async Task Relationship_outcome_reaches_the_result()
+    {
+        await using var h = NewHost();
+        string[] ids = ["a1", "a2"];
+        h.Graph.Answer = (request, _) => OwnersAnswer(request, ids, 1);
+        var events = new Events();
+
+        var r = await h.RunAsync("applications | mv-expand o = owners", events, Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        var relationship = Assert.Single(Assert.Single(r.Tables).Relationships);
+        Assert.Equal("owners", relationship.Column);
+        Assert.Equal(2, relationship.Objects);
+        Assert.Equal(1, relationship.Refused);
+        Assert.Equal(GraphSchemaCatalog.Beta.Find("applications")!.Columns.First(c => c.Name == "owners").Permissions, relationship.Permissions);
+        Assert.Equal(1_000, relationship.EntryCap);
+        Assert.False(relationship.Capped);
+        Assert.False(relationship.FilteredLocally);
+        Assert.Contains(events.All, e => e.Stage == "per-object" && e.Detail.Contains("applications.owners", StringComparison.Ordinal));
+    }
+
+    /// <summary>Graph listing <paramref name="ids"/>; in a <c>$batch</c>, each object's owners from <paramref name="owners"/>
+    /// (a status and a body).</summary>
+    private static Task<HttpResponseMessage> OwnersAnswer(HttpRequestMessage request, string[] ids, Func<string, (int Status, object Body)> owners)
+    {
+        if (request.Method == HttpMethod.Get)
+            return Task.FromResult(FakeGraph.Collection([.. ids.Select(id => new { id, displayName = id })]));
+        var batch = JsonNode.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult())!.AsObject();
+        var responses = batch["requests"]!.AsArray().Select(r =>
+        {
+            var (status, body) = owners(r!["url"]!.GetValue<string>().Split('/')[2]);
+            return new { id = r["id"]!.GetValue<string>(), status, body };
+        }).ToList();
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(JsonSerializer.Serialize(new { responses }), System.Text.Encoding.UTF8, "application/json"),
+        });
+    }
+
+    [Fact]
+    public async Task Relationship_truncated_limited_failed_and_cached_reach_the_result()
+    {
+        var cache = new MemoryGraphObjectCache(TimeProvider.System);
+        await using var h = NewHost(cache: cache);
+        string[] ids = ["a1", "a2", "a3"];
+        // a1 has more owners than the entry cap; a2's read fails; a3's one owner is of a type the account can't read.
+        h.Graph.Answer = (request, _) => OwnersAnswer(request, ids, id => id switch
+        {
+            "a1" => (200, new { value = Enumerable.Range(0, 1_001).Select(i => new { id = "u" + i.ToString(CultureInfo.InvariantCulture), displayName = "User" }).ToArray() }),
+            "a2" => (404, new { error = new { code = "Request_ResourceNotFound", message = "gone" } }),
+            _ => (200, new { value = new object[] { new Dictionary<string, string> { ["@odata.type"] = "#microsoft.graph.user", ["id"] = "x" } } }),
+        });
+
+        var first = Assert.Single((await h.RunAsync("applications | mv-expand o = owners", ct: Ct)).Tables);
+        var relationship = Assert.Single(first.Relationships);
+        Assert.Equal(1, relationship.Truncated);
+        Assert.Equal(1, relationship.Limited);
+        Assert.Equal(1, first.PerObjectFailed);
+        Assert.Equal(0, first.PerObjectCached);
+
+        var second = Assert.Single((await h.RunAsync("applications | mv-expand o = owners", ct: Ct)).Tables);
+        relationship = Assert.Single(second.Relationships);
+        Assert.Equal(1, relationship.Truncated);
+        Assert.Equal(1, relationship.Limited);
+        Assert.Equal(1, second.PerObjectFailed);
+        Assert.Equal(2, second.PerObjectCached);
+    }
+
+    [Fact]
+    public async Task Capped_relationship_reaches_the_result()
+    {
+        await using var h = NewHost();
+        var ids = Enumerable.Range(0, 101).Select(i => "a" + i.ToString(CultureInfo.InvariantCulture)).ToArray();
+        h.Graph.Answer = (request, _) => OwnersAnswer(request, ids, 0);
+
+        var r = await h.RunAsync("applications | mv-expand o = owners", ct: Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        var relationship = Assert.Single(Assert.Single(r.Tables).Relationships);
+        Assert.True(relationship.Capped);
+        Assert.Equal(101, relationship.Objects);
+    }
+
+    [Fact]
+    public async Task Unfiltered_read_marks_relationship_filtered_locally()
+    {
+        await using var h = NewHost();
+        string[] ids = ["a1", "a2"];
+        h.Graph.Answer = (request, ct) => request.Method == HttpMethod.Get && request.RequestUri!.Query.Contains("$filter", StringComparison.Ordinal)
+            ? Task.FromResult(FakeGraph.Error(HttpStatusCode.BadRequest, "Request_UnsupportedQuery", "no filter"))
+            : OwnersAnswer(request, ids, 1);
+
+        var r = await h.RunAsync("applications | where displayName == \"a1\" | mv-expand o = owners", ct: Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        var table = Assert.Single(r.Tables);
+        Assert.True(table.Unfiltered);
+        Assert.True(Assert.Single(table.Relationships).FilteredLocally);
     }
 
     [Fact]

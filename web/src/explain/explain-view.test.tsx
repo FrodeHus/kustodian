@@ -11,7 +11,7 @@ vi.mock('../bridge', async (importOriginal) => ({
   on: () => () => undefined,
 }));
 
-const limits = { objectsPerTable: 50000, fetchBudgetMb: 512, perObjectReadsPerTable: 2000 };
+const limits = { objectsPerTable: 50000, fetchBudgetMb: 512, perObjectReadsPerTable: 2000, relationshipObjectsPerTable: 100, relationshipEntriesPerObject: 1000 };
 
 const plan: ExplainResult = {
   error: null,
@@ -34,6 +34,8 @@ const plan: ExplainResult = {
       licenseLeftOut: [],
       missingLicense: null,
       missingLicenseSource: null,
+      relationships: [],
+      filteredLocally: false,
     },
   ],
   limits,
@@ -176,5 +178,39 @@ describe('ExplainView', () => {
     render(<ExplainView request={request} />);
 
     expect((await screen.findByRole('alert')).textContent).toBe('The query couldn’t be explained: The host stopped.');
+  });
+
+  it('explain_view_shows_relationship_reads', async () => {
+    const rel = { column: 'memberOf', url: 'users/{id}/memberOf?$select=id&$top=999', permissions: ['GroupMember.Read.All', 'Directory.Read.All'], entryCap: 1000 };
+    bridge.call.mockResolvedValue({ ...plan, tables: [{ ...plan.tables[0]!, relationships: [rel], filteredLocally: true }] });
+    render(<ExplainView request={request} />);
+
+    const table = await screen.findByRole('region', { name: 'users' });
+    const list = within(table).getByRole('list', { name: 'Relationships' });
+    expect(list.textContent).toContain('memberOf');
+    expect(list.textContent).toContain(rel.url);
+    expect(list.textContent).toContain('GroupMember.Read.All, Directory.Read.All');
+    expect(list.textContent).toContain('up to 1,000 entries per object');
+    expect(within(table).getByText("The filter runs locally, so every listed object's relationships are read.")).toBeTruthy();
+    expect(screen.getByText(/100 objects per relationship/)).toBeTruthy();
+  });
+
+  it('explain_view_points_to_the_docs_when_a_relationship_has_no_permissions', async () => {
+    const rel = { column: 'memberOf', url: 'users/{id}/memberOf?$select=id&$top=999', permissions: [], entryCap: 1000 };
+    bridge.call.mockResolvedValue({ ...plan, tables: [{ ...plan.tables[0]!, relationships: [rel] }] });
+    render(<ExplainView request={request} />);
+
+    const table = await screen.findByRole('region', { name: 'users' });
+    const list = within(table).getByRole('list', { name: 'Relationships' });
+    expect(list.textContent).not.toContain('Needs');
+    expect(list.textContent).toContain(plan.tables[0]!.docsUrl);
+    expect(list.textContent).toContain('up to 1,000 entries per object');
+  });
+
+  it('explain_view_hides_the_local_filter_note_without_one', async () => {
+    bridge.call.mockResolvedValue(plan);
+    render(<ExplainView request={request} />);
+    await screen.findByRole('region', { name: 'users' });
+    expect(screen.queryByText(/The filter runs locally/)).toBeNull();
   });
 });

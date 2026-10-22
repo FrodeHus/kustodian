@@ -1,6 +1,6 @@
 {
   "source": "msgraph-metadata@8c562525694550601a232cb54014e48c6c7f6da0; permissions https://raw.githubusercontent.com/microsoftgraph/microsoft-graph-devx-content/master/permissions/new/permissions.json",
-  "generatedAt": "2026-10-21T21:47:41.212771+00:00",
+  "generatedAt": "2026-10-22T08:07:49.888006+00:00",
   "tables": [
     {
       "name": "accessReviewDecisions",
@@ -1878,6 +1878,20 @@
           "description": "Specifies settings for apps running Microsoft Windows and published in the Microsoft Store or Xbox games store.",
           "selectOnly": false,
           "complexType": "microsoft.graph.windowsApplication"
+        },
+        {
+          "name": "owners",
+          "type": "dynamic",
+          "description": "Directory objects that are owners of this application. The owners are a set of nonadmin users or service principals allowed to modify this object. Read-only. Nullable. Supports $expand, $filter (/$count eq 0, /$count ne 0, /$count eq 1, /$count ne 1), and $select nested in $expand.",
+          "selectOnly": false,
+          "listable": false,
+          "collection": true,
+          "complexType": "kustodian.directoryObjectRef",
+          "relationship": true,
+          "permissions": [
+            "Application.Read.All",
+            "Directory.Read.All"
+          ]
         }
       ]
     },
@@ -21815,6 +21829,34 @@
             "in"
           ],
           "selectOnly": false
+        },
+        {
+          "name": "registeredOwners",
+          "type": "dynamic",
+          "description": "The user that cloud joined the device or registered their personal device. The registered owner is set at the time of registration. Read-only. Nullable. Supports $expand.",
+          "selectOnly": false,
+          "listable": false,
+          "collection": true,
+          "complexType": "kustodian.directoryObjectRef",
+          "relationship": true,
+          "permissions": [
+            "Device.Read.All",
+            "Directory.Read.All"
+          ]
+        },
+        {
+          "name": "registeredUsers",
+          "type": "dynamic",
+          "description": "Collection of registered users of the device. For cloud joined devices and registered personal devices, registered users are set to the same value as registered owners at the time of registration. Read-only. Nullable. Supports $expand.",
+          "selectOnly": false,
+          "listable": false,
+          "collection": true,
+          "complexType": "kustodian.directoryObjectRef",
+          "relationship": true,
+          "permissions": [
+            "Device.Read.All",
+            "Directory.Read.All"
+          ]
         }
       ]
     },
@@ -25445,6 +25487,38 @@
           "description": "Specifies whether or not a group is configured to write back group object properties to on-premises Active Directory. These properties are used when group writeback is configured in the Microsoft Entra Connect sync client.",
           "selectOnly": false,
           "complexType": "microsoft.graph.groupWritebackConfiguration"
+        },
+        {
+          "name": "members",
+          "type": "dynamic",
+          "description": "Direct group members, who can be users, devices, other groups, or service principals. Supports the List members, Add member, and Remove member operations. Nullable. Supports $expand including nested $select. For example, /groups?$filter=startsWith(displayName,'Role')&$select=id,displayName&$expand=members($select=id,userPrincipalName,displayName).",
+          "selectOnly": false,
+          "listable": false,
+          "collection": true,
+          "complexType": "kustodian.directoryObjectRef",
+          "relationship": true,
+          "permissions": [
+            "GroupMember.ReadBasic.All",
+            "Directory.Read.All",
+            "Group.Read.All",
+            "Group.ReadBasic.All",
+            "GroupMember.Read.All"
+          ]
+        },
+        {
+          "name": "owners",
+          "type": "dynamic",
+          "description": "The owners of the group who can be users or service principals. Limited to 100 owners. Nullable. If this property isn't specified when creating a Microsoft 365 group the calling user (admin or non-admin) is automatically assigned as the group owner. A non-admin user can't explicitly add themselves to this collection when they're creating the group. For more information, see the related known issue. For security groups, the admin user isn't automatically added to this collection. For more information, see the related known issue. Supports $filter (/$count eq 0, /$count ne 0, /$count eq 1, /$count ne 1); Supports $expand including nested $select. For example, /groups?$filter=startsWith(displayName,'Role')&$select=id,displayName&$expand=owners($select=id,userPrincipalName,displayName).",
+          "selectOnly": false,
+          "listable": false,
+          "collection": true,
+          "complexType": "kustodian.directoryObjectRef",
+          "relationship": true,
+          "permissions": [
+            "GroupMember.Read.All",
+            "Directory.Read.All",
+            "Group.Read.All"
+          ]
         }
       ]
     },
@@ -35864,6 +35938,20 @@
           "description": "Specifies the verified publisher of the application that's linked to this service principal.",
           "selectOnly": false,
           "complexType": "microsoft.graph.verifiedPublisher"
+        },
+        {
+          "name": "owners",
+          "type": "dynamic",
+          "description": "Directory objects that are owners of this servicePrincipal. The owners are a set of nonadmin users or servicePrincipals who are allowed to modify this object. Supports $expand and $filter (/$count eq 0, /$count ne 0, /$count eq 1, /$count ne 1).",
+          "selectOnly": false,
+          "listable": false,
+          "collection": true,
+          "complexType": "kustodian.directoryObjectRef",
+          "relationship": true,
+          "permissions": [
+            "Application.Read.All",
+            "Directory.Read.All"
+          ]
         }
       ]
     },
@@ -38708,6 +38796,91 @@
             "in"
           ],
           "selectOnly": false
+        },
+        {
+          "name": "memberOf",
+          "type": "dynamic",
+          "description": "The groups, directory roles, and administrative units that the user is a member of. Read-only. Nullable. Supports $expand.",
+          "selectOnly": false,
+          "listable": false,
+          "collection": true,
+          "complexType": "kustodian.directoryObjectRef",
+          "relationship": true,
+          "permissions": [
+            "Directory.Read.All",
+            "Group.ReadBasic.All",
+            "GroupMember.Read.All",
+            "GroupMember.ReadBasic.All"
+          ]
+        },
+        {
+          "name": "manager",
+          "type": "dynamic",
+          "description": "The user or contact that is this user's manager. Read-only. Supports $expand.",
+          "selectOnly": false,
+          "listable": false,
+          "complexType": "kustodian.directoryObjectRef",
+          "relationship": true,
+          "permissions": [
+            "User.Read.All",
+            "Directory.Read.All"
+          ]
+        },
+        {
+          "name": "directReports",
+          "type": "dynamic",
+          "description": "The users and contacts that report to the user. (The users and contacts with their manager property set to this user.) Read-only. Nullable. Supports $expand.",
+          "selectOnly": false,
+          "listable": false,
+          "collection": true,
+          "complexType": "kustodian.directoryObjectRef",
+          "relationship": true,
+          "permissions": [
+            "Directory.Read.All",
+            "User.Read.All"
+          ]
+        },
+        {
+          "name": "ownedObjects",
+          "type": "dynamic",
+          "description": "Directory objects owned by the user. Read-only. Nullable. Supports $expand, $select nested in $expand, and $filter (/$count eq 0, /$count ne 0, /$count eq 1, /$count ne 1).",
+          "selectOnly": false,
+          "listable": false,
+          "collection": true,
+          "complexType": "kustodian.directoryObjectRef",
+          "relationship": true,
+          "permissions": [
+            "Directory.Read.All",
+            "User.Read.All"
+          ]
+        },
+        {
+          "name": "registeredDevices",
+          "type": "dynamic",
+          "description": "Devices that are registered for the user. Read-only. Nullable. Supports $expand and returns up to 100 objects.",
+          "selectOnly": false,
+          "listable": false,
+          "collection": true,
+          "complexType": "kustodian.directoryObjectRef",
+          "relationship": true,
+          "permissions": [
+            "Directory.Read.All",
+            "User.Read.All"
+          ]
+        },
+        {
+          "name": "ownedDevices",
+          "type": "dynamic",
+          "description": "Devices owned by the user. Read-only. Nullable. Supports $expand.",
+          "selectOnly": false,
+          "listable": false,
+          "collection": true,
+          "complexType": "kustodian.directoryObjectRef",
+          "relationship": true,
+          "permissions": [
+            "Directory.Read.All",
+            "User.Read.All"
+          ]
         }
       ]
     },
@@ -38791,6 +38964,50 @@
     }
   ],
   "complexTypes": {
+    "kustodian.directoryObjectRef": [
+      {
+        "name": "id",
+        "type": "string",
+        "collection": false,
+        "description": "The object's ID."
+      },
+      {
+        "name": "objectType",
+        "type": "string",
+        "collection": false,
+        "description": "The object's type: @odata.type without #microsoft.graph."
+      },
+      {
+        "name": "displayName",
+        "type": "string",
+        "collection": false,
+        "description": "The object's display name."
+      },
+      {
+        "name": "userPrincipalName",
+        "type": "string",
+        "collection": false,
+        "description": "The user principal name; users only."
+      },
+      {
+        "name": "mail",
+        "type": "string",
+        "collection": false,
+        "description": "The primary email address; users and groups."
+      },
+      {
+        "name": "appId",
+        "type": "string",
+        "collection": false,
+        "description": "The application (client) ID; applications and service principals."
+      },
+      {
+        "name": "deviceId",
+        "type": "string",
+        "collection": false,
+        "description": "The device ID; devices."
+      }
+    ],
     "microsoft.graph.Json": [],
     "microsoft.graph.a2aAuthorization": [
       {

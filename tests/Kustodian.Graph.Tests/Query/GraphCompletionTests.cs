@@ -9,6 +9,24 @@ public sealed class GraphCompletionTests
         GraphCompletion.Complete(GraphSchemaCatalog.Beta, kql, kql.Length);
 
     [Fact]
+    public void Completion_offers_relationship_entry_fields()
+    {
+        var items = GraphCompletion.Complete(TestSchemas.Fixture(), "applications | mv-expand o = owners | where o.", 46);
+
+        Assert.Contains(items, i => i.Label == "objectType");
+        Assert.Contains(items, i => i.Label == "userPrincipalName");
+        Assert.Contains(items, i => i.Label == "displayName");
+    }
+
+    [Fact]
+    public void Completion_types_single_relationship_as_a_bag()
+    {
+        var items = GraphCompletion.Complete(TestSchemas.Fixture(), "applications | where primaryOwner.", 34);
+
+        Assert.Contains(items, i => i.Label == "displayName");
+    }
+
+    [Fact]
     public void Offers_the_fields_of_a_complex_column_with_type_and_description()
     {
         var items = CompleteAtEnd("applications | where onPremisesPublishing.");

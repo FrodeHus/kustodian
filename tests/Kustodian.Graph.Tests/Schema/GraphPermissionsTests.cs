@@ -92,6 +92,47 @@ public sealed class GraphPermissionsTests
         Assert.Equal(["A.Read", "B.Read"], permissions["/x"]);
     }
 
+    private static IReadOnlyDictionary<string, IReadOnlyList<string>> ReadRelationships(string json)
+    {
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
+        return GraphPermissions.ReadRelationshipDelegated(stream);
+    }
+
+    [Fact]
+    public void ReadRelationshipDelegated_keeps_every_read_only_delegated_permission_least_privileged_first()
+    {
+        var permissions = ReadRelationships("""
+            {"permissions":{
+              "Directory.Read.All":{"pathSets":[{"schemeKeys":["DelegatedWork","Application"],"methods":["GET","POST"],
+                "paths":{"/users/{id}/memberOf":"least=Application"}}]},
+              "GroupMember.ReadBasic.All":{"pathSets":[{"schemeKeys":["DelegatedWork"],"methods":["GET"],
+                "paths":{"/users/{user-id}/memberOf":""}}]},
+              "Group.Read.All":{"pathSets":[{"schemeKeys":["DelegatedWork"],"methods":["GET"],
+                "paths":{"/users/{id}/memberOf":"least=DelegatedWork"}}]},
+              "Directory.ReadWrite.All":{"pathSets":[{"schemeKeys":["DelegatedWork"],"methods":["GET"],
+                "paths":{"/users/{id}/memberOf":""}}]},
+              "AgentIdUser.ReadWrite.All":{"pathSets":[{"schemeKeys":["DelegatedWork"],"methods":["GET"],
+                "paths":{"/users/{id}/memberOf":"least=DelegatedWork"}}]},
+              "User.Read":{"pathSets":[{"schemeKeys":["DelegatedWork"],"methods":["GET"],
+                "paths":{"/users/{id}/memberOf":"least=DelegatedWork"}}]},
+              "Device.Read.All":{"pathSets":[{"schemeKeys":["DelegatedWork"],"methods":["POST"],
+                "paths":{"/users/{id}/memberOf":"least=DelegatedWork"}}]},
+              "Group.ReadBasic.All":{"pathSets":[{"schemeKeys":["Application","DelegatedPersonal"],"methods":["GET"],
+                "paths":{"/users/{id}/memberOf":"least=Application"}}]}}}
+            """);
+
+        Assert.Equal(["Group.Read.All", "Directory.Read.All", "GroupMember.ReadBasic.All"], permissions["/users/{}/memberof"]);
+    }
+
+    [Fact]
+    public void ReadRelationshipDelegated_reads_the_excerpt()
+    {
+        using var stream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Schema", "permissions-excerpt.json"));
+        var permissions = GraphPermissions.ReadRelationshipDelegated(stream);
+
+        Assert.Equal(["GroupMember.Read.All", "Directory.Read.All"], permissions["/applications/{}/owners"]);
+    }
+
     [Fact]
     public void Build_sets_table_permissions_from_path()
     {
@@ -127,7 +168,7 @@ public sealed class GraphPermissionsTests
     [Fact]
     public void GraphSchemaJson_omits_empty_permissions()
     {
-        var json = GraphSchemaJson.Write(TestSchemas.Fixture());
+        var json = GraphSchemaJson.Write(TestSchemas.Plain());
 
         Assert.Equal(1, json.Split("\"permissions\"").Length - 1);
         Assert.Equal(1, json.Split("\"knownPermission\"").Length - 1);

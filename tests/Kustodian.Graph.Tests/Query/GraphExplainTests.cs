@@ -20,6 +20,11 @@ public sealed class GraphExplainTests
         new("createdDateTime", "datetime", "", ["eq", "ne", "not", "ge", "le", "gt", "lt", "in"], false, null),
         new("keyCount", "long", "", ["eq", "ne", "gt", "ge", "lt", "le", "in"], false, null),
         new("onPremisesPublishing", "dynamic", "", [], false, "microsoft.graph.onPremisesPublishing", Listable: false),
+        new("owners", "dynamic", "", [], false, null, Collection: true, Listable: false)
+        {
+            Relationship = true,
+            Permissions = ["Application.Read.All", "Directory.Read.All"],
+        },
     ];
 
     private static readonly GraphTable Applications =
@@ -218,8 +223,26 @@ public sealed class GraphExplainTests
     {
         var limits = new GraphLimits { ObjectsPerTable = 1234, FetchBudgetBytes = 256L << 20, PerObjectReadsPerTable = 77 };
 
-        Assert.Equal(new ExplainLimits(1234, 256, 77), Explain("applications", limits).Limits);
-        Assert.Equal(new ExplainLimits(1234, 256, 77), Explain("nope", limits).Limits);
+        Assert.Equal(new ExplainLimits(1234, 256, 77, 100, 1_000), Explain("applications", limits).Limits);
+        Assert.Equal(new ExplainLimits(1234, 256, 77, 100, 1_000), Explain("nope", limits).Limits);
+    }
+
+    [Fact]
+    public void Explain_lists_relationship_requests()
+    {
+        var table = Assert.Single(Explain("applications | where displayName == \"x\" | mv-expand o = owners").Tables);
+
+        var relationship = Assert.Single(table.Relationships);
+        Assert.Equal("owners", relationship.Column);
+        Assert.Equal(GraphRelationshipReader.Template("applications", "owners", true), relationship.Url);
+        Assert.Equal(["Application.Read.All", "Directory.Read.All"], relationship.Permissions);
+        Assert.Equal(1_000, relationship.EntryCap);
+        Assert.False(table.FilteredLocally);
+        Assert.DoesNotContain("owners", table.PerObject);
+
+        var local = Assert.Single(Explain("applications | where displayName contains \"x\" | mv-expand o = owners").Tables);
+        Assert.True(local.FilteredLocally);
+        Assert.Empty(Assert.Single(Explain("applications | project displayName").Tables).Relationships);
     }
 
     [Fact]

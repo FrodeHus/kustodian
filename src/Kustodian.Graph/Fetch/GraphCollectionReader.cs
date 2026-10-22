@@ -9,7 +9,8 @@ namespace Kustodian.Graph.Fetch;
 
 /// <summary>What one collection read returned. <c>Requests</c> are the relative URLs as sent (the per-object reads once, as
 /// <see cref="GraphBatchReader.Template"/>); <c>Unfiltered</c> says Graph refused the <c>$filter</c> and the whole collection
-/// was read; <c>Unreadable</c> are the properties Graph won't serve in a list and that are missing from the objects.
+/// was read; <c>Unreadable</c> are the properties Graph won't serve in a list and that are missing from the objects, and the
+/// relationship columns left unread because they were capped (<see cref="GraphRelationshipOutcome.Capped"/>).
 /// <see cref="PerObject"/> are such properties read one object at a time instead, <see cref="PerObjectFailed"/> the objects
 /// whose read failed (their values are empty), and <see cref="PerObjectCapped"/> says the collection had more objects than
 /// <see cref="GraphLimits.PerObjectReadsPerTable"/> to read, so its named properties stayed unread. <see cref="PerObjectCached"/> are
@@ -33,7 +34,20 @@ public sealed record GraphCollection(IReadOnlyList<JsonObject> Objects, IReadOnl
     /// <summary>Graph's count of the collection's objects that pass the filter, when the fetch asked for a count
     /// (<see cref="GraphFetch.Count"/>) and Graph gave one: then no object was read.</summary>
     public long? Count { get; init; }
+    /// <summary>The relationship columns the query names, each read on its own (<see cref="GraphRelationshipReader"/>) and
+    /// never counted in <see cref="PerObject"/>, <see cref="PerObjectFailed"/> or <see cref="PerObjectCapped"/>.</summary>
+    public IReadOnlyList<GraphRelationshipOutcome> Relationships { get; init; } = [];
 }
+
+/// <summary>How one relationship column was read: <c>Objects</c> are the listed objects it was meant for, <c>Truncated</c> those
+/// cut off at <see cref="GraphLimits.RelationshipEntriesPerObject"/> (cached values included), <c>Refused</c> those Graph refused
+/// for permission and <c>Failed</c> those that couldn't be read (both left empty). <c>Capped</c>: more than
+/// <see cref="GraphLimits.RelationshipObjectsPerTable"/> objects were left to read, so nothing was read or merged.
+/// <c>Cached</c> are the objects whose value came from the cache. <c>Limited</c> are the entries, over all objects (cached
+/// values included), with no <c>displayName</c>: Graph answers a directory object of a type the account can't read with only
+/// its <c>@odata.type</c> and <c>id</c>, not a refusal.</summary>
+public sealed record GraphRelationshipOutcome(string Column, int Objects, int Truncated, int Refused, int Failed, bool Capped, int Cached,
+    int Limited);
 
 /// <summary>
 /// Reads one Graph collection for the signed-in account, page by page, within the object cap
@@ -81,6 +95,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
     private readonly TimeProvider _time = time ?? TimeProvider.System;
 
     private readonly GraphBatchReader _perObject = new(http, limits);
+    private readonly GraphRelationshipColumns _relationships = new(http, cache, limits);
 
     /// <summary>The limits this reader reads within.</summary>
     public GraphLimits Limits => limits;
@@ -404,13 +419,26 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         ? table.Path + "/$count" + (string.IsNullOrEmpty(filter) ? "" : "?$filter=" + Uri.EscapeDataString(filter))
         : table.Path + "?$select=id" + (string.IsNullOrEmpty(filter) ? "" : "&$filter=" + Uri.EscapeDataString(filter)) + "&$count=true&$top=1";
 
-    /// <summary>The collection with the properties the query names that the list left out read one object at a time: from the
-    /// cache where it has them (unless <paramref name="refresh"/>), else from Graph, unless more objects than
-    /// <see cref="GraphLimits.PerObjectReadsPerTable"/> are left to read. What Graph returned is kept in the cache; a failed read isn't.</summary>
+    /// <summary>The collection with the columns the query names that the list left out read one object at a time: the
+    /// relationship columns by <see cref="GraphRelationshipColumns"/>, each on its own, and the properties as below.</summary>
     private async Task<GraphCollection> ReadPerObjectAsync(string accountKey, GraphFetch fetch, GraphFetchLease lease, List<string> requests,
         GraphCollection read, bool refresh, RunDiagnostics? diagnostics, CancellationToken ct)
     {
-        var columns = read.Unreadable.Where(fetch.Named.Contains).Distinct(StringComparer.Ordinal).ToList();
+        var named = read.Unreadable.Where(fetch.Named.Contains).Distinct(StringComparer.Ordinal).ToList();
+        var relationships = fetch.Table.Columns.Where(c => c.Relationship).Select(c => c.Name).ToHashSet(StringComparer.Ordinal);
+        read = await ReadPropertiesAsync(accountKey, fetch, lease, requests, read, [.. named.Where(c => !relationships.Contains(c))],
+            refresh, diagnostics, ct);
+        var related = named.Where(relationships.Contains).ToList();
+        return related.Count == 0 ? read
+            : await _relationships.ReadAsync(accountKey, fetch, lease, requests, read, related, refresh, diagnostics, ct);
+    }
+
+    /// <summary>The collection with <paramref name="columns"/>, properties the list left out, read one object at a time: from the
+    /// cache where it has them (unless <paramref name="refresh"/>), else from Graph, unless more objects than
+    /// <see cref="GraphLimits.PerObjectReadsPerTable"/> are left to read. What Graph returned is kept in the cache; a failed read isn't.</summary>
+    private async Task<GraphCollection> ReadPropertiesAsync(string accountKey, GraphFetch fetch, GraphFetchLease lease, List<string> requests,
+        GraphCollection read, List<string> columns, bool refresh, RunDiagnostics? diagnostics, CancellationToken ct)
+    {
         if (columns.Count == 0)
             return read;
         var path = fetch.Table.Path;
