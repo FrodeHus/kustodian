@@ -8,4 +8,11 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
+
+  <!-- Release builds embed their symbols in the assembly. A single-file publish bundles the assemblies but not .pdb files,
+       which would otherwise sit beside the executable; the referenced projects build without the runtime identifier, so the
+       host project's own setting doesn't reach them. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
 </Project>
