@@ -423,18 +423,18 @@ describe('App', () => {
     expect(bridge.call).not.toHaveBeenCalledWith('file.saveAs', expect.anything());
   });
 
-  it('save_button_on_new_tab_opens_dialog_without_save_as', async () => {
+  it('save_button_on_new_tab_opens_dialog_without_menu', async () => {
     host({ accounts: [kari], cache: 'persistent' });
     render(<App />);
     await screen.findByRole('tab', { name: /Query 1/ });
 
-    expect(screen.queryByRole('button', { name: 'Save as' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'More save options' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(await screen.findByRole('dialog', { name: 'Save the query' })).toBeTruthy();
   });
 
-  it('save_as_button_on_saved_tab_opens_dialog', async () => {
+  it('save_as_in_save_menu_on_saved_tab_opens_dialog', async () => {
     host({ accounts: [kari], cache: 'persistent' }, rows, {
       version: 1,
       activeId: 'a',
@@ -443,9 +443,11 @@ describe('App', () => {
     render(<App />);
     await screen.findByRole('tab', { name: /apps\.kql/ });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Save as' }));
+    fireEvent.click(screen.getByRole('button', { name: 'More save options' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /Save as/ }));
 
     expect(await screen.findByRole('dialog', { name: 'Save the query' })).toBeTruthy();
+    expect(screen.queryByRole('menu', { name: 'Save' })).toBeNull();
     expect(bridge.call).not.toHaveBeenCalledWith('file.saveAs', expect.anything());
   });
 

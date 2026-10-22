@@ -7,7 +7,7 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Save and Save as buttons in the query toolbar. Save as shows once the tab is saved to the library or a file.
+- A Save button in the query toolbar. Once the tab is saved to the library or a file, its ▾ menu has Save as.
 
 ## [0.9.5] - 2026-10-22
 

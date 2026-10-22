@@ -171,6 +171,9 @@ body {
   .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); }
   .btn.ghost:not(:disabled):hover { background: var(--raise); color: var(--text); }
   .btn[aria-pressed='true'] { border-color: var(--accent); color: var(--accent); }
+  .split { display: inline-flex; }
+  .split > .btn:first-of-type { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+  .split > .btn:nth-of-type(2) { margin-left: -1px; padding: 0 8px; border-top-left-radius: 0; border-bottom-left-radius: 0; }
   .kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; border-radius: 4px; border: 1px solid var(--line); font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--faint); white-space: nowrap; }
   .sep { width: 1px; height: 20px; background: var(--line); }
 
