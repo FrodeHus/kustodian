@@ -127,7 +127,7 @@ public sealed class GraphPermissionsTests
     [Fact]
     public void GraphSchemaJson_omits_empty_permissions()
     {
-        var json = GraphSchemaJson.Write(TestSchemas.Fixture());
+        var json = GraphSchemaJson.Write(TestSchemas.Plain());
 
         Assert.Equal(1, json.Split("\"permissions\"").Length - 1);
         Assert.Equal(1, json.Split("\"knownPermission\"").Length - 1);

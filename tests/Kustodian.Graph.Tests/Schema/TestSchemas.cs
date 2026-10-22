@@ -4,11 +4,20 @@ namespace Kustodian.Graph.Tests;
 
 internal static class TestSchemas
 {
-    public static GraphSchema Fixture()
+    private static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> NoRelationships =
+        new Dictionary<string, IReadOnlyList<string>>();
+
+    /// <summary>The fixture with <c>applications.owners</c> and <c>primaryOwner</c> as relationship columns.</summary>
+    public static GraphSchema Fixture() => Build(new Dictionary<string, IReadOnlyList<string>> { ["applications"] = ["owners", "primaryOwner"] });
+
+    /// <summary>The fixture with no relationship columns: just the properties the metadata declares.</summary>
+    public static GraphSchema Plain() => Build(NoRelationships);
+
+    private static GraphSchema Build(IReadOnlyDictionary<string, IReadOnlyList<string>> relationships)
     {
         using var stream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Fixtures", "mini-metadata.xml"));
         using var permissions = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Schema", "permissions-excerpt.json"));
-        return GraphSchemaBuilder.Build(GraphMetadata.Load(stream), GraphPermissions.ReadDelegated(permissions), "test",
+        return GraphSchemaBuilder.Build(GraphMetadata.Load(stream), GraphPermissions.ReadDelegated(permissions), relationships, "test",
             DateTimeOffset.UnixEpoch);
     }
 

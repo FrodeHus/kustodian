@@ -12,6 +12,46 @@ public sealed class GraphQueryPlannerTests
     private static GraphFetch Fetch(GraphQueryPlan plan, string table) => plan.Fetches.Single(f => f.Table.Name == table);
 
     [Fact]
+    public void Relationship_named_is_read_per_object_not_selected()
+    {
+        var fetch = Fetch(Plan("applications | where displayName == \"x\" | mv-expand o = owners"), "applications");
+
+        Assert.Contains("owners", fetch.Unreadable);
+        Assert.DoesNotContain("owners", fetch.Select);
+        Assert.False(fetch.FilteredLocally);
+    }
+
+    [Theory]
+    [InlineData("applications | search \"x\"")]
+    [InlineData("applications | extend p = pack_all()")]
+    public void Relationship_through_star_is_not_read(string kql)
+    {
+        Assert.DoesNotContain("owners", Fetch(Plan(kql), "applications").Unreadable);
+    }
+
+    [Theory]
+    [InlineData("applications | where displayName contains \"x\" | mv-expand o = owners")]
+    [InlineData("applications | mv-expand o = owners | where displayName == \"x\"")]
+    public void Local_condition_marks_filtered_locally(string kql)
+    {
+        Assert.True(Fetch(Plan(kql), "applications").FilteredLocally);
+    }
+
+    [Fact]
+    public void Self_join_marks_filtered_locally()
+    {
+        var plan = Plan("applications | where displayName == \"x\" | join kind=inner (applications | project appId) on appId");
+
+        Assert.True(Fetch(plan, "applications").FilteredLocally);
+    }
+
+    [Fact]
+    public void No_where_is_not_filtered_locally()
+    {
+        Assert.False(Fetch(Plan("applications | mv-expand o = owners"), "applications").FilteredLocally);
+    }
+
+    [Fact]
     public void Plan_parses_reals_and_timespans_under_comma_decimal_culture()
     {
         const string kql = "applications | where createdDateTime > ago(1.5d) | extend x = 0.5";

@@ -32,6 +32,11 @@ public sealed record GraphFetch(GraphTable Table, IReadOnlyList<string> Select, 
     public GraphOrderBy? OrderBy { get; init; }
     public string? Count { get; init; }
 
+    /// <summary>Some of the query's <c>where</c> conditions on the table run locally, after the read: they are not (all) in the
+    /// <c>$filter</c>, or the table is read more than once. Rows Graph returns then may not all reach the result, which matters
+    /// to a column read one object at a time.</summary>
+    public bool FilteredLocally { get; init; }
+
     /// <summary>The columns the query touches that are left out because the tenant lacks their license
     /// (<see cref="GraphLicenseGate"/>): not selected, not read one object at a time, and no condition or sort on them is sent.
     /// Their values are empty.</summary>
@@ -160,7 +165,10 @@ public static class GraphQueryPlanner
                 : new FilterExplanation(null, [], []);
             var later = LaterPredicates(code, symbol)
                 .Select(p => new LocalCondition(GraphFilterTranslator.Text(p), PushdownReasons.NotLeading));
-            filters.Add(explanation with { Local = [.. explanation.Local, .. later] });
+            var local = explanation with { Local = [.. explanation.Local, .. later] };
+            filters.Add(local);
+            // A self-join's wheres are all in `later` (the table gets no pushdown), so they count here too.
+            var filteredLocally = local.Local.Count > 0;
             // Only when every leading where went to Graph whole: a condition kept local would have to see rows past the limit.
             var (top, orderBy) = explanation.Local.Count == 0 ? RowLimit(code, symbol, table) : (null, null);
             // A sort on a column that isn't read can't pick Graph's first rows.
@@ -171,7 +179,7 @@ public static class GraphQueryPlanner
             fetches.Add(new GraphFetch(table, select, explanation.Filter)
             {
                 Unreadable = unreadable, Named = named, Top = top, OrderBy = orderBy, Clauses = explanation.Clauses, Count = count,
-                LicenseLeftOut = leftOut, MissingLicense = licenses?.MissingFor(table),
+                LicenseLeftOut = leftOut, MissingLicense = licenses?.MissingFor(table), FilteredLocally = filteredLocally,
             });
         }
         return new ExplainedPlan(new GraphQueryPlan(fetches, null, null), filters);

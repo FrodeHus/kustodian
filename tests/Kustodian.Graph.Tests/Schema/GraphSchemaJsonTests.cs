@@ -144,7 +144,7 @@ public sealed class GraphSchemaJsonTests
     [Fact]
     public void Plain_columns_write_no_relationship_keys()
     {
-        var schema = TestSchemas.Fixture();
+        var schema = TestSchemas.Plain();
         // Tables carry their own "permissions"; only the columns are under test.
         var text = GraphSchemaJson.Write(schema with { Tables = schema.Tables.Select(t => t with { Permissions = [] }).ToList() });
 

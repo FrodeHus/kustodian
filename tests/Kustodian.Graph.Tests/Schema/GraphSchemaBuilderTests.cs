@@ -120,7 +120,7 @@ public sealed class GraphSchemaBuilderTests
     [Fact]
     public void Inherited_properties_come_first()
     {
-        var columns = Build().Find("applications")!.Columns.Select(c => c.Name).ToArray();
+        var columns = TestSchemas.Plain().Find("applications")!.Columns.Select(c => c.Name).ToArray();
 
         Assert.Equal(["id", "deletedDateTime"], columns.Take(2).ToArray());
         Assert.DoesNotContain("owners", columns);
@@ -259,7 +259,9 @@ public sealed class GraphSchemaBuilderTests
     [Fact]
     public void Uncurated_navigation_properties_stay_out()
     {
-        Assert.DoesNotContain(Build().Find("applications")!.Columns, c => c.Name == "owners");
-        Assert.DoesNotContain(GraphSchemaJson.DirectoryObjectRef, Build().ComplexTypes.Keys);
+        var plain = TestSchemas.Plain();
+
+        Assert.DoesNotContain(plain.Find("applications")!.Columns, c => c.Name == "owners");
+        Assert.DoesNotContain(GraphSchemaJson.DirectoryObjectRef, plain.ComplexTypes.Keys);
     }
 }
