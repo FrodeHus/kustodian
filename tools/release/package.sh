@@ -229,7 +229,7 @@ publish="$("$release/publish.sh" "$rid")"
 
 if [[ "$rid" == "$(host_rid)" ]]; then
     exe="$publish/Kustodian"
-    "$release/smoke.sh" "$exe"
+    "$release/smoke.sh" "$exe" "$version"
 fi
 
 mkdir -p "$artifacts"

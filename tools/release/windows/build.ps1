@@ -109,7 +109,7 @@ foreach ($arch in $Architectures) {
 
     # 7. The checksum, then both files into artifacts\.
     $hash = (Get-FileHash -Algorithm SHA256 $msi).Hash.ToLowerInvariant()
-    "$hash *$(Split-Path -Leaf $msi)" | Set-Content -Path "$msi.sha256" -Encoding ascii
+    [IO.File]::WriteAllText("$msi.sha256", "$hash *$(Split-Path -Leaf $msi)`n")
     Copy-Item -Force $msi, "$msi.sha256" -Destination $artifacts
     Write-Host "== $(Join-Path $artifacts (Split-Path -Leaf $msi)) sha256 $hash"
 }

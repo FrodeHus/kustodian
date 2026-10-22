@@ -20,9 +20,9 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -46,6 +46,7 @@ jobs:
 
   windows:
     name: Windows (MSIs and portable zips)
+    timeout-minutes: 60
     needs: version
     runs-on: windows-latest
     # One Certum SimplySign account serves every signing job, and a TOTP code is single-use: two overlapping logins make
@@ -58,13 +59,15 @@ jobs:
     outputs:
       signed: ${{ steps.signing.outputs.signed }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -93,6 +96,13 @@ jobs:
             "signed=" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           }
 
+      - name: Portable zips
+        shell: bash
+        run: |
+          for rid in win-x64 win-arm64; do
+            tools/release/package.sh "$rid"
+          done
+
       # signtool is not on the runner's PATH: add the newest x64 one from the Windows SDK.
       - name: Open the SimplySign session
         if: env.SIGN == '1'
@@ -106,13 +116,6 @@ jobs:
           $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe | Where-Object { $_.FullName -match '\\x64\\' } | Sort-Object FullName -Descending | Select-Object -First 1
           if (-not $signtool) { throw "signtool.exe was not found in the Windows SDK" }
           $signtool.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Append
-
-      - name: Portable zips
-        shell: bash
-        run: |
-          for rid in win-x64 win-arm64; do
-            tools/release/package.sh "$rid"
-          done
 
       - name: MSIs
         shell: pwsh
@@ -133,16 +136,19 @@ jobs:
 
   macos:
     name: macOS (app zips and dmgs)
+    timeout-minutes: 60
     needs: version
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -164,16 +170,19 @@ jobs:
 
   linux:
     name: Linux (tarball and AppImage)
+    timeout-minutes: 60
     needs: version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -205,7 +214,7 @@ jobs:
       VERSION: ${{ needs.version.outputs.version }}
       WIN_SIGNED: ${{ needs.windows.outputs.signed }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/download-artifact@v4
         with:
@@ -235,7 +244,7 @@ jobs:
             echo
             echo "- **Windows 11:** \`Kustodian-$VERSION-x64.msi\` or \`Kustodian-$VERSION-arm64.msi\` (installs per user, no admin rights), or the portable \`Kustodian-$VERSION-win-x64.zip\` / \`-win-arm64.zip\`."
             echo "- **macOS 14 or later:** \`Kustodian-$VERSION-osx-arm64.dmg\` (Apple silicon) or \`Kustodian-$VERSION-osx-x64.dmg\` (Intel); the same app is in the \`.zip\` files."
-            echo "- **Linux x64:** \`Kustodian-$VERSION-x86_64.AppImage\` or \`Kustodian-$VERSION-linux-x64.tar.gz\`. Needs WebKitGTK 4.1, libsecret and libnotify from your distribution, and FUSE 2 for the AppImage."
+            echo "- **Linux x64:** \`Kustodian-$VERSION-x86_64.AppImage\` or \`Kustodian-$VERSION-linux-x64.tar.gz\`. Needs WebKitGTK 4.1, libsecret and libnotify from your distribution. The AppImage runs without FUSE (it extracts itself); with fuse3's fusermount, which WebKitGTK usually brings, it mounts instead."
             echo
             echo "## Signing"
             echo

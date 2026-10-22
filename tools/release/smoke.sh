@@ -1,16 +1,29 @@
 #!/usr/bin/env bash
 # Smoke-tests a published Kustodian executable (macOS and Linux) without opening a window:
 #   1. copies it into a temp folder named "Kustodian smoke" (a path with a space);
-#   2. checks that --version prints exactly "Kustodian 1.0.0";
+#   2. checks that --version prints exactly "Kustodian <expected-version>";
 #   3. starts it as an engine worker (--engine) the way the app's pool does, with an empty environment, sends one request
 #      that evaluates `print x=1`, checks the answer, closes stdin and checks that the worker exits by itself within 5 s.
 # Exits non-zero on any failure.
 #
-#   smoke.sh <published-executable>
+#   smoke.sh <published-executable> [expected-version]
+#
+# [expected-version] defaults to the project's version (Directory.Build.props), read the way package.sh reads it.
 set -euo pipefail
 
-if [[ $# -ne 1 || ! -f "$1" ]]; then
-    echo "usage: smoke.sh <published-executable>" >&2
+if [[ $# -lt 1 || $# -gt 2 || ! -f "$1" ]]; then
+    echo "usage: smoke.sh <published-executable> [expected-version]" >&2
+    exit 2
+fi
+
+if [[ $# -eq 2 ]]; then
+    expected_version="$2"
+else
+    root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+    expected_version="$(dotnet msbuild "$root/src/Kustodian/Kustodian.csproj" -getProperty:Version | tr -d '[:space:]')"
+fi
+if [[ -z "$expected_version" ]]; then
+    echo "smoke: could not read the project version" >&2
     exit 2
 fi
 
@@ -52,8 +65,8 @@ status=0
 wait "$probe" || status=$?
 [[ "$status" -eq 0 ]] || fail "--version exited with $status; stderr: $(cat "$work/version-stderr")"
 version="$(cat "$work/version")"
-expected='^Kustodian 1\.0\.0$'
-[[ "$version" =~ $expected ]] || fail "--version printed '$version', expected 'Kustodian 1.0.0'"
+expected="^Kustodian ${expected_version//./\\.}\$"
+[[ "$version" =~ $expected ]] || fail "--version printed '$version', expected 'Kustodian $expected_version'"
 echo "smoke: --version: $version" >&2
 
 # 3. One engine request: a 4-byte big-endian length, then that many bytes of JSON (EngineFrames, JsonSerializerDefaults.Web).
