@@ -56,10 +56,51 @@ package_windows() {
     echo "package.sh: wrote $zip" >&2
 }
 
+# The minimum macOS .NET 10 supports (https://learn.microsoft.com/dotnet/core/install/macos: macOS 14 "Sonoma" and later).
+macos_min_version="14.0"
+
+# Kustodian.app (ad-hoc signed) inside Kustodian-<version>-<rid>.zip and Kustodian-<version>-<rid>.dmg.
+package_macos() {
+    local rid="$1" publish="$2" version="$3"
+    local zip="$artifacts/Kustodian-$version-$rid.zip" dmg="$artifacts/Kustodian-$version-$rid.dmg"
+    if [[ "$(uname -s)" != "Darwin" ]]; then
+        echo "package.sh: the macOS packages are built on macOS only" >&2
+        exit 2
+    fi
+    if [[ ! -f "$publish/Kustodian" ]]; then
+        echo "package.sh: $publish/Kustodian is missing after publish" >&2
+        exit 1
+    fi
+    local work
+    work="$(mktemp -d)"
+    local app="$work/stage/Kustodian.app"
+    mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+    cp "$publish/Kustodian" "$app/Contents/MacOS/Kustodian"
+    chmod +x "$app/Contents/MacOS/Kustodian"
+    cp "$root/assets/icon.icns" "$app/Contents/Resources/icon.icns"
+    sed -e "s/@VERSION@/$version/g" -e "s/@MINOS@/$macos_min_version/g" "$release/macos/Info.plist.in" \
+        >"$app/Contents/Info.plist"
+    plutil -lint "$app/Contents/Info.plist" >&2
+
+    # Apple Silicon refuses to run unsigned arm64 code, so the bundle gets an ad-hoc signature.
+    codesign --force --deep --sign - "$app" >&2
+    codesign --verify --deep --strict "$app" >&2
+
+    rm -f "$zip" "$dmg"
+    ditto -c -k --keepParent "$app" "$zip"
+    echo "package.sh: wrote $zip" >&2
+
+    ln -s /Applications "$work/stage/Applications"
+    hdiutil create -volname Kustodian -srcfolder "$work/stage" -ov -format UDZO "$dmg" >&2
+    echo "package.sh: wrote $dmg" >&2
+    rm -rf "$work"
+}
+
 rid="${1:-}"
 case "$rid" in
     win-x64 | win-arm64) platform=windows ;;
-    osx-arm64 | osx-x64 | linux-x64)
+    osx-arm64 | osx-x64) platform=macos ;;
+    linux-x64)
         echo "package.sh: packaging for $rid is not implemented yet" >&2
         exit 2
         ;;
