@@ -38,6 +38,14 @@ public sealed class GraphQueryPlannerTests
     }
 
     [Fact]
+    public void Where_on_expanded_entries_is_not_filtered_locally()
+    {
+        var plan = Plan("applications | where displayName == \"x\" | mv-expand o = owners | where o.objectType == \"user\"");
+
+        Assert.False(Fetch(plan, "applications").FilteredLocally);
+    }
+
+    [Fact]
     public void Self_join_marks_filtered_locally()
     {
         var plan = Plan("applications | where displayName == \"x\" | join kind=inner (applications | project appId) on appId");

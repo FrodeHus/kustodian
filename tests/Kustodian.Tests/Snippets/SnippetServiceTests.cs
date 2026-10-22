@@ -49,10 +49,10 @@ public sealed class SnippetServiceTests : IDisposable
     }
 
     [Theory]
-    [InlineData("Groups a user is a member of", "memberOf", true)]
-    [InlineData("Members of a group", "members", false)]
-    [InlineData("Owners of an application", "owners", false)]
-    public async Task Relationship_snippets_read_their_relationship(string name, string column, bool laterWhere)
+    [InlineData("Groups a user is a member of", "memberOf")]
+    [InlineData("Members of a group", "members")]
+    [InlineData("Owners of an application", "owners")]
+    public async Task Relationship_snippets_read_their_relationship(string name, string column)
     {
         var snippet = (await NewService().ListAsync(Ct)).Single(s => s.BuiltIn && s.Name == name);
         var substituted = ParameterSubstitution.Apply(snippet.Text,
@@ -62,10 +62,8 @@ public sealed class SnippetServiceTests : IDisposable
 
         var fetch = Assert.Single(plan.Fetches);
         Assert.Contains(column, fetch.Unreadable);
-        // The leading where on the object always goes to Graph. Only the memberOf snippet has a second where, on the expanded
-        // rows, and the planner counts any where after another operator as local.
         Assert.NotNull(fetch.Filter);
-        Assert.Equal(laterWhere, fetch.FilteredLocally);
+        Assert.False(fetch.FilteredLocally);
     }
 
     [Fact]
