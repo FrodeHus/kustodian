@@ -5,13 +5,16 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- The macOS app and dmgs are signed with a Developer ID and notarized, so they open without a Gatekeeper prompt and macOS no
+  longer asks about the keychain item after an update.
+
 ## [0.9.6] - 2026-10-22
 
 ### Added
 
 - A Save button in the query toolbar. Once the tab is saved to the library or a file, its ▾ menu has Save as.
-- The macOS app and dmgs are signed with a Developer ID and notarized, so they open without a Gatekeeper prompt and macOS no
-  longer asks about the keychain item after an update.
 
 ## [0.9.5] - 2026-10-22
 
