@@ -7,6 +7,7 @@
 - [LicensesAndPermissions.md](LicensesAndPermissions.md): Graph tables and columns that need a license or extra permission,
   and how Kustodian leaves them out instead of failing.
 - [manual-checks.md](manual-checks.md): the manual verification checklist per platform, and its results.
+- [releasing.md](releasing.md): cutting a release, changelog entries, the deploy key and the rulesets.
 - [design/specs](design/specs): design specs. [2026-10-21-kustodian-design.md](design/specs/2026-10-21-kustodian-design.md) is
   the main one.
 - [design/plans](design/plans): implementation plans, in order. They are a historical record and keep the paths and names of
