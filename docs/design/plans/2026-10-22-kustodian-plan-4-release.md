@@ -22,7 +22,7 @@ warnings and missing Linux packages.
 - **Release workflow.** A tag-driven release workflow runs the script on the three GitHub runners. Per spec section 10, it only
   runs once `kustodian/` becomes its own repository. Until then the script runs locally, on the Windows VM, and in a Linux
   container.
-- **Icon.** One SVG source. The `.ico`, `.icns` and PNG files are generated once by scripts and committed.
+- **Icon.** One source, `assets/logo-source.webp`. The `.ico`, `.icns` and PNG files are generated once by scripts and committed.
 - **Linux check.** A startup check turns a missing WebKitGTK or libsecret into a message that names the packages.
 
 **Tech Stack:**
@@ -164,25 +164,21 @@ before v1), 14 (risks 3 and 4) and 15 (unsigned v1).
 ### Task 3: App icon
 
 **Files:**
-- Create: `kustodian/assets/icon.svg`. A simple, original mark: the letter K inside a rounded square in the app's accent
-  colour, legible at 16 px. No third-party artwork.
-- Create: `kustodian/tools/release/make-icons.sh`, run on macOS. It renders `icon.svg` to a 1024 px PNG with `sips` (via
-  `qlmanage` if `sips` can't read SVG), then builds:
-  - `kustodian/assets/icon.icns` with `iconutil`, from an `.iconset` of 16 to 1024 px;
-  - `kustodian/assets/icon-256.png` and `icon-512.png` for Linux;
-  - the MSI's `kustodian/tools/release/windows/Assets/Dialog.bmp` (493×312, icon at left on white) and `Banner.bmp` (493×58,
-    icon at right), using `sips -s format bmp`.
+- Done (2026-10-22), except the MSI bitmaps, which move to Task 4. The source is the supplied logo,
+  `assets/logo-source.webp` (1254 px, transparent). `tools/release/make-icons.sh` (macOS: `sips`, `iconutil`) builds
+  `assets/icon.icns` from the padded source, and from a tight square crop `assets/icon-256.png`, `icon-512.png`,
+  `icon.ico`, the website's `site/favicon.png` and `site/logo.png`, and the title bar's `web/src/shell/logo.png`.
 - Create: `kustodian/tools/release/make-ico.cs`, a .NET 10 file-based app. It writes `kustodian/assets/icon.ico` with
   PNG-compressed entries at 16, 32, 48 and 256 px from the rendered PNGs.
 - Commit the generated files under `kustodian/assets/`.
 - Modify: `kustodian/src/Kustodian/Kustodian.csproj`: `ApplicationIcon=..\..\assets\icon.ico` (Windows exe icon). Embed
   `icon-256.png` as `icon.png`.
 - Modify: `kustodian/src/Kustodian/App/AppWindow.cs`. Set the window icon on Windows and Linux from the embedded PNG,
-  written once to the app's cache folder (Photino's `SetIconFile` takes a path). macOS takes the icon from the bundle.
+  written to the app's folder, `AppPaths.Root` (Photino's `SetIconFile` takes a path). macOS takes the icon from the bundle.
 
-- [ ] **Step 1:** Draw the SVG and run the scripts. Expected: the four asset files exist. `file icon.ico` reports an MS Windows
+- [x] **Step 1:** Run the scripts. Expected: the four asset files exist. `file icon.ico` reports an MS Windows
   icon resource with 4 icons.
-- [ ] **Step 2:** Run `shellcheck` on the script and `dotnet build kustodian/Kustodian.slnx -warnaserror`. Expected: clean.
+- [x] **Step 2:** Run `shellcheck` on the script and `dotnet build kustodian/Kustodian.slnx -warnaserror`. Expected: clean.
 - [ ] **Step 3:** Commit: `feat(kustodian): app icon`.
 
 ### Task 4: Windows MSI and portable zip
