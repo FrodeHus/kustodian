@@ -19,7 +19,7 @@ public class HostTests
         {
             windowOpened = true;
             return 0;
-        });
+        }, () => 0);
 
         Assert.Equal(3, exit);
         Assert.True(engineRan);
@@ -35,7 +35,7 @@ public class HostTests
         {
             engineRan = true;
             return 3;
-        }, () => 0);
+        }, () => 0, () => 0);
 
         Assert.Equal(0, exit);
         Assert.False(engineRan);

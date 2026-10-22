@@ -4,9 +4,13 @@ namespace Kustodian.App;
 public static class EntryPoint
 {
     public const string EngineFlag = "--engine";
+    public const string VersionFlag = "--version";
 
-    /// <summary>With <c>--engine</c> the process is an engine worker and runs <paramref name="runEngine"/> only; otherwise it
-    /// runs <paramref name="openWindow"/>. Returns the process exit code.</summary>
-    public static int Dispatch(string[] args, Func<int> runEngine, Func<int> openWindow) =>
-        args.Length > 0 && args[0] == EngineFlag ? runEngine() : openWindow();
+    /// <summary>With <c>--engine</c> the process is an engine worker and runs <paramref name="runEngine"/> only; with
+    /// <c>--version</c> it runs <paramref name="printVersion"/> only; otherwise it runs <paramref name="openWindow"/>. Returns
+    /// the process exit code.</summary>
+    public static int Dispatch(string[] args, Func<int> runEngine, Func<int> openWindow, Func<int> printVersion) =>
+        args.Length > 0 && args[0] == EngineFlag ? runEngine()
+        : args.Length > 0 && args[0] == VersionFlag ? printVersion()
+        : openWindow();
 }

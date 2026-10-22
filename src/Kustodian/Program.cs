@@ -10,5 +10,10 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args) => EntryPoint.Dispatch(args,
         () => EngineMain.Run(Console.OpenStandardInput(), Console.OpenStandardOutput()),
-        AppHost.Run);
+        AppHost.Run,
+        () =>
+        {
+            Console.Out.WriteLine($"Kustodian {AppVersion.Text}");
+            return 0;
+        });
 }
