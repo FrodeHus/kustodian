@@ -106,6 +106,10 @@ public sealed class GraphLicensesTests
         Assert.Contains("AAD_PREMIUM", licenses.ForColumn("users", "signInActivity")!.Plans);
         Assert.Contains("AAD_PREMIUM", licenses.ForTable("policies/conditionalAccessPolicies")!.Plans);
         Assert.Contains("INTUNE_A", licenses.ForTable("deviceManagement/managedDevices")!.Plans);
+        // Without Workload ID Premium, Graph still returns every risky workload identity, with riskLevel and riskDetail "hidden":
+        // https://learn.microsoft.com/entra/id-protection/concept-workload-identity-risk
+        Assert.Null(licenses.ForTable("identityProtection/riskyServicePrincipals"));
+        Assert.Null(licenses.ForTable("identityProtection/servicePrincipalRiskDetections"));
         Assert.Null(licenses.ForTable("users"));
     }
 }
