@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BridgeError } from '../bridge';
 import { useTabs } from '../tabs/tab-store';
-import type { RunResult, TableFetch } from '../wire';
+import type { RelationshipFetch, RunResult, TableFetch } from '../wire';
 import { RunStatus } from './run-status';
 
 const call = vi.hoisted(() => vi.fn());
@@ -24,6 +24,7 @@ const fetch: TableFetch = {
   perObjectFailed: 0,
   perObjectCapped: false,
   perObjectCached: 0,
+  relationships: [],
   unlicensed: [],
   unlicensedReason: null,
   licenseLeftOut: [],
@@ -261,5 +262,78 @@ describe('RunStatus', () => {
     second.unmount();
     render(<RunStatus run={done(result({}))} onSignIn={() => undefined} createApp />);
     expect(screen.queryByRole('button', { name: 'Create Entra ID application…' })).toBeNull();
+  });
+
+  describe('relationship chips', () => {
+    const rel = (o: Partial<RelationshipFetch>): RelationshipFetch => ({
+      column: 'memberOf',
+      objects: 40,
+      truncated: 0,
+      entryCap: 1000,
+      refused: 0,
+      permissions: ['GroupMember.Read.All', 'Directory.Read.All'],
+      capped: false,
+      filteredLocally: false,
+      ...o,
+    });
+    const show = (table: string, relationships: RelationshipFetch[], extra: Partial<TableFetch> = {}) =>
+      render(<RunStatus run={done(result({ tables: [{ ...fetch, table, relationships, ...extra }] }))} onSignIn={() => undefined} />);
+
+    it('shows_truncated_entries', () => {
+      show('groups', [rel({ column: 'members', truncated: 2 })]);
+      expect(screen.getByText('groups.members: cut off at 1,000 entries for 2 objects')).toBeTruthy();
+    });
+
+    it('shows_all_refused', () => {
+      show('users', [rel({ refused: 40 })]);
+      expect(screen.getByText('No permission to read users.memberOf; it needs one of: GroupMember.Read.All, Directory.Read.All')).toBeTruthy();
+    });
+
+    it('shows_some_refused', () => {
+      show('users', [rel({ refused: 3 })]);
+      expect(screen.getByText('users.memberOf: no permission for 3 of 40 objects, their values are empty')).toBeTruthy();
+    });
+
+    it('shows_filtered_locally', () => {
+      show('users', [rel({ filteredLocally: true, objects: 87 })]);
+      expect(
+        screen.getByText('users.memberOf read for all 87 listed objects; the filter ran locally. Use a filter Graph can apply (==, startswith) to read fewer.'),
+      ).toBeTruthy();
+    });
+
+    it('shows_the_capped_chip_once_for_two_capped_relationships', () => {
+      show('users', [rel({ capped: true }), rel({ column: 'ownedObjects', capped: true })]);
+      expect(screen.getAllByText('users: too many objects to read one at a time, values empty')).toHaveLength(1);
+    });
+
+    it('shows_the_capped_chip_once_when_perObjectCapped_too', () => {
+      show('users', [rel({ capped: true })], { perObjectCapped: true });
+      expect(screen.getAllByText('users: too many objects to read one at a time, values empty')).toHaveLength(1);
+    });
+
+    it('adds_no_chip_for_a_clean_read', () => {
+      show('users', [rel({})]);
+      expect(screen.queryByText(/memberOf/)).toBeNull();
+      expect(screen.queryByText(/too many objects/)).toBeNull();
+    });
+
+    it('counts_relationships_in_the_read_one_at_a_time_chip', () => {
+      show('users', [rel({})], { perObject: ['signInActivity'] });
+      const chip = screen.getByText('2 columns read one object at a time');
+      expect(chip.getAttribute('title')).toBe('users: signInActivity, memberOf');
+    });
+
+    it('shows_capped_and_filtered_locally_together', () => {
+      show('users', [rel({ capped: true, filteredLocally: true, objects: 100 })]);
+      expect(screen.getByText('users: too many objects to read one at a time, values empty')).toBeTruthy();
+      expect(screen.getByText(/users\.memberOf read for all 100 listed objects/)).toBeTruthy();
+    });
+
+    it('leaves_relationship_columns_out_of_the_unreadable_chip', () => {
+      show('users', [rel({ capped: true })], { unreadable: ['memberOf', 'mobilePhone'] });
+      expect(screen.getByText("mobilePhone: Graph won't list, values empty")).toBeTruthy();
+      expect(screen.queryByText(/memberOf, mobilePhone/)).toBeNull();
+      expect(screen.queryByText(/memberOf: Graph won't list/)).toBeNull();
+    });
   });
 });

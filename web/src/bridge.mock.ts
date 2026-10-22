@@ -44,6 +44,7 @@ const runResult = {
       perObjectFailed: 0,
       perObjectCapped: false,
       perObjectCached: 0,
+      relationships: [],
       unlicensed: [],
       unlicensedReason: null,
       licenseLeftOut: [],
@@ -85,9 +86,11 @@ const explainView = {
       licenseLeftOut: [],
       missingLicense: null,
       missingLicenseSource: null,
+      relationships: [],
+      filteredLocally: false,
     },
   ],
-  limits: { objectsPerTable: 50000, fetchBudgetMb: 512, perObjectReadsPerTable: 2000 },
+  limits: { objectsPerTable: 50000, fetchBudgetMb: 512, perObjectReadsPerTable: 2000, relationshipObjectsPerTable: 100, relationshipEntriesPerObject: 1000 },
 };
 
 const defaultSettings = {

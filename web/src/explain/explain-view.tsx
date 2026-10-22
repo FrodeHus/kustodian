@@ -91,7 +91,8 @@ export function ExplainView({ request, onOpenRaw }: { request: ExplainRequest; o
       </div>
       <footer className="border-t border-line px-4 py-2 text-[12px] text-muted">
         Limits: {count(result.limits.objectsPerTable)} objects per table · {count(result.limits.fetchBudgetMb)} MB fetch budget ·{' '}
-        {count(result.limits.perObjectReadsPerTable)} per-object reads per table
+        {count(result.limits.perObjectReadsPerTable)} per-object reads per table · {count(result.limits.relationshipObjectsPerTable)} objects per
+        relationship
       </footer>
       {notice && <NoticeLine notice={notice} onDismiss={() => setNotice(null)} />}
     </div>
@@ -237,6 +238,30 @@ function TablePlan({ table, onCopy, onOpenRaw }: TablePlanProps) {
               </li>
             ))}
           </ul>
+        ) : (
+          <None>None.</None>
+        )}
+      </Field>
+      <Field label="Relationships">
+        {table.relationships.length > 0 ? (
+          <>
+            <ul aria-label="Relationships" className="m-0 flex list-none flex-col gap-2 p-0">
+              {table.relationships.map((r) => (
+                <li key={r.column} className="flex flex-col gap-0.5">
+                  <span className="flex items-center gap-1.5">
+                    <span className="mono">{r.column}</span> <span className="tag warn">per object</span>
+                  </span>
+                  <span className="mono break-all select-text text-[12px]">{r.url}</span>
+                  <span className="muted text-[12px]">
+                    Needs <span className="mono">{r.permissions.join(', ')}</span> · up to {count(r.entryCap)} entries per object
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {table.filteredLocally && (
+              <span className="muted text-[12px]">The filter runs locally, so every listed object's relationships are read.</span>
+            )}
+          </>
         ) : (
           <None>None.</None>
         )}

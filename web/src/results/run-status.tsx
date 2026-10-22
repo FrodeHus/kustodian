@@ -30,6 +30,29 @@ interface Chip {
   title?: string;
 }
 
+/** What a table's relationship reads did that the rows don't show: entries cut off, permission refused, a filter that ran here. */
+function relationshipChips(t: TableFetch): Chip[] {
+  const chips: Chip[] = [];
+  for (const r of t.relationships) {
+    const name = `${t.table}.${r.column}`;
+    if (r.truncated > 0) {
+      chips.push({ tone: 'warn', text: `${name}: cut off at ${count(r.entryCap)} entries for ${plural(r.truncated, 'object')}` });
+    }
+    if (r.refused > 0 && r.refused === r.objects) {
+      chips.push({ tone: 'warn', text: `No permission to read ${name}; it needs one of: ${r.permissions.join(', ')}` });
+    } else if (r.refused > 0) {
+      chips.push({ tone: 'warn', text: `${name}: no permission for ${count(r.refused)} of ${count(r.objects)} objects, their values are empty` });
+    }
+    if (r.filteredLocally) {
+      chips.push({
+        tone: 'warn',
+        text: `${name} read for all ${count(r.objects)} listed objects; the filter ran locally. Use a filter Graph can apply (==, startswith) to read fewer.`,
+      });
+    }
+  }
+  return chips;
+}
+
 /** What each table's fetch did that the rows don't show (spec 6.5 run statistics, spec 7 warnings). */
 function tableChips(tables: TableFetch[]): Chip[] {
   const chips: Chip[] = [];
@@ -42,20 +65,25 @@ function tableChips(tables: TableFetch[]): Chip[] {
     chips.push({ text: `${plural(cached, 'object')} from cache` });
   }
   for (const t of tables) {
-    if (t.perObject.length > 0) {
-      chips.push({ tone: 'warn', text: `${plural(t.perObject.length, 'column')} read one object at a time`, title: `${t.table}: ${t.perObject.join(', ')}` });
+    const oneAtATime = [...t.perObject, ...t.relationships.map((r) => r.column)];
+    if (oneAtATime.length > 0) {
+      chips.push({ tone: 'warn', text: `${plural(oneAtATime.length, 'column')} read one object at a time`, title: `${t.table}: ${oneAtATime.join(', ')}` });
     }
     if (t.perObjectFailed > 0) {
       chips.push({ tone: 'warn', text: `${t.table}: ${plural(t.perObjectFailed, 'per-object read')} failed` });
     }
-    if (t.perObjectCapped) {
+    if (t.perObjectCapped || t.relationships.some((r) => r.capped)) {
       chips.push({ tone: 'warn', text: `${t.table}: too many objects to read one at a time, values empty` });
     }
+    chips.push(...relationshipChips(t));
     if (t.unfiltered) {
       chips.push({ tone: 'warn', text: `${t.table}: Graph refused the filter, filtered here instead` });
     }
-    if (t.unreadable.length > 0) {
-      chips.push({ tone: 'warn', text: `${t.unreadable.join(', ')}: Graph won't list, values empty` });
+    // A relationship column is in `unreadable` when it is capped; the capped chip says so.
+    const relationshipColumns = new Set(t.relationships.map((r) => r.column));
+    const unreadable = t.unreadable.filter((c) => !relationshipColumns.has(c));
+    if (unreadable.length > 0) {
+      chips.push({ tone: 'warn', text: `${unreadable.join(', ')}: Graph won't list, values empty` });
     }
     if (t.unlicensed.length > 0) {
       chips.push({
