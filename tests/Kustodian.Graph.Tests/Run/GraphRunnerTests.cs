@@ -20,7 +20,7 @@ public sealed class GraphRunnerTests
     // Catastrophic regex backtracking: hours of work in a few kilobytes (also used by the engine pool's tests).
     private static readonly string SlowQuery = $"print r = '{new string('a', 60)}b' matches regex '^(a|aa)+$'";
 
-    private static readonly string WorkerDll = Path.Combine(AppContext.BaseDirectory, "engine-worker", "Kustodian.EngineWorker.dll");
+    private static readonly string WorkerDll = Path.Combine(AppContext.BaseDirectory, "engine-worker", "Kustodian.TestEngineWorker.dll");
 
     private sealed class Host(FakeGraph graph, GraphFetchBudget budget, GraphEnginePool engine, GraphRunner runner) : IAsyncDisposable
     {

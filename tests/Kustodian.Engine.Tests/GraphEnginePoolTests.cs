@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Kustodian.Engine.Tests;
 
-/// <summary>The pool against the real worker, Kustodian.EngineWorker, copied into engine-worker/ under the test output.
+/// <summary>The pool against the real worker, Kustodian.TestEngineWorker, copied into engine-worker/ under the test output.
 /// Every test disposes its pool, which kills its workers.</summary>
 public sealed class GraphEnginePoolTests
 {
@@ -18,7 +18,7 @@ public sealed class GraphEnginePoolTests
 
     /// <summary>The worker the test project copies next to itself, started on the dotnet host, without the app's
     /// <c>--engine</c> argument.</summary>
-    private static readonly string WorkerDll = Path.Combine(AppContext.BaseDirectory, "engine-worker", "Kustodian.EngineWorker.dll");
+    private static readonly string WorkerDll = Path.Combine(AppContext.BaseDirectory, "engine-worker", "Kustodian.TestEngineWorker.dll");
 
     private static GraphEnginePool Pool(Action<GraphEngineOptions>? configure = null)
     {

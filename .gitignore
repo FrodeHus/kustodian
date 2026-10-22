@@ -1,4 +1,19 @@
+# .NET
 bin/
 obj/
+TestResults/
+*.user
+
+# Web
 node_modules/
 web/dist/
+
+# Release packaging
+artifacts/
+
+# Editors and OS
+.vs/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

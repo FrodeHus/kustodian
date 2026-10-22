@@ -8,7 +8,7 @@
 @import '@fontsource/jetbrains-mono/400.css';
 @import '@fontsource/jetbrains-mono/500.css';
 
-/* Design tokens, from docs/mockups/studio.css. Dark is the default; .theme-light on the root element switches them. */
+/* Design tokens, from docs/design/mockups/studio.css. Dark is the default; .theme-light on the root element switches them. */
 :root {
   --bg: #0f1115;
   --panel: #161a20;
@@ -100,7 +100,7 @@ body {
   line-height: 18px;
 }
 
-/* The class roles of docs/mockups/studio.css: window chrome, tabs, side panel, toolbar, results, chips, cards and menus. */
+/* The class roles of docs/design/mockups/studio.css: window chrome, tabs, side panel, toolbar, results, chips, cards and menus. */
 @layer components {
   .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
   .muted { color: var(--muted); }
