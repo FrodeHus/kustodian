@@ -200,6 +200,92 @@ production tenant), because creating an app, adding an owner and granting admin 
 | Force the service principal step to fail (for example, a user without the right to create it), grant admin consent, then click **Try again**: it succeeds | owner |
 | As a guest, or a sign-in pinned to another tenant, "Open in Entra" opens the app in that tenant | owner |
 
+## Plan 4: release builds (2026-10-22)
+
+Run by the builder at commit cb5a01a with no sign-in and no tenant. Every row that needs one, or hardware the builder doesn't
+have, stays "owner". The machines:
+
+- **macOS arm64**: this Mac (Apple silicon). The osx-x64 build ran here under Rosetta; there is no Intel Mac.
+- **Windows**: the Parallels Windows 11 VM, which is ARM64. The x64 MSI and zip ran there under x64 emulation (the process
+  loaded `xtajit64se.dll`); no x64 PC was available.
+- **Ubuntu and Fedora**: amd64 containers on this Mac (`ubuntu:24.04` and `fedora:latest`, Fedora 44), with no .NET and no
+  keyring. The windows opened under Xvfb, with openbox as the window manager.
+
+A "download" is a copy of the package that carries what a browser adds: on macOS the quarantine attribute
+(`xattr -w com.apple.quarantine "0081;<hex time>;Safari;"`), and on Windows the Mark-of-the-Web (a `Zone.Identifier` stream
+with `ZoneId=3`). On Linux it is a plain copy. Each was put in a folder with a space in its name ("Kustodian test").
+
+Legend for this section: the Plan 1 legend, plus `no` (checked, and not met; see Findings).
+
+### Automated gate and packages
+
+| Check | macOS | Windows | Linux |
+| --- | --- | --- | --- |
+| `npm ci`, lint, typecheck, test, build in `web/` | ok (391 tests in 48 files; lint shows only the known TanStack Table warning; build only the chunk-size note) | - (no Node in the VM; `web/dist` was built on macOS and copied in) | ok (Ubuntu 24.04 amd64 container, Node 22.12.0: 391 tests, 1 lint warning (the known one), tsc clean) |
+| `dotnet build Kustodian.slnx -warnaserror`, 0 warnings | ok | ok | ok |
+| `dotnet test --solution Kustodian.slnx` | ok, 1452 passed | ok, 1448 passed, 4 skipped (1452 total) | ok, 1452 passed |
+| Packages built | `package.sh osx-arm64` (smoke PASS), `osx-x64`, `win-x64`, `win-arm64`: both zips and dmgs, both Windows zips | `build.ps1 -Version 1.0.0` (Windows PowerShell 5.1): both MSIs and their `.sha256`, `--version` checked for both, `wix msi validate` clean | `package.sh linux-x64` in the SDK container: tarball and AppImage, smoke PASS, appimagetool and runtime checksums OK |
+
+All 10 packages were then put in one folder and `checksums.sh` wrote one `SHA256SUMS.txt`, as the release does.
+
+### Release rows
+
+| Check | macOS arm64 | macOS x64 | Windows x64 | Windows arm64 | Ubuntu | Fedora |
+| --- | --- | --- | --- | --- | --- | --- |
+| The package downloads and its checksum matches `SHA256SUMS.txt` | ok (`shasum -a 256 -c --ignore-missing SHA256SUMS.txt`: both arm64 packages OK) | ok (same run: both x64 packages OK) | ok (MSI and zip: `Get-FileHash` matches `SHA256SUMS.txt` and the `.msi.sha256`) | ok (same, for the arm64 MSI and zip) | ok (`sha256sum -c --ignore-missing SHA256SUMS.txt`: tarball and AppImage OK) | ok (same) |
+| The first open follows the install guide's unsigned-build steps exactly | owner for the blocked first open and **Open Anyway** (they need the app opened through Finder and clicks in System Settings). Checked without opening: the app copied out of the quarantined dmg, and the one unzipped with `ditto -x -k`, both carry the quarantine flag; `spctl --assess` says "rejected" and `syspolicy_check distribution` reports "Adhoc Signed App" and "Notary Ticket Missing". The guide's `xattr -dr com.apple.quarantine` removes it, and the app then runs. | owner (same as arm64; the guide's `xattr` step checked, then `--version` under Rosetta) | ok, zip with **Unblock**: `Unblock-File` on the downloaded zip (what the **Unblock** box does; the Properties dialog itself wasn't clicked), Explorer's extraction, `Kustodian.exe` opens with no prompt | ok, zip without **Unblock**: Explorer's extraction carries the Mark-of-the-Web onto `Kustodian.exe`; opening it from Explorer shows "Windows protected your PC", then **More info**, **Run anyway**, and the window opens. The MSI opened from Explorer shows the same SmartScreen page, then the installer. | ok (the guide's `apt install`, `tar -xzf`, `./Kustodian`) | owner: GNU tar 1.35 fails on every file under the Mac's amd64 emulation ("Cannot open: Function not implemented", no `openat2`); unpack with plain `tar -xzf` on native Fedora. The `dnf install` line and `./Kustodian` are ok (unpacked with Python's `tarfile`). |
+| MSI per-user install | n/a | n/a | ok under emulation (silent `/qn`; installed into `%LOCALAPPDATA%\Programs\Kustodian`, opened, uninstalled); owner on x64 hardware | ok (installer UI: no UAC prompt, the license page, **Install**, "Launch Kustodian" ticked, **Finish** opens the app; Start menu shortcut present) | n/a | n/a |
+| MSI per-machine install (`ALLUSERS=1`) | n/a | n/a | owner | owner through the real UAC prompt. Silent from an elevated session: ok (`C:\Program Files\Kustodian`, all-users shortcut, HKLM marker `PerMachine=1`, "Kustodian 1.0.0, Reothor" in Apps; the app opens from Program Files) | n/a | n/a |
+| MSI per-user-over-per-machine guard | n/a | n/a | owner | ok (an interactive per-user 1.0.1 install over the per-machine 1.0.0 shows "Kustodian is installed for all users of this PC. To upgrade it, an administrator runs this installer with ALLUSERS=1 ..."; status 1603; only 1.0.0 remains) | n/a | n/a |
+| MSI upgrade | n/a | n/a | owner | ok (a local `build.ps1 -Version 1.0.1 -Architectures arm64` installed over 1.0.0 per user: RemoveExistingProducts ran, exe version 1.0.1, one product left) | n/a | n/a |
+| MSI uninstall leaves the user data | n/a | n/a | ok under emulation for the install folder (gone); the user data was not re-checked after this uninstall | ok (per user and per machine: install folder, shortcut and registry keys gone; `%APPDATA%\Kustodian\session.json` and `%LOCALAPPDATA%\Kustodian\Cache` stay) | n/a | n/a |
+| The window opens with its icon | ok (1440x900 points; the running app is a regular app, so it has a Dock icon, and the icon it shows is the bundle's K; captured with `screencapture -l`) | owner (no Intel Mac; not opened under Rosetta) | ok under emulation (K icon in the title bar) | ok (K icon in the title bar, from the zip, the per-user MSI and Program Files) | ok under Xvfb and openbox (K icon in the frame; `_NET_WM_ICON` set), from the tarball and the AppImage | - (not opened; `--version` and the engine smoke only) |
+| The title shows the version | no (title "Kustodian") | owner | no (title "Kustodian") | no (title "Kustodian"; the version is in Apps and in `--version`) | no (title "Kustodian") | - |
+| Sign-in, and the keychain prompt (macOS) or libsecret (Linux) | owner | owner | owner | owner | owner (without a keyring the app says so; see the missing-keychain row) | owner |
+| A Graph query runs | owner | owner | owner | owner | owner | owner |
+| The engine worker starts from the single-file build | ok (`smoke.sh` on the app's executable: `print x=1` answered, the worker exits when stdin closes) | ok under Rosetta (same) | ok under emulation (`--engine` with redirected stdin/stdout, one framed request answered, exit 0 within 5 s of stdin closing) | ok (same) | ok (`smoke.sh` on the tarball's `Kustodian`) | ok (same) |
+| No orphan process after quitting | ok idle (a quit Apple Event: no Kustodian process 6 s later); owner after a query | owner | ok idle (`CloseMainWindow`: no Kustodian process 5 s later); owner after a query | ok idle (same); owner after a query | ok idle (closed through the window manager with `wmctrl -c`: no Kustodian process, and for the AppImage no runtime process either); owner after a query | owner |
+| The app runs from a folder with a space in its name | ok (".../Applications test/Kustodian.app": the window opened) | ok (`--version` and the engine smoke) | ok ("Downloads\Kustodian test\unblocked x64": the window opened) | ok ("Downloads\Kustodian test\explorer arm64", and `C:\Program Files\Kustodian`) | ok ("Downloads/Kustodian test": the window opened) | ok (`--version` and the engine smoke) |
+| A missing WebKitGTK gives the named-package message | n/a | n/a | n/a | n/a | ok (plain `ubuntu:24.04`, and again with only `libicu74` added: the message names the Debian/Ubuntu and Fedora packages, exit 3; the AppImage gives the same) | ok (plain `fedora:latest`: same message, exit 3) |
+| The AppImage needs `libfuse2`, and the guide's step fixes it | n/a | n/a | n/a | n/a | no: the AppImage doesn't need `libfuse2`. With no `fusermount` it prints "No suitable fusermount binary found on the $PATH" and runs anyway (extract-and-run); installing `libfuse2t64` changes nothing. The guide's `libwebkit2gtk-4.1-0` already pulls in `fuse3`, and with it the AppImage mounts (`/tmp/.mount_*`). | no (same: runs without `fuse-libs`; `webkit2gtk4.1` pulls in `fuse3`) |
+| Cancel during a long run | owner | owner | owner | owner | owner | owner |
+| Kill the engine by memory | owner | owner | owner | owner | owner | owner |
+| Restart with unsaved tabs | owner | owner | owner | owner | owner | owner |
+| Missing keychain on Linux | n/a | n/a | n/a | n/a | owner for sign-in. Without a keyring the sign-in screen shows "Sign-ins aren't remembered on this computer" with the reason, says the token stays in memory, and the log has "Tokens are kept in memory only" | owner |
+| Signing with `build.ps1 -Sign` (Certum) | n/a | n/a | owner | owner | n/a | n/a |
+| The release workflow's first run | owner | owner | owner | owner | owner | owner |
+
+### Findings
+
+- **The title doesn't show the version.** The window title is the constant `AppWindow.Title`, "Kustodian", on every
+  platform. The version shows only in `--version`, in Apps (Windows) and in `Info.plist` (macOS). Either the title gets
+  the version, or this row changes.
+- **The AppImage doesn't need FUSE 2.** The pinned type2 runtime (20251108) is static and only uses a `fusermount` binary
+  (`fuse3` provides one, and WebKitGTK pulls it in on Ubuntu 24.04 and Fedora 44). Without one it falls back to
+  extract-and-run. The FUSE 2 lines in `docs/install.md`, the README and the product site are therefore not needed.
+- **`.msi.sha256` has a CRLF line ending** (`Set-Content` on Windows). `shasum -a 256 -c Kustodian-1.0.0-x64.msi.sha256`
+  on macOS then looks for "Kustodian-1.0.0-x64.msi\r" and fails with "No such file or directory". `Get-FileHash` on
+  Windows, as the guide says, and `SHA256SUMS.txt` are fine.
+- **Linux `WM_CLASS` is ".", "."** for both the tarball and the AppImage. A desktop environment that matches windows to
+  `kustodian.desktop` by `WM_CLASS` (GNOME, KDE) may not group the window with its launcher or show its icon from the
+  desktop file. The window's own icon (`_NET_WM_ICON`) is set.
+
+### Notes
+
+- macOS window: the owner's own Kustodian had quit before this check, and the builder's instance was started with `HOME`
+  pointed at an empty temporary folder, so it didn't touch the owner's user-data folder. As in Plan 3, it still showed an
+  account in the header (MSAL reads the login keychain, which doesn't follow `HOME`), so it opened the workbench, not
+  sign-in. Nothing was clicked or typed. The temporary folder was deleted afterwards.
+- macOS Dock icon: read from `NSRunningApplication.icon` (the image the Dock shows), not from a screenshot of the Dock. It
+  is the K, drawn in the system's tinted icon style.
+- Windows: the first launch through `Start-Process` (not Explorer) showed the older "Open File - Security Warning" prompt
+  ("Unknown Publisher"), not SmartScreen; through Explorer it was SmartScreen. Both were captured on the dialog's window only.
+- Windows: the installer, SmartScreen and Kustodian windows were driven through UI Automation (no coordinates) and
+  captured one window at a time. The 1.0.1 MSI is a local build for the upgrade check and was never published.
+- Linux: the containers have no keyring, so every launch kept tokens in memory only. The AppImage ran with
+  `--device /dev/fuse --cap-add SYS_ADMIN`.
+- Plan 4 screenshots are not committed.
+
 ## Notes
 
 - macOS launch check: the window title was "Kustodian". It showed a signed-in account because of an earlier owner sign-in cached
