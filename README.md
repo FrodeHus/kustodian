@@ -37,17 +37,25 @@ it sends them. Hunting and Resource Graph queries go straight to their services,
 
 <sub>Screenshots are rendered from the [design mockups](docs/design/mockups) and use sample data.</sub>
 
+## Install
+
+Download the package for your platform from the [latest release](https://github.com/FrodeHus/kustodian/releases/latest).
+The builds are self-contained, so there is no .NET to install.
+
+| Platform | Download |
+| --- | --- |
+| Windows 11 (x64, Arm) | `Kustodian-<version>-x64.msi` or `-arm64.msi` (recommended), or the portable `-win-x64.zip` / `-win-arm64.zip` |
+| macOS 14 or later | `Kustodian-<version>-osx-arm64.dmg` (Apple silicon) or `-osx-x64.dmg` (Intel); the same app is in the `.zip` |
+| Linux x64 | `Kustodian-<version>-x86_64.AppImage` or `-linux-x64.tar.gz`, with WebKitGTK 4.1, libsecret and libnotify |
+
+The macOS app isn't notarized, so its first open needs one extra step, and so does an unsigned Windows build. The
+[install guide](docs/install.md) covers each platform, where your data lives and how to verify a download.
+
 ## Getting started
 
-There are no prebuilt releases yet; [build from source](#building-from-source) and run:
-
-```sh
-dotnet run --project src/Kustodian
-```
-
-Sign in with your work account. By default Kustodian uses the Azure CLI's public client ID with delegated permissions, which
-covers common Graph and Azure Resource Graph queries but not everything: security data, audit logs and advanced hunting often
-need permissions it doesn't have. For those, use your own Entra ID app registration with the permissions your queries need,
+Open Kustodian and sign in with your work account. By default Kustodian uses the Azure CLI's public client ID with delegated
+permissions, which covers common Graph and Azure Resource Graph queries but not everything: security data, audit logs and
+advanced hunting often need permissions it doesn't have. For those, use your own Entra ID app registration with the permissions your queries need,
 or let Kustodian create one with **Create Entra ID application**. [Entra ID permissions](docs/EntraPermissions.md) explains
 both, step by step.
 
@@ -72,10 +80,15 @@ Requirements: [.NET SDK 10](https://dotnet.microsoft.com/download) (see [global.
 ```sh
 dotnet build -warnaserror
 dotnet test
+dotnet run --project src/Kustodian
 ```
 
 The build runs `npm ci` and `npm run build` in `web/` when the UI is out of date, and embeds it. For the UI alone:
 `cd web && npm ci && npm run lint && npm run typecheck && npm test`.
+
+To build the release packages for one runtime identifier (`win-x64`, `win-arm64`, `osx-arm64`, `osx-x64` or `linux-x64`)
+into `artifacts/`, run `tools/release/package.sh <rid>`; the Windows MSIs come from `tools/release/windows/build.ps1`. See
+[Building from source](docs/install.md#building-from-source) in the install guide.
 
 | Path | What |
 | --- | --- |

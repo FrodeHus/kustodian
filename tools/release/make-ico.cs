@@ -1,61 +1,91 @@
-// Writes a Windows .ico from square PNG files, each stored as a PNG-compressed entry (Windows Vista and later read these).
-// Usage: dotnet run tools/release/make-ico.cs -- <out.ico> <png>...
+// Writes assets/icon.ico, the Windows executable icon, from the PNGs make-icons.sh renders into artifacts/icons/:
+//   dotnet run tools/release/make-ico.cs
+// The icon holds PNG-compressed entries at 16, 32, 48 and 256 px (Windows Vista and later read PNG entries).
+// Exit codes: 0 ok, 3 a rendered PNG is missing or isn't the size its name says.
+
 using System.Buffers.Binary;
 
-if (args.Length < 2)
+int[] sizes = [16, 32, 48, 256];
+
+var root = RepositoryRoot();
+var input = Path.Combine(root, "artifacts", "icons");
+var output = Path.Combine(root, "assets", "icon.ico");
+
+var images = new List<byte[]>();
+foreach (var size in sizes)
 {
-    Console.Error.WriteLine("usage: make-ico.cs <out.ico> <png>...");
-    return 2;
+    var path = Path.Combine(input, $"icon-{size}.png");
+    if (!File.Exists(path))
+    {
+        Console.Error.WriteLine($"make-ico: {path} is missing; run tools/release/make-icons.sh first");
+        return 3;
+    }
+
+    var png = File.ReadAllBytes(path);
+    if (PngSize(png) is not var (width, height) || width != size || height != size)
+    {
+        Console.Error.WriteLine($"make-ico: {path} isn't a {size}x{size} PNG");
+        return 3;
+    }
+
+    images.Add(png);
 }
 
-var images = args[1..].Select(path => (Path: path, Bytes: File.ReadAllBytes(path))).ToList();
-const int HeaderSize = 6;
+// ICONDIR (6 bytes), one ICONDIRENTRY (16 bytes) per image, then the images themselves.
+const int DirSize = 6;
 const int EntrySize = 16;
+var ico = new byte[DirSize + (EntrySize * sizes.Length) + images.Sum(i => i.Length)];
+var span = ico.AsSpan();
+BinaryPrimitives.WriteUInt16LittleEndian(span[2..], 1); // type: icon
+BinaryPrimitives.WriteUInt16LittleEndian(span[4..], (ushort)sizes.Length);
 
-using var output = File.Create(args[0]);
-using var writer = new BinaryWriter(output);
-writer.Write((ushort)0);
-writer.Write((ushort)1);
-writer.Write((ushort)images.Count);
-
-var offset = HeaderSize + (EntrySize * images.Count);
-foreach (var (path, bytes) in images)
+var offset = DirSize + (EntrySize * sizes.Length);
+for (var i = 0; i < sizes.Length; i++)
 {
-    var size = PngSize(path, bytes);
-    // A size of 256 is written as 0.
-    writer.Write((byte)(size % 256));
-    writer.Write((byte)(size % 256));
-    writer.Write((byte)0);
-    writer.Write((byte)0);
-    writer.Write((ushort)1);
-    writer.Write((ushort)32);
-    writer.Write(bytes.Length);
-    writer.Write(offset);
-    offset += bytes.Length;
+    var entry = span.Slice(DirSize + (EntrySize * i), EntrySize);
+    var dimension = (byte)(sizes[i] >= 256 ? 0 : sizes[i]); // 0 means 256
+    entry[0] = dimension; // width
+    entry[1] = dimension; // height
+    // entry[2] colour count and entry[3] reserved stay 0.
+    BinaryPrimitives.WriteUInt16LittleEndian(entry[4..], 1); // colour planes
+    BinaryPrimitives.WriteUInt16LittleEndian(entry[6..], 32); // bits per pixel
+    BinaryPrimitives.WriteUInt32LittleEndian(entry[8..], (uint)images[i].Length);
+    BinaryPrimitives.WriteUInt32LittleEndian(entry[12..], (uint)offset);
+    images[i].CopyTo(span[offset..]);
+    offset += images[i].Length;
 }
 
-foreach (var (_, bytes) in images)
-{
-    writer.Write(bytes);
-}
-
+File.WriteAllBytes(output, ico);
+Console.WriteLine($"make-ico: wrote {output} ({string.Join(", ", sizes.Select(s => $"{s} px"))})");
 return 0;
 
-// The width from the PNG's IHDR chunk, which follows the 8-byte signature and the chunk's length and type.
-static int PngSize(string path, byte[] bytes)
+// The PNG's width and height from its IHDR chunk, or null when it isn't a PNG.
+static (int Width, int Height)? PngSize(byte[] png)
 {
     ReadOnlySpan<byte> signature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-    if (bytes.Length < 24 || !bytes.AsSpan(0, 8).SequenceEqual(signature))
+    if (png.Length < 24 || !png.AsSpan(0, 8).SequenceEqual(signature) || !png.AsSpan(12, 4).SequenceEqual("IHDR"u8))
     {
-        throw new InvalidDataException($"{path} is not a PNG");
+        return null;
     }
 
-    var width = BinaryPrimitives.ReadInt32BigEndian(bytes.AsSpan(16));
-    var height = BinaryPrimitives.ReadInt32BigEndian(bytes.AsSpan(20));
-    if (width != height || width is < 1 or > 256)
+    return (BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16)), BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(20)));
+}
+
+// This file's repository: the folder above tools/release/, found from the running file, else from the working directory.
+static string RepositoryRoot()
+{
+    if (AppContext.GetData("EntryPointFilePath") is string entry)
     {
-        throw new InvalidDataException($"{path} is {width}x{height}; an icon entry must be square and at most 256 px");
+        return Path.GetFullPath(Path.Combine(Path.GetDirectoryName(entry)!, "..", ".."));
     }
 
-    return width;
+    for (var dir = new DirectoryInfo(Environment.CurrentDirectory); dir is not null; dir = dir.Parent)
+    {
+        if (File.Exists(Path.Combine(dir.FullName, "Kustodian.slnx")))
+        {
+            return dir.FullName;
+        }
+    }
+
+    return Environment.CurrentDirectory;
 }

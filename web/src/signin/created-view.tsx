@@ -5,6 +5,13 @@ import type { AppSettings, EntraAppConsentStatus, EntraAppCreateResult, Settings
 
 const NEEDS_ADMIN = /AADSTS65001|AADSTS90094/;
 
+/** The app "Just show me the client ID" leaves behind, and the tenant it was created in. */
+export interface CreatedApp {
+  name: string;
+  appId: string;
+  tenantId: string;
+}
+
 interface CreatedViewProps {
   name: string;
   initial: EntraAppCreateResult;
@@ -14,7 +21,7 @@ interface CreatedViewProps {
   onSwitched: () => void;
   /** Signing in with the app starts and ends: the dialog can't be closed meanwhile. */
   onSwitching: (switching: boolean) => void;
-  onClientId?: (app: { name: string; appId: string }) => void;
+  onClientId?: (app: CreatedApp) => void;
 }
 
 /** The dialog after Create (spec 6.5, 7, 8; mockups EntraAppCreated and EntraAppRefused): the ids, admin consent, then what now. */
@@ -251,7 +258,7 @@ export function CreatedView({ name, initial, listed, onClose, onSwitched, onSwit
               className="btn"
               disabled={busy}
               onClick={() => {
-                onClientId?.({ name, appId });
+                onClientId?.({ name, appId, tenantId });
                 onClose();
               }}
             >

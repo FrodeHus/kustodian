@@ -2,7 +2,29 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- The Windows executable's icon (made by tools/release/make-icons.sh and make-ico.cs). -->
     <ApplicationIcon>..\..\assets\icon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <!-- A release publish (tools/release/publish.sh, any -r): one self-contained executable, the native libraries (Photino)
+       inside it and extracted on first run, the symbols embedded. No trimming: MSAL, Kusto.Language and the bridge's JSON use
+       reflection. Without a runtime identifier (dotnet build, dotnet test) none of this applies. The referenced projects build
+       without the runtime identifier, so Directory.Build.props embeds their symbols in Release. -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <AssemblyName>Kustodian</AssemblyName>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>embedded</DebugType>
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
+
+  <!-- On Windows the app is a GUI executable, so no console window opens beside it; the engine worker it starts has no window
+       either (CreateNoWindow), and the version flag attaches to the parent's console (WindowsConsole). -->
+  <PropertyGroup Condition="$(RuntimeIdentifier.StartsWith('win-'))">
+    <OutputType>WinExe</OutputType>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,7 +41,9 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Snippets\builtin-snippets.json" LogicalName="builtin-snippets.json" />
+    <!-- The window icon (WindowIcon): the PNG for Linux, the .ico for Windows, where Photino reads .ico files only. -->
     <EmbeddedResource Include="..\..\assets\icon-256.png" LogicalName="icon.png" />
+    <EmbeddedResource Include="..\..\assets\icon.ico" LogicalName="icon.ico" />
   </ItemGroup>
 
   <!-- The web UI is embedded under wwwroot/ and served on app://. With a web project (web/package.json), web/dist is built by

@@ -1,4 +1,4 @@
-using System.Reflection;
+using Kustodian.App;
 using Kustodian.Graph.Fetch;
 using Kustodian.Storage;
 
@@ -9,7 +9,7 @@ namespace Kustodian.Messaging.Handlers;
 /// (and probes again).</summary>
 public sealed class AppHandler(MemoryGraphObjectCache objects, IGraphProbeCache probes)
 {
-    private static readonly AppInfo Info = new(Version(), Platform());
+    private static readonly AppInfo Info = new(AppVersion.Text, Platform());
 
     public void Register(Bridge bridge)
     {
@@ -20,17 +20,6 @@ public sealed class AppHandler(MemoryGraphObjectCache objects, IGraphProbeCache 
             await probes.ClearAsync(ct);
             return null;
         });
-    }
-
-    private static string Version()
-    {
-        var assembly = typeof(AppHandler).Assembly;
-        var version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-            ?? assembly.GetName().Version?.ToString()
-            ?? "0.0.0";
-        // The SDK appends "+<commit>"; the UI shows the version alone.
-        var plus = version.IndexOf('+', StringComparison.Ordinal);
-        return plus >= 0 ? version[..plus] : version;
     }
 
     private static string Platform() => AppPaths.CurrentPlatform() switch

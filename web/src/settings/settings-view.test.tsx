@@ -1,9 +1,32 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useEffect, useState } from 'react';
 import { BridgeError } from '../bridge';
+import { registerCommands } from '../shell/commands';
 import { applyTheme, useTheme } from '../shell/theme';
-import type { AppSettings, SettingsAnswer } from '../wire';
+import type { AccountInfo, AppSettings, SettingsAnswer } from '../wire';
 import { SettingsView } from './settings-view';
+
+const creator: AccountInfo = {
+  key: 'k1',
+  username: 'kari@contoso.com',
+  tenantName: 'Contoso',
+  tenantId: 't0',
+  clientId: '04b07795-8ddb-461a-bbee-02f9e1bf7b46',
+  active: true,
+  expired: false,
+  scopes: ['Application.ReadWrite.All', 'User.Read.All'],
+};
+
+/** Settings as the app hosts them: the command opens the dialog, which the app keeps the state of. */
+function Hosted({ account }: { account?: AccountInfo }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => registerCommands([{ id: 'account.createEntraApp', title: 'Create Entra ID application', group: 'Account', run: () => setOpen(true) }]), []);
+  return <SettingsView onClose={vi.fn()} onChange={vi.fn()} account={account} createAppOpen={open} onCreateAppOpen={setOpen} />;
+}
+
+const createButton = () => screen.getByRole<HTMLButtonElement>('button', { name: 'Create Entra ID application…' });
+const REASON = "This sign-in can't create app registrations (it needs Application.ReadWrite.All).";
 
 const bridge = vi.hoisted(() => ({ call: vi.fn() }));
 vi.mock('../bridge', async (importOriginal) => ({
@@ -183,5 +206,70 @@ describe('SettingsView', () => {
     fireEvent.keyDown(await screen.findByLabelText('Theme'), { key: 'Escape' });
     fireEvent.click(screen.getByRole('button', { name: '← Back to queries' }));
     expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it('settings_shows_create_app_button_enabled_when_allowed', async () => {
+    render(<Hosted account={creator} />);
+    await screen.findByLabelText('Default client ID');
+    expect(createButton().disabled).toBe(false);
+    expect(screen.queryByText(REASON)).toBeNull();
+  });
+
+  it('settings_shows_create_app_button_disabled_with_the_reason_when_not_allowed', async () => {
+    const { unmount } = render(<Hosted account={{ ...creator, scopes: ['User.Read.All'] }} />);
+    await screen.findByLabelText('Default client ID');
+    expect(createButton().disabled).toBe(true);
+    expect(screen.getByText(REASON)).toBeTruthy();
+    unmount();
+    render(<Hosted />);
+    await screen.findByLabelText('Default client ID');
+    expect(createButton().disabled).toBe(true);
+    expect(screen.getByText(REASON)).toBeTruthy();
+  });
+
+  it('settings_create_app_opens_the_dialog_and_use_as_default_fills_client_and_tenant', async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const appId = '11111111-2222-3333-4444-555555555555';
+    const base = bridge.call.getMockImplementation()!;
+    bridge.call.mockImplementation((method: string, params?: unknown) => {
+      if (method === 'entraApp.plan') {
+        return Promise.resolve({
+          canCreate: true,
+          defaultName: 'Kustodian (kari)',
+          tenantId: 't1',
+          tenantName: 'Contoso',
+          tablesWithData: 1,
+          tablesWithoutData: 0,
+          writeOnlyTables: 0,
+          groups: [{ id: 'g', title: 'Graph', subgroups: [{ title: 'Dir', permissions: [{ resource: 'Microsoft Graph', resourceAppId: 'g', name: 'A.Read.All', adminConsent: false, description: '', tables: ['x'], unlocks: null, ticked: true }] }] }],
+        });
+      }
+      if (method === 'entraApp.create') {
+        return Promise.resolve({ appId, objectId: 'o', servicePrincipalId: 's', tenantId: 't1', ownerAdded: true, ownerMessage: null, dropped: [], servicePrincipalMessage: null, adminScopes: [] });
+      }
+      return base(method, params);
+    });
+    render(<Hosted account={creator} />);
+    await screen.findByLabelText('Default client ID');
+
+    fireEvent.click(createButton());
+    expect(await screen.findByRole('dialog', { name: 'Create Entra ID application' })).toBeTruthy();
+    fireEvent.click(await screen.findByRole('button', { name: 'Create' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Just show me the client ID' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    const note = screen.getByRole('note', { name: 'Created app' });
+    expect(note.textContent).toContain(appId);
+    fireEvent.click(within(note).getByRole('button', { name: 'Copy client ID' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(appId));
+
+    fireEvent.click(within(note).getByRole('button', { name: 'Use as default client ID' }));
+    expect((screen.getByLabelText('Default client ID') as HTMLInputElement).value).toBe(appId);
+    expect((screen.getByLabelText('Default tenant') as HTMLInputElement).value).toBe('t1');
+    // Only the draft changed: it is kept with Save.
+    expect(bridge.call).not.toHaveBeenCalledWith('settings.set', expect.anything());
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(stored.signIn).toEqual({ clientId: appId, tenant: 't1' }));
   });
 });

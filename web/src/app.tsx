@@ -174,6 +174,7 @@ export function App() {
   /** The tab strip's close confirmation is open: a modal dialog. */
   const [confirming, setConfirming] = useState(false);
   const paletteShown = useRef(false);
+  const settingsShown = useRef(false);
   /** The tab Explain is showing for, what it explains, and the run it was opened after: a later run shows its result instead. */
   const [explain, setExplain] = useState<{ tabId: string; request: ExplainRequest; runId: string | undefined } | null>(null);
   /** The toolbar picker that is open: the hunting tab's timespan or the Resource Graph tab's scope. */
@@ -292,8 +293,10 @@ export function App() {
         title: 'Create Entra ID application',
         group: 'Account',
         run: () => {
-          setSettingsOpen(false);
-          setAccountsOpen(true);
+          // From Settings the dialog opens there; from anywhere else it opens over the sign-in screen.
+          if (!settingsShown.current) {
+            setAccountsOpen(true);
+          }
           setCreateAppOpen(true);
         },
         enabled: () => createAppAllowed.current,
@@ -417,6 +420,7 @@ export function App() {
   useEffect(() => {
     shortcutsOn.current = !signingIn && !settingsOpen && !paletteOpen && saving === null && !confirming;
     paletteShown.current = paletteOpen;
+    settingsShown.current = settingsOpen;
   });
   useEffect(() => bindGlobalKeys(() => shortcutsOn.current), []);
 
@@ -539,7 +543,12 @@ export function App() {
       )}
       {settingsOpen && (
         <SettingsView
+          account={account}
+          createAppOpen={createAppOpen}
+          onCreateAppOpen={setCreateAppOpen}
+          onAccountSwitched={() => void readAccounts(setAccounts, setAccountsError)}
           onClose={() => {
+            setCreateAppOpen(false);
             setSettingsOpen(false);
             if (!signingIn) {
               editor.current?.focus();

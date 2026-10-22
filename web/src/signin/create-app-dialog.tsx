@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { BridgeError, call, on } from '../bridge';
 import { errorText } from '../shell/errors';
 import type { EntraAppCreateResult, EntraAppPlan, EntraAppStep } from '../wire';
-import { CreatedView } from './created-view';
+import { CreatedView, type CreatedApp } from './created-view';
 import { PermissionList } from './permission-list';
 import { allPermissions, isSignInNeeded, permKey } from './permission-plan';
 
@@ -28,7 +28,7 @@ export function CreateAppDialog({
   onClose: () => void;
   onSwitched: () => void;
   /** "Just show me the client ID": the app to keep a note of on the sign-in screen. */
-  onClientId?: (app: { name: string; appId: string }) => void;
+  onClientId?: (app: CreatedApp) => void;
 }) {
   const [phase, setPhase] = useState<Phase>('loading');
   const [plan, setPlan] = useState<EntraAppPlan | null>(null);
