@@ -31,7 +31,7 @@ public sealed class SnippetServiceTests : IDisposable
     {
         var snippets = (await NewService().ListAsync(Ct)).Where(s => s.BuiltIn && s.Source == "graph").ToList();
 
-        Assert.Equal(4, snippets.Count);
+        Assert.Equal(5, snippets.Count);
         Assert.All(snippets, s => Assert.Equal("Identity checks", s.Group));
         foreach (var snippet in snippets)
         {
