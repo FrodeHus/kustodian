@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Kustodian
+Comment=Write and run KQL against Microsoft Graph, Defender and Azure Resource Graph
+Exec=Kustodian
+Icon=kustodian
+Categories=Development;Utility;

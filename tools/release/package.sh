@@ -15,7 +15,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 release="$root/tools/release"
 artifacts="$root/artifacts"
 
-# The macOS staging folder; removed on any exit, including a failure under set -e.
+# The macOS and Linux staging folder; removed on any exit, including a failure under set -e.
 work=""
 trap '[[ -z "$work" ]] || rm -rf "$work"' EXIT
 
@@ -94,6 +94,76 @@ package_macos() {
     echo "package.sh: wrote $dmg" >&2
 }
 
+# appimagetool and the AppImage runtime it embeds, pinned to tagged releases and checked against
+# tools/release/linux/appimagetool.sha256 before use. appimagetool fetches the runtime from the type2-runtime "continuous"
+# release unless it is given one, so the runtime is pinned and passed with --runtime-file too.
+appimagetool_url="https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage"
+appimage_runtime_url="https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64"
+
+# Downloads the pinned appimagetool and runtime into artifacts/tools/ (when missing) and checks both; stops on a mismatch.
+fetch_appimagetool() {
+    local tools="$artifacts/tools" url name tool
+    for tool in curl sha256sum; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            echo "package.sh: $tool is not installed" >&2
+            exit 1
+        fi
+    done
+    mkdir -p "$tools"
+    for url in "$appimagetool_url" "$appimage_runtime_url"; do
+        name="$(basename "$url")"
+        if [[ ! -f "$tools/$name" ]]; then
+            curl -fsSL --retry 3 -o "$tools/$name.part" "$url"
+            mv "$tools/$name.part" "$tools/$name"
+        fi
+    done
+    if ! (cd "$tools" && sha256sum -c --strict "$release/linux/appimagetool.sha256" >&2); then
+        echo "package.sh: appimagetool or its runtime does not match tools/release/linux/appimagetool.sha256" >&2
+        rm -f "$tools/appimagetool-x86_64.AppImage" "$tools/runtime-x86_64"
+        exit 1
+    fi
+    chmod +x "$tools/appimagetool-x86_64.AppImage"
+}
+
+# Kustodian-<version>-linux-x64.tar.gz (folder Kustodian-<version>/: Kustodian, kustodian.desktop, kustodian.png, LICENSE,
+# README.md) and Kustodian-<version>-x86_64.AppImage (the app only; WebKitGTK, libsecret and libnotify come from the
+# distribution).
+package_linux() {
+    local rid="$1" publish="$2" version="$3"
+    local tarball="$artifacts/Kustodian-$version-$rid.tar.gz" appimage="$artifacts/Kustodian-$version-x86_64.AppImage"
+    if [[ ! -f "$publish/Kustodian" ]]; then
+        echo "package.sh: $publish/Kustodian is missing after publish" >&2
+        exit 1
+    fi
+    work="$(mktemp -d)"
+
+    local top="$work/Kustodian-$version"
+    mkdir -p "$top"
+    install -m 755 "$publish/Kustodian" "$top/Kustodian"
+    install -m 644 "$release/linux/kustodian.desktop" "$top/kustodian.desktop"
+    install -m 644 "$root/assets/icon-256.png" "$top/kustodian.png"
+    install -m 644 "$root/LICENSE" "$top/LICENSE"
+    install -m 644 "$root/README.md" "$top/README.md"
+    rm -f "$tarball"
+    tar -C "$work" --owner=0 --group=0 --numeric-owner -czf "$tarball" "Kustodian-$version"
+    echo "package.sh: wrote $tarball" >&2
+
+    local appdir="$work/Kustodian.AppDir"
+    mkdir -p "$appdir/usr/bin"
+    install -m 755 "$publish/Kustodian" "$appdir/usr/bin/Kustodian"
+    install -m 644 "$release/linux/kustodian.desktop" "$appdir/kustodian.desktop"
+    install -m 644 "$root/assets/icon-256.png" "$appdir/kustodian.png"
+    install -m 755 "$release/linux/AppRun" "$appdir/AppRun"
+
+    fetch_appimagetool
+    rm -f "$appimage"
+    # APPIMAGE_EXTRACT_AND_RUN: appimagetool is itself an AppImage, and this way it runs without FUSE.
+    ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 "$artifacts/tools/appimagetool-x86_64.AppImage" \
+        --runtime-file "$artifacts/tools/runtime-x86_64" "$appdir" "$appimage" >&2
+    chmod +x "$appimage"
+    echo "package.sh: wrote $appimage" >&2
+}
+
 rid="${1:-}"
 case "$rid" in
     win-x64 | win-arm64) platform=windows ;;
@@ -105,8 +175,11 @@ case "$rid" in
         platform=macos
         ;;
     linux-x64)
-        echo "package.sh: packaging for $rid is not implemented yet" >&2
-        exit 2
+        if [[ "$(uname -s)" != "Linux" || "$(uname -m)" != "x86_64" ]]; then
+            echo "package.sh: the Linux packages are built on Linux x64 only" >&2
+            exit 2
+        fi
+        platform=linux
         ;;
     *)
         if [[ -n "$rid" ]]; then
