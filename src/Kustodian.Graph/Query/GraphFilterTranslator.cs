@@ -26,11 +26,15 @@ public static partial class GraphFilterTranslator
     /// condition on it is pushed, the conditions on other columns run locally.</summary>
     /// <param name="now">The run's time, for <c>now()</c> and <c>ago()</c>.</param>
     /// <param name="complexTypes">The schema's complex types, for conditions on a nested property.</param>
+    /// <param name="unlicensed">Columns left out of the read for a license the tenant lacks, with the license's name: a
+    /// condition on one runs locally (<see cref="PushdownReasons.Unlicensed"/>).</param>
     public static FilterExplanation Explain(GraphTable table, IReadOnlyList<Expression> leadingWherePredicates, DateTimeOffset now,
-        IReadOnlyDictionary<string, IReadOnlyList<GraphField>>? complexTypes = null)
+        IReadOnlyDictionary<string, IReadOnlyList<GraphField>>? complexTypes = null, IReadOnlyDictionary<string, string>? unlicensed = null)
     {
         var context = new Context(table, now.UtcDateTime, complexTypes ?? new Dictionary<string, IReadOnlyList<GraphField>>());
-        var results = leadingWherePredicates.SelectMany(Conjuncts).Select(c => (Conjunct: c, Result: context.Translate(c))).ToList();
+        var results = leadingWherePredicates.SelectMany(Conjuncts)
+            .Select(c => (Conjunct: c, Result: Unlicensed(c, unlicensed) is { } reason ? Pushdown.Keep(reason) : context.Translate(c)))
+            .ToList();
         var alone = results.Select(r => r.Result).FirstOrDefault(r => r.Filter is not null && r.Alone is not null).Alone;
 
         var clauses = new List<FilterClause>();
@@ -56,6 +60,20 @@ public static partial class GraphFilterTranslator
             Clauses = clauses,
             Exact = exact,
         };
+    }
+
+    /// <summary>Why <paramref name="conjunct"/> runs locally when it names a column left out for its license, or null.</summary>
+    private static string? Unlicensed(Expression conjunct, IReadOnlyDictionary<string, string>? unlicensed)
+    {
+        if (unlicensed is not { Count: > 0 })
+            return null;
+        var references = conjunct is NameReference self ? [self] : conjunct.GetDescendants<NameReference>();
+        foreach (var reference in references)
+        {
+            if (reference.ReferencedSymbol is ColumnSymbol column && unlicensed.TryGetValue(column.Name, out var license))
+                return PushdownReasons.Unlicensed(column.Name, license);
+        }
+        return null;
     }
 
     /// <summary>An expression as written, on one line, with its comments and runs of white space each read as one space.</summary>

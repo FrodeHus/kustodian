@@ -46,6 +46,7 @@ const runResult = {
       perObjectCached: 0,
       unlicensed: [],
       unlicensedReason: null,
+      licenseLeftOut: [],
     },
   ],
   durationMs: 420,
@@ -81,6 +82,9 @@ const explainView = {
       orderBy: null,
       count: false,
       headers: [],
+      licenseLeftOut: [],
+      missingLicense: null,
+      missingLicenseSource: null,
     },
   ],
   limits: { objectsPerTable: 50000, fetchBudgetMb: 512, perObjectReadsPerTable: 2000 },
@@ -115,6 +119,31 @@ const armManagementGroups = { groups: [{ name: 'contoso-platform', displayName: 
 const armResourceTypes = {
   types: ['microsoft.compute/virtualmachines', 'microsoft.keyvault/vaults', 'microsoft.storage/storageaccounts'],
 };
+/** `schema.licenses` as for a tenant with Microsoft Entra ID P1 and no Intune: sign-in logs and sign-in activity are licensed,
+ * managed devices aren't. */
+const entraP1OrP2 = {
+  license: 'Microsoft Entra ID P1 or P2',
+  plans: ['AAD_PREMIUM', 'AAD_PREMIUM_P2'],
+  source: 'https://learn.microsoft.com/graph/api/resources/signin?view=graph-rest-1.0',
+  state: 'available',
+};
+const schemaLicenses = {
+  known: true,
+  reason: null,
+  tables: {
+    auditLogs_signIns: entraP1OrP2,
+    deviceManagement_managedDevices: {
+      license: 'Microsoft Intune',
+      plans: ['INTUNE_A', 'INTUNE_EDU', 'INTUNE_SMBIZ', 'INTUNE_A_GOV', 'INTUNE_A_VL'],
+      source: 'https://learn.microsoft.com/graph/api/resources/intune-shared-manageddevice?view=graph-rest-beta',
+      state: 'missing',
+    },
+  },
+  columns: {
+    users: { signInActivity: { ...entraP1OrP2, source: 'https://learn.microsoft.com/graph/api/resources/user?view=graph-rest-1.0#properties' } },
+  },
+};
+
 /** The columns Graph lists for a user without `$select`. */
 const listedUserColumns = [
   'businessPhones',
@@ -598,6 +627,14 @@ export function createMockTransport(): Transport {
             break;
           default:
             fail(id, 'bad_request', `Unknown source ${params?.source ?? ''}.`);
+        }
+        break;
+      case 'schema.licenses':
+        // As `SchemaHandler`: Graph only.
+        if (params?.source === 'graph') {
+          reply(id, schemaLicenses);
+        } else {
+          fail(id, 'bad_request', `Unknown source ${params?.source ?? ''}.`);
         }
         break;
       case 'schema.listedByDefault':

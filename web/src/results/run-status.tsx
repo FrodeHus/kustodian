@@ -64,6 +64,13 @@ function tableChips(tables: TableFetch[]): Chip[] {
         title: `${t.table}: ${t.unlicensedReason ?? ''}`,
       });
     }
+    if (t.licenseLeftOut.length > 0) {
+      chips.push({
+        tone: 'warn',
+        text: `${t.licenseLeftOut.map((l) => l.column).join(', ')}: left out, the tenant doesn't have ${[...new Set(t.licenseLeftOut.map((l) => l.license))].join(', ')}, values empty`,
+        title: t.licenseLeftOut.map((l) => `${t.table}.${l.column} needs ${l.license}: ${l.source}`).join('\n'),
+      });
+    }
     if (t.denied.length > 0) {
       chips.push({ tone: 'warn', text: `${t.denied.join(', ')}: no permission, values empty` });
     }

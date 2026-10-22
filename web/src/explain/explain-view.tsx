@@ -131,6 +131,12 @@ function TablePlan({ table, onCopy, onOpenRaw }: TablePlanProps) {
       <b className="text-[14px]">
         <span className="mono">{table.table}</span> <span className="muted font-normal">· what the query will ask Graph for</span>
       </b>
+      {table.missingLicense && (
+        <p role="alert" className="m-0 text-[12px] text-bad">
+          Not read: {table.table} needs {table.missingLicense}, which the tenant doesn't have. A run stops before sending anything.
+          {table.missingLicenseSource && <span className="mono block break-all select-text">{table.missingLicenseSource}</span>}
+        </p>
+      )}
       <Field label="Request">
         <span className="codeblock whitespace-pre-wrap break-all">
           {[`GET /beta/${table.url}`, ...table.headers].join('\n')}
@@ -201,6 +207,25 @@ function TablePlan({ table, onCopy, onOpenRaw }: TablePlanProps) {
           </ul>
         ) : (
           <None>Nothing: every condition is sent to Graph.</None>
+        )}
+      </Field>
+      <Field label="Left out for a license">
+        {table.licenseLeftOut.length > 0 ? (
+          <ul aria-label="Left out for a license" className="m-0 flex list-none flex-col gap-1.5 p-0">
+            {table.licenseLeftOut.map((l) => (
+              <li key={l.column} className="flex flex-col gap-0.5">
+                <span className="flex items-center gap-1.5">
+                  <span className="mono">{l.column}</span> <span className="tag bad">{l.license}</span>
+                </span>
+                <span className="muted text-[12px]">
+                  The tenant doesn't have {l.license}, so it isn't selected and its values are empty.{' '}
+                  <span className="mono break-all select-text">{l.source}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <None>Nothing.</None>
         )}
       </Field>
       <Field label="Read one object at a time">

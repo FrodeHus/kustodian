@@ -26,6 +26,7 @@ const fetch: TableFetch = {
   perObjectCached: 0,
   unlicensed: [],
   unlicensedReason: null,
+  licenseLeftOut: [],
 };
 
 function result(overrides: Partial<RunResult>): RunResult {
@@ -67,6 +68,21 @@ describe('RunStatus', () => {
 
     const chip = screen.getByText('signInActivity, aboutMe: left out, the tenant lacks a license, values empty');
     expect(chip.closest('[title]')?.getAttribute('title')).toBe(`users: ${reason}`);
+  });
+
+  it('run_status_names_columns_left_out_for_a_license_and_the_license', () => {
+    const left = [{ column: 'signInActivity', license: 'Microsoft Entra ID P1 or P2', source: 'https://learn.microsoft.com/a' }];
+    render(<RunStatus run={done(result({ tables: [{ ...fetch, table: 'users', licenseLeftOut: left }] }))} onSignIn={() => undefined} />);
+
+    const chip = screen.getByText("signInActivity: left out, the tenant doesn't have Microsoft Entra ID P1 or P2, values empty");
+    expect(chip.closest('[title]')?.getAttribute('title')).toBe('users.signInActivity needs Microsoft Entra ID P1 or P2: https://learn.microsoft.com/a');
+  });
+
+  it('run_status_shows_a_run_stopped_for_a_missing_license', () => {
+    const message = "auditLogs_signIns needs Microsoft Entra ID P1 or P2, which the tenant doesn't have, so it wasn't read.";
+    render(<RunStatus run={done(result({ outcome: 'unlicensed', message, rows: [], total: 0, tables: [] }))} onSignIn={() => undefined} />);
+
+    expect(screen.getByText(message)).toBeTruthy();
   });
 
   it('status_line_shows_total_requests_and_cache', () => {

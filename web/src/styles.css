@@ -147,6 +147,10 @@ body {
   .schema-tree .ty { margin-left: auto; flex-shrink: 0; white-space: nowrap; font-size: 11px; color: var(--faint); }
   .tag { flex-shrink: 0; white-space: nowrap; font-size: 10px; font-weight: 600; padding: 0 5px; height: 16px; line-height: 16px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); }
   .tag.warn { background: var(--warn-soft); color: var(--warn); }
+  /* License tags: the tenant has it, lacks it, or its licenses couldn't be checked. */
+  .tag.ok { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+  .tag.bad { background: var(--bad-soft); color: var(--bad); }
+  .tag.plain { background: var(--raise); color: var(--faint); }
   /* Saved, Recent and Snippets: rows that open on click, with a "⋯" menu that shows on hover or focus. */
   .side-list { list-style: none; margin: 0; padding: 0 6px; }
   .side-item { display: flex; align-items: center; border-radius: 6px; }

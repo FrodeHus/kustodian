@@ -1,0 +1,330 @@
+{
+  "$comment": "Licenses Graph tables and columns need, as Microsoft Learn states them (spec: kustodian/src/Kustodian.Graph/Schema/GraphLicenses.cs). Plans are servicePlanName values from https://learn.microsoft.com/entra/identity/users/licensing-service-plan-reference; any one of them will do.",
+  "tables": {
+    "accessReviewDecisions": {
+      "license": "Microsoft Entra ID P2 or Microsoft Entra ID Governance",
+      "plans": [
+        "AAD_PREMIUM_P2",
+        "Entra_Identity_Governance"
+      ],
+      "source": "https://learn.microsoft.com/graph/tutorial-accessreviews-roleassignments",
+      "quote": "A working Microsoft Entra tenant with a Microsoft Entra ID P2 or Microsoft Entra ID Governance license"
+    },
+    "accessReviews": {
+      "license": "Microsoft Entra ID P2 or Microsoft Entra ID Governance",
+      "plans": [
+        "AAD_PREMIUM_P2",
+        "Entra_Identity_Governance"
+      ],
+      "source": "https://learn.microsoft.com/graph/tutorial-accessreviews-roleassignments",
+      "quote": "A working Microsoft Entra tenant with a Microsoft Entra ID P2 or Microsoft Entra ID Governance license"
+    },
+    "auditLogs/provisioning": {
+      "license": "Microsoft Entra ID P1 or P2",
+      "plans": [
+        "AAD_PREMIUM",
+        "AAD_PREMIUM_P2"
+      ],
+      "source": "https://learn.microsoft.com/entra/identity/monitoring-health/howto-analyze-provisioning-logs",
+      "quote": "A working Microsoft Entra tenant with a Microsoft Entra ID P1 or P2 license"
+    },
+    "auditLogs/signIns": {
+      "license": "Microsoft Entra ID P1 or P2",
+      "plans": [
+        "AAD_PREMIUM",
+        "AAD_PREMIUM_P2"
+      ],
+      "source": "https://learn.microsoft.com/graph/api/resources/signin?view=graph-rest-1.0",
+      "quote": "You must have a Microsoft Entra ID P1 or P2 license to download sign-in logs"
+    },
+    "copilot/conversations": {
+      "license": "Microsoft 365 Copilot",
+      "plans": [
+        "M365_COPILOT_BUSINESS_CHAT",
+        "M365_COPILOT_APPS",
+        "M365_COPILOT_TEAMS"
+      ],
+      "source": "https://learn.microsoft.com/microsoft-365/copilot/extensibility/api/ai-services/interaction-export/aiinteractionhistory-getallenterpriseinteractions",
+      "quote": "This API requires a valid Microsoft 365 Copilot license"
+    },
+    "copilot/users": {
+      "license": "Microsoft 365 Copilot",
+      "plans": [
+        "M365_COPILOT_BUSINESS_CHAT",
+        "M365_COPILOT_APPS",
+        "M365_COPILOT_TEAMS"
+      ],
+      "source": "https://learn.microsoft.com/microsoft-365/copilot/extensibility/api/ai-services/interaction-export/aiinteractionhistory-getallenterpriseinteractions",
+      "quote": "This API requires a valid Microsoft 365 Copilot license"
+    },
+    "deviceAppManagement/": {
+      "license": "Microsoft Intune",
+      "plans": [
+        "INTUNE_A",
+        "INTUNE_EDU",
+        "INTUNE_SMBIZ",
+        "INTUNE_A_GOV",
+        "INTUNE_A_VL"
+      ],
+      "source": "https://learn.microsoft.com/graph/api/resources/intune-devices-deviceappmanagement?view=graph-rest-beta",
+      "quote": "The Microsoft Graph API for Intune requires an active Intune license for the tenant."
+    },
+    "deviceManagement/": {
+      "license": "Microsoft Intune",
+      "plans": [
+        "INTUNE_A",
+        "INTUNE_EDU",
+        "INTUNE_SMBIZ",
+        "INTUNE_A_GOV",
+        "INTUNE_A_VL"
+      ],
+      "source": "https://learn.microsoft.com/graph/api/resources/intune-shared-manageddevice?view=graph-rest-beta",
+      "quote": "The Microsoft Graph API for Intune requires an active Intune license for the tenant."
+    },
+    "governanceResources": {
+      "license": "Microsoft Entra ID P2 or Microsoft Entra ID Governance",
+      "plans": [
+        "AAD_PREMIUM_P2",
+        "Entra_Identity_Governance"
+      ],
+      "source": "https://learn.microsoft.com/entra/id-governance/privileged-identity-management/pim-getting-started",
+      "quote": "you must have a Microsoft Entra ID P2 or Microsoft Entra ID Governance license."
+    },
+    "governanceRoleAssignmentRequests": {
+      "license": "Microsoft Entra ID P2 or Microsoft Entra ID Governance",
+      "plans": [
+        "AAD_PREMIUM_P2",
+        "Entra_Identity_Governance"
+      ],
+      "source": "https://learn.microsoft.com/entra/id-governance/privileged-identity-management/pim-getting-started",
+      "quote": "you must have a Microsoft Entra ID P2 or Microsoft Entra ID Governance license."
+    },
+    "governanceRoleAssignments": {
+      "license": "Microsoft Entra ID P2 or Microsoft Entra ID Governance",
+      "plans": [
+        "AAD_PREMIUM_P2",
+        "Entra_Identity_Governance"
+      ],
+      "source": "https://learn.microsoft.com/entra/id-governance/privileged-identity-management/pim-getting-started",
+      "quote": "you must have a Microsoft Entra ID P2 or Microsoft Entra ID Governance license."
+    },
+    "governanceRoleDefinitions": {
+      "license": "Microsoft Entra ID P2 or Microsoft Entra ID Governance",
+      "plans": [
+        "AAD_PREMIUM_P2",
+        "Entra_Identity_Governance"
+      ],
+      "source": "https://learn.microsoft.com/entra/id-governance/privileged-identity-management/pim-getting-started",
+      "quote": "you must have a Microsoft Entra ID P2 or Microsoft Entra ID Governance license."
+    },
+    "governanceRoleSettings": {
+      "license": "Microsoft Entra ID P2 or Microsoft Entra ID Governance",
+      "plans": [
+        "AAD_PREMIUM_P2",
+        "Entra_Identity_Governance"
+      ],
+      "source": "https://learn.microsoft.com/entra/id-governance/privileged-identity-management/pim-getting-started",
+      "quote": "you must have a Microsoft Entra ID P2 or Microsoft Entra ID Governance license."
+    },
+    "governanceSubjects": {
+      "license": "Microsoft Entra ID P2 or Microsoft Entra ID Governance",
+      "plans": [
+        "AAD_PREMIUM_P2",
+        "Entra_Identity_Governance"
+      ],
+      "source": "https://learn.microsoft.com/entra/id-governance/privileged-identity-management/pim-getting-started",
+      "quote": "you must have a Microsoft Entra ID P2 or Microsoft Entra ID Governance license."
+    },
+    "identityGovernance/catalogs": {
+      "license": "Microsoft Entra ID P2 or Microsoft Entra ID Governance",
+      "plans": [
+        "AAD_PREMIUM_P2",
+        "Entra_Identity_Governance"
+      ],
+      "source": "https://learn.microsoft.com/entra/id-governance/entitlement-management-access-package-first",
+      "quote": "Microsoft Entra ID P2 or Microsoft Entra ID Governance"
+    },
+    "identityProtection/riskDetections": {
+      "license": "Microsoft Entra ID P1 or P2",
+      "plans": [
+        "AAD_PREMIUM",
+        "AAD_PREMIUM_P2"
+      ],
+      "source": "https://learn.microsoft.com/graph/api/riskdetection-list?view=graph-rest-1.0",
+      "quote": "You must have a Microsoft Entra ID P1 or P2 license to use the risk detection API."
+    },
+    "identityProtection/riskyServicePrincipals": {
+      "license": "Microsoft Entra Workload ID Premium",
+      "plans": [
+        "AAD_WRKLDID_P1",
+        "AAD_WRKLDID_P2"
+      ],
+      "source": "https://learn.microsoft.com/graph/api/identityprotectionroot-list-riskyserviceprincipals?view=graph-rest-1.0",
+      "quote": "Using the riskyServicePrincipals API requires a Microsoft Entra Workload ID Premium license."
+    },
+    "identityProtection/riskyUsers": {
+      "license": "Microsoft Entra ID P2",
+      "plans": [
+        "AAD_PREMIUM_P2"
+      ],
+      "source": "https://learn.microsoft.com/graph/api/riskyusers-list?view=graph-rest-beta",
+      "quote": "Using the riskyUsers API requires a Microsoft Entra ID P2 license."
+    },
+    "identityProtection/servicePrincipalRiskDetections": {
+      "license": "Microsoft Entra Workload ID Premium",
+      "plans": [
+        "AAD_WRKLDID_P1",
+        "AAD_WRKLDID_P2"
+      ],
+      "source": "https://learn.microsoft.com/graph/api/identityprotectionroot-list-serviceprincipalriskdetections?view=graph-rest-1.0",
+      "quote": "You must have a Microsoft Entra Workload ID Premium license to use the servicePrincipalRiskDetection API."
+    },
+    "networkAccess/": {
+      "license": "Microsoft Entra Internet Access, Private Access, or Microsoft Entra ID P1 or P2",
+      "plans": [
+        "Entra_Premium_Internet_Access",
+        "Entra_Premium_Private_Access",
+        "AAD_PREMIUM",
+        "AAD_PREMIUM_P2"
+      ],
+      "source": "https://learn.microsoft.com/entra/global-secure-access/overview-what-is-global-secure-access#licensing-overview",
+      "quote": "users need a Microsoft Entra ID P1 or Microsoft Entra ID P2 license."
+    },
+    "policies/conditionalAccessPolicies": {
+      "license": "Microsoft Entra ID P1",
+      "plans": [
+        "AAD_PREMIUM",
+        "AAD_PREMIUM_P2"
+      ],
+      "source": "https://learn.microsoft.com/entra/identity/conditional-access/overview#license-requirements",
+      "quote": "Using this feature requires Microsoft Entra ID P1 licenses."
+    },
+    "privilegedAccess": {
+      "license": "Microsoft Entra ID P2 or Microsoft Entra ID Governance",
+      "plans": [
+        "AAD_PREMIUM_P2",
+        "Entra_Identity_Governance"
+      ],
+      "source": "https://learn.microsoft.com/entra/id-governance/privileged-identity-management/pim-getting-started",
+      "quote": "you must have a Microsoft Entra ID P2 or Microsoft Entra ID Governance license."
+    },
+    "privilegedApproval": {
+      "license": "Microsoft Entra ID P2 or Microsoft Entra ID Governance",
+      "plans": [
+        "AAD_PREMIUM_P2",
+        "Entra_Identity_Governance"
+      ],
+      "source": "https://learn.microsoft.com/entra/id-governance/privileged-identity-management/pim-getting-started",
+      "quote": "you must have a Microsoft Entra ID P2 or Microsoft Entra ID Governance license."
+    },
+    "privilegedOperationEvents": {
+      "license": "Microsoft Entra ID P2 or Microsoft Entra ID Governance",
+      "plans": [
+        "AAD_PREMIUM_P2",
+        "Entra_Identity_Governance"
+      ],
+      "source": "https://learn.microsoft.com/entra/id-governance/privileged-identity-management/pim-getting-started",
+      "quote": "you must have a Microsoft Entra ID P2 or Microsoft Entra ID Governance license."
+    },
+    "privilegedRoleAssignmentRequests": {
+      "license": "Microsoft Entra ID P2 or Microsoft Entra ID Governance",
+      "plans": [
+        "AAD_PREMIUM_P2",
+        "Entra_Identity_Governance"
+      ],
+      "source": "https://learn.microsoft.com/entra/id-governance/privileged-identity-management/pim-getting-started",
+      "quote": "you must have a Microsoft Entra ID P2 or Microsoft Entra ID Governance license."
+    },
+    "privilegedRoleAssignments": {
+      "license": "Microsoft Entra ID P2 or Microsoft Entra ID Governance",
+      "plans": [
+        "AAD_PREMIUM_P2",
+        "Entra_Identity_Governance"
+      ],
+      "source": "https://learn.microsoft.com/entra/id-governance/privileged-identity-management/pim-getting-started",
+      "quote": "you must have a Microsoft Entra ID P2 or Microsoft Entra ID Governance license."
+    },
+    "privilegedRoles": {
+      "license": "Microsoft Entra ID P2 or Microsoft Entra ID Governance",
+      "plans": [
+        "AAD_PREMIUM_P2",
+        "Entra_Identity_Governance"
+      ],
+      "source": "https://learn.microsoft.com/entra/id-governance/privileged-identity-management/pim-getting-started",
+      "quote": "you must have a Microsoft Entra ID P2 or Microsoft Entra ID Governance license."
+    },
+    "reports/appCredentialSignInActivities": {
+      "license": "Microsoft Entra ID P1 or P2",
+      "plans": [
+        "AAD_PREMIUM",
+        "AAD_PREMIUM_P2"
+      ],
+      "source": "https://learn.microsoft.com/entra/identity/monitoring-health/concept-usage-insights-report",
+      "quote": "A Microsoft Entra ID P1 or P2 license to view the sign-in data"
+    },
+    "reports/applicationSignInDetailedSummary": {
+      "license": "Microsoft Entra ID P1 or P2",
+      "plans": [
+        "AAD_PREMIUM",
+        "AAD_PREMIUM_P2"
+      ],
+      "source": "https://learn.microsoft.com/entra/identity/monitoring-health/concept-usage-insights-report",
+      "quote": "A Microsoft Entra ID P1 or P2 license to view the sign-in data"
+    },
+    "reports/credentialUserRegistrationDetails": {
+      "license": "Microsoft Entra ID P1 or P2",
+      "plans": [
+        "AAD_PREMIUM",
+        "AAD_PREMIUM_P2"
+      ],
+      "source": "https://learn.microsoft.com/troubleshoot/entra/entra-id/users-groups-entra-apis/b2c-or-tenant-premium-license-sign-in-activities",
+      "quote": "Make sure that the target tenant has an Entra ID Premium P1 or P2 license."
+    },
+    "reports/servicePrincipalSignInActivities": {
+      "license": "Microsoft Entra ID P1 or P2",
+      "plans": [
+        "AAD_PREMIUM",
+        "AAD_PREMIUM_P2"
+      ],
+      "source": "https://learn.microsoft.com/entra/identity/monitoring-health/concept-usage-insights-report",
+      "quote": "A Microsoft Entra ID P1 or P2 license to view the sign-in data"
+    },
+    "reports/userCredentialUsageDetails": {
+      "license": "Microsoft Entra ID P1 or P2",
+      "plans": [
+        "AAD_PREMIUM",
+        "AAD_PREMIUM_P2"
+      ],
+      "source": "https://learn.microsoft.com/entra/identity/authentication/howto-authentication-methods-activity",
+      "quote": "A Microsoft Entra ID P1 or P2 license is required to access Usage and insights."
+    },
+    "riskDetections": {
+      "license": "Microsoft Entra ID P1 or P2",
+      "plans": [
+        "AAD_PREMIUM",
+        "AAD_PREMIUM_P2"
+      ],
+      "source": "https://learn.microsoft.com/graph/api/riskdetection-list?view=graph-rest-1.0",
+      "quote": "You must have a Microsoft Entra ID P1 or P2 license to use the risk detection API."
+    },
+    "riskyUsers": {
+      "license": "Microsoft Entra ID P2",
+      "plans": [
+        "AAD_PREMIUM_P2"
+      ],
+      "source": "https://learn.microsoft.com/graph/api/riskyusers-list?view=graph-rest-beta",
+      "quote": "Using the riskyUsers API requires a Microsoft Entra ID P2 license."
+    }
+  },
+  "columns": {
+    "users.signInActivity": {
+      "license": "Microsoft Entra ID P1 or P2",
+      "plans": [
+        "AAD_PREMIUM",
+        "AAD_PREMIUM_P2"
+      ],
+      "source": "https://learn.microsoft.com/graph/api/resources/user?view=graph-rest-1.0#properties",
+      "quote": "Details for this property require a Microsoft Entra ID P1 or P2 license"
+    }
+  }
+}

@@ -17,10 +17,12 @@ namespace Kustodian.Graph.Run;
 /// fetched objects stay in memory until then. Every way a run can fail is an outcome of the <see cref="RunResult"/>, never an
 /// exception, except that the caller cancelling throws <see cref="OperationCanceledException"/>. Each run has an id and a
 /// diagnostics log (<see cref="RunDiagnostics"/>): every request it sends carries the log, the readers add their steps, the
-/// engine its worker events, and the result and every progress event carry the id.
+/// engine its worker events, and the result and every progress event carry the id. With the account's tenant licenses
+/// (<paramref name="licenses"/>), what they are known to lack isn't read (<see cref="GraphLicenseGate"/>): a column is left out,
+/// and a table stops the run before anything is sent.
 /// </summary>
 public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader, GraphFetchBudget budget, GraphEnginePool engine,
-    GraphLimits limits, TimeProvider time, ILogger<GraphRunner>? logger = null)
+    GraphLimits limits, TimeProvider time, ILogger<GraphRunner>? logger = null, ITenantLicenses? licenses = null)
 {
     /// <summary>The limits this runner runs within. The engine sends back at most <see cref="GraphLimits.RowsPerRun"/> rows;
     /// <see cref="RunResult.Total"/> counts them all.</summary>
@@ -79,7 +81,7 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
         RunResult End(RunOutcome outcome, string? message = null, GraphQueryError? error = null, EngineResponse? answer = null)
         {
             var tables = fetches.Select((f, i) => (Fetch: f, Read: collections[i])).Where(x => x.Read is not null)
-                .Select(x => Describe(x.Fetch.Table.Name, x.Read!)).ToList();
+                .Select(x => Describe(x.Fetch, x.Read!)).ToList();
             if (failed is not null)
                 tables.Add(new TableFetch(failed.Table.Name, failedRequests, false, [], [], [], 0, false, 0));
             return new RunResult(outcome, message, error, answer?.Columns ?? [], answer?.Rows ?? [], answer?.Total ?? 0, tables,
@@ -93,7 +95,8 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
         try
         {
             progress?.Report(new RunEvent("planning", "Planning the query"));
-            var plan = GraphQueryPlanner.Plan(schema, kql, now);
+            var gate = licenses is null ? null : new GraphLicenseGate(GraphLicenses.Bundled, await licenses.GetAsync(accountKey, false, ct));
+            var plan = GraphQueryPlanner.Plan(schema, kql, now, gate);
             if (plan.Error is { } error)
             {
                 var (line, column) = mapBack(error.Line, error.Column);
@@ -101,6 +104,12 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
             }
             if (plan.Refusal is { } refusal)
                 return End(RunOutcome.Refused, refusal);
+            if (plan.Fetches.FirstOrDefault(f => f.MissingLicense is not null) is { MissingLicense: { } missing } unlicensed)
+                return End(RunOutcome.Unlicensed, GraphLicenseGate.TableMessage(unlicensed.Table, missing));
+            foreach (var fetch in plan.Fetches.Where(f => f.LicenseLeftOut.Count > 0))
+                diagnostics.Add(new DiagnosticEntry(diagnostics.NowMs, DiagnosticKinds.Probe, $"{fetch.Table.Name}: left out "
+                    + string.Join(", ", fetch.LicenseLeftOut.Select(g => $"{g.Column} (needs {g.Requirement.License}, which the tenant doesn't have)")),
+                    null, null, null));
             fetches = plan.Fetches;
             collections = new GraphCollection?[fetches.Count];
 
@@ -278,12 +287,13 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
         }
     }
 
-    private static TableFetch Describe(string table, GraphCollection read)
-        => new(table, read.Requests, read.Unfiltered, read.Unreadable, read.Denied, read.PerObject, read.PerObjectFailed,
+    private static TableFetch Describe(GraphFetch fetch, GraphCollection read)
+        => new(fetch.Table.Name, read.Requests, read.Unfiltered, read.Unreadable, read.Denied, read.PerObject, read.PerObjectFailed,
             read.PerObjectCapped, read.PerObjectCached)
         {
             Unlicensed = read.Unlicensed,
             UnlicensedReason = read.UnlicensedReason,
+            LicenseLeftOut = [.. fetch.LicenseLeftOut.Select(g => new LicenseLeftOut(g.Column, g.Requirement.License, g.Requirement.Source))],
         };
 
     /// <summary>The answer to a query that counts, given Graph's count: one row, one long column named as the query names it.</summary>

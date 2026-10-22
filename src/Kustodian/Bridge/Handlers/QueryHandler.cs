@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Query;
 using Kustodian.Graph.Run;
 using Kustodian.Graph.Schema;
@@ -20,11 +21,13 @@ namespace Kustodian.Messaging.Handlers;
 /// <see cref="ParameterValue"/>; fields missing from (or null in) one take their defaults, and so do those of its options. A
 /// run's optional <c>runId</c> names it (progress events and the answer carry it) when it is a GUID in <c>D</c> format;
 /// otherwise the host names it. <c>query.explain</c> describes what a Graph run would send, within <paramref name="limits"/>
-/// (<see cref="GraphExplain"/>): it needs no account and sends nothing. Explain and completion are Graph's only: for another
+/// (<see cref="GraphExplain"/>): it sends nothing but, with the active account's tenant licenses (<paramref name="licenses"/>,
+    /// read once per account), leaves out what they lack, as a run does. Explain and completion are Graph's only: for another
 /// source they are a <c>bad_request</c>. A run whose source meets a <see cref="ConsentRequiredException"/> (an ARM token that needs
 /// the user) answers <see cref="RunOutcome.ConsentNeeded"/> with its message; the account stays signed in.</summary>
 public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeAccount, IReadOnlyDictionary<string, IQuerySource> sources,
-    RecentService? recent = null, TimeProvider? time = null, ILogger<QueryHandler>? logger = null, GraphLimits? limits = null)
+    RecentService? recent = null, TimeProvider? time = null, ILogger<QueryHandler>? logger = null, GraphLimits? limits = null,
+    ITenantLicenses? licenses = null)
 {
     private const string GraphSource = "graph";
     private const string ExplainRefused = "Explain is only available for Microsoft Graph.";
@@ -46,10 +49,10 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
             return Task.Run<object?>(() => Complete(request));
         });
         // Explain plans the query as a run does (CPU work, off the dispatching thread) and stops there.
-        bridge.Register("query.explain", (p, _) =>
+        bridge.Register("query.explain", (p, ct) =>
         {
             var request = ReadWithParameters<ExplainParams>(p);
-            return Task.Run<object?>(() => Explain(request));
+            return Task.Run<object?>(async () => Explain(request, await LicenseGateAsync(ct)));
         });
         bridge.Register("query.run", async (p, ct) => await RunAsync(bridge, ReadWithParameters<RunParams>(p), ct));
         bridge.Register("query.cancel", (p, _) =>
@@ -70,7 +73,13 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
         return GraphCompletion.Complete(schema, p.Kql, p.Position);
     }
 
-    private ExplainView Explain(ExplainParams p)
+    /// <summary>What the active account's tenant licenses leave out, or null when nobody is signed in or they aren't read.</summary>
+    private async Task<GraphLicenseGate?> LicenseGateAsync(CancellationToken ct) =>
+        licenses is not null && await activeAccount() is { } account
+            ? new GraphLicenseGate(GraphLicenses.Bundled, await licenses.GetAsync(account, false, ct))
+            : null;
+
+    private ExplainView Explain(ExplainParams p, GraphLicenseGate? gate)
     {
         RequireGraph(p.Source, ExplainRefused);
         if (p.Kql is null)
@@ -78,7 +87,7 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
             throw new BridgeException(BridgeErrorCodes.BadRequest, "Explain needs kql.");
         }
 
-        return GraphExplain.Explain(schema, p.Kql, p.Parameters ?? [], _time.GetUtcNow(), _limits);
+        return GraphExplain.Explain(schema, p.Kql, p.Parameters ?? [], _time.GetUtcNow(), _limits, gate);
     }
 
     private async Task<RunResult> RunAsync(Bridge bridge, RunParams p, CancellationToken closing)

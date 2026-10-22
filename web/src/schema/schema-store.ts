@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { BridgeError, call } from '../bridge';
 import { errorText } from '../shell/errors';
 import { useTabs } from '../tabs/tab-store';
-import type { ArmResourceTypesAnswer, ListedByDefault, SchemaView, Source } from '../wire';
+import type { ArmResourceTypesAnswer, ListedByDefault, SchemaLicenses, SchemaView, Source } from '../wire';
 
 /** The sources with a schema of their own. A raw request tab completes against Graph's. */
 export type SchemaSource = Exclude<Source, 'raw'>;
@@ -28,6 +28,11 @@ interface SchemasState {
   listedByDefault: Record<string, string[]>;
   /** Reads `listedByDefault` again: after the Graph schema is read, and after each Graph run, which may have read new tables. */
   loadListedByDefault(): Promise<void>;
+  /** For the active account, the licenses Graph tables and columns need and whether its tenant has them (`schema.licenses`);
+   * null until read, or when they couldn't be: then no table or column gets a license tag. */
+  licenses: SchemaLicenses | null;
+  /** Reads `licenses`: with the Graph schema, and again (from Graph, not the host's cache) when it is refreshed. */
+  loadLicenses(opts?: { refresh?: boolean }): Promise<void>;
   /** Reads `source`'s schema (`schema.get`); `refresh` skips the host's cache. Resolves once it is read or has failed. */
   load(source: SchemaSource, opts?: { refresh?: boolean }): Promise<void>;
   /** Reads the resource types again (Azure access was granted, or the account signed in again), when a Resource Graph tab is
@@ -41,7 +46,7 @@ export type ResourceTypesFix = 'consent' | 'signIn' | null;
 
 const empty = (): Pick<
   SchemasState,
-  'byKey' | 'errors' | 'loading' | 'resourceTypes' | 'resourceTypesError' | 'resourceTypesFix' | 'listedByDefault'
+  'byKey' | 'errors' | 'loading' | 'resourceTypes' | 'resourceTypesError' | 'resourceTypesFix' | 'listedByDefault' | 'licenses'
 > => ({
   byKey: { graph: undefined, hunting: undefined, arg: undefined, raw: undefined },
   errors: {},
@@ -50,6 +55,7 @@ const empty = (): Pick<
   resourceTypesError: null,
   resourceTypesFix: null,
   listedByDefault: {},
+  licenses: null,
 });
 
 const fixOf = (e: unknown): ResourceTypesFix =>
@@ -59,7 +65,14 @@ const fixOf = (e: unknown): ResourceTypesFix =>
 let generation = 0;
 /** Counts each source's reads, and the resource types' reads: only the latest read's answer is kept, so an older read that answers
  * after a refresh can't replace it. */
-const requests: Record<SchemaSource | 'types' | 'defaults', number> = { graph: 0, hunting: 0, arg: 0, types: 0, defaults: 0 };
+const requests: Record<SchemaSource | 'types' | 'defaults' | 'licenses', number> = {
+  graph: 0,
+  hunting: 0,
+  arg: 0,
+  types: 0,
+  defaults: 0,
+  licenses: 0,
+};
 
 /**
  * One schema per source (spec 8), read lazily: a source is read when its first tab opens ({@link startSchemaLoading}), and read
@@ -91,6 +104,19 @@ export const useSchemas = create<SchemasState>()((set) => ({
     }
   },
 
+  async loadLicenses(opts) {
+    const at = generation;
+    const request = ++requests.licenses;
+    try {
+      const answer = await call<SchemaLicenses>('schema.licenses', { source: 'graph', refresh: opts?.refresh ?? false });
+      if (at === generation && request === requests.licenses) {
+        set({ licenses: answer });
+      }
+    } catch {
+      // Only the tags are missing; runs are unaffected, so nothing is shown.
+    }
+  },
+
   async load(source, opts) {
     const refresh = opts?.refresh ?? false;
     const at = generation;
@@ -108,6 +134,7 @@ export const useSchemas = create<SchemasState>()((set) => ({
         });
         if (source === 'graph') {
           void useSchemas.getState().loadListedByDefault();
+          void useSchemas.getState().loadLicenses({ refresh });
         }
       }
     } catch (e) {

@@ -302,4 +302,49 @@ describe('SchemaPanel', () => {
     expect(within(screen.getByRole('button', { name: /^appId/ })).getByText('default')).toBeTruthy();
     expect(within(screen.getByRole('button', { name: /^identifierUris/ })).queryByText('default')).toBeNull();
   });
+
+  it('schema_panel_tags_licensed_tables_and_columns_green_red_or_neutral', () => {
+    const p1 = { license: 'Microsoft Entra ID P1 or P2', plans: ['AAD_PREMIUM', 'AAD_PREMIUM_P2'], source: 'https://learn.microsoft.com/a' };
+    const intune = { license: 'Microsoft Intune', plans: ['INTUNE_A'], source: 'https://learn.microsoft.com/b' };
+    const licenses = (state: 'available' | 'missing' | 'unknown', reason: string | null = null) => ({
+      known: state !== 'unknown',
+      reason,
+      tables: { auditLogs_signIns: { ...p1, state }, deviceManagement_managedDevices: { ...intune, state: state === 'unknown' ? state : ('missing' as const) } },
+      columns: { users: { displayName: { ...p1, state } } },
+    });
+    const panel = (l: ReturnType<typeof licenses> | null) => (
+      <SchemaPanel schema={view} licenses={l} text="users | take 5 | join auditLogs_signIns on id" onInsert={() => undefined} />
+    );
+    const { rerender } = render(panel(null));
+    const signIns = () => screen.getAllByRole('button', { name: /^auditLogs_signIns/ })[0]!;
+    // Not read yet: no tags.
+    expect(within(signIns()).queryByText('Entra ID P1/P2')).toBeNull();
+
+    rerender(panel(licenses('available')));
+    const green = within(signIns()).getByText('Entra ID P1/P2');
+    expect(green.className).toContain('tag ok');
+    expect(green.title).toMatch(/^Needs Microsoft Entra ID P1 or P2\. The tenant has it\.\nhttps:\/\/learn\.microsoft\.com\/a$/);
+    const column = within(screen.getByRole('button', { name: /^displayName/ })).getByText('Entra ID P1/P2');
+    expect(column.className).toContain('tag ok');
+
+    rerender(panel(licenses('missing')));
+    const red = within(signIns()).getByText('Entra ID P1/P2');
+    expect(red.className).toContain('tag bad');
+    expect(red.title).toContain("The tenant doesn't have it, so a query on this table stops before reading it.");
+    expect(within(screen.getByRole('button', { name: /^displayName/ })).getByText('Entra ID P1/P2').title).toContain(
+      'queries leave this column out',
+    );
+
+    rerender(panel(licenses('unknown', 'The account can’t read the tenant’s licenses.')));
+    const neutral = within(signIns()).getByText('Entra ID P1/P2');
+    expect(neutral.className).toContain('tag plain');
+    expect(neutral.title).toContain("The tenant's licenses couldn't be checked (The account can’t read the tenant’s licenses).");
+  });
+
+  it('schema_panel_shows_no_license_tags_for_other_sources', () => {
+    const licenses = { known: true, reason: null, tables: { DeviceEvents: { license: 'L', plans: ['P'], source: 's', state: 'missing' as const } }, columns: {} };
+    const hunting: SchemaView = { ...view, source: 'hunting', tables: [{ ...view.tables[0]!, name: 'DeviceEvents', area: null, path: null }] };
+    render(<SchemaPanel source="hunting" schema={hunting} licenses={licenses} text="DeviceEvents" onInsert={() => undefined} />);
+    expect(screen.queryByText('L')).toBeNull();
+  });
 });
