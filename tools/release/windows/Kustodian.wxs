@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Kustodian for Windows: a dual-purpose MSI (Windows Installer "single package authoring") that installs the single-file
+  Kustodian.exe with a Start Menu shortcut. Kustodian has no CLI, so nothing goes on the PATH.
+
+    per user (the default, no elevation)       %LOCALAPPDATA%\Programs\Kustodian
+    per machine (msiexec /i ... ALLUSERS=1)    %ProgramFiles%\Kustodian
+
+  Scope="perUserOrMachine" authors ALLUSERS=2 and MSIINSTALLPERUSER=1; Windows Installer then redirects
+  ProgramFiles6432Folder, ProgramMenuFolder and the HKMU registry root to the per-user or the per-machine location. Nothing
+  here may name a per-user or a per-machine location outright: build.ps1 validates the package, and ICE105 rejects a
+  dual-purpose package that does.
+
+  Built by build.ps1 for x64 and arm64 with `wix build`, which needs the WixToolset.UI.wixext extension for the exit-dialog
+  checkbox. Paths are relative to this folder (build.ps1 passes -b with it).
+
+  Preprocessor variables (both passed by build.ps1):
+    Version     the product version, e.g. 1.0.0
+    PublishDir  the `dotnet publish` output for this architecture (holds the single-file Kustodian.exe)
+
+  The UpgradeCode is fixed for good: every Kustodian MSI, of any version and either architecture, carries it, so a newer one
+  replaces an older one. Never change it.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package Name="Kustodian"
+           Manufacturer="Reothor"
+           Version="$(var.Version)"
+           UpgradeCode="421EF87A-CDAA-4F04-8AC1-F678CC2E4C67"
+           Scope="perUserOrMachine"
+           Language="1033"
+           InstallerVersion="500"
+           Compressed="yes">
+
+    <SummaryInformation Description="Kustodian: a desktop KQL workbench for Microsoft Graph, Defender advanced hunting and Azure Resource Graph"
+                        Manufacturer="Reothor" />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Kustodian is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="KustodianIcon" SourceFile="..\..\..\assets\icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="KustodianIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/FrodeHus/kustodian" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/FrodeHus/kustodian/issues" />
+
+    <!-- %LOCALAPPDATA%\Programs\Kustodian per user, %ProgramFiles%\Kustodian per machine. -->
+    <StandardDirectory Id="ProgramFiles6432Folder">
+      <Directory Id="INSTALLFOLDER" Name="Kustodian" />
+    </StandardDirectory>
+
+    <!-- A per-user install is refused on a PC that has the per-machine Kustodian. It would not replace it: a per-user install
+         skips per-machine products when it looks for the version to upgrade, and the PC would end up with two copies. The
+         per-machine install leaves PerMachine under HKLM (its HKMU root, the PerMachineMarker component); that is what the
+         search finds. Switching the install to per-machine here instead (setting ALLUSERS) does not work: Windows Installer
+         has settled the scope, and whether to elevate, before any action runs, and a switched install removes the old
+         version and then fails with error 1925. -->
+    <Property Id="PERMACHINEINSTALL">
+      <RegistrySearch Id="PerMachineInstall" Root="HKLM" Key="Software\Reothor\Kustodian" Name="PerMachine" Type="raw" />
+    </Property>
+    <Launch Condition="Installed OR ALLUSERS OR NOT PERMACHINEINSTALL"
+            Message="Kustodian is installed for all users of this PC. To upgrade it, an administrator runs this installer with ALLUSERS=1 (msiexec /i &lt;file&gt; ALLUSERS=1)." />
+
+    <Feature Id="Main" Title="Kustodian" Level="1">
+      <ComponentRef Id="KustodianExe" />
+      <ComponentRef Id="PerMachineMarker" />
+      <ComponentRef Id="StartMenuShortcut" />
+      <ComponentRef Id="StartMenuShortcutAllUsers" />
+    </Feature>
+
+    <!-- The single-file publish: Kustodian.exe is the whole app (the .NET runtime, the web UI and Photino's native library
+         are inside it). -->
+    <Component Id="KustodianExe" Directory="INSTALLFOLDER" Guid="A32E33BF-55D8-46E0-8793-F856F47B3E27">
+      <File Id="KustodianExe" Source="$(var.PublishDir)\Kustodian.exe" KeyPath="yes" />
+    </Component>
+
+    <!-- The marker the per-machine guard searches for: written under HKLM (HKMU in a per-machine install) only. -->
+    <Component Id="PerMachineMarker" Directory="INSTALLFOLDER" Guid="9785FEAC-1274-40CC-A213-6EBD53277E81" Condition="ALLUSERS">
+      <RegistryValue Root="HKMU" Key="Software\Reothor\Kustodian" Name="PerMachine" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
+    <!-- The Start Menu shortcut, in the user's Start Menu or in the all-users one. Two components conditioned on the context
+         Windows Installer settled on (it resets ALLUSERS to 1 or to nothing): a single component would be shared by a
+         per-user and a per-machine install on the same PC, and removing one of them would then leave its shortcut behind.
+         A shortcut is per-user data to the validator even in the all-users Start Menu, so ICE57 wants an HKCU key path for
+         both. -->
+    <Component Id="StartMenuShortcut" Directory="ProgramMenuFolder" Guid="636D93EB-0F62-4BF8-8B29-74465E213A5D" Condition="NOT ALLUSERS">
+      <Shortcut Id="KustodianShortcut" Name="Kustodian" Description="A desktop KQL workbench for your Microsoft tenant"
+                Target="[INSTALLFOLDER]Kustodian.exe" WorkingDirectory="INSTALLFOLDER" Icon="KustodianIcon" />
+      <RegistryValue Root="HKCU" Key="Software\Reothor\Kustodian" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+    <Component Id="StartMenuShortcutAllUsers" Directory="ProgramMenuFolder" Guid="C685A080-1507-4989-8D6A-B296EF73B5F0" Condition="ALLUSERS">
+      <Shortcut Id="KustodianShortcutAllUsers" Name="Kustodian" Description="A desktop KQL workbench for your Microsoft tenant"
+                Target="[INSTALLFOLDER]Kustodian.exe" WorkingDirectory="INSTALLFOLDER" Icon="KustodianIcon" />
+      <RegistryValue Root="HKCU" Key="Software\Reothor\Kustodian" Name="InstalledForAllUsers" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
+    <!-- Launch after install (the checkbox on the exit dialog, on by default). -->
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Kustodian" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <CustomAction Id="LaunchKustodian" Directory="INSTALLFOLDER" ExeCommand="[INSTALLFOLDER]Kustodian.exe"
+                  Execute="immediate" Return="asyncNoWait" Impersonate="yes" />
+
+    <ui:WixUI Id="WixUI_Minimal" />
+    <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
+    <!-- App-branded artwork (tools/release/make-icons.sh): the side panel on the welcome and exit pages, the strip on the
+         others. -->
+    <WixVariable Id="WixUIDialogBmp" Value="Assets\Dialog.bmp" />
+    <WixVariable Id="WixUIBannerBmp" Value="Assets\Banner.bmp" />
+    <UI>
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchKustodian"
+               Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed" />
+    </UI>
+  </Package>
+</Wix>
