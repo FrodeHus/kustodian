@@ -205,6 +205,14 @@ export default function KqlEditor({ schemas, onRun, ref }: KqlEditorProps) {
     });
     editorRef.current = editor;
     const allModels = models.current;
+    // Monaco measures the font's glyph widths once, on create. JetBrains Mono loads lazily, so that first measure is of the
+    // fallback font, and the cursor then drifts off the characters it is on; measure again once the real font is in.
+    let disposed = false;
+    void document.fonts.load("13px 'JetBrains Mono'").then(() => {
+      if (!disposed) {
+        monaco.editor.remeasureFonts();
+      }
+    });
 
     const runKeys = bindRunKeys(editor, { CtrlCmd: monaco.KeyMod.CtrlCmd, Shift: monaco.KeyMod.Shift, Enter: monaco.KeyCode.Enter }, (mode) =>
       latest.current.onRun(mode),
@@ -247,6 +255,7 @@ export default function KqlEditor({ schemas, onRun, ref }: KqlEditorProps) {
     ];
 
     return () => {
+      disposed = true;
       stopBinding();
       stopTheme();
       subscriptions.forEach((s) => s.dispose());
