@@ -244,7 +244,7 @@ jobs:
           $sign = $env:SIGN -eq '1'
           ./tools/release/windows/build.ps1 -Version $env:VERSION -Sign:$sign
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: packages-windows
           path: |
@@ -329,7 +329,7 @@ jobs:
             tools/release/package.sh "$rid"
           done
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: packages-macos
           path: |
@@ -365,7 +365,7 @@ jobs:
       - name: Packages
         run: tools/release/package.sh linux-x64
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: packages-linux
           path: |
@@ -386,7 +386,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: packages-*
           path: artifacts
