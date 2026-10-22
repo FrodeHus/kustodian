@@ -13,10 +13,12 @@ warnings and missing Linux packages.
   self-contained publish properties.
 - **Packaging script.** One packaging script, `kustodian/tools/release/package.sh <rid>`, publishes a runtime identifier
   and packages it:
-  - Windows: a zip.
+  - Windows: an MSI, plus a portable zip.
   - macOS: an `.app` bundle, ad-hoc signed, as a zip and a dmg.
   - Linux: a tarball and an AppImage.
-  It writes to `kustodian/artifacts/` and adds the files to `SHA256SUMS.txt`.
+  It writes to `kustodian/artifacts/` and adds the files to `SHA256SUMS.txt`. On Windows, the MSI comes from
+  `kustodian/tools/release/windows/build.ps1`, modelled on Elevate's `windows/installer/build.ps1` and `Elevate.wxs`
+  (github.com/FrodeHus/elevate): WiX v5, a dual-scope package, `wix msi validate`, and signing only when secrets are present.
 - **Release workflow.** A tag-driven release workflow runs the script on the three GitHub runners. Per spec section 10, it only
   runs once `kustodian/` becomes its own repository. Until then the script runs locally, on the Windows VM, and in a Linux
   container.
@@ -43,16 +45,22 @@ before v1), 14 (risks 3 and 4) and 15 (unsigned v1).
 - **Self-contained.** Builds are self-contained, so no .NET install is needed, and single-file. Native libraries (Photino) are
   bundled and extracted on first run. No trimming, because MSAL, Kusto.Language and the bridge's JSON use reflection.
 - **Packages:**
-  - Windows: `Kustodian-<version>-win-x64.zip` and `Kustodian-<version>-win-arm64.zip`, each holding `Kustodian.exe` plus
-    `LICENSE` and `README.md`.
+  - Windows:
+    - `Kustodian-<version>-x64.msi` and `Kustodian-<version>-arm64.msi`, each with a `.sha256` file beside it.
+    - `Kustodian-<version>-win-x64.zip` and `Kustodian-<version>-win-arm64.zip`, the portable builds, each holding
+      `Kustodian.exe`, `LICENSE` and `README.md`.
   - macOS: `Kustodian.app` inside both `Kustodian-<version>-<rid>.zip` and `Kustodian-<version>-<rid>.dmg`, for `osx-arm64`
     and `osx-x64`.
   - Linux: `Kustodian-<version>-linux-x64.tar.gz` (the executable, `kustodian.desktop`, icon, `LICENSE`, `README.md`) and
     `Kustodian-<version>-x86_64.AppImage`.
 - **Version.** v1 is `1.0.0`. `InformationalVersion` keeps the SDK's `+<commit>` suffix, and `app.info` already strips it.
 - **Bundle identifier.** `io.github.frodehus.kustodian`. Display name `Kustodian`.
-- **Unsigned (spec 15).** No Apple Developer ID and no Authenticode. macOS bundles get an ad-hoc signature
-  (`codesign --force --deep --sign -`), because Apple Silicon refuses to run unsigned arm64 code at all.
+- **Unsigned by default (spec 15).** v1 ships without an Apple Developer ID or Authenticode.
+  - macOS bundles get an ad-hoc signature (`codesign --force --deep --sign -`), because Apple Silicon refuses to run unsigned
+    arm64 code at all.
+  - Windows follows Elevate: `build.ps1 -Sign` signs `Kustodian.exe` and then the MSI with signtool and the Certum
+    SimplySign certificate (thumbprint in `CERTUM_KEY_ID`, timestamp from `http://time.certum.pl`). The release workflow
+    passes `-Sign` only when the Certum secrets exist, so without them the MSI ships unsigned.
 - **Linux dependencies.** WebKitGTK 4.1 and libsecret come from the distribution and are never bundled (spec 10). The AppImage
   bundles only the app itself.
 - **Downloaded tools.** Every tool a script downloads (only `appimagetool`) is pinned to a version and checked against a
@@ -161,7 +169,9 @@ before v1), 14 (risks 3 and 4) and 15 (unsigned v1).
 - Create: `kustodian/tools/release/make-icons.sh`, run on macOS. It renders `icon.svg` to a 1024 px PNG with `sips` (via
   `qlmanage` if `sips` can't read SVG), then builds:
   - `kustodian/assets/icon.icns` with `iconutil`, from an `.iconset` of 16 to 1024 px;
-  - `kustodian/assets/icon-256.png` and `icon-512.png` for Linux.
+  - `kustodian/assets/icon-256.png` and `icon-512.png` for Linux;
+  - the MSI's `kustodian/tools/release/windows/Assets/Dialog.bmp` (493×312, icon at left on white) and `Banner.bmp` (493×58,
+    icon at right), using `sips -s format bmp`.
 - Create: `kustodian/tools/release/make-ico.cs`, a .NET 10 file-based app. It writes `kustodian/assets/icon.ico` with
   PNG-compressed entries at 16, 32, 48 and 256 px from the rendered PNGs.
 - Commit the generated files under `kustodian/assets/`.
@@ -175,9 +185,42 @@ before v1), 14 (risks 3 and 4) and 15 (unsigned v1).
 - [ ] **Step 2:** Run `shellcheck` on the script and `dotnet build kustodian/Kustodian.slnx -warnaserror`. Expected: clean.
 - [ ] **Step 3:** Commit: `feat(kustodian): app icon`.
 
-### Task 4: Windows zip
+### Task 4: Windows MSI and portable zip
 
 **Files:**
+- Create: `kustodian/tools/release/windows/Kustodian.wxs`, a WiX v5 package modelled on Elevate's `Elevate.wxs`:
+  - `Name="Kustodian"`, `Manufacturer="Reothor"`, `Version="$(var.Version)"`;
+  - a new fixed `UpgradeCode` GUID, never changed after release;
+  - `Scope="perUserOrMachine"`, `MajorUpgrade` with "A newer version of Kustodian is already installed.", and
+    `MediaTemplate EmbedCab="yes"`;
+  - `ARPPRODUCTICON` from `kustodian/assets/icon.ico`, plus `ARPURLINFOABOUT` and `ARPHELPLINK` pointing at the
+    repository and its issues;
+  - `INSTALLFOLDER` "Kustodian" under `ProgramFiles6432Folder`. Per user that is `%LOCALAPPDATA%\Programs\Kustodian`;
+    per machine with `ALLUSERS=1`, `%ProgramFiles%\Kustodian`.
+  - The published files: just `Kustodian.exe` from the single-file publish.
+  - Two Start Menu shortcut components, one conditioned on `NOT ALLUSERS` and one on `ALLUSERS`, each with an HKCU key
+    path, as Elevate does to satisfy ICE57.
+  - Elevate's per-machine guard: a `RegistrySearch` under `HKLM\Software\Reothor\Kustodian`, and a `Launch` condition
+    that refuses a per-user install when a per-machine one exists.
+  - A "Launch Kustodian" checkbox on the exit dialog, on by default.
+  - `WixUI_Minimal`, with `License.rtf` and the dialog and banner bitmaps.
+  - No PATH entry: Kustodian has no CLI.
+- Create: `kustodian/tools/release/windows/License.rtf`, the MIT licence text from `kustodian/LICENSE`.
+- Create: `kustodian/tools/release/windows/Assets/Dialog.bmp` (493×312) and `Banner.bmp` (493×58), rendered from
+  `kustodian/assets/icon.svg` by `make-icons.sh` (Task 3).
+- Create: `kustodian/tools/release/windows/build.ps1`, modelled on Elevate's `build.ps1`. Parameters:
+  `-Version` (default 1.0.0), `-Architectures` (x64, arm64, default both) and `-Sign`. For each architecture it:
+  1. publishes with `publish.sh`'s properties: `dotnet publish -c Release -r win-<arch> -p:Version=<v>`;
+  2. runs `--version` on x64, or on an Arm host for both, and checks the output;
+  3. with `-Sign`, signs `Kustodian.exe`;
+  4. runs `wix build Kustodian.wxs -arch <arch> -d Version=… -d PublishDir=… -ext WixToolset.UI.wixext`;
+  5. runs `wix msi validate`;
+  6. with `-Sign`, signs the MSI;
+  7. writes a `.sha256` file, then copies the MSI and its `.sha256` to `kustodian/artifacts/`.
+
+  It needs WiX `5.0.2` exactly: v6 and later require accepting the Open Source Maintenance Fee EULA, as Elevate's comment
+  notes. If `wix` is missing, it stops and prints the install command. `Set-StrictMode -Version Latest` and
+  `$ErrorActionPreference = "Stop"` are set.
 - Create: `kustodian/tools/release/package.sh`, the single entry point: `package.sh <rid>`. It calls `publish.sh`, then
   `smoke.sh` when the runtime identifier matches the build machine, then the platform's packaging function, then
   `checksums.sh`.
@@ -190,13 +233,24 @@ before v1), 14 (risks 3 and 4) and 15 (unsigned v1).
   `dotnet msbuild kustodian/src/Kustodian/Kustodian.csproj -getProperty:Version`. Both Windows runtime identifiers build on
   any OS.
 
-- [ ] **Step 1:** Implement. Run `package.sh win-x64` and `package.sh win-arm64` on macOS. Expected: both zips and
-  `SHA256SUMS.txt`, and `unzip -l` lists exactly the three files.
-- [ ] **Step 2:** Copy `win-arm64` to the Windows 11 ARM VM, using the `windows-vm` skill. Unzip it, run `Kustodian.exe
-  --version`, then open the window and capture it. Expected: version 1.0.0, and the window shows the sign-in screen with the
-  icon in the title bar and taskbar.
-- [ ] **Step 3:** Run `shellcheck`. Expected: clean.
-- [ ] **Step 4:** Commit: `build(kustodian): Windows zip packages`.
+- [ ] **Step 1:** Implement the zip path. Run `package.sh win-x64` and `package.sh win-arm64` on macOS. Expected: both
+  zips and `SHA256SUMS.txt`, and `unzip -l` lists exactly the three files.
+- [ ] **Step 2:** On the Windows 11 ARM VM (the `windows-vm` skill), install WiX 5.0.2 and run
+  `kustodian/tools/release/windows/build.ps1 -Version 1.0.0`. Expected: two MSIs and their `.sha256` files, and
+  `wix msi validate` passes for both.
+- [ ] **Step 3:** On the VM, install `Kustodian-1.0.0-arm64.msi` per user (no UAC prompt). Expected:
+  - Kustodian is under `%LOCALAPPDATA%\Programs\Kustodian`, with a Start Menu entry and an icon in Apps.
+  - The exit dialog's checkbox launches it, and the window shows the sign-in screen with its icon.
+
+  Then check the remaining cases:
+  - **Upgrade:** a rebuild at `1.0.1` installs over it, leaving one entry in Apps.
+  - **Per-machine guard:** uninstall it, then install per machine with `msiexec /i … ALLUSERS=1`. It lands in
+    `%ProgramFiles%\Kustodian`. A per-user install on top is refused with the guard's message.
+  - **Uninstall:** it removes the files and the shortcut, and leaves the user data under `AppPaths`.
+
+  Capture only the installer and Kustodian windows.
+- [ ] **Step 4:** Run `shellcheck`. If `PSScriptAnalyzer` is installed on the VM, run it on `build.ps1`. Expected: clean.
+- [ ] **Step 5:** Commit: `build(kustodian): Windows MSI and portable zip`.
 
 ### Task 5: macOS `.app`, zip and dmg
 
@@ -266,13 +320,21 @@ before v1), 14 (risks 3 and 4) and 15 (unsigned v1).
 
   | Runner | Runtime identifiers |
   | --- | --- |
-  | `windows-latest` (bash) | `win-x64`, `win-arm64` |
+  | `windows-latest` | `win-x64` and `win-arm64`: zips through `package.sh` (bash), MSIs through `windows/build.ps1` (pwsh) |
   | `macos-latest` | `osx-arm64`, `osx-x64` |
   | `ubuntu-latest` | `linux-x64` |
 
   Each job installs the .NET SDK from `global.json`, Node 22 and, on Linux, the WebKitGTK/libsecret dev packages. It runs
   `tools/release/package.sh <rid>` and uploads `artifacts/*`. A final job merges the artifacts, rebuilds `SHA256SUMS.txt`, and
   creates a draft GitHub release with every file. Pin each action to the major version that `ci.yml` uses.
+
+  The Windows job follows Elevate's release workflow:
+  1. Install WiX with `dotnet tool install --global wix --version 5.0.2`.
+  2. A "Detect signing secrets" step sets `SIGN=1` only when the Certum secrets are present (`CERTUM_USERNAME`, the TOTP
+     seed and `CERTUM_KEY_ID`).
+  3. When `SIGN=1`, open the SimplySign session and put signtool on the PATH, as Elevate does. The session script is
+     copied into `kustodian/tools/release/windows/`; nothing outside `kustodian/` is referenced.
+  4. Run `build.ps1` with `-Sign` only when `SIGN=1`. Without the secrets, the release notes say the MSIs are unsigned.
 - Modify: `kustodian/README.md`. Sections, in this order:
   1. **What it is.** One paragraph: Graph, Defender hunting and Resource Graph.
   2. **Download.** Which file for which platform.
@@ -281,9 +343,12 @@ before v1), 14 (risks 3 and 4) and 15 (unsigned v1).
      - The first open is blocked: go to System Settings → Privacy & Security → Open Anyway, or run
        `xattr -dr com.apple.quarantine /Applications/Kustodian.app`.
      - macOS may ask once to allow keychain access after each update.
-  4. **First run on Windows (unsigned).**
-     - Before extracting, right-click the zip → Properties → Unblock.
-     - SmartScreen: More info → Run anyway.
+  4. **Windows.**
+     - **MSI (recommended):** installs per user by default, with no admin rights needed, into
+       `%LOCALAPPDATA%\Programs\Kustodian`. Use `msiexec /i Kustodian-<version>-x64.msi ALLUSERS=1` to install for all users.
+       Upgrades install over the old version. Uninstall from Settings → Apps.
+     - **Portable zip:** before extracting, right-click the zip → Properties → Unblock.
+     - **Unsigned builds:** SmartScreen shows "Windows protected your PC". Choose More info → Run anyway.
      - WebView2 is built into Windows 11. On Windows 10 without it, install the Evergreen WebView2 Runtime (link to
        Microsoft's page).
   5. **Linux.**
@@ -310,6 +375,8 @@ before v1), 14 (risks 3 and 4) and 15 (unsigned v1).
   (macOS arm64, macOS x64 if hardware is available, Windows x64/arm64, Ubuntu, Fedora). Rows:
   - The package downloads and its checksum matches `SHA256SUMS.txt`.
   - The first open follows the README's unsigned-build steps exactly.
+  - Windows MSI: per-user install, per-machine install (`ALLUSERS=1`), the per-user-over-per-machine guard, upgrade and
+    uninstall. Uninstall leaves the user data.
   - The window opens with its icon, and the title shows the version.
   - Sign-in, and the keychain prompt (macOS) or libsecret (Linux).
   - A Graph query runs: the engine worker starts from the single-file build, and no orphan process is left after quitting.
