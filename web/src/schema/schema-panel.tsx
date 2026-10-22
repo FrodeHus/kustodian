@@ -1,6 +1,6 @@
 import { type ReactNode, useMemo, useState } from 'react';
 import { ConsentButton } from '../signin/consent-button';
-import type { SchemaColumn, SchemaFunction, SchemaTable, SchemaView, Source } from '../wire';
+import type { LicenseInfo, SchemaColumn, SchemaFunction, SchemaLicenses, SchemaTable, SchemaView, Source } from '../wire';
 import type { ResourceTypesFix } from './schema-store';
 
 interface Listed {
@@ -8,6 +8,31 @@ interface Listed {
   columns: SchemaColumn[];
   /** Opened because the search matched its columns rather than its name. */
   open: boolean;
+}
+
+const LICENSE_TONE = { available: 'ok', missing: 'bad', unknown: 'plain' } as const;
+
+/** A license as short as a tag can show it: "Microsoft Entra ID P1 or P2" is "Entra ID P1/P2". */
+function shortLicense(license: string): string {
+  return license.replaceAll('Microsoft 365', 'M365').replaceAll('Microsoft ', '').replaceAll(' or ', '/');
+}
+
+/** A table's or column's license tag: green when the tenant has it, red when it doesn't (queries leave it out), neutral when
+ * the tenant's licenses couldn't be checked. The hover text names the license and the Learn page that says it's needed. */
+function LicenseTag({ info, reason, table }: { info: LicenseInfo; reason: string | null; table: boolean }) {
+  const state =
+    info.state === 'available'
+      ? 'The tenant has it.'
+      : info.state === 'missing'
+        ? table
+          ? "The tenant doesn't have it, so a query on this table stops before reading it."
+          : "The tenant doesn't have it, so queries leave this column out."
+        : `The tenant's licenses couldn't be checked${reason ? ` (${reason.replace(/\.$/, '')})` : ''}.`;
+  return (
+    <span className={`tag ${LICENSE_TONE[info.state]} max-w-[50%] truncate`} title={`Needs ${info.license}. ${state}\n${info.source}`}>
+      {shortLicense(info.license)}
+    </span>
+  );
 }
 
 /** Tables whose name or Graph path (`auditLogs/` finds the audit tables) matches the search with all their columns, and tables
@@ -127,6 +152,8 @@ interface SchemaPanelProps {
   onSignIn?: () => void;
   /** For the active account, the columns Graph lists by default for each Graph table read so far: they get a "default" tag. */
   listedByDefault?: Record<string, string[]>;
+  /** The licenses Graph tables and columns need, and whether the active account's tenant has them: each gets a license tag. */
+  licenses?: SchemaLicenses | null;
   /** The active tab's query, for "In this query". */
   text: string;
   onInsert: (name: string) => void;
@@ -135,8 +162,20 @@ interface SchemaPanelProps {
 /** The left panel for the active tab's source (spec 6.1): the schema tree with search; descriptions show on hover. Advanced
  * hunting adds its functions and Resource Graph the account's resource types, which the search finds too. */
 export function SchemaPanel(props: SchemaPanelProps) {
-  const { source = 'graph', schema, error, resourceTypes, resourceTypesError, resourceTypesFix, accountKey, onSignIn, listedByDefault, text, onInsert } =
-    props;
+  const {
+    source = 'graph',
+    schema,
+    error,
+    resourceTypes,
+    resourceTypesError,
+    resourceTypesFix,
+    accountKey,
+    onSignIn,
+    listedByDefault,
+    licenses,
+    text,
+    onInsert,
+  } = props;
   const [query, setQuery] = useState('');
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
   /** A new search opens every matching area again: the areas opened or closed for the last one are forgotten. */
@@ -164,6 +203,9 @@ export function SchemaPanel(props: SchemaPanelProps) {
     // Only once a run has read the table for this account: until then nothing is known, so no column is tagged.
     const listed = source === 'graph' ? listedByDefault?.[table.name] : undefined;
     const byDefault = listed ? new Set(listed) : null;
+    const licensed = source === 'graph' ? licenses : null;
+    const tableLicense = licensed?.tables[table.name];
+    const columnLicenses = licensed?.columns[table.name];
     return (
       <li key={key}>
         <button
@@ -178,6 +220,7 @@ export function SchemaPanel(props: SchemaPanelProps) {
             {table.name}
           </span>
           {path && <span className="faint mono truncate text-[11px] shrink-[100]">{path}</span>}
+          {tableLicense && <LicenseTag info={tableLicense} reason={licensed?.reason ?? null} table />}
           <span className="ty">{table.columns.length} columns</span>
         </button>
         {open && (
@@ -186,6 +229,7 @@ export function SchemaPanel(props: SchemaPanelProps) {
               <li key={c.name}>
                 <button type="button" className="col mono" title={describe(c.name, c.description)} onClick={() => onInsert(c.name)}>
                   <span className="truncate">{c.name}</span>
+                  {columnLicenses?.[c.name] && <LicenseTag info={columnLicenses[c.name]!} reason={licensed?.reason ?? null} table={false} />}
                   {byDefault?.has(c.name) && (
                     <span className="tag" title="Graph returns this in a list without asking: selecting it needs no probing">
                       default

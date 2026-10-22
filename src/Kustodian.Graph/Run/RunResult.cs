@@ -17,8 +17,14 @@ public enum RunOutcome
     EngineMemory,
     SignInNeeded,
     ConsentNeeded,
+    /// <summary>A table the query reads needs a license the tenant doesn't have: nothing was read.</summary>
+    Unlicensed,
     Failed,
 }
+
+/// <summary>A column left out of the read because the tenant lacks <paramref name="License"/>, which the Learn page
+/// <paramref name="Source"/> says it needs.</summary>
+public sealed record LicenseLeftOut(string Column, string License, string Source);
 
 /// <summary>What was fetched for one table, for the result's details: the requests sent (relative URLs), whether the table was
 /// read without its filter after Graph refused it, the columns Graph won't list (<paramref name="Unreadable"/>) or refused for
@@ -32,6 +38,10 @@ public sealed record TableFetch(string Table, IReadOnlyList<string> Requests, bo
     /// empty), and Graph's message.</summary>
     public IReadOnlyList<string> Unlicensed { get; init; } = [];
     public string? UnlicensedReason { get; init; }
+
+    /// <summary>The columns the query touches that weren't read because the tenant is known to lack their license (their values
+    /// are empty).</summary>
+    public IReadOnlyList<LicenseLeftOut> LicenseLeftOut { get; init; } = [];
 }
 
 /// <summary>A run's answer. <see cref="Message"/> is the text to show when the outcome isn't <see cref="RunOutcome.Ok"/>;

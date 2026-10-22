@@ -8,6 +8,7 @@
     <EmbeddedResource Include="Schema/graph-beta.json" LogicalName="graph-beta.json" />
     <EmbeddedResource Include="Schema/graph-areas.json" LogicalName="graph-areas.json" />
     <EmbeddedResource Include="Schema/graph-permissions.json" LogicalName="graph-permissions.json" />
+    <EmbeddedResource Include="Schema/graph-licenses.json" LogicalName="graph-licenses.json" />
   </ItemGroup>
 
   <ItemGroup>

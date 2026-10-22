@@ -54,6 +54,9 @@ public static class PushdownReasons
     /// can't be filtered on at all.</summary>
     public static string Operator(string column) => $"Graph doesn't allow this operator on {column}";
 
+    /// <summary><paramref name="column"/> isn't read: the tenant lacks <paramref name="license"/>, which it needs.</summary>
+    public static string Unlicensed(string column, string license) => $"{column} isn't read: the tenant doesn't have {license}";
+
     /// <summary>Graph filters on <paramref name="column"/> (users' <c>signInActivity</c>) only with no other property in the
     /// same <c>$filter</c>: the conditions on it are sent, the others run locally.</summary>
     public static string Alone(string column) => $"Graph filters on {column} only on its own, so this runs locally";

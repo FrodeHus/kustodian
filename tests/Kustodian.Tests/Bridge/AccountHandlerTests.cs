@@ -122,6 +122,29 @@ public class AccountHandlerTests : IDisposable
         Assert.Equal((3, 2, 2), (http.Schema, http.Subscriptions, http.ResourceGraph));
     }
 
+    [Fact]
+    public async Task Sign_in_and_sign_out_drop_the_accounts_licenses()
+    {
+        var licenses = new RecordingLicenses();
+        var bridge = NewBridge(new MemoryOnly("x"), licenses: licenses);
+
+        var key = Parse(await bridge.HandleAsync("""{"id":"s","method":"account.signIn","params":{"deviceCode":true}}"""))
+            .GetProperty("result").GetProperty("key").GetString()!;
+        await bridge.HandleAsync($$$"""{"id":"o","method":"account.signOut","params":{"key":"{{{key}}}"}}""");
+
+        Assert.Equal([key, key], licenses.Removed);
+    }
+
+    private sealed class RecordingLicenses : ITenantLicenses
+    {
+        public List<string> Removed { get; } = [];
+
+        public ValueTask<TenantLicenses> GetAsync(string accountKey, bool refresh, CancellationToken ct)
+            => ValueTask.FromResult(TenantLicenses.Unknown("test"));
+
+        public void RemoveAccount(string accountKey) => Removed.Add(accountKey);
+    }
+
     /// <summary>Answers the hunting schema, the subscription list and Resource Graph, counting each.</summary>
     private sealed class CountingHandler : HttpMessageHandler
     {
@@ -159,7 +182,7 @@ public class AccountHandlerTests : IDisposable
     }
 
     private Messaging.Bridge NewBridge(TokenCacheStatus cache, IGraphProbeCache? probes = null, HuntingSchemaSource? hunting = null,
-        ArmDirectory? directory = null)
+        ArmDirectory? directory = null, ITenantLicenses? licenses = null)
     {
         var bridge = new Messaging.Bridge(message =>
         {
@@ -170,8 +193,8 @@ public class AccountHandlerTests : IDisposable
         });
         var msal = new FakeMsal();
         var accounts = new AccountService(_ => msal, new JsonFileStore(_dir));
-        new AccountHandler(accounts, cache, new MemoryGraphObjectCache(TimeProvider.System), probes ?? NoGraphProbeCache.Instance, hunting, directory)
-            .Register(bridge);
+        new AccountHandler(accounts, cache, new MemoryGraphObjectCache(TimeProvider.System), probes ?? NoGraphProbeCache.Instance, hunting, directory,
+            licenses).Register(bridge);
         return bridge;
     }
 

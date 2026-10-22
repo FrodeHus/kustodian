@@ -2,7 +2,7 @@
 
 Date: 2026-10-22. Status: for the owner's review.
 
-Mockups (in `kustodian/docs/mockups/`):
+Mockups (in `kustodian/docs/design/mockups/`):
 
 - `EntraApp.dc.html`: choose permissions. One permission is shown unticked so the "you lose" line appears.
 - `EntraAppCreated.dc.html`: created, with the next steps.

@@ -44,6 +44,7 @@ public sealed class AppServices : IAsyncDisposable
     private readonly SnippetService _snippets;
     private readonly AllowedFilePaths _allowedFiles;
     private readonly GraphSchema _schema = GraphSchemaCatalog.Beta;
+    private readonly GraphTenantLicenses _licenses;
 
     private AppServices(AppSettings startup, SettingsService settings, AccountService accounts, TokenCacheStatus tokenCache,
         EngineCommand engine, JsonFileStore store, TimeProvider time)
@@ -73,8 +74,9 @@ public sealed class AppServices : IAsyncDisposable
         Budget = new GraphFetchBudget(Limits.FetchBudgetBytes);
         Objects = new MemoryGraphObjectCache(time, Limits);
         Probes = new FileGraphProbeCache(store, time, Limits);
+        _licenses = new GraphTenantLicenses(_http, time);
         Runner = new GraphRunner(_schema, new GraphCollectionReader(_http, Budget, Objects, Limits, Probes, time), Budget, Pool, Limits, time,
-            new StderrLogger<GraphRunner>());
+            new StderrLogger<GraphRunner>(), _licenses);
     }
 
     /// <summary>The window, set by <see cref="AppWindow"/> once it exists; the file dialogs read it from here.</summary>
@@ -104,14 +106,14 @@ public sealed class AppServices : IAsyncDisposable
     {
         new AppHandler(Objects, Probes).Register(bridge);
         new SettingsHandler(_settings, _startup.Limits).Register(bridge);
-        new SchemaHandler(_schema, _huntingSchema, ActiveAccountAsync, Probes).Register(bridge);
-        new QueryHandler(_schema, ActiveAccountAsync, Sources(), _recent, _time, new StderrLogger<QueryHandler>(), Limits)
+        new SchemaHandler(_schema, _huntingSchema, ActiveAccountAsync, Probes, _licenses).Register(bridge);
+        new QueryHandler(_schema, ActiveAccountAsync, Sources(), _recent, _time, new StderrLogger<QueryHandler>(), Limits, _licenses)
             .Register(bridge);
         new LibraryHandler(_library, _recent).Register(bridge);
         new SessionHandler(_session, _allowedFiles).Register(bridge);
         new SnippetHandler(_snippets).Register(bridge);
         new FileHandler(new PhotinoFileDialogs(Window), _allowedFiles).Register(bridge);
-        new AccountHandler(_accounts, _tokenCache, Objects, Probes, _huntingSchema, _armDirectory).Register(bridge);
+        new AccountHandler(_accounts, _tokenCache, Objects, Probes, _huntingSchema, _armDirectory, _licenses).Register(bridge);
         new RawHandler(new RawRequestService(_http, _time), ActiveAccountAsync).Register(bridge);
         new ArmHandler(_armDirectory, ActiveAccountAsync).Register(bridge);
         new EntraAppHandler(new EntraAppClient(_http, _time), ActiveAccountInfoAsync, new SystemBrowser()).Register(bridge);

@@ -20,7 +20,7 @@ public sealed class RunDiagnosticsTests
 {
     private const string Account = "account-1";
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
-    private static readonly string WorkerDll = Path.Combine(AppContext.BaseDirectory, "engine-worker", "Kustodian.EngineWorker.dll");
+    private static readonly string WorkerDll = Path.Combine(AppContext.BaseDirectory, "engine-worker", "Kustodian.TestEngineWorker.dll");
 
     /// <summary>Applications 0..count-1. A list or probe that selects <c>onPremisesPublishing</c> is refused for permission and
     /// one that selects <c>passwordCredentials</c> answers a 404 web page; <c>$batch</c> answers each item with
@@ -275,7 +275,8 @@ public sealed class RunDiagnosticsTests
     [Fact]
     public async Task Pool_reports_start_done_and_killed_with_the_reason()
     {
-        await using var engine = Pool(o => o.Timeout = TimeSpan.FromSeconds(1));
+        // Room for a fresh worker's start on a cold CI runner, which the time limit also covers.
+        await using var engine = Pool(o => o.Timeout = TimeSpan.FromSeconds(5));
         var infos = new Infos();
         var now = DateTimeOffset.UnixEpoch;
 

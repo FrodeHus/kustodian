@@ -12,11 +12,18 @@ namespace Kustodian.Messaging.Handlers;
 /// can't be read or nobody is signed in. <c>arg</c> is the bundled list of Resource Graph tables (<see cref="BuiltInArgSchema"/>);
 /// the account's resource types come from <c>arm.resourceTypes</c>.
 /// <c>schema.listedByDefault {source: "graph"}</c>: for the active account, the columns Graph lists by default for each table read
-/// so far (<see cref="IGraphProbeCache"/>), by table name; a table not read yet isn't in it.</summary>
+/// so far (<see cref="IGraphProbeCache"/>), by table name; a table not read yet isn't in it.
+/// <c>schema.licenses {source: "graph", refresh?}</c>: each Graph table and column that needs a license
+/// (<see cref="GraphLicenses"/>), with whether the active account's tenant has it (<see cref="ITenantLicenses"/>, read again when
+/// <c>refresh</c>): <c>available</c>, <c>missing</c>, or <c>unknown</c> when the licenses couldn't be read or nobody is signed
+/// in.</summary>
 public sealed class SchemaHandler(GraphSchema schema, HuntingSchemaSource hunting, Func<Task<string?>> activeAccount,
-    IGraphProbeCache? probes = null)
+    IGraphProbeCache? probes = null, ITenantLicenses? licenses = null, GraphLicenses? licenseMap = null)
 {
     public const string SignInForTenantSchema = "Sign in to see your tenant's schema. The built-in schema is shown.";
+    public const string SignInForLicenses = "Sign in to check the tenant's licenses.";
+
+    private readonly GraphLicenses _licenseMap = licenseMap ?? GraphLicenses.Bundled;
 
     private readonly Lazy<SchemaView> _graph = new(() => SchemaView.From(schema));
     private readonly Lazy<SchemaView> _arg = new(SchemaView.FromArg);
@@ -41,6 +48,36 @@ public sealed class SchemaHandler(GraphSchema schema, HuntingSchemaSource huntin
             RequireGraph(p);
             return await ListedByDefaultAsync(ct);
         });
+        bridge.Register("schema.licenses", async (p, ct) =>
+        {
+            RequireGraph(p);
+            return await LicensesAsync(BridgeJson.Params<SchemaParams>(p).Refresh, ct);
+        });
+    }
+
+    private async Task<SchemaLicenses> LicensesAsync(bool refresh, CancellationToken ct)
+    {
+        var tenant = await activeAccount() is not { } account
+            ? TenantLicenses.Unknown(SignInForLicenses)
+            : licenses is null
+                ? TenantLicenses.Unknown("The tenant's licenses aren't read.")
+                : await licenses.GetAsync(account, refresh, ct);
+        LicenseView View(GraphLicenseRequirement r) => new(r.License, r.Plans, r.Source, tenant.StateOf(r));
+        var tables = new Dictionary<string, LicenseView>(StringComparer.Ordinal);
+        var columns = new Dictionary<string, IReadOnlyDictionary<string, LicenseView>>(StringComparer.Ordinal);
+        foreach (var table in schema.Tables)
+        {
+            if (_licenseMap.ForTable(table.Path) is { } requirement)
+                tables[table.Name] = View(requirement);
+            var needed = table.Columns
+                .Select(c => (c.Name, Requirement: _licenseMap.ForColumn(table.Path, c.Name)))
+                .Where(c => c.Requirement is not null)
+                .ToDictionary(c => c.Name, c => View(c.Requirement!), StringComparer.Ordinal);
+            if (needed.Count > 0)
+                columns[table.Name] = needed;
+        }
+
+        return new SchemaLicenses(tenant.Known, tenant.Reason, tables, columns);
     }
 
     private async Task<ListedByDefault> ListedByDefaultAsync(CancellationToken ct)
@@ -65,6 +102,15 @@ public sealed class SchemaHandler(GraphSchema schema, HuntingSchemaSource huntin
     }
 
     private sealed record SchemaParams(string? Source, bool Refresh);
+
+    /// <summary><c>schema.licenses</c>' answer: whether the tenant's licenses are known (else why not), and the licenses tables
+    /// (by name) and columns (by table, then column) need.</summary>
+    private sealed record SchemaLicenses(bool Known, string? Reason, IReadOnlyDictionary<string, LicenseView> Tables,
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, LicenseView>> Columns);
+
+    /// <summary>A license a table or column needs, the plans that provide it, the Learn page that says so, and whether the tenant
+    /// has it.</summary>
+    private sealed record LicenseView(string License, IReadOnlyList<string> Plans, string Source, GraphLicenseState State);
 
     /// <summary><c>schema.listedByDefault</c>'s answer: the default columns by table name.</summary>
     private sealed record ListedByDefault(IReadOnlyDictionary<string, IReadOnlyList<string>> Tables);

@@ -18,6 +18,7 @@ const OUTCOMES: Record<string, string> = {
   engineMemory: 'Out of memory',
   signInNeeded: 'Sign-in needed',
   consentNeeded: 'Azure access needed',
+  unlicensed: 'License missing',
   failed: 'Failed',
 };
 

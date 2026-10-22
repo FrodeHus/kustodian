@@ -10,12 +10,12 @@ namespace Kustodian.Messaging.Handlers;
 
 /// <summary><c>account.list</c>, <c>account.signIn</c>, <c>account.use</c>, <c>account.signOut</c> and <c>account.consent</c>.
 /// A device-code sign-in sends the code to the UI as an <c>account.deviceCode</c> event. Signing out also drops the account's
-/// cached Graph objects, what probing found for it, its advanced hunting schema and its Azure lists (subscriptions, resource
-/// types). <c>account.consent {key, audience: "arm"}</c> asks the user to grant
+/// cached Graph objects, what probing found for it, its advanced hunting schema, its Azure lists (subscriptions, resource
+/// types) and its tenant's licenses; signing in drops the licenses too, so they are read again. <c>account.consent {key, audience: "arm"}</c> asks the user to grant
 /// Azure access to that account (<see cref="AccountService.ConsentAsync"/>; a device code, when no browser opens, goes out as the
 /// same event) and answers <c>{}</c>; the user cancelling answers <c>cancelled</c>.</summary>
 public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cache, IGraphObjectCache objects, IGraphProbeCache probes,
-    HuntingSchemaSource? huntingSchema = null, ArmDirectory? armDirectory = null)
+    HuntingSchemaSource? huntingSchema = null, ArmDirectory? armDirectory = null, ITenantLicenses? licenses = null)
 {
     public void Register(Bridge bridge)
     {
@@ -69,6 +69,7 @@ public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cac
             await probes.RemoveAccountAsync(key, ct);
             huntingSchema?.RemoveAccount(key);
             armDirectory?.RemoveAccount(key);
+            licenses?.RemoveAccount(key);
             return null;
         });
     }
@@ -81,14 +82,17 @@ public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cac
             : new AccountList(list, "persistent", null);
     }
 
-    private Task<AccountInfo> SignInAsync(Bridge bridge, SignInParams p, CancellationToken ct)
+    private async Task<AccountInfo> SignInAsync(Bridge bridge, SignInParams p, CancellationToken ct)
     {
         var config = new ClientConfig(
             string.IsNullOrWhiteSpace(p.ClientId) ? ClientConfig.AzureCliClientId : p.ClientId.Trim(),
             string.IsNullOrWhiteSpace(p.Tenant) ? ClientConfig.AzureCli.Tenant : p.Tenant.Trim());
-        return p.DeviceCode
-            ? accounts.SignInDeviceCodeAsync(config, message => bridge.Emit("account.deviceCode", new DeviceCodeData(message)), ct)
-            : accounts.SignInInteractiveAsync(config, ct);
+        var account = p.DeviceCode
+            ? await accounts.SignInDeviceCodeAsync(config, message => bridge.Emit("account.deviceCode", new DeviceCodeData(message)), ct)
+            : await accounts.SignInInteractiveAsync(config, ct);
+        // A new sign-in may carry new permissions, and the tenant new licenses.
+        licenses?.RemoveAccount(account.Key);
+        return account;
     }
 
     private static string RequireKey(KeyParams p) =>

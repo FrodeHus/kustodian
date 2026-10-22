@@ -32,6 +32,14 @@ public sealed record GraphFetch(GraphTable Table, IReadOnlyList<string> Select, 
     public GraphOrderBy? OrderBy { get; init; }
     public string? Count { get; init; }
 
+    /// <summary>The columns the query touches that are left out because the tenant lacks their license
+    /// (<see cref="GraphLicenseGate"/>): not selected, not read one object at a time, and no condition or sort on them is sent.
+    /// Their values are empty.</summary>
+    public IReadOnlyList<GraphLicenseGap> LicenseLeftOut { get; init; } = [];
+
+    /// <summary>The license the table needs and the tenant lacks: a run stops before reading anything.</summary>
+    public GraphLicenseRequirement? MissingLicense { get; init; }
+
     /// <summary>The <c>$filter</c>'s conjuncts: <see cref="Clauses"/>, or <see cref="Filter"/> as one.</summary>
     public IReadOnlyList<FilterClause> FilterClauses => Clauses.Count > 0 ? Clauses : Filter is { } filter ? [new FilterClause(filter)] : [];
 }
@@ -61,12 +69,14 @@ public static class GraphQueryPlanner
     private static readonly HashSet<string> AllowedPlugins = new(StringComparer.Ordinal) { "bag_unpack", "narrow", "pivot" };
 
     /// <param name="now">The run's time, for <c>now()</c> and <c>ago()</c> in a pushed-down filter.</param>
-    public static GraphQueryPlan Plan(GraphSchema schema, string kql, DateTimeOffset now) => PlanExplained(schema, kql, now).Plan;
+    /// <param name="licenses">What the tenant's licenses leave out (<see cref="GraphLicenseGate"/>); without it, nothing.</param>
+    public static GraphQueryPlan Plan(GraphSchema schema, string kql, DateTimeOffset now, GraphLicenseGate? licenses = null)
+        => PlanExplained(schema, kql, now, licenses).Plan;
 
     /// <summary>The plan with, for each of its fetches (in the same order), how its <c>$filter</c> came about: the leading
     /// <c>where</c> conditions pushed and kept local (<see cref="GraphFilterTranslator.Explain"/>), then every later
     /// <c>where</c> on the table's pipe as local (<see cref="PushdownReasons.NotLeading"/>).</summary>
-    internal static ExplainedPlan PlanExplained(GraphSchema schema, string kql, DateTimeOffset now)
+    internal static ExplainedPlan PlanExplained(GraphSchema schema, string kql, DateTimeOffset now, GraphLicenseGate? licenses = null)
     {
         var globals = GraphGlobals.Plain(schema);
         var code = KustoCode.ParseAndAnalyze(kql, globals);
@@ -123,32 +133,45 @@ public static class GraphQueryPlanner
             // cheap; missing one silently empties it. A column a list never returns is never selected (Graph would refuse
             // the request); when the query names it, the reader reads it one object at a time instead.
             var getOnly = table.Columns.Where(c => !c.Listable).Select(c => c.Name).ToHashSet(StringComparer.Ordinal);
+            // A column whose license the tenant lacks is never read: Graph would refuse the list, or send it empty.
+            var unlicensed = licenses?.MissingColumns(table) ?? new Dictionary<string, GraphLicenseRequirement>();
+            var leftOut = symbol.Columns
+                .Where(c => unlicensed.ContainsKey(c.Name))
+                .Where(c => everyColumn || columnRefs.Contains(c) || names.Contains(c.Name))
+                .Select(c => new GraphLicenseGap(c.Name, unlicensed[c.Name]))
+                .ToList();
             var select = symbol.Columns
-                .Where(c => !getOnly.Contains(c.Name))
+                .Where(c => !getOnly.Contains(c.Name) && !unlicensed.ContainsKey(c.Name))
                 .Where(c => everyColumn || columnRefs.Contains(c) || names.Contains(c.Name))
                 .Select(c => c.Name)
                 .Append("id")
                 .Distinct(StringComparer.Ordinal)
                 .ToList();
             var named = symbol.Columns
+                .Where(c => !unlicensed.ContainsKey(c.Name))
                 .Where(c => namedRefs.Contains(c) || namedNames.Contains(c.Name))
                 .Select(c => c.Name)
                 .ToList();
             var unreadable = named.Where(getOnly.Contains).ToList();
+            var licenseNames = unlicensed.ToDictionary(p => p.Key, p => p.Value.License, StringComparer.Ordinal);
             // A table read more than once (a self-join) is never filtered: one fetch has to serve every use.
             var explanation = LeadingPredicates(code, symbol) is { } predicates
-                ? GraphFilterTranslator.Explain(table, predicates, now, schema.ComplexTypes)
+                ? GraphFilterTranslator.Explain(table, predicates, now, schema.ComplexTypes, licenseNames)
                 : new FilterExplanation(null, [], []);
             var later = LaterPredicates(code, symbol)
                 .Select(p => new LocalCondition(GraphFilterTranslator.Text(p), PushdownReasons.NotLeading));
             filters.Add(explanation with { Local = [.. explanation.Local, .. later] });
             // Only when every leading where went to Graph whole: a condition kept local would have to see rows past the limit.
             var (top, orderBy) = explanation.Local.Count == 0 ? RowLimit(code, symbol, table) : (null, null);
+            // A sort on a column that isn't read can't pick Graph's first rows.
+            if (orderBy is not null && unlicensed.ContainsKey(orderBy.Column))
+                (top, orderBy) = (null, null);
             // Only when Graph keeps exactly the query's rows, and the count is the query's whole answer.
             var count = explanation.Exact && tableSymbols.Count == 1 ? CountColumn(code, symbol) : null;
             fetches.Add(new GraphFetch(table, select, explanation.Filter)
             {
                 Unreadable = unreadable, Named = named, Top = top, OrderBy = orderBy, Clauses = explanation.Clauses, Count = count,
+                LicenseLeftOut = leftOut, MissingLicense = licenses?.MissingFor(table),
             });
         }
         return new ExplainedPlan(new GraphQueryPlan(fetches, null, null), filters);

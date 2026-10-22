@@ -31,6 +31,9 @@ const plan: ExplainResult = {
       orderBy: null,
       count: false,
       headers: [],
+      licenseLeftOut: [],
+      missingLicense: null,
+      missingLicenseSource: null,
     },
   ],
   limits,
@@ -70,6 +73,29 @@ describe('ExplainView', () => {
 
     fireEvent.click(within(table).getByRole('button', { name: 'Open in a raw request tab' }));
     expect(onOpenRaw).toHaveBeenCalledWith(plan.tables[0]!.url);
+  });
+
+  it('explain_shows_the_columns_left_out_for_a_license_and_why', async () => {
+    const left = [{ column: 'signInActivity', license: 'Microsoft Entra ID P1 or P2', source: 'https://learn.microsoft.com/a' }];
+    bridge.call.mockResolvedValue({ ...plan, tables: [{ ...plan.tables[0]!, licenseLeftOut: left }] });
+    render(<ExplainView request={request} />);
+
+    const table = await screen.findByRole('region', { name: 'users' });
+    const list = within(table).getByRole('list', { name: 'Left out for a license' });
+    expect(within(list).getByText('signInActivity')).toBeTruthy();
+    expect(within(list).getByText(/The tenant doesn't have Microsoft Entra ID P1 or P2, so it isn't selected/)).toBeTruthy();
+    expect(within(table).queryByRole('alert')).toBeNull();
+  });
+
+  it('explain_says_a_table_whose_license_is_missing_is_not_read', async () => {
+    bridge.call.mockResolvedValue({
+      ...plan,
+      tables: [{ ...plan.tables[0]!, missingLicense: 'Microsoft Entra ID P2', missingLicenseSource: 'https://learn.microsoft.com/b' }],
+    });
+    render(<ExplainView request={request} />);
+
+    const table = await screen.findByRole('region', { name: 'users' });
+    expect(within(table).getByRole('alert').textContent).toContain("users needs Microsoft Entra ID P2, which the tenant doesn't have");
   });
 
   it('explain_shows_the_row_limit_sent_to_graph', async () => {

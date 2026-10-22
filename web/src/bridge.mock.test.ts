@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createBridge } from './bridge';
 import { createMockTransport } from './bridge.mock';
 import { BridgeError } from './bridge';
-import type { ArmManagementGroupsAnswer, ArmResourceTypesAnswer, ArmSubscriptionsAnswer, ListedByDefault, RecentRun, RunResult, SchemaView } from './wire';
+import type { ArmManagementGroupsAnswer, ArmResourceTypesAnswer, ArmSubscriptionsAnswer, ListedByDefault, RecentRun, RunResult, SchemaLicenses, SchemaView } from './wire';
 
 describe('bridge mock', () => {
   it('mock_answers_the_arm_methods_in_the_hosts_shapes', async () => {
@@ -19,6 +19,18 @@ describe('bridge mock', () => {
     expect(groups.groups[0]).toEqual({ name: 'contoso-platform', displayName: 'Platform' });
     expect(groups.note).toBeUndefined();
     expect(types.types).toContain('microsoft.keyvault/vaults');
+  });
+
+  it('mock_answers_schema_licenses_for_graph_only_in_the_hosts_shape', async () => {
+    const bridge = createBridge(createMockTransport());
+
+    const licenses = await bridge.call<SchemaLicenses>('schema.licenses', { source: 'graph' });
+
+    expect(Object.keys(licenses)).toEqual(['known', 'reason', 'tables', 'columns']);
+    expect(licenses.tables.auditLogs_signIns?.state).toBe('available');
+    expect(licenses.tables.deviceManagement_managedDevices?.state).toBe('missing');
+    expect(Object.keys(licenses.columns.users?.signInActivity ?? {})).toEqual(['license', 'plans', 'source', 'state']);
+    await expect(bridge.call('schema.licenses', { source: 'hunting' })).rejects.toBeInstanceOf(BridgeError);
   });
 
   it('mock_schema_follows_the_source', async () => {

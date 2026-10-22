@@ -19,7 +19,7 @@
 
 **Tech Stack:** the Plan 1 stack (.NET 10, Photino.NET 4.0.16, MSAL, Kusto.Language, KustoLoco, React 19, zustand 5, Monaco + monaco-kusto, TanStack Table and Virtual, Tailwind 4, Vitest, xUnit v3), plus **Recharts** for charts (spec 5).
 
-**Spec:** `kustodian/docs/superpowers/specs/2026-10-21-kustodian-design.md`. This plan covers sections 6.2–6.6 and 6.8–6.11, plus section 9's settings. Mockups are in `kustodian/docs/mockups/`. This plan uses the Parameters, Explain, RawRequest, Diagnostics, Palette, Light and Main boards.
+**Spec:** `kustodian/docs/design/specs/2026-10-21-kustodian-design.md`. This plan covers sections 6.2–6.6 and 6.8–6.11, plus section 9's settings. Mockups are in `kustodian/docs/design/mockups/`. This plan uses the Parameters, Explain, RawRequest, Diagnostics, Palette, Light and Main boards.
 
 **Builds on Plan 1** (merged in FrodeHus/rightsecurity-insights#193). The existing interfaces are named in each task. Hunting and Azure Resource Graph come in Plan 3. Packaging and release come in Plan 4.
 
@@ -41,7 +41,7 @@
 - Saved queries, recent runs, snippets and the session are global, not per account (**My call**). Signing out removes no user data.
 - Graph KQL tabs always use beta (spec 6.11). The raw tab's version comes from settings.
 - Keyboard: every action is a command in the registry, and every command shows its shortcut in the palette (spec 6.11).
-- UI look: tokens and class roles from `kustodian/docs/mockups/studio.css`, already in `web/src/styles.css`. The light theme uses the existing `.theme-light` class.
+- UI look: tokens and class roles from `kustodian/docs/design/mockups/studio.css`, already in `web/src/styles.css`. The light theme uses the existing `.theme-light` class.
 - Test names use underscore style. .NET tests use xUnit v3. Web tests use Vitest, colocated as `*.test.ts(x)`.
 
 ## Review Focus

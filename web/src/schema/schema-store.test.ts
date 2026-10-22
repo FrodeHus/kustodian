@@ -198,4 +198,29 @@ describe('useSchemas', () => {
     act(() => useSchemas.getState().reset());
     expect(useSchemas.getState().listedByDefault).toEqual({});
   });
+
+  it('licenses_are_read_with_the_graph_schema_refreshed_with_it_and_forgotten_on_reset', async () => {
+    const answer = { known: true, reason: null, tables: {}, columns: {} };
+    const licenses = vi.fn((_params?: { refresh?: boolean }) => Promise.resolve(answer));
+    const fallback = bridge.call.getMockImplementation()!;
+    bridge.call.mockImplementation((method: string, params?: { source?: string; refresh?: boolean }) =>
+      method === 'schema.licenses' ? licenses(params) : fallback(method, params),
+    );
+
+    await useSchemas.getState().load('graph');
+    await settle();
+    expect(licenses).toHaveBeenLastCalledWith({ source: 'graph', refresh: false });
+    expect(useSchemas.getState().licenses).toEqual(answer);
+
+    await useSchemas.getState().load('graph', { refresh: true });
+    await settle();
+    expect(licenses).toHaveBeenLastCalledWith({ source: 'graph', refresh: true });
+
+    await useSchemas.getState().load('hunting');
+    await settle();
+    expect(licenses).toHaveBeenCalledTimes(2);
+
+    act(() => useSchemas.getState().reset());
+    expect(useSchemas.getState().licenses).toBeNull();
+  });
 });

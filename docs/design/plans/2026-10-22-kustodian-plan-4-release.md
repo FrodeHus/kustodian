@@ -33,7 +33,7 @@ warnings and missing Linux packages.
 - `appimagetool`, at a pinned release, verified by SHA-256.
 - A .NET 10 file-based app (`dotnet run file.cs`) for the `.ico`.
 
-**Spec:** `kustodian/docs/superpowers/specs/2026-10-21-kustodian-design.md`, sections 10 (layout and build), 13 (manual checks
+**Spec:** `kustodian/docs/design/specs/2026-10-21-kustodian-design.md`, sections 10 (layout and build), 13 (manual checks
 before v1), 14 (risks 3 and 4) and 15 (unsigned v1).
 
 ## Global Constraints

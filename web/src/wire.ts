@@ -61,6 +61,34 @@ export interface ListedByDefault {
   tables: Record<string, string[]>;
 }
 
+/** Whether the tenant has a license a Graph table or column needs: `unknown` when its licenses couldn't be read. */
+export type LicenseState = 'available' | 'missing' | 'unknown';
+
+/** A license a Graph table or column needs: in Microsoft's words, the service plans any one of which provides it, the Learn
+ * page that says so, and whether the active account's tenant has it. */
+export interface LicenseInfo {
+  license: string;
+  plans: string[];
+  source: string;
+  state: LicenseState;
+}
+
+/** `schema.licenses`' answer: whether the tenant's licenses are known (else `reason` says why), and the licenses Graph tables
+ * need (by table name) and columns need (by table name, then column). A table or column not in it needs none. */
+export interface SchemaLicenses {
+  known: boolean;
+  reason: string | null;
+  tables: Record<string, LicenseInfo>;
+  columns: Record<string, Record<string, LicenseInfo>>;
+}
+
+/** A column a run didn't read because the tenant lacks the license it needs (its values are empty). */
+export interface LicenseLeftOut {
+  column: string;
+  license: string;
+  source: string;
+}
+
 export type RunOutcome =
   | 'ok'
   | 'queryError'
@@ -73,6 +101,8 @@ export type RunOutcome =
   | 'signInNeeded'
   /** An ARM token needs the user: `account.consent {key, audience: "arm"}` grants it; the account stays signed in. */
   | 'consentNeeded'
+  /** A table the query reads needs a license the tenant doesn't have: nothing was read. */
+  | 'unlicensed'
   | 'failed';
 
 export interface TableFetch {
@@ -88,6 +118,8 @@ export interface TableFetch {
   /** Columns left out after Graph refused the list for a license or feature the tenant lacks; `unlicensedReason` is Graph's message. */
   unlicensed: string[];
   unlicensedReason: string | null;
+  /** Columns the query touches that weren't read, as the tenant is known to lack their license. */
+  licenseLeftOut: LicenseLeftOut[];
 }
 
 export interface ResultColumn {
@@ -383,6 +415,11 @@ export interface ExplainTable {
   orderBy: string | null;
   count: boolean;
   headers: string[];
+  /** Columns a run would leave out, as the tenant is known to lack their license. */
+  licenseLeftOut: LicenseLeftOut[];
+  /** The license the table needs and the tenant lacks: a run stops before reading it. */
+  missingLicense: string | null;
+  missingLicenseSource: string | null;
 }
 
 export interface ExplainLimits {

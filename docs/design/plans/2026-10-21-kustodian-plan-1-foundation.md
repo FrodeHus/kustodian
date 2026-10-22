@@ -23,7 +23,7 @@ budgets, cancel and engine kills all end on the tab as clear messages.
 - React 19, TypeScript ~6.0, Vite 8, Tailwind 4, Monaco ~0.55.1 and `@kusto/monaco-kusto` 15.0.1.
 - TanStack Table 8 and TanStack Virtual 3, zustand 5 (tab state), Vitest 5, oxlint.
 
-**Spec:** `kustodian/docs/superpowers/specs/2026-10-21-kustodian-design.md`. Mockups:
+**Spec:** `kustodian/docs/design/specs/2026-10-21-kustodian-design.md`. Mockups:
 https://claude.ai/artifact/3fn5aBUiWTu7EMD7BFyYap (boards Main and SignIn for this plan).
 
 **The four plans:** this is Plan 1 of 4. Each ships working software.
