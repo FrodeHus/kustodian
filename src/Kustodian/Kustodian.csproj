@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <ApplicationIcon>..\..\assets\icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,6 +19,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Snippets\builtin-snippets.json" LogicalName="builtin-snippets.json" />
+    <EmbeddedResource Include="..\..\assets\icon-256.png" LogicalName="icon.png" />
   </ItemGroup>
 
   <!-- The web UI is embedded under wwwroot/ and served on app://. With a web project (web/package.json), web/dist is built by

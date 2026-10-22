@@ -1,6 +1,7 @@
 using System.Drawing;
 using Kustodian.Files;
 using Kustodian.Messaging;
+using Kustodian.Storage;
 using Microsoft.Extensions.Logging;
 using Photino.NET;
 
@@ -29,6 +30,12 @@ public static class AppWindow
             .SetMinSize(WindowSizing.Minimum.Width, WindowSizing.Minimum.Height)
             .Center();
         holder.Window = window;
+
+        // Windows and Linux take the window's icon from a file; macOS takes it from the app bundle.
+        if (!OperatingSystem.IsMacOS() && WriteIcon(logger) is { } icon)
+        {
+            window.SetIconFile(icon);
+        }
 
         // On Windows those sizes reach Win32 as physical pixels, so at any scaling above 100 % the page would get only a fraction
         // of them. The monitor's DPI is only known once the native window exists, so it is resized and re-centred then, before
@@ -87,6 +94,32 @@ public static class AppWindow
         Volatile.Write(ref closed, 1);
         bridge.Close();
         pump.CompleteAsync().GetAwaiter().GetResult();
+    }
+
+    /// <summary>Writes the embedded icon to the app's folder, unless it is there already, and returns its path; null when it
+    /// can't be written, and the window keeps the OS default.</summary>
+    private static string? WriteIcon(ILogger logger)
+    {
+        var path = Path.Combine(AppPaths.Root, "icon.png");
+        try
+        {
+            using var stream = typeof(AppWindow).Assembly.GetManifestResourceStream("icon.png")
+                ?? throw new InvalidOperationException("The icon isn't embedded");
+            using var buffer = new MemoryStream();
+            stream.CopyTo(buffer);
+            var bytes = buffer.ToArray();
+            if (!File.Exists(path) || !File.ReadAllBytes(path).AsSpan().SequenceEqual(bytes))
+            {
+                File.WriteAllBytes(path, bytes);
+            }
+
+            return path;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            logger.LogWarning(ex, "Couldn't write the window icon");
+            return null;
+        }
     }
 
     /// <summary>Sizes the window for the monitor it opened on: the one holding its centre, else the first one.</summary>

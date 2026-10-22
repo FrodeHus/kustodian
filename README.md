@@ -45,9 +45,11 @@ There are no prebuilt releases yet; [build from source](#building-from-source) a
 dotnet run --project src/Kustodian
 ```
 
-Sign in with your work account. By default Kustodian uses the Azure CLI's public client ID with delegated permissions. You
-can use your own app registration instead (a public client with `http://localhost` as a mobile/desktop redirect URI), or let
-Kustodian create one with **Create Entra ID application**.
+Sign in with your work account. By default Kustodian uses the Azure CLI's public client ID with delegated permissions, which
+covers common Graph and Azure Resource Graph queries but not everything: security data, audit logs and advanced hunting often
+need permissions it doesn't have. For those, use your own Entra ID app registration with the permissions your queries need,
+or let Kustodian create one with **Create Entra ID application**. [Entra ID permissions](docs/EntraPermissions.md) explains
+both, step by step.
 
 ## Privacy and security
 
