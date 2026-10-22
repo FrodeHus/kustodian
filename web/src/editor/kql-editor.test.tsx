@@ -13,6 +13,7 @@ const fake = vi.hoisted(() => {
   const commands = new Map<number, () => void>();
   const created = { options: null as unknown };
   const themes = { defined: [] as string[], set: [] as string[] };
+  const fonts = { remeasured: 0 };
   let selectionEmpty = true;
   const disposable = { dispose: () => undefined };
   const model = (value: string, uri: { toString: () => string } = { toString: () => 'x' }) => {
@@ -54,6 +55,7 @@ const fake = vi.hoisted(() => {
       createModel: (value: string, _language: string, uri: { toString: () => string }) => model(value, uri),
       defineTheme: (name: string) => themes.defined.push(name),
       setTheme: (name: string) => themes.set.push(name),
+      remeasureFonts: () => fonts.remeasured++,
     },
     languages: {
       registerCompletionItemProvider: (_language: string, provider: (typeof providers)[number]) => {
@@ -67,6 +69,7 @@ const fake = vi.hoisted(() => {
     commands,
     created,
     themes,
+    fonts,
     providers,
     model,
     setSelectionEmpty: (empty: boolean) => (selectionEmpty = empty),
@@ -82,6 +85,13 @@ vi.mock('./kusto.worker?worker', () => ({ default: class {} }));
 vi.mock('@kusto/monaco-kusto/release/esm/monaco.contribution.js', () => ({ getKustoWorker: () => fake.kustoWorker() }));
 const bridge = vi.hoisted(() => ({ call: vi.fn() }));
 vi.mock('../bridge', () => ({ call: bridge.call, on: () => () => undefined }));
+
+// jsdom has no font loading either: a stand-in whose load resolves when the test says the font is in.
+let fontLoaded: () => void = () => undefined;
+Object.defineProperty(document, 'fonts', {
+  configurable: true,
+  value: { load: () => new Promise<void>((resolve) => (fontLoaded = resolve)) },
+});
 
 const { default: KqlEditor } = await import('./kql-editor');
 
@@ -102,6 +112,7 @@ beforeEach(() => {
   fake.setSelectionEmpty(true);
   fake.kustoWorker = () => new Promise(() => undefined);
   fake.providers.length = 0;
+  fake.fonts.remeasured = 0;
   bridge.call.mockReset();
   bridge.call.mockResolvedValue([]);
   useTabs.setState({ tabs: [], activeId: null, cursors: {} });
@@ -109,6 +120,13 @@ beforeEach(() => {
 });
 
 describe('KqlEditor', () => {
+  it('editor_remeasures_the_font_once_it_has_loaded', async () => {
+    render(<KqlEditor schemas={{}} onRun={() => undefined} />);
+    expect(fake.fonts.remeasured).toBe(0);
+    await act(async () => fontLoaded());
+    expect(fake.fonts.remeasured).toBe(1);
+  });
+
   it('ctrl_enter_runs_block_shift_enter_runs_all', () => {
     const onRun = vi.fn();
     render(<KqlEditor schemas={{}} onRun={onRun} />);
