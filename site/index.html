@@ -383,9 +383,7 @@ GitHub
 <div class="k-step">
 <span class="k-step-n">macOS 14+ · Apple silicon &amp; Intel</span>
 <h3 class="k-h3">dmg or zip</h3>
-<p>Open <span class="k-mono">Kustodian-&lt;version&gt;-osx-arm64.dmg</span> (or <span class="k-mono">-osx-x64.dmg</span>; the same app is in the <span class="k-mono">.zip</span>) and drag Kustodian to Applications. The app isn’t notarized: allow the first open in System Settings → Privacy &amp; Security → Open Anyway, or run:</p>
-<pre class="k-term"><span class="p">$ </span>xattr -dr com.apple.quarantine \
-  /Applications/Kustodian.app</pre>
+<p>Open <span class="k-mono">Kustodian-&lt;version&gt;-osx-arm64.dmg</span> (or <span class="k-mono">-osx-x64.dmg</span>; the same app is in the <span class="k-mono">.zip</span>) and drag Kustodian to Applications. The app is signed with a Developer ID and notarized by Apple, so it opens without a prompt. If a release’s notes say it’s ad-hoc signed, allow the first open in System Settings → Privacy &amp; Security → Open Anyway.</p>
 </div>
 <div class="k-step">
 <span class="k-step-n">Linux · x64</span>

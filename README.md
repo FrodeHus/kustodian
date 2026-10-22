@@ -48,8 +48,8 @@ The builds are self-contained, so there is no .NET to install.
 | macOS 14 or later | `Kustodian-<version>-osx-arm64.dmg` (Apple silicon) or `-osx-x64.dmg` (Intel); the same app is in the `.zip` |
 | Linux x64 | `Kustodian-<version>-x86_64.AppImage` or `-linux-x64.tar.gz`, with WebKitGTK 4.1, libsecret and libnotify |
 
-The macOS app isn't notarized, so its first open needs one extra step, and so does an unsigned Windows build. The
-[install guide](docs/install.md) covers each platform, where your data lives and how to verify a download.
+The macOS app is notarized. An ad-hoc signed macOS build or an unsigned Windows build needs one extra step on first
+open. The [install guide](docs/install.md) covers each platform, where your data lives and how to verify a download.
 
 ## Getting started
 

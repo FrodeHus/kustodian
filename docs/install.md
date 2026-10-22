@@ -19,21 +19,24 @@ self-contained, so you don't need to install .NET.
 
 `SHA256SUMS.txt` lists the checksum of every package; see [Verifying downloads](#verifying-downloads).
 
-## First run on macOS (unsigned)
+## macOS
 
-Kustodian isn't signed with an Apple Developer ID or notarized; the app carries an ad-hoc signature only.
+Open the dmg and drag **Kustodian** to **Applications**. (From the zip: unzip it and move `Kustodian.app` to
+Applications.) The app is signed with an Apple Developer ID and notarized, so it opens without a prompt. Kustodian keeps
+your sign-in in the macOS keychain.
 
-1. Open the dmg and drag **Kustodian** to **Applications**. (From the zip: unzip it and move `Kustodian.app` to
-   Applications.)
-2. The first open is blocked. Go to **System Settings → Privacy & Security**, find the message about Kustodian and choose
+### An ad-hoc signed build
+
+The release notes say when a release's macOS app isn't notarized and carries an ad-hoc signature only. Then:
+
+1. The first open is blocked. Go to **System Settings → Privacy & Security**, find the message about Kustodian and choose
    **Open Anyway**, then confirm. Or remove the quarantine flag in Terminal:
 
    ```sh
    xattr -dr com.apple.quarantine /Applications/Kustodian.app
    ```
 
-3. Kustodian keeps your sign-in in the macOS keychain. After each update, macOS may ask once whether Kustodian can use its
-   keychain item; choose **Always Allow**.
+2. After each update, macOS may ask once whether Kustodian can use its keychain item; choose **Always Allow**.
 
 ## Windows
 

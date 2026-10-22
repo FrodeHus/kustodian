@@ -92,7 +92,43 @@ PY
 # The minimum macOS .NET 10 supports (https://learn.microsoft.com/dotnet/core/install/macos: macOS 14 "Sonoma" and later).
 macos_min_version="14.0"
 
-# Kustodian.app (ad-hoc signed) inside Kustodian-<version>-<rid>.zip and Kustodian-<version>-<rid>.dmg.
+# Developer ID signing, when MACOS_SIGN_IDENTITY names a certificate in the keychain (the release workflow sets
+# "Developer ID Application"); notarization as well when APPLE_ID, APPLE_TEAM_ID and APPLE_APP_PASSWORD are all set.
+# Without MACOS_SIGN_IDENTITY the bundle gets an ad-hoc signature.
+macos_sign_identity="${MACOS_SIGN_IDENTITY:-}"
+
+macos_can_notarize() {
+    [[ -n "$macos_sign_identity" && -n "${APPLE_ID:-}" && -n "${APPLE_TEAM_ID:-}" && -n "${APPLE_APP_PASSWORD:-}" ]]
+}
+
+# Submits <file> (a zip, dmg or pkg) to the notary service, waits for the verdict and stops unless it is Accepted. The
+# service's log, which lists every issue it found, is printed either way.
+notarize() {
+    local file="$1" result id status
+    local auth=(--apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD")
+    result="$(xcrun notarytool submit "$file" "${auth[@]}" --wait --output-format json)" || true
+    id="$(plutil -extract id raw - <<<"$result" 2>/dev/null || true)"
+    status="$(plutil -extract status raw - <<<"$result" 2>/dev/null || true)"
+    if [[ -z "$id" ]]; then
+        echo "package.sh: notarytool returned no submission id for $(basename "$file"): $result" >&2
+        exit 1
+    fi
+    echo "package.sh: notarization of $(basename "$file"): $status ($id)" >&2
+    # The log endpoint can lag the --wait result by a few seconds.
+    for _ in 1 2 3 4 5; do
+        if xcrun notarytool log "$id" "${auth[@]}" >&2; then
+            break
+        fi
+        sleep 10
+    done
+    if [[ "$status" != "Accepted" ]]; then
+        echo "package.sh: notarization of $(basename "$file") ended with '$status'" >&2
+        exit 1
+    fi
+}
+
+# Kustodian.app inside Kustodian-<version>-<rid>.zip and Kustodian-<version>-<rid>.dmg; signed with Developer ID and
+# notarized when the variables above are set, ad-hoc signed otherwise.
 package_macos() {
     local rid="$1" publish="$2" version="$3"
     local zip="$artifacts/Kustodian-$version-$rid.zip" dmg="$artifacts/Kustodian-$version-$rid.dmg"
@@ -110,16 +146,47 @@ package_macos() {
         >"$app/Contents/Info.plist"
     plutil -lint "$app/Contents/Info.plist" >&2
 
-    # Apple Silicon refuses to run unsigned arm64 code, so the bundle gets an ad-hoc signature.
-    codesign --force --deep --sign - "$app" >&2
-    codesign --verify --deep --strict "$app" >&2
+    if [[ -n "$macos_sign_identity" ]]; then
+        # The bundle holds one executable, so signing the bundle signs it; the hardened runtime and a secure timestamp
+        # are what notarization requires.
+        codesign --force --options runtime --timestamp --entitlements "$release/macos/Kustodian.entitlements" \
+            --sign "$macos_sign_identity" "$app" >&2
+        codesign --verify --strict --verbose=2 "$app" >&2
+        codesign -dvv "$app" 2>&1 | grep -E "^(Authority=Developer ID Application|TeamIdentifier)" >&2
+        # The hardened runtime is what the entitlements are for: run the signed executable once more under it.
+        if [[ "$rid" == "$(host_rid)" ]]; then
+            "$release/smoke.sh" "$app/Contents/MacOS/Kustodian" "$version"
+        fi
+    else
+        # Apple Silicon refuses to run unsigned arm64 code, so the bundle gets an ad-hoc signature.
+        codesign --force --deep --sign - "$app" >&2
+        codesign --verify --deep --strict "$app" >&2
+    fi
 
     rm -f "$zip" "$dmg"
+    if macos_can_notarize; then
+        # The service takes the app in a zip; the ticket is then stapled to the app itself, so it opens offline too.
+        ditto -c -k --keepParent "$app" "$work/notarize.zip"
+        notarize "$work/notarize.zip"
+        rm -f "$work/notarize.zip"
+        xcrun stapler staple "$app" >&2
+        xcrun stapler validate "$app" >&2
+    elif [[ -n "$macos_sign_identity" ]]; then
+        echo "package.sh: APPLE_ID, APPLE_TEAM_ID or APPLE_APP_PASSWORD is not set; the app is signed but not notarized" >&2
+    fi
+
     ditto -c -k --keepParent "$app" "$zip"
     echo "package.sh: wrote $zip" >&2
 
     ln -s /Applications "$work/stage/Applications"
     hdiutil create -volname Kustodian -srcfolder "$work/stage" -ov -format UDZO "$dmg" >&2
+    if [[ -n "$macos_sign_identity" ]]; then
+        codesign --force --timestamp --sign "$macos_sign_identity" "$dmg" >&2
+    fi
+    if macos_can_notarize; then
+        notarize "$dmg"
+        xcrun stapler staple "$dmg" >&2
+    fi
     echo "package.sh: wrote $dmg" >&2
 }
 
