@@ -199,7 +199,10 @@ public sealed class GraphSchemaBuilderTests
     {
         using var stream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Fixtures", "mini-metadata.xml"));
         using var permissions = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Schema", "permissions-excerpt.json"));
-        return GraphSchemaBuilder.Build(GraphMetadata.Load(stream), GraphPermissions.ReadDelegated(permissions), relationships, "test",
+        var tablePermissions = GraphPermissions.ReadDelegated(permissions);
+        permissions.Position = 0;
+        return GraphSchemaBuilder.Build(GraphMetadata.Load(stream), tablePermissions,
+            GraphPermissions.ReadRelationshipDelegated(permissions), relationships, "test",
             DateTimeOffset.UnixEpoch, warnings);
     }
 
@@ -216,7 +219,9 @@ public sealed class GraphSchemaBuilderTests
         Assert.False(owners.Listable);
         Assert.True(owners.Relationship);
         Assert.Equal(GraphSchemaJson.DirectoryObjectRef, owners.ComplexType);
-        Assert.Equal(["GroupMember.Read.All"], owners.Permissions);
+        // Every read-only delegated permission Microsoft lists for GET /applications/{id}/owners, least-privileged first; not
+        // User.Read (the /me case), not Directory.ReadWrite.All.
+        Assert.Equal(["GroupMember.Read.All", "Directory.Read.All"], owners.Permissions);
 
         var primaryOwner = columns.Single(c => c.Name == "primaryOwner");
         Assert.False(primaryOwner.Collection);

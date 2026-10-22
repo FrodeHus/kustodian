@@ -17,7 +17,10 @@ internal static class TestSchemas
     {
         using var stream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Fixtures", "mini-metadata.xml"));
         using var permissions = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Schema", "permissions-excerpt.json"));
-        return GraphSchemaBuilder.Build(GraphMetadata.Load(stream), GraphPermissions.ReadDelegated(permissions), relationships, "test",
+        var tablePermissions = GraphPermissions.ReadDelegated(permissions);
+        permissions.Position = 0;
+        return GraphSchemaBuilder.Build(GraphMetadata.Load(stream), tablePermissions,
+            GraphPermissions.ReadRelationshipDelegated(permissions), relationships, "test",
             DateTimeOffset.UnixEpoch);
     }
 

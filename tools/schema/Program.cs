@@ -57,9 +57,11 @@ try
     await using (permissionsStream)
     {
         var permissions = GraphPermissions.ReadDelegated(permissionsStream);
+        permissionsStream.Position = 0;
+        var relationshipPermissions = GraphPermissions.ReadRelationshipDelegated(permissionsStream);
         var source = $"{metadataSource}; permissions {permissionsSource}";
-        generated = GraphSchemaBuilder.Build(GraphMetadata.Load(metadataStream), permissions, GraphRelationships.Bundled, source,
-            DateTimeOffset.UtcNow, warnings);
+        generated = GraphSchemaBuilder.Build(GraphMetadata.Load(metadataStream), permissions, relationshipPermissions,
+            GraphRelationships.Bundled, source, DateTimeOffset.UtcNow, warnings);
         permissionsStream.Position = 0;
         catalog = GraphPermissionCatalog.Build(permissionsStream, generated.Tables, source);
     }

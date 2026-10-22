@@ -54,6 +54,53 @@ public static partial class GraphPermissions
         return getOnly.ToDictionary(p => p.Key, p => (IReadOnlyList<string>)[.. p.Value], StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>For each path, every read-only permission (its name has <c>.Read</c> and no <c>Write</c>) that a path set
+    /// including GET grants for the <c>DelegatedWork</c> scheme, whatever its least-privileged marker: the ones Microsoft marks
+    /// least-privileged for <c>DelegatedWork</c> first, then the rest, each part sorted ordinally. <c>User.Read</c> is left
+    /// out: Microsoft lists it for the signed-in user's own relationships (<c>/me</c>), which every account can read, not
+    /// for another object's. Used for relationship columns, where the denied chip names every permission that would do.
+    /// Keys are <see cref="NormalizePath"/>ed and compared case-insensitively.</summary>
+    public static IReadOnlyDictionary<string, IReadOnlyList<string>> ReadRelationshipDelegated(Stream permissionsJson)
+    {
+        using var doc = JsonDocument.Parse(permissionsJson);
+        var least = new Dictionary<string, SortedSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var other = new Dictionary<string, SortedSet<string>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var permission in doc.RootElement.GetProperty("permissions").EnumerateObject())
+        {
+            if (!IsReadOnly(permission.Name) || permission.Name == "User.Read"
+                || !permission.Value.TryGetProperty("pathSets", out var pathSets))
+                continue;
+            foreach (var pathSet in pathSets.EnumerateArray())
+            {
+                if (!pathSet.GetProperty("methods").EnumerateArray().Any(m => m.GetString() == "GET")
+                    || !pathSet.GetProperty("schemeKeys").EnumerateArray().Any(IsDelegated))
+                    continue;
+                foreach (var path in pathSet.GetProperty("paths").EnumerateObject())
+                {
+                    var key = NormalizePath(path.Name);
+                    var found = LeastIsDelegated(path.Value.GetString() ?? "") ? least : other;
+                    if (!found.TryGetValue(key, out var set))
+                        found[key] = set = new SortedSet<string>(StringComparer.Ordinal);
+                    set.Add(permission.Name);
+                }
+            }
+        }
+
+        return least.Keys.Union(other.Keys, StringComparer.OrdinalIgnoreCase).ToDictionary(
+            key => key,
+            key =>
+            {
+                var first = least.GetValueOrDefault(key) ?? [];
+                IReadOnlyList<string> ordered = [.. first, .. (other.GetValueOrDefault(key) ?? []).Where(p => !first.Contains(p))];
+                return ordered;
+            },
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static bool IsReadOnly(string permission)
+        => permission.Contains(".Read", StringComparison.Ordinal) && !permission.Contains("Write", StringComparison.Ordinal);
+
     /// <summary>A leading <c>/</c>, lower case, and every <c>{…}</c> placeholder as <c>{}</c>.</summary>
     public static string NormalizePath(string path)
     {

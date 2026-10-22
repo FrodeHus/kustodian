@@ -350,6 +350,7 @@
           ],
           "paths": {
             "/applications": "",
+            "/applications/{id}/owners": "",
             "/users": ""
           }
         }
@@ -383,7 +384,8 @@
             "GET"
           ],
           "paths": {
-            "/applications": ""
+            "/applications": "",
+            "/applications/{id}/owners": ""
           }
         }
       ]
@@ -425,6 +427,18 @@
           ],
           "paths": {
             "/applications": ""
+          }
+        },
+        {
+          "schemeKeys": [
+            "DelegatedWork",
+            "DelegatedPersonal"
+          ],
+          "methods": [
+            "GET"
+          ],
+          "paths": {
+            "/applications/{id}/owners": "least=DelegatedWork,DelegatedPersonal"
           }
         }
       ]

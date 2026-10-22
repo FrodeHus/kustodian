@@ -117,8 +117,9 @@ tool (`tools/schema`) reads the file and:
   list can't drift from Graph silently;
 - takes collection or single from the CSDL type (`Collection(…)` or not);
 - takes the description from the CSDL or the external descriptions, as for properties;
-- takes the least-privileged delegated permissions for `/{table}/{id}/{relationship}` from `permissions.json`, the way
-  `GraphPermissions.ReadDelegated` does for tables;
+- takes every read-only delegated permission `permissions.json` grants GET on `/{table}/{id}/{relationship}`
+  (`GraphPermissions.ReadRelationshipDelegated`): least-privileged first, then the rest ordinally, without `User.Read`
+  (Microsoft's least-privileged entry for the signed-in user's own relationships, which every account has);
 - writes the column into `graph-beta.json` with `listable: false`, `collection`, `complexType:
   "kustodian.directoryObjectRef"`, a new `relationship: true` flag and a new `permissions` array on the column
   (**My call**: `knownPermission` is a single hand-kept string and stays as it is). When `permissions.json` has no entry

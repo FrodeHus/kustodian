@@ -1,6 +1,6 @@
 {
   "source": "msgraph-metadata@8c562525694550601a232cb54014e48c6c7f6da0; permissions https://raw.githubusercontent.com/microsoftgraph/microsoft-graph-devx-content/master/permissions/new/permissions.json",
-  "generatedAt": "2026-10-22T07:25:28.996352+00:00",
+  "generatedAt": "2026-10-22T08:07:49.888006+00:00",
   "tables": [
     {
       "name": "accessReviewDecisions",
@@ -1889,7 +1889,8 @@
           "complexType": "kustodian.directoryObjectRef",
           "relationship": true,
           "permissions": [
-            "Application.Read.All"
+            "Application.Read.All",
+            "Directory.Read.All"
           ]
         }
       ]
@@ -21839,7 +21840,8 @@
           "complexType": "kustodian.directoryObjectRef",
           "relationship": true,
           "permissions": [
-            "Device.Read.All"
+            "Device.Read.All",
+            "Directory.Read.All"
           ]
         },
         {
@@ -21852,7 +21854,8 @@
           "complexType": "kustodian.directoryObjectRef",
           "relationship": true,
           "permissions": [
-            "Device.Read.All"
+            "Device.Read.All",
+            "Directory.Read.All"
           ]
         }
       ]
@@ -25495,7 +25498,11 @@
           "complexType": "kustodian.directoryObjectRef",
           "relationship": true,
           "permissions": [
-            "GroupMember.ReadBasic.All"
+            "GroupMember.ReadBasic.All",
+            "Directory.Read.All",
+            "Group.Read.All",
+            "Group.ReadBasic.All",
+            "GroupMember.Read.All"
           ]
         },
         {
@@ -25508,7 +25515,9 @@
           "complexType": "kustodian.directoryObjectRef",
           "relationship": true,
           "permissions": [
-            "GroupMember.Read.All"
+            "GroupMember.Read.All",
+            "Directory.Read.All",
+            "Group.Read.All"
           ]
         }
       ]
@@ -35940,7 +35949,8 @@
           "complexType": "kustodian.directoryObjectRef",
           "relationship": true,
           "permissions": [
-            "Application.Read.All"
+            "Application.Read.All",
+            "Directory.Read.All"
           ]
         }
       ]
@@ -38797,7 +38807,10 @@
           "complexType": "kustodian.directoryObjectRef",
           "relationship": true,
           "permissions": [
-            "User.Read"
+            "Directory.Read.All",
+            "Group.ReadBasic.All",
+            "GroupMember.Read.All",
+            "GroupMember.ReadBasic.All"
           ]
         },
         {
@@ -38809,7 +38822,8 @@
           "complexType": "kustodian.directoryObjectRef",
           "relationship": true,
           "permissions": [
-            "User.Read.All"
+            "User.Read.All",
+            "Directory.Read.All"
           ]
         },
         {
@@ -38822,7 +38836,8 @@
           "complexType": "kustodian.directoryObjectRef",
           "relationship": true,
           "permissions": [
-            "User.Read"
+            "Directory.Read.All",
+            "User.Read.All"
           ]
         },
         {
@@ -38835,7 +38850,8 @@
           "complexType": "kustodian.directoryObjectRef",
           "relationship": true,
           "permissions": [
-            "User.Read"
+            "Directory.Read.All",
+            "User.Read.All"
           ]
         },
         {
@@ -38848,7 +38864,8 @@
           "complexType": "kustodian.directoryObjectRef",
           "relationship": true,
           "permissions": [
-            "User.Read"
+            "Directory.Read.All",
+            "User.Read.All"
           ]
         },
         {
@@ -38861,7 +38878,8 @@
           "complexType": "kustodian.directoryObjectRef",
           "relationship": true,
           "permissions": [
-            "User.Read"
+            "Directory.Read.All",
+            "User.Read.All"
           ]
         }
       ]

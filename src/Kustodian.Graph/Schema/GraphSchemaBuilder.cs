@@ -28,19 +28,24 @@ public static partial class GraphSchemaBuilder
     /// <summary>Builds the schema with no relationship columns.</summary>
     public static GraphSchema Build(GraphMetadata metadata, IReadOnlyDictionary<string, IReadOnlyList<string>> permissions,
         string source, DateTimeOffset generatedAt)
-        => Build(metadata, permissions, new Dictionary<string, IReadOnlyList<string>>(), source, generatedAt);
+        => Build(metadata, permissions, new Dictionary<string, IReadOnlyList<string>>(),
+            new Dictionary<string, IReadOnlyList<string>>(), source, generatedAt);
 
-    /// <summary>Builds the schema. <paramref name="relationships"/> maps a table name to the navigation properties that become
-    /// relationship columns; a name or table the metadata doesn't have throws <see cref="GraphRelationshipException"/>. A
-    /// relationship Microsoft lists no delegated permission for is added to <paramref name="warnings"/>.</summary>
+    /// <summary>Builds the schema. <paramref name="permissions"/> (from <see cref="GraphPermissions.ReadDelegated"/>) gives the
+    /// tables' permissions, <paramref name="relationshipPermissions"/> (from
+    /// <see cref="GraphPermissions.ReadRelationshipDelegated"/>) the relationship columns'. <paramref name="relationships"/>
+    /// maps a table name to the navigation properties that become relationship columns; a name or table the metadata doesn't
+    /// have throws <see cref="GraphRelationshipException"/>. A relationship Microsoft lists no delegated permission for is
+    /// added to <paramref name="warnings"/>.</summary>
     public static GraphSchema Build(GraphMetadata metadata, IReadOnlyDictionary<string, IReadOnlyList<string>> permissions,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> relationshipPermissions,
         IReadOnlyDictionary<string, IReadOnlyList<string>> relationships, string source, DateTimeOffset generatedAt,
         ICollection<string>? warnings = null)
     {
         var tables = metadata.Collections
             .Where(c => metadata.Types.ContainsKey(c.EntityType))
             .Where(c => !DelegatedOnlySingletons.Any(s => c.Path.StartsWith(s + "/", StringComparison.Ordinal)))
-            .Select(c => BuildTable(metadata, permissions, relationships, c, warnings))
+            .Select(c => BuildTable(metadata, permissions, relationshipPermissions, relationships, c, warnings))
             .GroupBy(t => t.Name)
             .Select(g => g.First())
             .ToList();
@@ -70,7 +75,7 @@ public static partial class GraphSchemaBuilder
     }
 
     /// <summary>The shape every relationship column's entries share: a directory object reduced to what identifies and names it.
-    /// Fields that don't apply to an object's type are null.</summary>
+    /// Fields that don't apply to an object's type are absent.</summary>
     private static readonly IReadOnlyList<GraphField> DirectoryObjectRefFields =
     [
         RefField("id", "The object's ID."),
@@ -85,6 +90,7 @@ public static partial class GraphSchemaBuilder
     private static GraphField RefField(string name, string description) => new(name, "string", false, null, description);
 
     private static GraphTable BuildTable(GraphMetadata metadata, IReadOnlyDictionary<string, IReadOnlyList<string>> permissions,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> relationshipPermissions,
         IReadOnlyDictionary<string, IReadOnlyList<string>> relationships, CsdlCollection collection, ICollection<string>? warnings)
     {
         var type = metadata.Types[collection.EntityType];
@@ -105,16 +111,16 @@ public static partial class GraphSchemaBuilder
             var nav = type.Navigations.FirstOrDefault(n => n.Name == relationship)
                 ?? throw new GraphRelationshipException(
                     $"The curated relationship {name}.{relationship} isn't a navigation property of {type.FullName}.");
-            var relationshipPermissions = (permissions.GetValueOrDefault(
-                GraphPermissions.NormalizePath($"/{collection.Path}/{{id}}/{relationship}")) ?? [])
-                .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
-            if (relationshipPermissions.Count == 0)
+            // Already least-privileged first, then ordinal; kept in that order.
+            var columnPermissions = relationshipPermissions.GetValueOrDefault(
+                GraphPermissions.NormalizePath($"/{collection.Path}/{{id}}/{relationship}")) ?? [];
+            if (columnPermissions.Count == 0)
                 warnings?.Add($"{name}.{relationship}: Microsoft lists no delegated permission for GET /{collection.Path}/{{id}}/{relationship}.");
             columns.Add(new GraphColumn(nav.Name, "dynamic", nav.Description, [], false, GraphSchemaJson.DirectoryObjectRef,
                 nav.IsCollection, Listable: false)
             {
                 Relationship = true,
-                Permissions = relationshipPermissions,
+                Permissions = columnPermissions,
             });
         }
 
