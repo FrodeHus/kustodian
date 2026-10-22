@@ -51,6 +51,10 @@ need permissions it doesn't have. For those, use your own Entra ID app registrat
 or let Kustodian create one with **Create Entra ID application**. [Entra ID permissions](docs/EntraPermissions.md) explains
 both, step by step.
 
+Some Graph tables and columns also need a license (such as Entra ID P1 for `signInActivity`) or a permission beyond the
+table's own. Kustodian checks the tenant's licenses and leaves out what it can't read instead of failing the query:
+[Licenses and permissions per column](docs/LicensesAndPermissions.md) explains how.
+
 ## Privacy and security
 
 Kustodian talks only to Microsoft's APIs. Tokens are cached in the OS keychain (DPAPI, Keychain or libsecret) and never
