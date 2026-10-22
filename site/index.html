@@ -44,8 +44,8 @@ body{margin:0;background:#0F1115}
 .k-btn.k-sm{height:36px;padding:0 14px;font-size:14px}
 .k-eyebrow{display:inline-flex;align-items:center;gap:10px;font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--muted);letter-spacing:.02em}
 .k-eyebrow i{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block}
-.k-h1{font-size:76px;line-height:1.02;letter-spacing:-.035em;font-weight:700;margin:20px 0 24px}
-.k-h1 em{font-style:normal;color:var(--accent)}
+.k-banner{margin:20px 0 48px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#0C0F15}
+.k-banner img{display:block;width:100%;height:auto}
 .k-h2{font-size:48px;line-height:1.08;letter-spacing:-.03em;font-weight:700;margin:0 0 20px}
 .k-h3{font-size:20px;line-height:1.3;font-weight:600;margin:0 0 8px;letter-spacing:-.01em}
 .k-lead{font-size:20px;color:var(--muted);max-width:620px;margin:0}
@@ -120,13 +120,11 @@ body{margin:0;background:#0F1115}
   .k-hero-grid,.k-explain,.k-privacy,.k-split{grid-template-columns:minmax(0,1fr);gap:40px}
   .k-sources,.k-steps{grid-template-columns:minmax(0,1fr)}
   .k-features{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .k-h1{font-size:56px}
   .k-links{display:none}
   .k-nav .k-wrap{justify-content:space-between}
 }
 @media (max-width:640px){
   .k-wrap{padding:0 16px}
-  .k-h1{font-size:42px}
   .k-h2{font-size:34px}
   .k-lead{font-size:18px}
   .k-hero{padding-top:56px}
@@ -165,10 +163,15 @@ GitHub
 
 <section class="k-hero">
 <div class="k-wrap">
+<span class="k-eyebrow"><i></i>Open source · MIT · Windows, macOS &amp; Linux</span>
+<h1 class="k-banner">
+<picture>
+<source media="(max-width:640px)" srcset="banner-text-720.webp 720w, banner-text-1260.webp 1260w" sizes="calc(100vw - 32px)" width="1260" height="500">
+<img src="banner-1200.webp" srcset="banner-1200.webp 1200w, banner-2000.webp 2000w" sizes="(max-width:1200px) calc(100vw - 64px), 1136px" width="2000" height="667" fetchpriority="high" alt="Kustodian. Ask your tenant anything. In KQL. One query language, three data sources: Microsoft Graph, Defender hunting and Azure Resource Graph.">
+</picture>
+</h1>
 <div class="k-hero-grid">
 <div>
-<span class="k-eyebrow"><i></i>Open source · MIT · Windows, macOS &amp; Linux</span>
-<h1 class="k-h1">Ask your tenant anything. <em>In KQL.</em></h1>
 <p class="k-lead">A desktop KQL workbench for Microsoft Graph, Defender advanced hunting and Azure Resource Graph. One query language, completion that knows the schema, and results right beside your query.</p>
 <div class="k-ctas">
 <a class="k-btn k-primary" href="#get-started">Get started</a>
@@ -189,7 +192,7 @@ GitHub
 </div>
 </div>
 <figure class="k-shot" style="margin-bottom: 0">
-<img src="images/main.png" fetchpriority="high" alt="Kustodian querying Microsoft Graph with KQL: schema tree, editor and a results grid" width="1440" height="900">
+<img src="images/main.png" alt="Kustodian querying Microsoft Graph with KQL: schema tree, editor and a results grid" width="1440" height="900">
 </figure>
 <p class="k-caption">Screenshots use sample data.</p>
 </div>
