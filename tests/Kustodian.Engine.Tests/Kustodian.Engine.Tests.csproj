@@ -21,8 +21,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Kustodian.Engine\Kustodian.Engine.csproj" />
     <!-- The worker program is not referenced for its code: its whole output folder is copied to engine-worker/ under the test
-         output, and the pool tests start Kustodian.EngineWorker.dll from there on the dotnet host. -->
-    <ProjectReference Include="..\Kustodian.EngineWorker\Kustodian.EngineWorker.csproj" OutputItemType="EngineWorkerAssembly" ReferenceOutputAssembly="false" />
+         output, and the pool tests start Kustodian.TestEngineWorker.dll from there on the dotnet host. -->
+    <ProjectReference Include="..\Kustodian.TestEngineWorker\Kustodian.TestEngineWorker.csproj" OutputItemType="EngineWorkerAssembly" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <Target Name="IncludeEngineWorker" AfterTargets="ResolveProjectReferences" Condition="'@(EngineWorkerAssembly)' != ''">

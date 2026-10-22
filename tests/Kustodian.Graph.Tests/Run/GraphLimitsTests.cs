@@ -17,7 +17,7 @@ public sealed class GraphLimitsTests
     private const string Account = "account-1";
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private static readonly string WorkerDll = Path.Combine(AppContext.BaseDirectory, "engine-worker", "Kustodian.EngineWorker.dll");
+    private static readonly string WorkerDll = Path.Combine(AppContext.BaseDirectory, "engine-worker", "Kustodian.TestEngineWorker.dll");
 
     private static readonly GraphTable Applications =
         new("applications", "applications", "microsoft.graph.application", "", "https://learn.microsoft.com/x", []);

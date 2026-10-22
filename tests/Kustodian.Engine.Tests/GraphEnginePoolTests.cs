@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Kustodian.Engine.Tests;
 
-/// <summary>The pool against the real worker, Kustodian.EngineWorker, copied into engine-worker/ under the test output.
+/// <summary>The pool against the real worker, Kustodian.TestEngineWorker, copied into engine-worker/ under the test output.
 /// Every test disposes its pool, which kills its workers.</summary>
 public sealed class GraphEnginePoolTests
 {
@@ -16,9 +16,13 @@ public sealed class GraphEnginePoolTests
     // the range in memory, so it's killed for memory within a second, not for time.)
     internal static readonly string SlowQuery = $"print r = '{new string('a', 60)}b' matches regex '^(a|aa)+$'";
 
+    /// <summary>The time limit for tests that wait for a time kill. The limit also covers a fresh worker's start, which takes
+    /// over a second on a cold CI runner (Windows especially), so it leaves room for that before the slow query is cut off.</summary>
+    internal static readonly TimeSpan KillLimit = TimeSpan.FromSeconds(5);
+
     /// <summary>The worker the test project copies next to itself, started on the dotnet host, without the app's
     /// <c>--engine</c> argument.</summary>
-    private static readonly string WorkerDll = Path.Combine(AppContext.BaseDirectory, "engine-worker", "Kustodian.EngineWorker.dll");
+    private static readonly string WorkerDll = Path.Combine(AppContext.BaseDirectory, "engine-worker", "Kustodian.TestEngineWorker.dll");
 
     private static GraphEnginePool Pool(Action<GraphEngineOptions>? configure = null)
     {
@@ -180,7 +184,7 @@ public sealed class GraphEnginePoolTests
     {
         await using var pool = Pool(o =>
         {
-            o.Timeout = TimeSpan.FromSeconds(1);
+            o.Timeout = KillLimit;
             o.WaitForWorker = TimeSpan.FromMilliseconds(200);
         });
         var progress = new ThrowingProgress(pool);
@@ -235,14 +239,14 @@ public sealed class GraphEnginePoolTests
     [Fact]
     public async Task Slow_query_is_killed_at_the_time_limit()
     {
-        await using var pool = Pool(o => o.Timeout = TimeSpan.FromSeconds(1));
+        await using var pool = Pool(o => o.Timeout = KillLimit);
         var worker = await WarmAsync(pool);
 
         var clock = Stopwatch.StartNew();
         var failure = await FailureOf(pool.RunAsync(Query(SlowQuery), "run-slow", TestContext.Current.CancellationToken));
 
         Assert.Equal(GraphEngineFailure.TimedOut, failure);
-        Assert.InRange(clock.Elapsed, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3));
+        Assert.InRange(clock.Elapsed, KillLimit, KillLimit + TimeSpan.FromSeconds(2));
         Assert.True(IsGone(worker));
     }
 
@@ -287,7 +291,7 @@ public sealed class GraphEnginePoolTests
     [Fact]
     public async Task Next_query_after_a_kill_gets_a_fresh_worker()
     {
-        await using var pool = Pool(o => o.Timeout = TimeSpan.FromSeconds(1));
+        await using var pool = Pool(o => o.Timeout = KillLimit);
         var killed = await WarmAsync(pool);
         await FailureOf(pool.RunAsync(Query(SlowQuery), "run-slow", TestContext.Current.CancellationToken));
 
@@ -336,7 +340,7 @@ public sealed class GraphEnginePoolTests
         // everyone. Twelve kills (one for time, one for memory, ten cancellations) against a crash limit of two.
         await using var pool = Pool(o =>
         {
-            o.Timeout = TimeSpan.FromSeconds(2);
+            o.Timeout = KillLimit;
             o.MemoryLimitBytes = 200L * 1024 * 1024;
             o.CrashLimitPerMinute = 2;
         });

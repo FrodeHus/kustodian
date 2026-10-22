@@ -19,7 +19,7 @@ least set of read permissions, derived from data. It then offers admin consent a
 **Tech Stack:** .NET 10, xUnit v3, `Microsoft.Extensions.Time.Testing`, React + TypeScript, Vitest, oxlint. No new
 dependencies.
 
-**Spec:** `kustodian/docs/superpowers/specs/2026-10-22-create-entra-app-design.md`. Mockups: `kustodian/docs/mockups/EntraApp.dc.html`,
+**Spec:** `kustodian/docs/design/specs/2026-10-22-create-entra-app-design.md`. Mockups: `kustodian/docs/design/mockups/EntraApp.dc.html`,
 `EntraAppCreated.dc.html` and `EntraAppRefused.dc.html`.
 
 ## Global Constraints

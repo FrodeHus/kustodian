@@ -1,6 +1,6 @@
 using Kustodian.Engine;
 
-namespace Kustodian.EngineWorker;
+namespace Kustodian.TestEngineWorker;
 
 /// <summary>The engine worker as a program of its own, for the pool's tests: the same <see cref="EngineMain"/> the app runs
 /// for <c>--engine</c>.</summary>

@@ -26,7 +26,7 @@ They share the results, saved queries, recent runs, the session, snippets, param
 
 **Tech Stack:** the Plan 1 and Plan 2 stack. No new runtime dependencies.
 
-**Spec:** `kustodian/docs/superpowers/specs/2026-10-21-kustodian-design.md`, section 8, plus sections 6.1, 6.4, 6.6, 6.7, 9, 12 and 14 (risk 1). Mockups: `kustodian/docs/mockups/Hunting.dc.html` and `ResourceGraph.dc.html`.
+**Spec:** `kustodian/docs/design/specs/2026-10-21-kustodian-design.md`, section 8, plus sections 6.1, 6.4, 6.6, 6.7, 9, 12 and 14 (risk 1). Mockups: `kustodian/docs/design/mockups/Hunting.dc.html` and `ResourceGraph.dc.html`.
 
 **Builds on** Plan 2 (FrodeHus/rightsecurity-insights#194). Interfaces named below exist on that branch.
 

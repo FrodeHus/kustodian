@@ -11,7 +11,7 @@ public sealed class GraphRunnerLicenseTests
 {
     private const string Account = "account-1";
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
-    private static readonly string WorkerDll = Path.Combine(AppContext.BaseDirectory, "engine-worker", "Kustodian.EngineWorker.dll");
+    private static readonly string WorkerDll = Path.Combine(AppContext.BaseDirectory, "engine-worker", "Kustodian.TestEngineWorker.dll");
 
     private sealed class Licenses(TenantLicenses tenant) : ITenantLicenses
     {

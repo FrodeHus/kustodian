@@ -165,7 +165,7 @@ Earlier reviews parked these: the fixtures follow Microsoft Learn, but no real r
 
 ## Create Entra ID application (2026-10-22)
 
-Spec: `docs/superpowers/specs/2026-10-22-create-entra-app-design.md` (section 10 lists the checks). The builder ran only the
+Spec: `docs/design/specs/2026-10-22-create-entra-app-design.md` (section 10 lists the checks). The builder ran only the
 automated gate below, with no sign-in and no tenant. Every feature row is the owner's to run, against a **test tenant** (never a
 production tenant), because creating an app, adding an owner and granting admin consent change real directory objects.
 

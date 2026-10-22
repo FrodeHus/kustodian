@@ -13,6 +13,6 @@
     <Project Path="tests/Kustodian.Engine.Tests/Kustodian.Engine.Tests.csproj" />
     <Project Path="tests/Kustodian.Tests/Kustodian.Tests.csproj" />
     <Project Path="tests/Kustodian.Sources.Tests/Kustodian.Sources.Tests.csproj" />
-    <Project Path="tests/Kustodian.EngineWorker/Kustodian.EngineWorker.csproj" />
+    <Project Path="tests/Kustodian.TestEngineWorker/Kustodian.TestEngineWorker.csproj" />
   </Folder>
 </Solution>
