@@ -5,6 +5,17 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.5] - 2026-10-22
+
+### Added
+
+- Relationship columns on Graph tables: a user's groups (`memberOf`), manager, direct reports, owned objects and devices; a
+  group's members and owners; owners of applications and service principals; a device's registered owners and users. Read
+  one object at a time when a query names them, for at most 100 objects per relationship and 1,000 entries per object.
+- Notices for relationship reads that were cut off, refused, returned without details, capped, or filtered locally, and the
+  relationship requests and permissions in Explain.
+- Directory relationship snippets: a user's groups, a group's members and an application's owners.
+
 ## [0.9.0] - 2026-10-22
 
 ### Added
