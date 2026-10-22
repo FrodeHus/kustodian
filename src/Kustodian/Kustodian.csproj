@@ -3,6 +3,8 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- The Windows executable's icon (made by tools/release/make-icons.sh and make-ico.cs). -->
+    <ApplicationIcon>..\..\assets\icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <!-- A release publish (tools/release/publish.sh, any -r): one self-contained executable, the native libraries (Photino)
@@ -39,6 +41,9 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Snippets\builtin-snippets.json" LogicalName="builtin-snippets.json" />
+    <!-- The window icon (WindowIcon): the PNG for Linux, the .ico for Windows, where Photino reads .ico files only. -->
+    <EmbeddedResource Include="..\..\assets\icon-256.png" LogicalName="icon.png" />
+    <EmbeddedResource Include="..\..\assets\icon.ico" LogicalName="icon.ico" />
   </ItemGroup>
 
   <!-- The web UI is embedded under wwwroot/ and served on app://. With a web project (web/package.json), web/dist is built by

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Kustodian's mark: a white K in a rounded square of the app's accent colour (web/src/styles.css, light theme). -->
+  <defs>
+    <clipPath id="k">
+      <rect x="0" y="232" width="1024" height="560"/>
+    </clipPath>
+  </defs>
+  <rect x="32" y="32" width="960" height="960" rx="208" fill="#0b6fae"/>
+  <g transform="translate(-40 0)" clip-path="url(#k)" fill="none" stroke="#ffffff" stroke-width="150">
+    <path d="M375 232V792"/>
+    <path d="M370 600L760 160"/>
+    <path d="M500 520L840 990"/>
+  </g>
+</svg>

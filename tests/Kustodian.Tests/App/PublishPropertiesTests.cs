@@ -11,7 +11,7 @@ public class PublishPropertiesTests
     private static readonly string[] Names =
     [
         "OutputType", "AssemblyName", "SelfContained", "PublishSingleFile", "IncludeNativeLibrariesForSelfExtract",
-        "EnableCompressionInSingleFile", "DebugType", "PublishTrimmed",
+        "EnableCompressionInSingleFile", "DebugType", "PublishTrimmed", "ApplicationIcon",
     ];
 
     [Theory]
@@ -48,6 +48,19 @@ public class PublishPropertiesTests
         Assert.Equal("true", properties["EnableCompressionInSingleFile"]);
         Assert.Equal("embedded", properties["DebugType"]);
         Assert.Equal("false", properties["PublishTrimmed"]);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("win-x64")]
+    [InlineData("win-arm64")]
+    public void The_executable_carries_the_app_icon(string? rid)
+    {
+        // MSBuild returns the path as the project writes it, with Windows separators.
+        var icon = Evaluate(rid)["ApplicationIcon"].Replace('\\', Path.DirectorySeparatorChar);
+
+        Assert.Equal("icon.ico", Path.GetFileName(icon));
+        Assert.True(File.Exists(Path.Combine(Path.GetDirectoryName(HostProject())!, icon)), $"{icon} doesn't exist");
     }
 
     [Fact]

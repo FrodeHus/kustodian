@@ -1,6 +1,7 @@
 using System.Drawing;
 using Kustodian.Files;
 using Kustodian.Messaging;
+using Kustodian.Storage;
 using Microsoft.Extensions.Logging;
 using Photino.NET;
 
@@ -29,6 +30,7 @@ public static class AppWindow
             .SetMinSize(WindowSizing.Minimum.Width, WindowSizing.Minimum.Height)
             .Center();
         holder.Window = window;
+        SetIcon(window, logger);
 
         // On Windows those sizes reach Win32 as physical pixels, so at any scaling above 100 % the page would get only a fraction
         // of them. The monitor's DPI is only known once the native window exists, so it is resized and re-centred then, before
@@ -87,6 +89,23 @@ public static class AppWindow
         Volatile.Write(ref closed, 1);
         bridge.Close();
         pump.CompleteAsync().GetAwaiter().GetResult();
+    }
+
+    /// <summary>Gives the window the app icon on Windows and Linux, from the copy in the cache folder; macOS takes it from the
+    /// bundle. Without a writable cache folder the window keeps the default icon.</summary>
+    private static void SetIcon(PhotinoWindow window, ILogger logger)
+    {
+        try
+        {
+            if (WindowIcon.WriteTo(AppPaths.Cache, AppPaths.CurrentPlatform()) is { } icon)
+            {
+                window.SetIconFile(icon);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            logger.LogWarning(ex, "Couldn't write the window icon to {Folder}", AppPaths.Cache);
+        }
     }
 
     /// <summary>Sizes the window for the monitor it opened on: the one holding its centre, else the first one.</summary>
