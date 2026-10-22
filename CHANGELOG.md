@@ -5,6 +5,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.6] - 2026-10-22
+
 ### Added
 
 - A Save button in the query toolbar. Once the tab is saved to the library or a file, its ▾ menu has Save as.
