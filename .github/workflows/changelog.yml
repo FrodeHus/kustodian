@@ -1,0 +1,56 @@
+name: changelog
+
+# A pull request that changes the app (src/ or web/) must also add to the Unreleased section of CHANGELOG.md, or the
+# release run fails at "Cut the release" with nothing to say. Housekeeping is exempt by path: tests, CI, docs, the site,
+# the release tooling, and the dependency files Dependabot bumps (Directory.Packages.props, web/package.json,
+# web/package-lock.json). Anything else can opt out with the "no changelog" label.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unreleased:
+    name: Unreleased notes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require an Unreleased entry for app changes
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          EXEMPT: ${{ contains(github.event.pull_request.labels.*.name, 'no changelog') }}
+        run: |
+          if [[ "$EXEMPT" == "true" ]]; then
+            echo "Labelled \"no changelog\"; skipping." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          app="$(git diff --name-only "$BASE" "$HEAD" \
+            | grep -E '^(src|web)/' \
+            | grep -vxE 'web/package(-lock)?\.json' || true)"
+          if [[ -z "$app" ]]; then
+            echo "No app changes; nothing to note." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # The Unreleased body is everything between its heading and the next "## " heading, without blank lines.
+          unreleased() {
+            git show "$1:CHANGELOG.md" 2>/dev/null \
+              | awk '/^## \[Unreleased\]/ { on = 1; next } /^## / { on = 0 } on' \
+              | grep -v '^[[:space:]]*$' || true
+          }
+          if [[ "$(unreleased "$BASE")" == "$(unreleased "$HEAD")" ]]; then
+            echo "::error file=CHANGELOG.md::This pull request changes the app but adds nothing under \"## [Unreleased]\" in CHANGELOG.md. Add a line there (Added / Changed / Fixed), or label the pull request \"no changelog\" if there is nothing to tell users."
+            exit 1
+          fi
+          echo "CHANGELOG.md: Unreleased section changed." | tee -a "$GITHUB_STEP_SUMMARY"
