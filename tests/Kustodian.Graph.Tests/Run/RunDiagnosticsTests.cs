@@ -275,7 +275,8 @@ public sealed class RunDiagnosticsTests
     [Fact]
     public async Task Pool_reports_start_done_and_killed_with_the_reason()
     {
-        await using var engine = Pool(o => o.Timeout = TimeSpan.FromSeconds(1));
+        // Room for a fresh worker's start on a cold CI runner, which the time limit also covers.
+        await using var engine = Pool(o => o.Timeout = TimeSpan.FromSeconds(5));
         var infos = new Infos();
         var now = DateTimeOffset.UnixEpoch;
 

@@ -59,6 +59,8 @@ async function open() {
   const onClose = vi.fn();
   render(<CreateAppDialog onClose={onClose} onSwitched={vi.fn()} />);
   await screen.findByRole('checkbox', { name: 'Security' });
+  // The plan's render can land before its effects (focus, the group checkboxes' mixed state) run; open is done once they have.
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('Name')));
   return onClose;
 }
 
