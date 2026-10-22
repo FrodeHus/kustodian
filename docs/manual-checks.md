@@ -240,14 +240,14 @@ All 10 packages were then put in one folder and `checksums.sh` wrote one `SHA256
 | MSI upgrade | n/a | n/a | owner | ok (a local `build.ps1 -Version 1.0.1 -Architectures arm64` installed over 1.0.0 per user: RemoveExistingProducts ran, exe version 1.0.1, one product left) | n/a | n/a |
 | MSI uninstall leaves the user data | n/a | n/a | ok under emulation for the install folder (gone); the user data was not re-checked after this uninstall | ok (per user and per machine: install folder, shortcut and registry keys gone; `%APPDATA%\Kustodian\session.json` and `%LOCALAPPDATA%\Kustodian\Cache` stay) | n/a | n/a |
 | The window opens with its icon | ok (1440x900 points; the running app is a regular app, so it has a Dock icon, and the icon it shows is the bundle's K; captured with `screencapture -l`) | owner (no Intel Mac; not opened under Rosetta) | ok under emulation (K icon in the title bar) | ok (K icon in the title bar, from the zip, the per-user MSI and Program Files) | ok under Xvfb and openbox (K icon in the frame; `_NET_WM_ICON` set), from the tarball and the AppImage | - (not opened; `--version` and the engine smoke only) |
-| The title shows the version | no (title "Kustodian") | owner | no (title "Kustodian") | no (title "Kustodian"; the version is in Apps and in `--version`) | no (title "Kustodian") | - |
+| `--version` and the OS app info (Windows Apps list, macOS Get Info) show the version | ok (`--version` prints "Kustodian 1.0.0"; the bundle's `Info.plist` has `CFBundleShortVersionString` and `CFBundleVersion` 1.0.0, which Get Info shows) | ok (`--version` under Rosetta prints "Kustodian 1.0.0"; `Info.plist` 1.0.0, as arm64) | ok under emulation for `--version` ("Kustodian 1.0.0", from `build.ps1`); owner for the Apps list | ok (`--version` prints "Kustodian 1.0.0"; Apps lists "Kustodian 1.0.0, Reothor") | ok (`--version` prints "Kustodian 1.0.0", tarball and AppImage) | ok (`--version` prints "Kustodian 1.0.0") |
 | Sign-in, and the keychain prompt (macOS) or libsecret (Linux) | owner | owner | owner | owner | owner (without a keyring the app says so; see the missing-keychain row) | owner |
 | A Graph query runs | owner | owner | owner | owner | owner | owner |
 | The engine worker starts from the single-file build | ok (`smoke.sh` on the app's executable: `print x=1` answered, the worker exits when stdin closes) | ok under Rosetta (same) | ok under emulation (`--engine` with redirected stdin/stdout, one framed request answered, exit 0 within 5 s of stdin closing) | ok (same) | ok (`smoke.sh` on the tarball's `Kustodian`) | ok (same) |
 | No orphan process after quitting | ok idle (a quit Apple Event: no Kustodian process 6 s later); owner after a query | owner | ok idle (`CloseMainWindow`: no Kustodian process 5 s later); owner after a query | ok idle (same); owner after a query | ok idle (closed through the window manager with `wmctrl -c`: no Kustodian process, and for the AppImage no runtime process either); owner after a query | owner |
 | The app runs from a folder with a space in its name | ok (".../Applications test/Kustodian.app": the window opened) | ok (`--version` and the engine smoke) | ok ("Downloads\Kustodian test\unblocked x64": the window opened) | ok ("Downloads\Kustodian test\explorer arm64", and `C:\Program Files\Kustodian`) | ok ("Downloads/Kustodian test": the window opened) | ok (`--version` and the engine smoke) |
 | A missing WebKitGTK gives the named-package message | n/a | n/a | n/a | n/a | ok (plain `ubuntu:24.04`, and again with only `libicu74` added: the message names the Debian/Ubuntu and Fedora packages, exit 3; the AppImage gives the same) | ok (plain `fedora:latest`: same message, exit 3) |
-| The AppImage needs `libfuse2`, and the guide's step fixes it | n/a | n/a | n/a | n/a | no: the AppImage doesn't need `libfuse2`. With no `fusermount` it prints "No suitable fusermount binary found on the $PATH" and runs anyway (extract-and-run); installing `libfuse2t64` changes nothing. The guide's `libwebkit2gtk-4.1-0` already pulls in `fuse3`, and with it the AppImage mounts (`/tmp/.mount_*`). | no (same: runs without `fuse-libs`; `webkit2gtk4.1` pulls in `fuse3`) |
+| The AppImage runs without FUSE 2: with no `fusermount` it extracts itself, and with fuse3's it mounts | n/a | n/a | n/a | n/a | ok: with no `fusermount` it prints "No suitable fusermount binary found on the $PATH" and runs anyway (extract-and-run); installing `libfuse2t64` changes nothing. The guide's `libwebkit2gtk-4.1-0` already pulls in `fuse3`, and with it the AppImage mounts (`/tmp/.mount_*`). | ok (same: runs without `fuse-libs`; `webkit2gtk4.1` pulls in `fuse3`) |
 | Cancel during a long run | owner | owner | owner | owner | owner | owner |
 | Kill the engine by memory | owner | owner | owner | owner | owner | owner |
 | Restart with unsaved tabs | owner | owner | owner | owner | owner | owner |
@@ -259,13 +259,15 @@ All 10 packages were then put in one folder and `checksums.sh` wrote one `SHA256
 
 - **The title doesn't show the version.** The window title is the constant `AppWindow.Title`, "Kustodian", on every
   platform. The version shows only in `--version`, in Apps (Windows) and in `Info.plist` (macOS). Either the title gets
-  the version, or this row changes.
+  the version, or this row changes. Resolved: the spec doesn't ask for the version in the title, so the title stays and
+  the row now checks `--version` and the OS app info.
 - **The AppImage doesn't need FUSE 2.** The pinned type2 runtime (20251108) is static and only uses a `fusermount` binary
   (`fuse3` provides one, and WebKitGTK pulls it in on Ubuntu 24.04 and Fedora 44). Without one it falls back to
   extract-and-run. The FUSE 2 lines in `docs/install.md`, the README and the product site are therefore not needed.
+  Resolved: the install guide, the release notes and the product site no longer ask for FUSE 2.
 - **`.msi.sha256` has a CRLF line ending** (`Set-Content` on Windows). `shasum -a 256 -c Kustodian-1.0.0-x64.msi.sha256`
   on macOS then looks for "Kustodian-1.0.0-x64.msi\r" and fails with "No such file or directory". `Get-FileHash` on
-  Windows, as the guide says, and `SHA256SUMS.txt` are fine.
+  Windows, as the guide says, and `SHA256SUMS.txt` are fine. Resolved: `build.ps1` now writes it with an LF ending.
 - **Linux `WM_CLASS` is ".", "."** for both the tarball and the AppImage. A desktop environment that matches windows to
   `kustodian.desktop` by `WM_CLASS` (GNOME, KDE) may not group the window with its launcher or show its icon from the
   desktop file. The window's own icon (`_NET_WM_ICON`) is set.

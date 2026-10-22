@@ -64,8 +64,8 @@ Linux x64. Kustodian uses WebKitGTK 4.1, libsecret and libnotify from your distr
 
 When one is missing, Kustodian says which and exits.
 
-- **AppImage.** It needs FUSE 2: `libfuse2` on Debian and Ubuntu (`libfuse2t64` on Ubuntu 24.04 and later), `fuse-libs` on
-  Fedora. Then:
+- **AppImage.** It runs without FUSE (it extracts itself); with fuse3's `fusermount`, which WebKitGTK usually brings, it
+  mounts instead. Make it executable and run it:
 
   ```sh
   chmod +x Kustodian-<version>-x86_64.AppImage

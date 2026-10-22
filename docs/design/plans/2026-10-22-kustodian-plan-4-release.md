@@ -87,7 +87,8 @@ before v1), 14 (risks 3 and 4) and 15 (unsigned v1).
 5. **The quarantine flag after download.** Expected: the README gives the exact steps for each platform:
    - macOS 15: System Settings → Privacy & Security → Open Anyway, or `xattr -dr com.apple.quarantine`.
    - Windows: SmartScreen "More info → Run anyway", plus unblocking the zip.
-   - Linux: `chmod +x` on the AppImage, and `libfuse2` for AppImage.
+   - Linux: `chmod +x` on the AppImage. The AppImage runs without FUSE (it extracts itself); with fuse3's fusermount,
+     which WebKitGTK usually brings, it mounts instead.
 
    The fresh-download manual check (Task 8) runs these steps on each platform.
 
@@ -353,7 +354,8 @@ Done (2026-10-22).
        Microsoft's page).
   5. **Linux.**
      - Packages: `libwebkit2gtk-4.1-0` and `libsecret-1-0` on Debian/Ubuntu; `webkit2gtk4.1` and `libsecret` on Fedora.
-     - The AppImage needs FUSE 2 (`libfuse2` / `fuse-libs`), plus `chmod +x`.
+     - The AppImage needs `chmod +x`. It runs without FUSE (it extracts itself); with fuse3's fusermount, which WebKitGTK
+       usually brings, it mounts instead.
      - Tarball: extract it and run `./Kustodian`. Optionally copy the `.desktop` file and icon into place.
   6. **Signing in.** The Azure CLI client by default, or your own app registration, with "Create Entra ID application"
      (PR #204).
@@ -377,12 +379,13 @@ Done (2026-10-22).
   - The first open follows the README's unsigned-build steps exactly.
   - Windows MSI: per-user install, per-machine install (`ALLUSERS=1`), the per-user-over-per-machine guard, upgrade and
     uninstall. Uninstall leaves the user data.
-  - The window opens with its icon, and the title shows the version.
+  - The window opens with its icon, and `--version` and the OS app info (Windows Apps list, macOS Get Info) show the
+    version.
   - Sign-in, and the keychain prompt (macOS) or libsecret (Linux).
   - A Graph query runs: the engine worker starts from the single-file build, and no orphan process is left after quitting.
   - The app runs from a folder with a space in its name.
   - A missing WebKitGTK gives the named-package message (Linux).
-  - The AppImage needs `libfuse2`, and the README's step fixes it.
+  - The AppImage runs without FUSE 2: with no `fusermount` it extracts itself, and with fuse3's it mounts.
   - Spec 13's list: cancel during a long run; killing the engine by memory; restarting with unsaved tabs; a missing keychain
     on Linux.
 

@@ -387,13 +387,13 @@ GitHub
 <div class="k-step">
 <span class="k-step-n">Linux · x64</span>
 <h3 class="k-h3">AppImage or tarball</h3>
-<p>Needs WebKitGTK 4.1, libsecret and libnotify from your distribution, and FUSE 2 for <span class="k-mono">Kustodian-&lt;version&gt;-x86_64.AppImage</span> (<span class="k-mono">chmod +x</span> it, then run it). Or extract <span class="k-mono">Kustodian-&lt;version&gt;-linux-x64.tar.gz</span> and run <span class="k-mono">./Kustodian</span>.</p>
+<p>Needs WebKitGTK 4.1, libsecret and libnotify from your distribution. <span class="k-mono">chmod +x</span> <span class="k-mono">Kustodian-&lt;version&gt;-x86_64.AppImage</span>, then run it; it runs without FUSE (it extracts itself), and with fuse3's <span class="k-mono">fusermount</span>, which WebKitGTK usually brings, it mounts instead. Or extract <span class="k-mono">Kustodian-&lt;version&gt;-linux-x64.tar.gz</span> and run <span class="k-mono">./Kustodian</span>.</p>
 <pre class="k-term"><span class="p">$ </span>sudo apt-get install \
   libwebkit2gtk-4.1-0 libsecret-1-0 \
-  libnotify4 libfuse2t64
+  libnotify4
 <span class="p">$ </span>sudo dnf install \
   webkit2gtk4.1 libsecret \
-  libnotify fuse-libs</pre>
+  libnotify</pre>
 </div>
 </div>
 <p style="margin: 28px 0 0">Then sign in with your work account and open your first tab. <a href="https://github.com/FrodeHus/kustodian/blob/main/docs/install.md">The install guide, step by step →</a></p>
