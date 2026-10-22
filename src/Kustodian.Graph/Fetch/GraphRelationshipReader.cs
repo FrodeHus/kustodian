@@ -1,6 +1,4 @@
-using System.Globalization;
 using System.Net;
-using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Kustodian.Graph.Run;
@@ -20,16 +18,14 @@ public sealed record GraphRelationshipRead(
 
 /// <summary>
 /// Reads one relationship (<c>memberOf</c>, <c>manager</c>, ...) of each object: <c>GET /{path}/{id}/{relationship}</c> sent
-/// through <c>POST /$batch</c> like <see cref="GraphBatchReader"/> (same batch size, batches in flight and single retry of a
-/// throttled item). A collection's next pages are plain GETs, followed only to https on graph.microsoft.com, until the object
+/// through <c>POST /$batch</c> like <see cref="GraphBatchReader"/> (same batch size and batches in flight; <see cref="GraphBatchSender"/>
+/// retries a throttled item once). A collection's next pages are plain GETs, followed only to https on graph.microsoft.com, until the object
 /// has <see cref="GraphLimits.RelationshipEntriesPerObject"/> entries. Every body counts against the lease.
 /// </summary>
 public sealed class GraphRelationshipReader(HttpClient http, GraphLimits limits)
 {
     private const string GraphHost = "graph.microsoft.com";
     private const string TypePrefix = "#microsoft.graph.";
-    private const int MaxRetryAfterSeconds = 5;
-    private const int DefaultRetryAfterSeconds = 1;
     private const string Select = "$select=id,displayName,userPrincipalName,mail,appId,deviceId";
     private static readonly string[] ShapeFields = ["displayName", "userPrincipalName", "mail", "appId", "deviceId"];
 
@@ -52,9 +48,9 @@ public sealed class GraphRelationshipReader(HttpClient http, GraphLimits limits)
         return entry;
     }
 
-    private enum Outcome { Read, Missing, Refused, Failed, Throttled }
+    private enum Outcome { Read, Missing, Refused, Failed }
 
-    private sealed record Item(string Id, Outcome Outcome, JsonNode? Value = null, bool Truncated = false, int RetryAfterSeconds = 0);
+    private sealed record Item(string Id, Outcome Outcome, JsonNode? Value = null, bool Truncated = false);
 
     /// <summary>Reads <paramref name="relationship"/> of every object in <paramref name="objects"/> (by its <c>id</c>). The
     /// answers count against <paramref name="lease"/>.</summary>
@@ -95,91 +91,24 @@ public sealed class GraphRelationshipReader(HttpClient http, GraphLimits limits)
         var chunks = ids.OfType<string>().Distinct(StringComparer.Ordinal).Chunk(GraphBatchReader.BatchSize);
         await Parallel.ForEachAsync(chunks, options, async (chunk, token) =>
         {
-            var first = await SendAsync(accountKey, path, relationship, chunk, lease, diagnostics, token);
-            Record(first.Where(i => i.Outcome != Outcome.Throttled));
-            var throttled = first.Where(i => i.Outcome == Outcome.Throttled).ToArray();
-            if (throttled.Length == 0)
-                return;
-            var retryAfter = throttled.Max(i => i.RetryAfterSeconds);
-            var wait = Math.Clamp(retryAfter, 0, MaxRetryAfterSeconds);
-            diagnostics?.Add(new DiagnosticEntry(diagnostics.NowMs, DiagnosticKinds.Throttled, string.Create(CultureInfo.InvariantCulture,
-                $"{path}: Graph throttled {Reads(throttled.Length)}; Retry-After {retryAfter} s"), (int)HttpStatusCode.TooManyRequests, null, null));
-            await Task.Delay(TimeSpan.FromSeconds(wait), token);
-            diagnostics?.Add(new DiagnosticEntry(diagnostics.NowMs, DiagnosticKinds.Retry, string.Create(CultureInfo.InvariantCulture,
-                $"{path}: sent {Reads(throttled.Length)} again after {wait} s"), null, null, null));
-            var again = await SendAsync(accountKey, path, relationship, [.. throttled.Select(i => i.Id)], lease, diagnostics, token);
-            Record(again.Select(i => i.Outcome == Outcome.Throttled ? i with { Outcome = Outcome.Failed } : i));
+            var urls = chunk.Select(id => "/" + Template(path, relationship.Name, relationship.Collection)
+                .Replace("{id}", Uri.EscapeDataString(id), StringComparison.Ordinal)).ToList();
+            var answers = await GraphBatchSender.SendAsync(http, accountKey, path, urls, lease, diagnostics, token);
+            for (var i = 0; i < chunk.Length; i++)
+            {
+                var answer = answers[i];
+                if (answer.Succeeded)
+                    Record([await ReadValueAsync(accountKey, chunk[i], relationship, answer.Body, lease, diagnostics, token)]);
+                else if (answer.Status is 401 or 403)
+                    Record([new Item(chunk[i], Outcome.Refused)]);
+                else if (answer.Status == (int)HttpStatusCode.NotFound && !relationship.Collection)
+                    Record([new Item(chunk[i], Outcome.Missing)]);
+                else
+                    Record([new Item(chunk[i], Outcome.Failed)]);
+            }
         });
         return new GraphRelationshipRead(values, truncated, refused, failed);
     }
-
-    private static string Reads(int count) => count.ToString("N0", CultureInfo.InvariantCulture) + (count == 1 ? " read" : " reads");
-
-    /// <summary>One <c>$batch</c> of first-page reads; a batch Graph doesn't answer fails every item.</summary>
-    private async Task<List<Item>> SendAsync(string accountKey, string path, GraphColumn relationship, string[] chunk,
-        GraphFetchLease lease, RunDiagnostics? diagnostics, CancellationToken ct)
-    {
-        var batch = new JsonObject
-        {
-            ["requests"] = new JsonArray([.. chunk.Select((id, i) => (JsonNode)new JsonObject
-            {
-                ["id"] = i.ToString(CultureInfo.InvariantCulture),
-                ["method"] = "GET",
-                ["url"] = "/" + Template(path, relationship.Name, relationship.Collection).Replace("{id}", Uri.EscapeDataString(id), StringComparison.Ordinal),
-            })]),
-        };
-        byte[] body;
-        try
-        {
-            using var request = new HttpRequestMessage(HttpMethod.Post, new Uri("$batch", UriKind.Relative)) { Content = JsonContent.Create(batch) }
-                .ForAccount(accountKey).ForRun(diagnostics, DiagnosticKinds.PerObject);
-            using var response = await http.SendAsync(request, ct);
-            body = await response.Content.ReadAsByteArrayAsync(ct);
-            request.RecordBytes(body.Length);
-            if (GraphErrorText.IsTokenRejected(response, body))
-                throw new GraphReadException(GraphReadFailure.SignInNeeded, GraphErrorText.SignInMessage);
-            if (!response.IsSuccessStatusCode)
-                return Failed(chunk);
-        }
-        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException && !ct.IsCancellationRequested
-            && !SignInRequiredException.IsIn(ex))
-        {
-            return Failed(chunk);
-        }
-        await lease.AddAsync(body.Length, ct);
-
-        JsonArray? responses;
-        try
-        {
-            responses = JsonNode.Parse(body)?["responses"] as JsonArray;
-        }
-        catch (JsonException)
-        {
-            responses = null;
-        }
-        var items = Failed(chunk);
-        foreach (var answer in responses?.OfType<JsonObject>() ?? [])
-        {
-            if (!int.TryParse(Text(answer["id"]), CultureInfo.InvariantCulture, out var i) || i < 0 || i >= chunk.Length)
-                continue;
-            var status = int.TryParse(Text(answer["status"]), CultureInfo.InvariantCulture, out var code) ? code : 0;
-            var id = chunk[i];
-            if (status == (int)HttpStatusCode.TooManyRequests)
-            {
-                var seconds = int.TryParse(Text(answer["headers"]?["Retry-After"]), CultureInfo.InvariantCulture, out var s) ? s : DefaultRetryAfterSeconds;
-                items[i] = new Item(id, Outcome.Throttled, RetryAfterSeconds: seconds);
-            }
-            else if (status is >= 200 and < 300)
-                items[i] = await ReadValueAsync(accountKey, id, relationship, answer["body"] as JsonObject, lease, diagnostics, ct);
-            else if (status is 401 or 403)
-                items[i] = new Item(id, Outcome.Refused);
-            else if (status == (int)HttpStatusCode.NotFound && !relationship.Collection)
-                items[i] = new Item(id, Outcome.Missing);
-        }
-        return items;
-    }
-
-    private static List<Item> Failed(string[] chunk) => [.. chunk.Select(id => new Item(id, Outcome.Failed))];
 
     /// <summary>The value of a successful first answer: a single relationship's object, or a collection's pages followed up to
     /// the entry cap.</summary>
@@ -255,13 +184,4 @@ public sealed class GraphRelationshipReader(HttpClient http, GraphLimits limits)
         }
     }
 
-    /// <summary>A string or number value as text (Graph sends ids as strings and statuses as numbers), else null.</summary>
-    private static string? Text(JsonNode? node) => node is JsonValue value
-        ? value.GetValueKind() switch
-        {
-            JsonValueKind.String => value.GetValue<string>(),
-            JsonValueKind.Number => value.ToJsonString(),
-            _ => null,
-        }
-        : null;
 }

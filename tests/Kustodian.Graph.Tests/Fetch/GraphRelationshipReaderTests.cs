@@ -23,7 +23,8 @@ public sealed class GraphRelationshipReaderTests
         var responses = batch["requests"]!.AsArray().Select(r =>
         {
             var (status, body) = item(r!["url"]!.GetValue<string>().Split('/')[2]);
-            return new { id = r["id"]!.GetValue<string>(), status, body };
+            var headers = status == 429 ? new Dictionary<string, string> { ["Retry-After"] = "0" } : null;
+            return new { id = r["id"]!.GetValue<string>(), status, headers, body };
         }).ToList();
         return new HttpResponseMessage(HttpStatusCode.OK)
         {
