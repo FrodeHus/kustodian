@@ -90,6 +90,10 @@ public sealed class GraphSchemaDiff
                     lines.Add($"{name}: {column.Name} complex type {old.ComplexType ?? "none"} → {column.ComplexType ?? "none"}");
                 if (old.KnownPermission != column.KnownPermission)
                     lines.Add($"{name}: {column.Name} known permission {old.KnownPermission ?? "none"} → {column.KnownPermission ?? "none"}");
+                if (old.Relationship != column.Relationship)
+                    lines.Add($"{name}: {column.Name} relationship {old.Relationship} → {column.Relationship}");
+                if (!old.Permissions.SequenceEqual(column.Permissions))
+                    lines.Add($"{name}: {column.Name} permissions [{string.Join(", ", old.Permissions)}] → [{string.Join(", ", column.Permissions)}]");
                 if (old.Description != column.Description)
                     descriptions++;
             }

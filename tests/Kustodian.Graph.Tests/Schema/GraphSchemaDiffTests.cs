@@ -117,4 +117,20 @@ public sealed class GraphSchemaDiffTests
     [Fact]
     public void Directory_object_change_is_detected() => AssertDetected(
         t => t with { DirectoryObject = true }, "applications: directoryObject False → True");
+
+    [Fact]
+    public void Reports_an_added_relationship_column()
+    {
+        var memberOf = new GraphColumn("memberOf", "dynamic", "d", [], false, "kustodian.directoryObjectRef", Collection: true, Listable: false)
+        {
+            Relationship = true,
+            Permissions = ["GroupMember.Read.All", "Directory.Read.All"],
+        };
+        var before = Schema(Table("users", Col("id", "string")));
+        var after = Schema(Table("users", Col("id", "string"), memberOf));
+
+        var diff = GraphSchemaDiff.Compare(before, after);
+
+        Assert.Contains("users: + column memberOf", diff.ToSummary().Split('\n'));
+    }
 }
