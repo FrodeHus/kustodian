@@ -42,6 +42,39 @@
       "parameters": []
     },
     {
+      "id": "5f0e6a6e-6d0a-4a55-9a53-0b7e3a1c0010",
+      "source": "graph",
+      "name": "Groups a user is a member of",
+      "description": "The groups and other directory objects one user is a direct member of, read one object at a time.",
+      "text": "users\n| where userPrincipalName == {upn}\n| mv-expand g = memberOf\n| where g.objectType == \"group\"\n| project group = tostring(g.displayName), groupId = tostring(g.id), mail = tostring(g.mail)",
+      "group": "Directory relationships",
+      "parameters": [
+        { "name": "upn", "type": "text", "value": "someone@contoso.com", "required": true }
+      ]
+    },
+    {
+      "id": "5f0e6a6e-6d0a-4a55-9a53-0b7e3a1c0011",
+      "source": "graph",
+      "name": "Members of a group",
+      "description": "The direct members of one group, with their type and sign-in name.",
+      "text": "groups\n| where displayName == {groupName}\n| mv-expand m = members\n| project name = tostring(m.displayName), upn = tostring(m.userPrincipalName), type = tostring(m.objectType), id = tostring(m.id)",
+      "group": "Directory relationships",
+      "parameters": [
+        { "name": "groupName", "type": "text", "value": "SOC Analysts", "required": true }
+      ]
+    },
+    {
+      "id": "5f0e6a6e-6d0a-4a55-9a53-0b7e3a1c0012",
+      "source": "graph",
+      "name": "Owners of an application",
+      "description": "The owners of one application registration, with their type and sign-in name.",
+      "text": "applications\n| where displayName == {appName}\n| mv-expand o = owners\n| project name = tostring(o.displayName), upn = tostring(o.userPrincipalName), type = tostring(o.objectType)",
+      "group": "Directory relationships",
+      "parameters": [
+        { "name": "appName", "type": "text", "value": "Kustodian", "required": true }
+      ]
+    },
+    {
       "id": "5f0e6a6e-6d0a-4a55-9a53-0b7e3a1c0005",
       "source": "hunting",
       "name": "Sign-ins from TOR exit nodes",

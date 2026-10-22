@@ -31,8 +31,9 @@ public sealed class SnippetServiceTests : IDisposable
     {
         var snippets = (await NewService().ListAsync(Ct)).Where(s => s.BuiltIn && s.Source == "graph").ToList();
 
-        Assert.Equal(4, snippets.Count);
-        Assert.All(snippets, s => Assert.Equal("Identity checks", s.Group));
+        Assert.Equal(7, snippets.Count);
+        Assert.Equal(4, snippets.Count(s => s.Group == "Identity checks"));
+        Assert.Equal(3, snippets.Count(s => s.Group == "Directory relationships"));
         foreach (var snippet in snippets)
         {
             // Each placeholder is declared, and each takes its declared default.
@@ -45,6 +46,26 @@ public sealed class SnippetServiceTests : IDisposable
 
             Assert.True(plan.Error is null && plan.Refusal is null, $"{snippet.Name}: {plan.Error?.Message}{plan.Refusal}");
         }
+    }
+
+    [Theory]
+    [InlineData("Groups a user is a member of", "memberOf", true)]
+    [InlineData("Members of a group", "members", false)]
+    [InlineData("Owners of an application", "owners", false)]
+    public async Task Relationship_snippets_read_their_relationship(string name, string column, bool laterWhere)
+    {
+        var snippet = (await NewService().ListAsync(Ct)).Single(s => s.BuiltIn && s.Name == name);
+        var substituted = ParameterSubstitution.Apply(snippet.Text,
+            snippet.Parameters.Select(p => new ParameterValue(p.Name, p.Type, p.Value, p.Required)).ToList());
+
+        var plan = GraphQueryPlanner.Plan(GraphSchemaCatalog.Beta, substituted.Text!, DateTimeOffset.UnixEpoch);
+
+        var fetch = Assert.Single(plan.Fetches);
+        Assert.Contains(column, fetch.Unreadable);
+        // The leading where on the object always goes to Graph. Only the memberOf snippet has a second where, on the expanded
+        // rows, and the planner counts any where after another operator as local.
+        Assert.NotNull(fetch.Filter);
+        Assert.Equal(laterWhere, fetch.FilteredLocally);
     }
 
     [Fact]
