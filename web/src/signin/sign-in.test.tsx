@@ -12,6 +12,8 @@ vi.mock('../bridge', async (importOriginal) => ({
     return () => bridge.events.delete(event);
   },
 }));
+// The section reads the tenant's licenses from the bridge; it has tests of its own.
+vi.mock('./tenant-licenses', () => ({ TenantLicenses: () => null }));
 
 const kari: AccountInfo = {
   key: 'k1',
