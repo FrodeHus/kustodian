@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kustodian: KQL for your Microsoft tenant</title>
+<meta name="description" content="A desktop KQL workbench for Microsoft Graph, Defender advanced hunting and Azure Resource Graph. Open source, for Windows, macOS and Linux.">
+<meta name="theme-color" content="#0F1115">
+<meta property="og:title" content="Kustodian: KQL for your Microsoft tenant">
+<meta property="og:description" content="A desktop KQL workbench for Microsoft Graph, Defender advanced hunting and Azure Resource Graph. Open source, for Windows, macOS and Linux.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://frodehus.github.io/kustodian/images/main.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0F1115}
+.k-site{--bg:#0F1115;--panel:#161A20;--panel2:#1C2129;--line:#2A303A;--text:#E6E9EE;--muted:#A3ADBB;--faint:#7D8796;--accent:#4CC2FF;--accent-ink:#06131C;--accent-soft:rgba(76,194,255,.14);--warn:#F5A524;--ok:#7FD4A8;--kw:#C9A0FF;--col:#F2C779;--str:#A5D6A7;--num:#F7A072;--fn:#82AAFF;--cm:#7D8796;
+  background:var(--bg);color:var(--text);font-family:"Inter",system-ui,sans-serif;font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.k-site *{box-sizing:border-box}
+.k-site section{scroll-margin-top:72px}
+.k-site a{color:var(--accent);text-decoration:none}
+.k-site a:hover{color:#8AD8FF}
+.k-wrap{max-width:1200px;margin:0 auto;padding:0 32px}
+.k-mono{font-family:"JetBrains Mono",ui-monospace,monospace}
+.k-nav{position:sticky;top:0;z-index:5;background:rgba(15,17,21,.86);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.k-nav .k-wrap{display:flex;align-items:center;gap:32px;height:64px}
+.k-logo{display:flex;align-items:center;gap:10px;color:var(--text);font-weight:700;font-size:18px;letter-spacing:-.01em}
+.k-site a.k-logo{color:var(--text)}
+.k-links{display:flex;gap:24px;flex:1}
+.k-site .k-links a{color:var(--muted);font-size:15px;font-weight:500}
+.k-site .k-links a:hover{color:var(--text)}
+.k-btn{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 20px;border-radius:8px;font-weight:600;font-size:15px;border:1px solid var(--line);background:var(--panel2)}
+.k-site a.k-btn{color:var(--text)}
+.k-site a.k-btn:hover{border-color:#3A4250;color:var(--text)}
+.k-site a.k-btn.k-primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.k-site a.k-btn.k-primary:hover{background:#7ED3FF}
+.k-btn.k-sm{height:36px;padding:0 14px;font-size:14px}
+.k-eyebrow{display:inline-flex;align-items:center;gap:10px;font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--muted);letter-spacing:.02em}
+.k-eyebrow i{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block}
+.k-h1{font-size:76px;line-height:1.02;letter-spacing:-.035em;font-weight:700;margin:20px 0 24px}
+.k-h1 em{font-style:normal;color:var(--accent)}
+.k-h2{font-size:48px;line-height:1.08;letter-spacing:-.03em;font-weight:700;margin:0 0 20px}
+.k-h3{font-size:20px;line-height:1.3;font-weight:600;margin:0 0 8px;letter-spacing:-.01em}
+.k-lead{font-size:20px;color:var(--muted);max-width:620px;margin:0}
+.k-label{font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin:0 0 16px}
+.k-muted{color:var(--muted)}
+.k-faint{color:var(--faint)}
+.k-hero{padding:96px 0 0}
+.k-hero-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:56px;align-items:end}
+.k-ctas{display:flex;flex-wrap:wrap;gap:12px;margin-top:36px}
+.k-platforms{margin-top:20px;font-size:14px;color:var(--faint)}
+.k-code{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.k-code-head{display:flex;align-items:center;gap:10px;height:40px;padding:0 14px;border-bottom:1px solid var(--line);font-size:13px;color:var(--muted)}
+.k-code pre{margin:0;padding:18px 20px;font-family:"JetBrains Mono",monospace;font-size:14px;line-height:1.75;white-space:pre;overflow-x:auto;color:var(--text)}
+.k-code-foot{display:flex;flex-wrap:wrap;gap:8px;padding:12px 14px;border-top:1px solid var(--line)}
+.kw{color:var(--kw)}.tb{color:var(--accent)}.cl{color:var(--col)}.st{color:var(--str)}.nm{color:var(--num)}.fn{color:var(--fn)}.cm{color:var(--cm);font-style:italic}
+.k-chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-size:12.5px;font-weight:500;background:var(--panel2);border:1px solid var(--line);color:var(--muted)}
+.k-chip.ok{color:var(--ok)}
+.k-src{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:20px;padding:0 6px;border-radius:5px;font-size:11px;font-weight:700;letter-spacing:.05em}
+.k-src.gr{background:rgba(76,194,255,.16);color:#4CC2FF}
+.k-src.ah{background:rgba(245,165,36,.16);color:#F5A524}
+.k-src.arg{background:rgba(127,212,168,.16);color:#7FD4A8}
+.k-shot{margin:72px 0 0;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel);box-shadow:0 40px 120px rgba(0,0,0,.55)}
+.k-shot img{display:block;width:100%;height:auto}
+.k-caption{font-size:13px;color:var(--faint);margin-top:12px}
+.k-section{padding:128px 0 0}
+.k-split{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin-top:56px}
+.k-panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:28px}
+.k-panel-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;font-size:14px;font-weight:600;color:var(--muted)}
+.k-req{font-family:"JetBrains Mono",monospace;font-size:13.5px;line-height:1.9;color:var(--muted);white-space:pre-wrap;word-break:break-all;margin:0}
+.k-req b{color:var(--text);font-weight:500}
+.k-req .bad{color:#F0716B}
+.k-sources{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;margin-top:56px}
+.k-source{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:28px;display:flex;flex-direction:column;gap:14px}
+.k-source .k-src{align-self:flex-start}
+.k-source p{margin:0;color:var(--muted);font-size:16px}
+.k-source .k-mono{font-size:13px;color:var(--faint)}
+.k-explain{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:64px;align-items:center}
+.k-list{list-style:none;margin:28px 0 0;padding:0;display:flex;flex-direction:column;gap:16px}
+.k-list li{display:flex;gap:14px;align-items:flex-start;color:var(--muted)}
+.k-list li b{color:var(--text);font-weight:600}
+.k-tick{flex:none;width:22px;height:22px;border-radius:6px;background:var(--accent-soft);color:var(--accent);display:inline-flex;align-items:center;justify-content:center;margin-top:2px}
+.k-features{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid var(--line);border-left:1px solid var(--line);margin-top:56px}
+.k-feature{padding:32px 28px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.k-feature p{margin:0;color:var(--muted);font-size:16px}
+.k-feature svg{color:var(--accent);margin-bottom:18px}
+.k-gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin-top:56px}
+.k-gallery figure{margin:0}
+.k-gallery .k-shot{margin:0;box-shadow:none;border-radius:10px}
+.k-gallery figcaption{font-size:14px;color:var(--muted);margin-top:12px}
+.k-privacy{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:64px;align-items:start}
+.k-facts{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.k-fact{display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;padding:22px 0;border-bottom:1px solid var(--line)}
+.k-fact dt{font-weight:600}
+.k-fact dd{margin:0;color:var(--muted);font-size:16px}
+.k-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;margin-top:56px}
+.k-step{display:flex;flex-direction:column;gap:14px}
+.k-step-n{font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--accent)}
+.k-step p{margin:0;color:var(--muted);font-size:16px}
+.k-term{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;font-family:"JetBrains Mono",monospace;font-size:13.5px;line-height:1.8;white-space:pre-wrap;word-break:break-word;color:var(--text);margin:0}
+.k-term .p{color:var(--faint);user-select:none}
+.k-note{margin-top:32px;padding:20px 24px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);font-size:15px}
+.k-cta{margin-top:128px;padding:80px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.k-cta .k-wrap{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:32px}
+.k-foot{padding:48px 0 64px;font-size:14px;color:var(--faint)}
+.k-foot .k-wrap{display:flex;flex-wrap:wrap;gap:24px 40px;justify-content:space-between}
+.k-foot nav{display:flex;flex-wrap:wrap;gap:24px}
+.k-site .k-foot a{color:var(--muted)}
+.k-site .k-foot a:hover{color:var(--text)}
+@media (max-width:960px){
+  .k-hero-grid,.k-explain,.k-privacy,.k-split{grid-template-columns:minmax(0,1fr);gap:40px}
+  .k-sources,.k-steps{grid-template-columns:minmax(0,1fr)}
+  .k-features{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .k-h1{font-size:56px}
+  .k-links{display:none}
+  .k-nav .k-wrap{justify-content:space-between}
+}
+@media (max-width:640px){
+  .k-wrap{padding:0 16px}
+  .k-h1{font-size:42px}
+  .k-h2{font-size:34px}
+  .k-lead{font-size:18px}
+  .k-hero{padding-top:56px}
+  .k-section{padding-top:88px}
+  .k-features,.k-gallery{grid-template-columns:minmax(0,1fr)}
+  .k-fact{grid-template-columns:minmax(0,1fr);gap:6px}
+  .k-shot{margin-top:48px}
+}
+</style>
+</head>
+<body>
+<div class="k-site">
+
+<header class="k-nav">
+<div class="k-wrap">
+<a class="k-logo" href="#top" aria-label="Kustodian home">
+<svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true"><rect x="1" y="1" width="26" height="26" rx="7" fill="#161A20" stroke="#4CC2FF" stroke-width="1.5"></rect><path d="M8 10l4 4-4 4" stroke="#4CC2FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M14 18h6" stroke="#E6E9EE" stroke-width="2" stroke-linecap="round"></path></svg>
+<span>Kustodian</span>
+</a>
+<nav class="k-links" aria-label="Sections">
+<a href="#sources">Sources</a>
+<a href="#explain">Explain</a>
+<a href="#features">Features</a>
+<a href="#privacy">Privacy</a>
+<a href="#get-started">Get started</a>
+</nav>
+<a class="k-btn k-sm" href="https://github.com/FrodeHus/kustodian">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 0 0-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"></path></svg>
+GitHub
+</a>
+</div>
+</header>
+
+<main id="top">
+
+<section class="k-hero">
+<div class="k-wrap">
+<div class="k-hero-grid">
+<div>
+<span class="k-eyebrow"><i></i>Open source · MIT · Windows, macOS &amp; Linux</span>
+<h1 class="k-h1">Ask your tenant anything. <em>In KQL.</em></h1>
+<p class="k-lead">A desktop KQL workbench for Microsoft Graph, Defender advanced hunting and Azure Resource Graph. One query language, completion that knows the schema, and results right beside your query.</p>
+<div class="k-ctas">
+<a class="k-btn k-primary" href="#get-started">Get started</a>
+<a class="k-btn" href="https://github.com/FrodeHus/kustodian">View on GitHub</a>
+</div>
+<p class="k-platforms">Built on .NET 10 and React. No prebuilt releases yet: build from source.</p>
+</div>
+<div class="k-code">
+<div class="k-code-head"><span class="k-src gr">GR</span>Expired app credentials</div>
+<pre><span class="cm">// Apps with a secret past its end date</span>
+<span class="tb">applications</span>
+| <span class="kw">mv-expand</span> cred = <span class="cl">passwordCredentials</span>
+| <span class="kw">where</span> <span class="fn">todatetime</span>(cred.<span class="cl">endDateTime</span>) &lt; <span class="fn">now</span>()
+| <span class="kw">summarize</span> expired = <span class="fn">count</span>()
+    <span class="kw">by</span> <span class="cl">displayName</span>, <span class="cl">appId</span>
+| <span class="kw">order by</span> expired <span class="kw">desc</span></pre>
+<div class="k-code-foot"><span class="k-chip ok">Runs locally on fetched Graph data</span><span class="k-chip">Requests shown before sending</span></div>
+</div>
+</div>
+<figure class="k-shot" style="margin-bottom: 0">
+<img src="images/main.png" fetchpriority="high" alt="Kustodian querying Microsoft Graph with KQL: schema tree, editor and a results grid" width="1440" height="900">
+</figure>
+<p class="k-caption">Screenshots use sample data.</p>
+</div>
+</section>
+
+<section class="k-section" aria-labelledby="why">
+<div class="k-wrap">
+<p class="k-label">Why Kustodian</p>
+<h2 class="k-h2" id="why">OData fetches the data.<br>KQL answers the question.</h2>
+<p class="k-lead">Graph speaks OData, but <span class="k-mono">$filter</span> works on some properties and not others, and there are no joins or aggregates. You still page through results and parse the JSON yourself. Kustodian sends OData what the server can handle, then runs the rest of your KQL in memory: <span class="k-mono">mv-expand</span>, <span class="k-mono">join</span>, <span class="k-mono">summarize</span> and more.</p>
+<div class="k-split">
+<div class="k-panel">
+<div class="k-panel-title"><span>OData by hand</span><span class="k-faint">paging, parsing, scripting</span></div>
+<p class="k-req"><b>GET</b> /applications?$select=appId,displayName,passwordCredentials&amp;$top=999
+<b>GET</b> /applications?$skiptoken=…
+<b>GET</b> /applications?$skiptoken=…
+<span class="bad">$filter on passwordCredentials/endDateTime: not supported</span>
+<span class="k-faint">→ parse the JSON, flatten and compare dates in a script</span></p>
+</div>
+<div class="k-panel">
+<div class="k-panel-title"><span>In Kustodian</span><span class="k-src gr">GR</span></div>
+<p class="k-req"><b>applications</b>
+| mv-expand cred = passwordCredentials
+| where todatetime(cred.endDateTime) &lt; now()
+| summarize expired = count() by displayName
+<span class="k-faint">→ $filter where Graph supports it, the rest in memory</span></p>
+</div>
+</div>
+</div>
+</section>
+
+<section class="k-section" id="sources" aria-labelledby="sources-h">
+<div class="k-wrap">
+<p class="k-label">Three sources, one editor</p>
+<h2 class="k-h2" id="sources-h">Everything you hunt,<br>in one place.</h2>
+<div class="k-sources">
+<article class="k-source">
+<span class="k-src gr">GR</span>
+<h3 class="k-h3">Microsoft Graph</h3>
+<p>Query the beta endpoint with KQL. Kustodian plans the requests, pushes what it can into <span class="k-mono">$filter</span>, and runs the rest locally.</p>
+<span class="k-mono">users · applications · devices · groups …</span>
+</article>
+<article class="k-source">
+<span class="k-src ah">AH</span>
+<h3 class="k-h3">Defender advanced hunting</h3>
+<p>Hunting queries go straight to the service through <span class="k-mono">security/runHuntingQuery</span>, with the same completion and results.</p>
+<span class="k-mono">DeviceProcessEvents · IdentityLogonEvents · EmailEvents …</span>
+</article>
+<article class="k-source">
+<span class="k-src arg">ARG</span>
+<h3 class="k-h3">Azure Resource Graph</h3>
+<p>Inventory and posture across your Azure estate, scoped to the subscriptions you pick.</p>
+<span class="k-mono">resources · securityresources …</span>
+</article>
+</div>
+</div>
+</section>
+
+<section class="k-section" id="explain" aria-labelledby="explain-h">
+<div class="k-wrap">
+<div class="k-explain">
+<div>
+<p class="k-label">Explain</p>
+<h2 class="k-h2" id="explain-h">See every request before it’s sent.</h2>
+<p class="k-lead">Explain shows exactly what a Graph query will do to your tenant, without sending anything.</p>
+<ul class="k-list">
+<li><span class="k-tick"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"></path></svg></span><span><b>The requests.</b> Every Graph call, including per-object reads.</span></li>
+<li><span class="k-tick"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"></path></svg></span><span><b>The <span class="k-mono">$filter</span>.</b> Which parts of your query run server-side and which run locally.</span></li>
+<li><span class="k-tick"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"></path></svg></span><span><b>The permissions.</b> The scopes a query needs, before you hit a 403.</span></li>
+</ul>
+</div>
+<figure class="k-shot" style="margin: 0">
+<img loading="lazy" src="images/explain.png" alt="Explain view listing the Graph requests, filter and permissions a query would use" width="1440" height="900">
+</figure>
+</div>
+</div>
+</section>
+
+<section class="k-section" id="features" aria-labelledby="features-h">
+<div class="k-wrap">
+<p class="k-label">Features</p>
+<h2 class="k-h2" id="features-h">Built for the query you run<br>a hundred times.</h2>
+<div class="k-features">
+<div class="k-feature">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 18l6-6-6-6"></path><path d="M8 6l-6 6 6 6"></path></svg>
+<h3 class="k-h3">Schema-aware KQL</h3>
+<p>Completion and errors from each source’s schema, including nested and <span class="k-mono">mv-expand</span>ed fields.</p>
+</div>
+<div class="k-feature">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M3 9h18"></path><path d="M9 21V9"></path></svg>
+<h3 class="k-h3">Results, your way</h3>
+<p>Virtualized grid, charts, JSON and diagnostics. Compare two runs. Export to CSV, JSON or Markdown.</p>
+</div>
+<div class="k-feature">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H6a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2 2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h2"></path><path d="M16 3h2a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2 2 2 0 0 0-2 2v4a2 2 0 0 1-2 2h-2"></path></svg>
+<h3 class="k-h3">Parameters &amp; snippets</h3>
+<p>Write <span class="k-mono">{name}</span> once and fill it at run time. Keep snippets and saved queries close.</p>
+</div>
+<div class="k-feature">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path><path d="M12 7v5l3 3"></path></svg>
+<h3 class="k-h3">Picks up where you left off</h3>
+<p>Tabs survive restarts. History, saved queries and a command palette for everything else.</p>
+</div>
+<div class="k-feature">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"></path><path d="M4 12h10"></path><path d="M4 17h7"></path><path d="M17 14l3 3-3 3"></path></svg>
+<h3 class="k-h3">Raw Graph requests</h3>
+<p>Send any request, like Graph Explorer, then open the response as a KQL tab to keep digging.</p>
+</div>
+<div class="k-feature">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"></rect><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"></path></svg>
+<h3 class="k-h3">Keyboard first</h3>
+<p>A shortcut for every action, and light and dark themes that follow your system.</p>
+</div>
+</div>
+<div class="k-gallery">
+<figure>
+<div class="k-shot"><img loading="lazy" src="images/hunting.png" alt="Defender advanced hunting query and results" width="1440" height="900"></div>
+<figcaption>Defender advanced hunting</figcaption>
+</figure>
+<figure>
+<div class="k-shot"><img loading="lazy" src="images/resource-graph.png" alt="Azure Resource Graph query scoped to subscriptions" width="1440" height="900"></div>
+<figcaption>Azure Resource Graph, scoped to subscriptions</figcaption>
+</figure>
+<figure>
+<div class="k-shot"><img loading="lazy" src="images/light.png" alt="Chart and compare runs in the light theme" width="1440" height="900"></div>
+<figcaption>Charts and compare runs, light theme</figcaption>
+</figure>
+<figure>
+<div class="k-shot"><img loading="lazy" src="images/raw-request.png" alt="Raw Graph request with its JSON response" width="1440" height="900"></div>
+<figcaption>Raw Graph requests</figcaption>
+</figure>
+</div>
+</div>
+</section>
+
+<section class="k-section" id="privacy" aria-labelledby="privacy-h">
+<div class="k-wrap">
+<div class="k-privacy">
+<div>
+<p class="k-label">Privacy &amp; security</p>
+<h2 class="k-h2" id="privacy-h">Your tenant.<br>Your machine.</h2>
+<p class="k-lead">Kustodian is a desktop app that signs in as you. There is no Kustodian service in the middle, and nothing leaves your machine except calls to Microsoft.</p>
+</div>
+<dl class="k-facts">
+<div class="k-fact"><dt>Network</dt><dd>Talks only to Microsoft’s APIs.</dd></div>
+<div class="k-fact"><dt>Tokens</dt><dd>Cached in the OS keychain (DPAPI, Keychain or libsecret), never written in plain text.</dd></div>
+<div class="k-fact"><dt>Your data</dt><dd>Settings, saved queries, snippets, history and tabs are local JSON files.</dd></div>
+<div class="k-fact"><dt>Sign-in</dt><dd>Delegated, with your work account. Use the Azure CLI’s public client, your own app registration, or let Kustodian create one.</dd></div>
+<div class="k-fact"><dt>Source</dt><dd>MIT licensed. Read it, build it, <a href="https://github.com/FrodeHus/kustodian/blob/main/SECURITY.md">report a vulnerability</a>.</dd></div>
+</dl>
+</div>
+</div>
+</section>
+
+<section class="k-section" id="get-started" aria-labelledby="start-h">
+<div class="k-wrap">
+<p class="k-label">Get started</p>
+<h2 class="k-h2" id="start-h">Three commands to your first query.</h2>
+<p class="k-lead">There are no prebuilt releases yet. Build from source on Windows, macOS or Linux.</p>
+<div class="k-steps">
+<div class="k-step">
+<span class="k-step-n">01 · Install</span>
+<h3 class="k-h3">The toolchain</h3>
+<p><a href="https://dotnet.microsoft.com/download">.NET SDK 10</a> and <a href="https://nodejs.org/">Node.js 22</a>. On Linux, also WebKitGTK 4.1 and libsecret.</p>
+<pre class="k-term"><span class="p">$ </span>sudo apt-get install \
+  libwebkit2gtk-4.1-dev libsecret-1-dev</pre>
+</div>
+<div class="k-step">
+<span class="k-step-n">02 · Clone</span>
+<h3 class="k-h3">The repository</h3>
+<p>The build embeds the web UI for you; no separate frontend step.</p>
+<pre class="k-term"><span class="p">$ </span>git clone https://github.com/FrodeHus/kustodian
+<span class="p">$ </span>cd kustodian</pre>
+</div>
+<div class="k-step">
+<span class="k-step-n">03 · Run</span>
+<h3 class="k-h3">And sign in</h3>
+<p>Sign in with your work account and open your first tab.</p>
+<pre class="k-term"><span class="p">$ </span>dotnet run --project src/Kustodian</pre>
+</div>
+</div>
+</div>
+</section>
+
+<section class="k-cta" aria-label="Contribute">
+<div class="k-wrap">
+<div>
+<h2 class="k-h2" style="margin-bottom: 8px">Open source, and open to you.</h2>
+<p class="k-muted" style="margin: 0">Issues, ideas and pull requests are welcome.</p>
+</div>
+<div class="k-ctas" style="margin-top: 0">
+<a class="k-btn k-primary" href="https://github.com/FrodeHus/kustodian">Star on GitHub</a>
+<a class="k-btn" href="https://github.com/FrodeHus/kustodian/blob/main/CONTRIBUTING.md">Contributing guide</a>
+</div>
+</div>
+</section>
+
+</main>
+
+<footer class="k-foot">
+<div class="k-wrap">
+<span>Kustodian · MIT License · Not affiliated with Microsoft.</span>
+<nav aria-label="Project">
+<a href="https://github.com/FrodeHus/kustodian">GitHub</a>
+<a href="https://github.com/FrodeHus/kustodian/blob/main/CHANGELOG.md">Changelog</a>
+<a href="https://github.com/FrodeHus/kustodian/blob/main/SECURITY.md">Security</a>
+<a href="https://github.com/FrodeHus/kustodian/blob/main/CODE_OF_CONDUCT.md">Code of Conduct</a>
+<a href="https://github.com/FrodeHus/kustodian/blob/main/LICENSE">License</a>
+</nav>
+</div>
+</footer>
+
+</div>
+</body>
+</html>

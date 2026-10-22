@@ -17,3 +17,6 @@ artifacts/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Website (images are copied from docs/images at deploy)
+site/images/
