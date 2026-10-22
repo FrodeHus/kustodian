@@ -423,6 +423,32 @@ describe('App', () => {
     expect(bridge.call).not.toHaveBeenCalledWith('file.saveAs', expect.anything());
   });
 
+  it('save_button_on_new_tab_opens_dialog_without_save_as', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+
+    expect(screen.queryByRole('button', { name: 'Save as' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Save the query' })).toBeTruthy();
+  });
+
+  it('save_as_button_on_saved_tab_opens_dialog', async () => {
+    host({ accounts: [kari], cache: 'persistent' }, rows, {
+      version: 1,
+      activeId: 'a',
+      tabs: [{ id: 'a', source: 'graph', title: 'apps.kql', text: 'applications', dirty: false, savedId: null, parameters: [], filePath: '/q/apps.kql' }],
+    });
+    render(<App />);
+    await screen.findByRole('tab', { name: /apps\.kql/ });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save as' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Save the query' })).toBeTruthy();
+    expect(bridge.call).not.toHaveBeenCalledWith('file.saveAs', expect.anything());
+  });
+
   it('save_on_file_tab_writes_the_file', async () => {
     answers = { 'file.saveAs': (p) => ({ path: (p as { path: string }).path, name: 'apps.kql' }) };
     host({ accounts: [kari], cache: 'persistent' }, rows, {

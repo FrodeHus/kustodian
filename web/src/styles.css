@@ -164,8 +164,8 @@ body {
   .side-foot { margin-top: auto; padding: 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
   .workspace { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 
-  .toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--bg); }
-  .btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); font: inherit; font-weight: 500; cursor: pointer; }
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--bg); }
+  .btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); font: inherit; font-weight: 500; cursor: pointer; white-space: nowrap; }
   .btn:disabled { opacity: 0.5; cursor: default; }
   .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
   .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); }

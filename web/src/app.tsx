@@ -583,6 +583,8 @@ export function App() {
                     onParams={() => runCommand('params.toggle')}
                     explaining={explaining !== null}
                     onExplain={() => runCommand('explain')}
+                    onSave={() => runCommand('file.save')}
+                    onSaveAs={() => runCommand('file.saveAs')}
                     picker={picker}
                     onPicker={setPicker}
                     accountKey={accountKey}
@@ -686,6 +688,9 @@ interface ToolbarProps {
   /** Explain is showing for the tab. The button is there on Graph tabs only. */
   explaining: boolean;
   onExplain: () => void;
+  onSave: () => void;
+  /** Save as: the button is there once the tab is saved, to the library or to a file. */
+  onSaveAs: () => void;
   /** The picker that is open ("Pick timespan" and "Pick scope" open them too). */
   picker: 'timespan' | 'scope' | null;
   onPicker: (picker: 'timespan' | 'scope' | null) => void;
@@ -695,8 +700,10 @@ interface ToolbarProps {
   onSignIn: () => void;
 }
 
-function Toolbar({ tab, onRun, onFormat, paramCount, paramsOpen, onParams, explaining, onExplain, picker, onPicker, accountKey, onSignIn }: ToolbarProps) {
+function Toolbar(props: ToolbarProps) {
+  const { tab, onRun, onFormat, paramCount, paramsOpen, onParams, explaining, onExplain, onSave, onSaveAs, picker, onPicker, accountKey, onSignIn } = props;
   const running = tab.run?.state === 'running';
+  const saved = tab.savedId !== undefined || tab.filePath !== undefined;
   const setOptions = (change: Partial<QueryOptions>) =>
     useTabs.getState().setOptions(tab.id, { timespan: tab.options?.timespan ?? null, scope: tab.options?.scope ?? null, ...change });
   return (
@@ -707,7 +714,7 @@ function Toolbar({ tab, onRun, onFormat, paramCount, paramsOpen, onParams, expla
         </svg>
         Run
       </button>
-      <span className="faint text-[12px]">the block at the cursor</span>
+      <span className="faint whitespace-nowrap text-[12px]">the block at the cursor</span>
       <span className="kbd">{MOD} Enter</span>
       <button type="button" className="btn ghost" onClick={() => onRun('all')}>
         Run all <span className="kbd">Shift Enter</span>
@@ -745,6 +752,15 @@ function Toolbar({ tab, onRun, onFormat, paramCount, paramsOpen, onParams, expla
       {paramCount > 0 && (
         <button type="button" className="btn" aria-pressed={paramsOpen} onClick={onParams}>
           Parameters · {paramCount}
+        </button>
+      )}
+      <div className="grow" />
+      <button type="button" className="btn" title={`Save (${MOD} S)`} onClick={onSave}>
+        Save
+      </button>
+      {saved && (
+        <button type="button" className="btn ghost" title={`Save as (${MOD} Shift S)`} onClick={onSaveAs}>
+          Save as
         </button>
       )}
     </div>
