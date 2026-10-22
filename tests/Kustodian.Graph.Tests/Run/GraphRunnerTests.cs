@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Kustodian.Graph.Engine;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Query;
@@ -244,6 +245,63 @@ public sealed class GraphRunnerTests
         var table = Assert.Single(r.Tables);
         Assert.Equal(["aboutMe"], table.PerObject);
         Assert.Equal(2, table.PerObjectFailed);
+    }
+
+    private static Task<HttpResponseMessage> OwnersAnswer(HttpRequestMessage request, string[] ids, int refusedIndex)
+    {
+        if (request.Method == HttpMethod.Get)
+            return Task.FromResult(FakeGraph.Collection([.. ids.Select(id => new { id, displayName = id })]));
+        var batch = JsonNode.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult())!.AsObject();
+        var responses = batch["requests"]!.AsArray().Select(r =>
+        {
+            var id = r!["url"]!.GetValue<string>().Split('/')[2];
+            return id == ids[refusedIndex]
+                ? (object)new { id = r["id"]!.GetValue<string>(), status = 403, body = new { error = new { code = "Forbidden", message = "no" } } }
+                : new { id = r["id"]!.GetValue<string>(), status = 200, body = new { value = Array.Empty<object>() } };
+        }).ToList();
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(JsonSerializer.Serialize(new { responses }), System.Text.Encoding.UTF8, "application/json"),
+        });
+    }
+
+    [Fact]
+    public async Task Relationship_outcome_reaches_the_result()
+    {
+        await using var h = NewHost();
+        string[] ids = ["a1", "a2"];
+        h.Graph.Answer = (request, _) => OwnersAnswer(request, ids, 1);
+        var events = new Events();
+
+        var r = await h.RunAsync("applications | mv-expand o = owners", events, Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        var relationship = Assert.Single(Assert.Single(r.Tables).Relationships);
+        Assert.Equal("owners", relationship.Column);
+        Assert.Equal(2, relationship.Objects);
+        Assert.Equal(1, relationship.Refused);
+        Assert.Equal(GraphSchemaCatalog.Beta.Find("applications")!.Columns.First(c => c.Name == "owners").Permissions, relationship.Permissions);
+        Assert.Equal(1_000, relationship.EntryCap);
+        Assert.False(relationship.Capped);
+        Assert.False(relationship.FilteredLocally);
+        Assert.Contains(events.All, e => e.Stage == "per-object" && e.Detail.Contains("applications.owners", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Unfiltered_read_marks_relationship_filtered_locally()
+    {
+        await using var h = NewHost();
+        string[] ids = ["a1", "a2"];
+        h.Graph.Answer = (request, ct) => request.Method == HttpMethod.Get && request.RequestUri!.Query.Contains("$filter", StringComparison.Ordinal)
+            ? Task.FromResult(FakeGraph.Error(HttpStatusCode.BadRequest, "Request_UnsupportedQuery", "no filter"))
+            : OwnersAnswer(request, ids, 1);
+
+        var r = await h.RunAsync("applications | where displayName == \"a1\" | mv-expand o = owners", ct: Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        var table = Assert.Single(r.Tables);
+        Assert.True(table.Unfiltered);
+        Assert.True(Assert.Single(table.Relationships).FilteredLocally);
     }
 
     [Fact]

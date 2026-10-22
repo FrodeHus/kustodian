@@ -26,6 +26,14 @@ public enum RunOutcome
 /// <paramref name="Source"/> says it needs.</summary>
 public sealed record LicenseLeftOut(string Column, string License, string Source);
 
+/// <summary>What reading one relationship column did: the objects it was read for, those whose entries were cut off at
+/// <paramref name="EntryCap"/>, those Graph refused (<paramref name="Refused"/>), the delegated <paramref name="Permissions"/>
+/// the read needs, whether the table had too many objects for it (<paramref name="Capped"/>: nothing was read), and whether
+/// a <c>where</c> ran locally, so every object was read. Failed and cached objects are in <see cref="TableFetch.PerObjectFailed"/>
+/// and <see cref="TableFetch.PerObjectCached"/>.</summary>
+public sealed record RelationshipFetch(string Column, int Objects, int Truncated, int EntryCap, int Refused,
+    IReadOnlyList<string> Permissions, bool Capped, bool FilteredLocally);
+
 /// <summary>What was fetched for one table, for the result's details: the requests sent (relative URLs), whether the table was
 /// read without its filter after Graph refused it, the columns Graph won't list (<paramref name="Unreadable"/>) or refused for
 /// permission (<paramref name="Denied"/>; their values are empty), the columns read one object at a time
@@ -38,6 +46,9 @@ public sealed record TableFetch(string Table, IReadOnlyList<string> Requests, bo
     /// empty), and Graph's message.</summary>
     public IReadOnlyList<string> Unlicensed { get; init; } = [];
     public string? UnlicensedReason { get; init; }
+
+    /// <summary>The relationship columns the query names, as read.</summary>
+    public IReadOnlyList<RelationshipFetch> Relationships { get; init; } = [];
 
     /// <summary>The columns the query touches that weren't read because the tenant is known to lack their license (their values
     /// are empty).</summary>
