@@ -53,7 +53,8 @@ public sealed class GraphRelationshipReader(HttpClient http, GraphLimits limits)
     private sealed record Item(string Id, Outcome Outcome, JsonNode? Value = null, bool Truncated = false);
 
     /// <summary>Reads <paramref name="relationship"/> of every object in <paramref name="objects"/> (by its <c>id</c>). The
-    /// answers count against <paramref name="lease"/>.</summary>
+    /// answers count against <paramref name="lease"/>. A follow-up page is a plain GET, not retried: a throttled (429) or
+    /// otherwise failed follow-up page fails that object.</summary>
     public async Task<GraphRelationshipRead> ReadAsync(string accountKey, string path, GraphColumn relationship,
         IReadOnlyList<JsonObject> objects, GraphFetchLease lease, RunDiagnostics? diagnostics, CancellationToken ct)
     {
@@ -94,6 +95,8 @@ public sealed class GraphRelationshipReader(HttpClient http, GraphLimits limits)
             var urls = chunk.Select(id => "/" + Template(path, relationship.Name, relationship.Collection)
                 .Replace("{id}", Uri.EscapeDataString(id), StringComparison.Ordinal)).ToList();
             var answers = await GraphBatchSender.SendAsync(http, accountKey, path, urls, lease, diagnostics, token);
+            // A chunk's follow-up pages are fetched one object at a time; the object cap
+            // (GraphLimits.RelationshipObjectsPerTable) bounds how many there can be.
             for (var i = 0; i < chunk.Length; i++)
             {
                 var answer = answers[i];

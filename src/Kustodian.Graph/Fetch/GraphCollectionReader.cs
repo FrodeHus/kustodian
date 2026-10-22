@@ -9,7 +9,8 @@ namespace Kustodian.Graph.Fetch;
 
 /// <summary>What one collection read returned. <c>Requests</c> are the relative URLs as sent (the per-object reads once, as
 /// <see cref="GraphBatchReader.Template"/>); <c>Unfiltered</c> says Graph refused the <c>$filter</c> and the whole collection
-/// was read; <c>Unreadable</c> are the properties Graph won't serve in a list and that are missing from the objects.
+/// was read; <c>Unreadable</c> are the properties Graph won't serve in a list and that are missing from the objects, and the
+/// relationship columns left unread because they were capped (<see cref="GraphRelationshipOutcome.Capped"/>).
 /// <see cref="PerObject"/> are such properties read one object at a time instead, <see cref="PerObjectFailed"/> the objects
 /// whose read failed (their values are empty), and <see cref="PerObjectCapped"/> says the collection had more objects than
 /// <see cref="GraphLimits.PerObjectReadsPerTable"/> to read, so its named properties stayed unread. <see cref="PerObjectCached"/> are
@@ -42,8 +43,11 @@ public sealed record GraphCollection(IReadOnlyList<JsonObject> Objects, IReadOnl
 /// cut off at <see cref="GraphLimits.RelationshipEntriesPerObject"/> (cached values included), <c>Refused</c> those Graph refused
 /// for permission and <c>Failed</c> those that couldn't be read (both left empty). <c>Capped</c>: more than
 /// <see cref="GraphLimits.RelationshipObjectsPerTable"/> objects were left to read, so nothing was read or merged.
-/// <c>Cached</c> are the objects whose value came from the cache.</summary>
-public sealed record GraphRelationshipOutcome(string Column, int Objects, int Truncated, int Refused, int Failed, bool Capped, int Cached);
+/// <c>Cached</c> are the objects whose value came from the cache. <c>Limited</c> are the entries, over all objects (cached
+/// values included), with no <c>displayName</c>: Graph answers a directory object of a type the account can't read with only
+/// its <c>@odata.type</c> and <c>id</c>, not a refusal.</summary>
+public sealed record GraphRelationshipOutcome(string Column, int Objects, int Truncated, int Refused, int Failed, bool Capped, int Cached,
+    int Limited);
 
 /// <summary>
 /// Reads one Graph collection for the signed-in account, page by page, within the object cap

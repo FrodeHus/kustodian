@@ -93,7 +93,8 @@ public sealed partial class GraphCollectionReaderTests
         Assert.Empty(result.PerObject);
         Assert.False(result.PerObjectCapped);
         var outcome = Assert.Single(result.Relationships);
-        Assert.Equal(new GraphRelationshipOutcome("owners", 2, 0, 0, 0, false, 0), outcome);
+        // Each object's second owner came back without a displayName: limited information.
+        Assert.Equal(new GraphRelationshipOutcome("owners", 2, 0, 0, 0, false, 0, 2), outcome);
     }
 
     [Fact]
@@ -132,18 +133,35 @@ public sealed partial class GraphCollectionReaderTests
         var first = Applications(1);
         var read = await Read(RelationshipReader(first, cache, limits), Naming(null, "owners"));
         Assert.Contains(first.Requests, IsBatch);
-        Assert.Equal(new GraphRelationshipOutcome("owners", 1, 1, 0, 0, false, 0), Assert.Single(read.Relationships));
+        Assert.Equal(new GraphRelationshipOutcome("owners", 1, 1, 0, 0, false, 0, 0), Assert.Single(read.Relationships));
 
         var second = Applications(1);
         var cached = await Read(RelationshipReader(second, cache, limits), Naming(null, "owners"));
         Assert.DoesNotContain(second.Requests, IsBatch);
-        Assert.Equal(new GraphRelationshipOutcome("owners", 1, 1, 0, 0, false, 1), Assert.Single(cached.Relationships));
+        Assert.Equal(new GraphRelationshipOutcome("owners", 1, 1, 0, 0, false, 1, 0), Assert.Single(cached.Relationships));
         Assert.Single(Assert.IsType<JsonArray>(cached.Objects[0]["owners"]));
         Assert.Equal(0, cached.PerObjectCached);
 
         // And the reverse: the property entries are as they were.
         var entry = await cache.GetAsync(Account, "applications", ["owners"], "a0", CancellationToken.None);
         Assert.Equal("""{"owners":"a property"}""", entry!.Json);
+    }
+
+    [Fact]
+    public async Task Entries_without_a_display_name_are_counted_as_limited_also_from_the_cache()
+    {
+        // Graph answers a directory object of a type the account can't read with only @odata.type and id.
+        var cache = new MemoryGraphObjectCache(new FakeTimeProvider(DateTimeOffset.UtcNow));
+
+        var read = await Read(RelationshipReader(Applications(1), cache), Naming(null, "owners"));
+        Assert.Equal(1, Assert.Single(read.Relationships).Limited);
+
+        var again = Applications(1);
+        var cached = await Read(RelationshipReader(again, cache), Naming(null, "owners"));
+        Assert.DoesNotContain(again.Requests, IsBatch);
+        var outcome = Assert.Single(cached.Relationships);
+        Assert.Equal(1, outcome.Cached);
+        Assert.Equal(1, outcome.Limited);
     }
 
     [Fact]

@@ -124,6 +124,23 @@ public sealed class GraphRelationshipReaderTests
     }
 
     [Fact]
+    public async Task Collection_404_fails_the_object()
+    {
+        // Unlike a single relationship's 404 (no manager), a collection's 404 isn't an empty answer.
+        var graph = new FakeGraph
+        {
+            Answer = (request, _) => Task.FromResult(Batch(request, id => id == "u1"
+                ? (404, new { error = new { code = "Request_ResourceNotFound" } })
+                : (200, new { value = Array.Empty<object>() }))),
+        };
+
+        var result = await Read(Reader(graph), MemberOf, "u1", "u2");
+
+        Assert.Equal((0, 1), (result.Refused, result.Failed));
+        Assert.Equal(["u2"], result.Values.Keys);
+    }
+
+    [Fact]
     public async Task Refused_items_are_counted()
     {
         var graph = new FakeGraph
@@ -188,5 +205,28 @@ public sealed class GraphRelationshipReaderTests
             Reader(graph).ReadAsync("account-1", "users", MemberOf, [Obj("u1")], lease, null, CancellationToken.None));
 
         Assert.Equal(GraphReadFailure.TooLarge, failed.Failure);
+    }
+
+    [Fact]
+    public async Task A_follow_up_page_is_charged_to_the_lease()
+    {
+        var big = Enumerable.Range(0, 200).Select(i => new { id = "group-" + i, displayName = new string('x', 200) }).ToArray();
+        var graph = new FakeGraph
+        {
+            Answer = (request, _) => Task.FromResult(request.Method == HttpMethod.Post
+                ? Batch(request, _ => (200, new Dictionary<string, object>
+                {
+                    ["value"] = new object[] { new { id = "a" } },
+                    ["@odata.nextLink"] = "https://graph.microsoft.com/beta/users/u1/memberOf?$skiptoken=p2",
+                }))
+                : FakeGraph.Collection(big)),
+        };
+        using var lease = new GraphFetchBudget(maxBytes: 30_000).Lease();
+
+        var failed = await Assert.ThrowsAsync<GraphReadException>(() =>
+            Reader(graph).ReadAsync("account-1", "users", MemberOf, [Obj("u1")], lease, null, CancellationToken.None));
+
+        Assert.Equal(GraphReadFailure.TooLarge, failed.Failure);
+        Assert.Contains(graph.Requests, r => r.Contains("p2", StringComparison.Ordinal));
     }
 }

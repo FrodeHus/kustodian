@@ -300,7 +300,7 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
             Relationships = [.. read.Relationships.Select(r => new RelationshipFetch(r.Column, r.Objects, r.Truncated,
                 limits.RelationshipEntriesPerObject, r.Refused,
                 fetch.Table.Columns.FirstOrDefault(c => c.Name == r.Column)?.Permissions ?? [], r.Capped,
-                fetch.FilteredLocally || read.Unfiltered))],
+                fetch.FilteredLocally || read.Unfiltered, r.Limited))],
         };
 
     /// <summary>The answer to a query that counts, given Graph's count: one row, one long column named as the query names it.</summary>

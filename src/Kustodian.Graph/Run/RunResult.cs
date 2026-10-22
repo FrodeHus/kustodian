@@ -29,10 +29,11 @@ public sealed record LicenseLeftOut(string Column, string License, string Source
 /// <summary>What reading one relationship column did: the objects it was read for, those whose entries were cut off at
 /// <paramref name="EntryCap"/>, those Graph refused (<paramref name="Refused"/>), the delegated <paramref name="Permissions"/>
 /// the read needs, whether the table had too many objects for it (<paramref name="Capped"/>: nothing was read), and whether
-/// a <c>where</c> ran locally, so every object was read. Failed and cached objects are in <see cref="TableFetch.PerObjectFailed"/>
-/// and <see cref="TableFetch.PerObjectCached"/>.</summary>
+/// a <c>where</c> ran locally, so every object was read. <paramref name="Limited"/> are the entries Graph answered without
+/// details (only the id and type) because the account can't read their type. Failed and cached objects are in
+/// <see cref="TableFetch.PerObjectFailed"/> and <see cref="TableFetch.PerObjectCached"/>.</summary>
 public sealed record RelationshipFetch(string Column, int Objects, int Truncated, int EntryCap, int Refused,
-    IReadOnlyList<string> Permissions, bool Capped, bool FilteredLocally);
+    IReadOnlyList<string> Permissions, bool Capped, bool FilteredLocally, int Limited);
 
 /// <summary>What was fetched for one table, for the result's details: the requests sent (relative URLs), whether the table was
 /// read without its filter after Graph refused it, the columns Graph won't list (<paramref name="Unreadable"/>) or refused for

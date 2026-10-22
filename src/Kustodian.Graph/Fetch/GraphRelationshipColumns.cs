@@ -63,7 +63,7 @@ internal sealed class GraphRelationshipColumns(HttpClient http, IGraphObjectCach
         {
             Log(diagnostics, DiagnosticKinds.PerObject, string.Create(CultureInfo.InvariantCulture,
                 $"{named}: {misses.Count:N0} objects are more than {cap:N0} to read one at a time; left empty"));
-            return new GraphRelationshipOutcome(column.Name, objects.Count, 0, 0, 0, true, 0);
+            return new GraphRelationshipOutcome(column.Name, objects.Count, 0, 0, 0, true, 0, 0);
         }
 
         var truncated = 0;
@@ -99,8 +99,18 @@ internal sealed class GraphRelationshipColumns(HttpClient http, IGraphObjectCach
             Log(diagnostics, DiagnosticKinds.PerObject, string.Create(CultureInfo.InvariantCulture,
                 $"{named}: read one object at a time for {Objects(misses.Count)}, {refused:N0} refused, {failed:N0} failed, {answered.Truncated.Count:N0} cut off at {limits.RelationshipEntriesPerObject:N0} entries"));
         }
-        return new GraphRelationshipOutcome(column.Name, objects.Count, truncated, refused, failed, false, hits.Count);
+        return new GraphRelationshipOutcome(column.Name, objects.Count, truncated, refused, failed, false, hits.Count,
+            objects.Sum(o => Limited(o[column.Name])));
     }
+
+    /// <summary>The entries in one object's value without a <c>displayName</c> (only <c>id</c> and <c>objectType</c>): what Graph
+    /// answers for a directory object of a type the account can't read. A single relationship's value is one entry or null.</summary>
+    private static int Limited(JsonNode? value) => value switch
+    {
+        JsonArray entries => entries.Count(e => e is JsonObject entry && !entry.ContainsKey("displayName")),
+        JsonObject entry => entry.ContainsKey("displayName") ? 0 : 1,
+        _ => 0,
+    };
 
     private static string Objects(int count)
         => count.ToString("N0", CultureInfo.InvariantCulture) + (count == 1 ? " object" : " objects");

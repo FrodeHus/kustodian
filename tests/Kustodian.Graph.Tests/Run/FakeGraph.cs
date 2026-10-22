@@ -17,10 +17,11 @@ public sealed class FakeGraph : HttpMessageHandler
     public Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> Answer { get; set; }
         = (_, _) => Task.FromResult(Collection([]));
 
-    /// <summary>A reader over this fake, with the caches off, whose waits for a throttled request pass at once.</summary>
-    public GraphCollectionReader Reader(GraphFetchBudget budget)
-        => new(new HttpClient(this) { BaseAddress = new Uri("https://graph.microsoft.com/beta/") }, budget, NoGraphObjectCache.Instance,
-            GraphLimits.Default, time: new InstantTime());
+    /// <summary>A reader over this fake, with the caches off (or <paramref name="cache"/> as the object cache), whose waits for
+    /// a throttled request pass at once.</summary>
+    public GraphCollectionReader Reader(GraphFetchBudget budget, IGraphObjectCache? cache = null)
+        => new(new HttpClient(this) { BaseAddress = new Uri("https://graph.microsoft.com/beta/") }, budget,
+            cache ?? NoGraphObjectCache.Instance, GraphLimits.Default, time: new InstantTime());
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
