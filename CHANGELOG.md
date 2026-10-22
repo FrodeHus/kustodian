@@ -5,6 +5,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.7] - 2026-10-22
+
 ### Added
 
 - The macOS app and dmgs are signed with a Developer ID and notarized, so they open without a Gatekeeper prompt and macOS no
