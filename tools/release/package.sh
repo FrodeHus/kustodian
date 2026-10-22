@@ -43,20 +43,49 @@ project_version() {
     dotnet msbuild "$root/src/Kustodian/Kustodian.csproj" -getProperty:Version | tr -d '[:space:]'
 }
 
-# Kustodian-<version>-<rid>.zip: Kustodian.exe, LICENSE and README.md at the top level.
+# A Python that can write zips, for hosts without zip (Git Bash on Windows, where `python3` may be the Microsoft Store
+# stub that fails to run); prints nothing when there is none.
+zip_python() {
+    local py
+    for py in python3 python; do
+        if command -v "$py" >/dev/null 2>&1 && "$py" -c 'import zipfile' >/dev/null 2>&1; then
+            echo "$py"
+            return 0
+        fi
+    done
+}
+
+# Kustodian-<version>-<rid>.zip: Kustodian.exe, LICENSE and README.md at the top level. Uses zip, or Python's zipfile
+# where zip is missing (Git Bash on the Windows release runner has no zip).
 package_windows() {
     local rid="$1" publish="$2" version="$3"
-    local zip="$artifacts/Kustodian-$version-$rid.zip"
+    local zip="$artifacts/Kustodian-$version-$rid.zip" py=""
     if ! command -v zip >/dev/null 2>&1; then
-        echo "package.sh: zip is not installed" >&2
-        exit 1
+        py="$(zip_python)"
+        if [[ -z "$py" ]]; then
+            echo "package.sh: neither zip nor Python is installed" >&2
+            exit 1
+        fi
     fi
     if [[ ! -f "$publish/Kustodian.exe" ]]; then
         echo "package.sh: $publish/Kustodian.exe is missing after publish" >&2
         exit 1
     fi
     rm -f "$zip"
-    zip -j -X -q "$zip" "$publish/Kustodian.exe" "$root/LICENSE" "$root/README.md"
+    local files=("$publish/Kustodian.exe" "$root/LICENSE" "$root/README.md")
+    if [[ -z "$py" ]]; then
+        zip -j -X -q "$zip" "${files[@]}"
+    else
+        "$py" - "$zip" "${files[@]}" <<'PY'
+import os
+import sys
+import zipfile
+
+with zipfile.ZipFile(sys.argv[1], "w", zipfile.ZIP_DEFLATED) as archive:
+    for path in sys.argv[2:]:
+        archive.write(path, os.path.basename(path))
+PY
+    fi
     echo "package.sh: wrote $zip" >&2
 }
 

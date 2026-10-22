@@ -1,0 +1,266 @@
+name: release
+
+# Builds every package from one commit and creates a draft GitHub release with all of them and SHA256SUMS.txt. Runs on a
+# pushed `v<version>` tag, which must match the project's version (Directory.Build.props), or by hand from the Actions tab,
+# which drafts a release for `v<version>` at the commit it ran on. Nothing is published: the owner reviews the draft and
+# publishes it, which is when GitHub creates the tag for a manual run.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: Check the version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Read the project version
+        id: version
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          version="$(dotnet msbuild src/Kustodian/Kustodian.csproj -getProperty:Version | tr -d '[:space:]')"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Could not read the project version (got '$version')"
+            exit 1
+          fi
+          if [[ "$REF_TYPE" == "tag" && "$REF_NAME" != "v$version" ]]; then
+            echo "::error::Tag $REF_NAME does not match the project version $version (Directory.Build.props)"
+            exit 1
+          fi
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+          echo "Version $version"
+
+  windows:
+    name: Windows (MSIs and portable zips)
+    needs: version
+    runs-on: windows-latest
+    # One Certum SimplySign account serves every signing job, and a TOTP code is single-use: two overlapping logins make
+    # the loser read "invalid user name or token". Hold signing to one login at a time.
+    concurrency:
+      group: certum-simplysign
+      cancel-in-progress: false
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    outputs:
+      signed: ${{ steps.signing.outputs.signed }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install WiX
+        # v5: later majors require accepting the Open Source Maintenance Fee EULA.
+        run: dotnet tool install --global wix --version 5.0.2
+
+      # Windows signing: a Certum code-signing certificate held in Certum's cloud (SimplySign). Connect-SimplySign.ps1
+      # opens the session on the runner from the account name and the TOTP seed, after which signtool finds the
+      # certificate by thumbprint like any other. Without all three secrets the MSIs ship unsigned.
+      - name: Detect signing secrets
+        id: signing
+        shell: pwsh
+        env:
+          CERTUM_USERNAME: ${{ secrets.CERTUM_USERNAME }}
+          CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
+          CERTUM_KEY_ID: ${{ secrets.CERTUM_KEY_ID }}
+        run: |
+          if ($env:CERTUM_USERNAME -and $env:CERTUM_OTP_URI -and $env:CERTUM_KEY_ID) {
+            "SIGN=1" | Out-File -FilePath $env:GITHUB_ENV -Append
+            "signed=1" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          } else {
+            Write-Host "Certum signing secrets not configured; building unsigned MSIs."
+            "signed=" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          }
+
+      # signtool is not on the runner's PATH: add the newest x64 one from the Windows SDK.
+      - name: Open the SimplySign session
+        if: env.SIGN == '1'
+        shell: pwsh
+        env:
+          CERTUM_USERNAME: ${{ secrets.CERTUM_USERNAME }}
+          CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
+          CERTUM_KEY_ID: ${{ secrets.CERTUM_KEY_ID }}
+        run: |
+          ./tools/release/windows/Connect-SimplySign.ps1
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe | Where-Object { $_.FullName -match '\\x64\\' } | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { throw "signtool.exe was not found in the Windows SDK" }
+          $signtool.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      - name: Portable zips
+        shell: bash
+        run: |
+          for rid in win-x64 win-arm64; do
+            tools/release/package.sh "$rid"
+          done
+
+      - name: MSIs
+        shell: pwsh
+        env:
+          CERTUM_KEY_ID: ${{ secrets.CERTUM_KEY_ID }}
+        run: |
+          $sign = $env:SIGN -eq '1'
+          ./tools/release/windows/build.ps1 -Version $env:VERSION -Sign:$sign
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-windows
+          path: |
+            artifacts/Kustodian-*.msi
+            artifacts/Kustodian-*.msi.sha256
+            artifacts/Kustodian-*.zip
+          if-no-files-found: error
+
+  macos:
+    name: macOS (app zips and dmgs)
+    needs: version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Packages
+        run: |
+          for rid in osx-arm64 osx-x64; do
+            tools/release/package.sh "$rid"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-macos
+          path: |
+            artifacts/Kustodian-*.zip
+            artifacts/Kustodian-*.dmg
+          if-no-files-found: error
+
+  linux:
+    name: Linux (tarball and AppImage)
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install Photino dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libsecret-1-dev
+
+      - name: Packages
+        run: tools/release/package.sh linux-x64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-linux
+          path: |
+            artifacts/Kustodian-*.tar.gz
+            artifacts/Kustodian-*.AppImage
+          if-no-files-found: error
+
+  release:
+    name: Draft the release
+    needs: [version, windows, macos, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      WIN_SIGNED: ${{ needs.windows.outputs.signed }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: packages-*
+          path: artifacts
+          merge-multiple: true
+
+      - name: Checksums
+        run: |
+          tools/release/checksums.sh
+          cat artifacts/SHA256SUMS.txt
+
+      - name: Release notes
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          {
+            # The changelog section for this version, when there is one.
+            awk -v v="$VERSION" '
+              /^## \[/ { on = (index($0, "## [" v "]") == 1); next }
+              on { print }
+            ' CHANGELOG.md
+            echo
+            echo "## Install"
+            echo
+            echo "See the [install guide](https://github.com/$REPO/blob/v$VERSION/docs/install.md) for every platform."
+            echo
+            echo "- **Windows 11:** \`Kustodian-$VERSION-x64.msi\` or \`Kustodian-$VERSION-arm64.msi\` (installs per user, no admin rights), or the portable \`Kustodian-$VERSION-win-x64.zip\` / \`-win-arm64.zip\`."
+            echo "- **macOS 14 or later:** \`Kustodian-$VERSION-osx-arm64.dmg\` (Apple silicon) or \`Kustodian-$VERSION-osx-x64.dmg\` (Intel); the same app is in the \`.zip\` files."
+            echo "- **Linux x64:** \`Kustodian-$VERSION-x86_64.AppImage\` or \`Kustodian-$VERSION-linux-x64.tar.gz\`. Needs WebKitGTK 4.1, libsecret and libnotify from your distribution, and FUSE 2 for the AppImage."
+            echo
+            echo "## Signing"
+            echo
+            echo "macOS: not notarized (ad-hoc signature). The first open is blocked; choose System Settings -> Privacy & Security -> Open Anyway, or run \`xattr -dr com.apple.quarantine /Applications/Kustodian.app\`."
+            echo
+            if [ "$WIN_SIGNED" = "1" ]; then
+              echo 'Windows: the MSIs, and the Kustodian.exe they install, are code-signed (Certum). The portable zips are not signed. SmartScreen can still warn about a new release; choose **More info**, then **Run anyway**.'
+            else
+              echo 'Windows: the MSIs and the portable zips are **not code-signed**. SmartScreen shows "Windows protected your PC"; choose **More info**, then **Run anyway**.'
+            fi
+            echo
+            echo '## Verify'
+            echo
+            echo "Download \`SHA256SUMS.txt\` next to the packages and run \`shasum -a 256 -c --ignore-missing SHA256SUMS.txt\` (or \`sha256sum -c --ignore-missing SHA256SUMS.txt\` on Linux)."
+          } >notes.md
+          cat notes.md
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "v$VERSION"
+          artifacts/Kustodian-*
+          artifacts/SHA256SUMS.txt
+          --draft
+          --target "$GITHUB_SHA"
+          --title "Kustodian $VERSION"
+          --notes-file notes.md
