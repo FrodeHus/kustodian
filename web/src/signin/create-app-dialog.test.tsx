@@ -416,6 +416,6 @@ describe('CreateAppDialog created view', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
     await screen.findByText(created.appId);
     fireEvent.click(screen.getByRole('button', { name: 'Just show me the client ID' }));
-    expect(onClientId).toHaveBeenCalledWith({ name: 'Kustodian (kari@contoso.com)', appId: created.appId });
+    expect(onClientId).toHaveBeenCalledWith({ name: 'Kustodian (kari@contoso.com)', appId: created.appId, tenantId: created.tenantId });
   });
 });

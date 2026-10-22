@@ -1,5 +1,7 @@
 # Documentation
 
+- [install.md](install.md): downloading, installing and first run on Windows, macOS and Linux, where data lives, and
+  verifying downloads.
 - [EntraPermissions.md](EntraPermissions.md): what the default sign-in can read, and how to set up your own Entra ID app
   registration.
 - [LicensesAndPermissions.md](LicensesAndPermissions.md): Graph tables and columns that need a license or extra permission,

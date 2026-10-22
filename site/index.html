@@ -9,8 +9,13 @@
 <meta property="og:title" content="Kustodian: KQL for your Microsoft tenant">
 <meta property="og:description" content="A desktop KQL workbench for Microsoft Graph, Defender advanced hunting and Azure Resource Graph. Open source, for Windows, macOS and Linux.">
 <meta property="og:type" content="website">
-<meta property="og:image" content="https://frodehus.github.io/kustodian/images/main.png">
+<meta property="og:url" content="https://frodehus.github.io/kustodian/">
+<meta property="og:image" content="https://frodehus.github.io/kustodian/images/social-preview.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="Kustodian: ask your tenant anything in KQL. Microsoft Graph, Defender hunting and Azure Resource Graph.">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://frodehus.github.io/kustodian/images/social-preview.png">
 <link rel="icon" href="favicon.png" type="image/png" sizes="32x32">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
@@ -39,8 +44,8 @@ body{margin:0;background:#0F1115}
 .k-btn.k-sm{height:36px;padding:0 14px;font-size:14px}
 .k-eyebrow{display:inline-flex;align-items:center;gap:10px;font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--muted);letter-spacing:.02em}
 .k-eyebrow i{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block}
-.k-h1{font-size:76px;line-height:1.02;letter-spacing:-.035em;font-weight:700;margin:20px 0 24px}
-.k-h1 em{font-style:normal;color:var(--accent)}
+.k-banner{margin:20px 0 48px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#0C0F15}
+.k-banner img{display:block;width:100%;height:auto}
 .k-h2{font-size:48px;line-height:1.08;letter-spacing:-.03em;font-weight:700;margin:0 0 20px}
 .k-h3{font-size:20px;line-height:1.3;font-weight:600;margin:0 0 8px;letter-spacing:-.01em}
 .k-lead{font-size:20px;color:var(--muted);max-width:620px;margin:0}
@@ -115,13 +120,11 @@ body{margin:0;background:#0F1115}
   .k-hero-grid,.k-explain,.k-privacy,.k-split{grid-template-columns:minmax(0,1fr);gap:40px}
   .k-sources,.k-steps{grid-template-columns:minmax(0,1fr)}
   .k-features{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .k-h1{font-size:56px}
   .k-links{display:none}
   .k-nav .k-wrap{justify-content:space-between}
 }
 @media (max-width:640px){
   .k-wrap{padding:0 16px}
-  .k-h1{font-size:42px}
   .k-h2{font-size:34px}
   .k-lead{font-size:18px}
   .k-hero{padding-top:56px}
@@ -160,16 +163,21 @@ GitHub
 
 <section class="k-hero">
 <div class="k-wrap">
+<span class="k-eyebrow"><i></i>Open source · MIT · Windows, macOS &amp; Linux</span>
+<h1 class="k-banner">
+<picture>
+<source media="(max-width:640px)" srcset="banner-text-720.webp 720w, banner-text-1260.webp 1260w" sizes="calc(100vw - 32px)" width="1260" height="380">
+<img src="banner-1200.webp" srcset="banner-1200.webp 1200w, banner-2000.webp 2000w" sizes="(max-width:1200px) calc(100vw - 64px), 1136px" width="2000" height="667" fetchpriority="high" alt="Ask your tenant anything. In KQL. One query language, three data sources: Microsoft Graph, Defender hunting and Azure Resource Graph.">
+</picture>
+</h1>
 <div class="k-hero-grid">
 <div>
-<span class="k-eyebrow"><i></i>Open source · MIT · Windows, macOS &amp; Linux</span>
-<h1 class="k-h1">Ask your tenant anything. <em>In KQL.</em></h1>
 <p class="k-lead">A desktop KQL workbench for Microsoft Graph, Defender advanced hunting and Azure Resource Graph. One query language, completion that knows the schema, and results right beside your query.</p>
 <div class="k-ctas">
 <a class="k-btn k-primary" href="#get-started">Get started</a>
 <a class="k-btn" href="https://github.com/FrodeHus/kustodian">View on GitHub</a>
 </div>
-<p class="k-platforms">Built on .NET 10 and React. No prebuilt releases yet: build from source.</p>
+<p class="k-platforms">Built on .NET 10 and React. <a href="https://github.com/FrodeHus/kustodian/releases/latest">Download</a> for Windows 11, macOS 14+ and Linux.</p>
 </div>
 <div class="k-code">
 <div class="k-code-head"><span class="k-src gr">GR</span>Expired app credentials</div>
@@ -184,7 +192,7 @@ GitHub
 </div>
 </div>
 <figure class="k-shot" style="margin-bottom: 0">
-<img src="images/main.png" fetchpriority="high" alt="Kustodian querying Microsoft Graph with KQL: schema tree, editor and a results grid" width="1440" height="900">
+<img src="images/main.png" alt="Kustodian querying Microsoft Graph with KQL: schema tree, editor and a results grid" width="1440" height="900">
 </figure>
 <p class="k-caption">Screenshots use sample data.</p>
 </div>
@@ -363,29 +371,43 @@ GitHub
 <section class="k-section" id="get-started" aria-labelledby="start-h">
 <div class="k-wrap">
 <p class="k-label">Get started</p>
-<h2 class="k-h2" id="start-h">Three commands to your first query.</h2>
-<p class="k-lead">There are no prebuilt releases yet. Build from source on Windows, macOS or Linux.</p>
+<h2 class="k-h2" id="start-h">Download, open, sign in.</h2>
+<p class="k-lead">Get the package for your platform from the <a href="https://github.com/FrodeHus/kustodian/releases/latest">latest release</a>. Builds are self-contained: no .NET to install.</p>
 <div class="k-steps">
 <div class="k-step">
-<span class="k-step-n">01 · Install</span>
-<h3 class="k-h3">The toolchain</h3>
-<p><a href="https://dotnet.microsoft.com/download">.NET SDK 10</a> and <a href="https://nodejs.org/">Node.js 22</a>. On Linux, also WebKitGTK 4.1 and libsecret.</p>
+<span class="k-step-n">Windows 11 · x64 &amp; Arm</span>
+<h3 class="k-h3">MSI or portable zip</h3>
+<p><span class="k-mono">Kustodian-&lt;version&gt;-x64.msi</span> (or <span class="k-mono">-arm64.msi</span>) installs for you alone, no admin rights needed. Add <span class="k-mono">ALLUSERS=1</span> to install for everyone. Or extract <span class="k-mono">Kustodian-&lt;version&gt;-win-x64.zip</span> (or <span class="k-mono">-win-arm64.zip</span>) anywhere; unblock it in Properties first. On an unsigned build, SmartScreen asks once: More info → Run anyway.</p>
+<pre class="k-term"><span class="p">&gt; </span>msiexec /i Kustodian-&lt;version&gt;-x64.msi ALLUSERS=1</pre>
+</div>
+<div class="k-step">
+<span class="k-step-n">macOS 14+ · Apple silicon &amp; Intel</span>
+<h3 class="k-h3">dmg or zip</h3>
+<p>Open <span class="k-mono">Kustodian-&lt;version&gt;-osx-arm64.dmg</span> (or <span class="k-mono">-osx-x64.dmg</span>; the same app is in the <span class="k-mono">.zip</span>) and drag Kustodian to Applications. The app isn’t notarized: allow the first open in System Settings → Privacy &amp; Security → Open Anyway, or run:</p>
+<pre class="k-term"><span class="p">$ </span>xattr -dr com.apple.quarantine \
+  /Applications/Kustodian.app</pre>
+</div>
+<div class="k-step">
+<span class="k-step-n">Linux · x64</span>
+<h3 class="k-h3">AppImage or tarball</h3>
+<p>Needs WebKitGTK 4.1, libsecret and libnotify from your distribution. <span class="k-mono">chmod +x</span> <span class="k-mono">Kustodian-&lt;version&gt;-x86_64.AppImage</span>, then run it; it runs without FUSE (it extracts itself), and with fuse3's <span class="k-mono">fusermount</span>, which WebKitGTK usually brings, it mounts instead. Or extract <span class="k-mono">Kustodian-&lt;version&gt;-linux-x64.tar.gz</span> and run <span class="k-mono">./Kustodian</span>.</p>
 <pre class="k-term"><span class="p">$ </span>sudo apt-get install \
-  libwebkit2gtk-4.1-dev libsecret-1-dev</pre>
+  libwebkit2gtk-4.1-0 libsecret-1-0 \
+  libnotify4
+<span class="p">$ </span>sudo dnf install \
+  webkit2gtk4.1 libsecret \
+  libnotify</pre>
 </div>
-<div class="k-step">
-<span class="k-step-n">02 · Clone</span>
-<h3 class="k-h3">The repository</h3>
-<p>The build embeds the web UI for you; no separate frontend step.</p>
-<pre class="k-term"><span class="p">$ </span>git clone https://github.com/FrodeHus/kustodian
-<span class="p">$ </span>cd kustodian</pre>
 </div>
-<div class="k-step">
-<span class="k-step-n">03 · Run</span>
-<h3 class="k-h3">And sign in</h3>
-<p>Sign in with your work account and open your first tab.</p>
-<pre class="k-term"><span class="p">$ </span>dotnet run --project src/Kustodian</pre>
-</div>
+<p style="margin: 28px 0 0">Then sign in with your work account and open your first tab. <a href="https://github.com/FrodeHus/kustodian/blob/main/docs/install.md">The install guide, step by step →</a></p>
+<div class="k-note">
+<h3 class="k-h3">Build from source</h3>
+<p style="margin: 0 0 14px"><a href="https://dotnet.microsoft.com/download">.NET SDK 10</a> and <a href="https://nodejs.org/">Node.js 22</a>. On Linux, also the WebKitGTK 4.1 and libsecret development packages. The build embeds the web UI for you; no separate frontend step.</p>
+<pre class="k-term"><span class="p">$ </span>sudo apt-get install \
+  libwebkit2gtk-4.1-dev libsecret-1-dev
+<span class="p">$ </span>git clone https://github.com/FrodeHus/kustodian
+<span class="p">$ </span>cd kustodian
+<span class="p">$ </span>dotnet run --project src/Kustodian</pre>
 </div>
 </div>
 </section>

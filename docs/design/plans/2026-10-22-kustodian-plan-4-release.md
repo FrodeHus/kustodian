@@ -87,7 +87,8 @@ before v1), 14 (risks 3 and 4) and 15 (unsigned v1).
 5. **The quarantine flag after download.** Expected: the README gives the exact steps for each platform:
    - macOS 15: System Settings → Privacy & Security → Open Anyway, or `xattr -dr com.apple.quarantine`.
    - Windows: SmartScreen "More info → Run anyway", plus unblocking the zip.
-   - Linux: `chmod +x` on the AppImage, and `libfuse2` for AppImage.
+   - Linux: `chmod +x` on the AppImage. The AppImage runs without FUSE (it extracts itself); with fuse3's fusermount,
+     which WebKitGTK usually brings, it mounts instead.
 
    The fresh-download manual check (Task 8) runs these steps on each platform.
 
@@ -163,23 +164,27 @@ before v1), 14 (risks 3 and 4) and 15 (unsigned v1).
 
 ### Task 3: App icon
 
-**Files:**
-- Done (2026-10-22), except the MSI bitmaps, which move to Task 4. The source is the supplied logo,
-  `assets/logo-source.webp` (1254 px, transparent). `tools/release/make-icons.sh` (macOS: `sips`, `iconutil`) builds
-  `assets/icon.icns` from the padded source, and from a tight square crop `assets/icon-256.png`, `icon-512.png`,
-  `icon.ico`, the website's `site/favicon.png` and `site/logo.png`, and the title bar's `web/src/shell/logo.png`.
-- Create: `kustodian/tools/release/make-ico.cs`, a .NET 10 file-based app. It writes `kustodian/assets/icon.ico` with
-  PNG-compressed entries at 16, 32, 48 and 256 px from the rendered PNGs.
-- Commit the generated files under `kustodian/assets/`.
-- Modify: `kustodian/src/Kustodian/Kustodian.csproj`: `ApplicationIcon=..\..\assets\icon.ico` (Windows exe icon). Embed
-  `icon-256.png` as `icon.png`.
-- Modify: `kustodian/src/Kustodian/App/AppWindow.cs`. Set the window icon on Windows and Linux from the embedded PNG,
-  written to the app's folder, `AppPaths.Root` (Photino's `SetIconFile` takes a path). macOS takes the icon from the bundle.
+Done (2026-10-22).
 
-- [x] **Step 1:** Run the scripts. Expected: the four asset files exist. `file icon.ico` reports an MS Windows
-  icon resource with 4 icons.
-- [x] **Step 2:** Run `shellcheck` on the script and `dotnet build kustodian/Kustodian.slnx -warnaserror`. Expected: clean.
-- [ ] **Step 3:** Commit: `feat(kustodian): app icon`.
+**Files:**
+- `assets/logo-source.webp`: the supplied logo (1254 px, transparent), the one source for every icon.
+- `tools/release/make-icons.sh`, run on macOS (`sips`, `iconutil`). From the padded source it builds `assets/icon.icns`;
+  from a tight square crop of the mark, legible at 16 px, it builds `assets/icon-256.png` and `icon-512.png` for Linux, the
+  MSI's `tools/release/windows/Assets/Dialog.bmp` (493×312, icon at left on white) and `Banner.bmp` (493×58, icon at right),
+  the website's `site/favicon.png` and `site/logo.png`, and the title bar's `web/src/shell/logo.png`. It leaves the rendered
+  PNGs in `artifacts/icons/`.
+- `tools/release/make-ico.cs`, a .NET 10 file-based app. It writes `assets/icon.ico` with PNG-compressed entries at 16, 32,
+  48 and 256 px from `artifacts/icons/`.
+- `src/Kustodian/Kustodian.csproj`: `ApplicationIcon=..\..\assets\icon.ico` (Windows exe icon). Embeds `icon-256.png` as
+  `icon.png` and `icon.ico` as `icon.ico`.
+- `src/Kustodian/App/WindowIcon.cs`, called from `AppWindow.cs`: writes the window icon to `AppPaths.Cache` for Photino's
+  `SetIconFile`, `icon.ico` on Windows (Photino reads .ico files only) and `icon.png` on Linux. macOS takes the icon from
+  the bundle.
+
+- [x] **Step 1:** Run `make-icons.sh`, then `dotnet run tools/release/make-ico.cs`. `file assets/icon.ico` reports an MS
+  Windows icon resource with 4 icons.
+- [x] **Step 2:** `shellcheck` on the script and `dotnet build Kustodian.slnx -warnaserror`: clean.
+- [x] **Step 3:** Commit.
 
 ### Task 4: Windows MSI and portable zip
 
@@ -203,7 +208,7 @@ before v1), 14 (risks 3 and 4) and 15 (unsigned v1).
   - No PATH entry: Kustodian has no CLI.
 - Create: `kustodian/tools/release/windows/License.rtf`, the MIT licence text from `kustodian/LICENSE`.
 - Create: `kustodian/tools/release/windows/Assets/Dialog.bmp` (493×312) and `Banner.bmp` (493×58), rendered from
-  `kustodian/assets/icon.svg` by `make-icons.sh` (Task 3).
+  `assets/logo-source.webp` by `make-icons.sh` (Task 3).
 - Create: `kustodian/tools/release/windows/build.ps1`, modelled on Elevate's `build.ps1`. Parameters:
   `-Version` (default 1.0.0), `-Architectures` (x64, arm64, default both) and `-Sign`. For each architecture it:
   1. publishes with `publish.sh`'s properties: `dotnet publish -c Release -r win-<arch> -p:Version=<v>`;
@@ -349,7 +354,8 @@ before v1), 14 (risks 3 and 4) and 15 (unsigned v1).
        Microsoft's page).
   5. **Linux.**
      - Packages: `libwebkit2gtk-4.1-0` and `libsecret-1-0` on Debian/Ubuntu; `webkit2gtk4.1` and `libsecret` on Fedora.
-     - The AppImage needs FUSE 2 (`libfuse2` / `fuse-libs`), plus `chmod +x`.
+     - The AppImage needs `chmod +x`. It runs without FUSE (it extracts itself); with fuse3's fusermount, which WebKitGTK
+       usually brings, it mounts instead.
      - Tarball: extract it and run `./Kustodian`. Optionally copy the `.desktop` file and icon into place.
   6. **Signing in.** The Azure CLI client by default, or your own app registration, with "Create Entra ID application"
      (PR #204).
@@ -373,12 +379,13 @@ before v1), 14 (risks 3 and 4) and 15 (unsigned v1).
   - The first open follows the README's unsigned-build steps exactly.
   - Windows MSI: per-user install, per-machine install (`ALLUSERS=1`), the per-user-over-per-machine guard, upgrade and
     uninstall. Uninstall leaves the user data.
-  - The window opens with its icon, and the title shows the version.
+  - The window opens with its icon, and `--version` and the OS app info (Windows Apps list, macOS Get Info) show the
+    version.
   - Sign-in, and the keychain prompt (macOS) or libsecret (Linux).
   - A Graph query runs: the engine worker starts from the single-file build, and no orphan process is left after quitting.
   - The app runs from a folder with a space in its name.
   - A missing WebKitGTK gives the named-package message (Linux).
-  - The AppImage needs `libfuse2`, and the README's step fixes it.
+  - The AppImage runs without FUSE 2: with no `fusermount` it extracts itself, and with fuse3's it mounts.
   - Spec 13's list: cancel during a long run; killing the engine by memory; restarting with unsaved tabs; a missing keychain
     on Linux.
 

@@ -9,7 +9,7 @@ node_modules/
 web/dist/
 
 # Release packaging
-artifacts/
+/artifacts/
 
 # Editors and OS
 .vs/
@@ -17,6 +17,10 @@ artifacts/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Local agent worktrees and scratch.
+.claude/worktrees/
+.superpowers/
 
 # Website (images are copied from docs/images at deploy)
 site/images/

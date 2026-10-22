@@ -1,4 +1,3 @@
-using System.Reflection;
 using Kustodian.Auth;
 using Kustodian.Messaging;
 using Kustodian.Settings;
@@ -26,8 +25,10 @@ public static class AppHost
 
         var accounts = new AccountService(config => new MsalClient(config, cache), store);
 
+        // On the dotnet host the worker is this app's .dll in the app's folder. (A single-file build has no .dll on disk, and
+        // Assembly.Location is empty there; it runs as its own executable, so this path is never used.)
         var engineCommand = EngineCommand.Resolve(Environment.ProcessPath,
-            Assembly.GetEntryAssembly()?.Location is { Length: > 0 } entry ? entry : typeof(AppHost).Assembly.Location);
+            Path.Combine(AppContext.BaseDirectory, typeof(AppHost).Assembly.GetName().Name + ".dll"));
         var services = AppServices.Build(startup, settings, accounts, cache, engineCommand, store, TimeProvider.System);
         try
         {
