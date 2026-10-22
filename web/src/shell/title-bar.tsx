@@ -1,5 +1,6 @@
 import type { AccountInfo } from '../wire';
 import { MOD } from './keys';
+import logo from './logo.png';
 
 /**
  * The window's top bar: the app's name, the source, the settings button, and the account pill (tenant and user), which opens
@@ -8,7 +9,10 @@ import { MOD } from './keys';
 export function TitleBar({ account, onAccount, onSettings }: { account: AccountInfo | undefined; onAccount: () => void; onSettings: () => void }) {
   return (
     <header className="titlebar">
-      <span className="brand">Kustodian</span>
+      <span className="brand">
+        <img src={logo} width={16} height={16} alt="" />
+        Kustodian
+      </span>
       <span className="faint text-[12px]">Microsoft Graph beta</span>
       <div className="grow" />
       <button type="button" className="btn ghost" aria-label="Settings" title={`Settings (${MOD} ,)`} onClick={onSettings}>

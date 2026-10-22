@@ -21,3 +21,6 @@ Thumbs.db
 # Local agent worktrees and scratch.
 .claude/worktrees/
 .superpowers/
+
+# Website (images are copied from docs/images at deploy)
+site/images/

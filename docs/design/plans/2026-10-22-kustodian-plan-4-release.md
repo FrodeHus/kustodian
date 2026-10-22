@@ -22,7 +22,7 @@ warnings and missing Linux packages.
 - **Release workflow.** A tag-driven release workflow runs the script on the three GitHub runners. Per spec section 10, it only
   runs once `kustodian/` becomes its own repository. Until then the script runs locally, on the Windows VM, and in a Linux
   container.
-- **Icon.** One SVG source. The `.ico`, `.icns` and PNG files are generated once by scripts and committed.
+- **Icon.** One source, `assets/logo-source.webp`. The `.ico`, `.icns` and PNG files are generated once by scripts and committed.
 - **Linux check.** A startup check turns a missing WebKitGTK or libsecret into a message that names the packages.
 
 **Tech Stack:**
@@ -163,27 +163,27 @@ before v1), 14 (risks 3 and 4) and 15 (unsigned v1).
 
 ### Task 3: App icon
 
-**Files:**
-- Create: `kustodian/assets/icon.svg`. A simple, original mark: the letter K inside a rounded square in the app's accent
-  colour, legible at 16 px. No third-party artwork.
-- Create: `kustodian/tools/release/make-icons.sh`, run on macOS. It renders `icon.svg` to a 1024 px PNG with `sips` (via
-  `qlmanage` if `sips` can't read SVG), then builds:
-  - `kustodian/assets/icon.icns` with `iconutil`, from an `.iconset` of 16 to 1024 px;
-  - `kustodian/assets/icon-256.png` and `icon-512.png` for Linux;
-  - the MSI's `kustodian/tools/release/windows/Assets/Dialog.bmp` (493×312, icon at left on white) and `Banner.bmp` (493×58,
-    icon at right), using `sips -s format bmp`.
-- Create: `kustodian/tools/release/make-ico.cs`, a .NET 10 file-based app. It writes `kustodian/assets/icon.ico` with
-  PNG-compressed entries at 16, 32, 48 and 256 px from the rendered PNGs.
-- Commit the generated files under `kustodian/assets/`.
-- Modify: `kustodian/src/Kustodian/Kustodian.csproj`: `ApplicationIcon=..\..\assets\icon.ico` (Windows exe icon). Embed
-  `icon-256.png` as `icon.png`.
-- Modify: `kustodian/src/Kustodian/App/AppWindow.cs`. Set the window icon on Windows and Linux from the embedded PNG,
-  written once to the app's cache folder (Photino's `SetIconFile` takes a path). macOS takes the icon from the bundle.
+Done (2026-10-22).
 
-- [ ] **Step 1:** Draw the SVG and run the scripts. Expected: the four asset files exist. `file icon.ico` reports an MS Windows
-  icon resource with 4 icons.
-- [ ] **Step 2:** Run `shellcheck` on the script and `dotnet build kustodian/Kustodian.slnx -warnaserror`. Expected: clean.
-- [ ] **Step 3:** Commit: `feat(kustodian): app icon`.
+**Files:**
+- `assets/logo-source.webp`: the supplied logo (1254 px, transparent), the one source for every icon.
+- `tools/release/make-icons.sh`, run on macOS (`sips`, `iconutil`). From the padded source it builds `assets/icon.icns`;
+  from a tight square crop of the mark, legible at 16 px, it builds `assets/icon-256.png` and `icon-512.png` for Linux, the
+  MSI's `tools/release/windows/Assets/Dialog.bmp` (493×312, icon at left on white) and `Banner.bmp` (493×58, icon at right),
+  the website's `site/favicon.png` and `site/logo.png`, and the title bar's `web/src/shell/logo.png`. It leaves the rendered
+  PNGs in `artifacts/icons/`.
+- `tools/release/make-ico.cs`, a .NET 10 file-based app. It writes `assets/icon.ico` with PNG-compressed entries at 16, 32,
+  48 and 256 px from `artifacts/icons/`.
+- `src/Kustodian/Kustodian.csproj`: `ApplicationIcon=..\..\assets\icon.ico` (Windows exe icon). Embeds `icon-256.png` as
+  `icon.png` and `icon.ico` as `icon.ico`.
+- `src/Kustodian/App/WindowIcon.cs`, called from `AppWindow.cs`: writes the window icon to `AppPaths.Cache` for Photino's
+  `SetIconFile`, `icon.ico` on Windows (Photino reads .ico files only) and `icon.png` on Linux. macOS takes the icon from
+  the bundle.
+
+- [x] **Step 1:** Run `make-icons.sh`, then `dotnet run tools/release/make-ico.cs`. `file assets/icon.ico` reports an MS
+  Windows icon resource with 4 icons.
+- [x] **Step 2:** `shellcheck` on the script and `dotnet build Kustodian.slnx -warnaserror`: clean.
+- [x] **Step 3:** Commit.
 
 ### Task 4: Windows MSI and portable zip
 
@@ -207,7 +207,7 @@ before v1), 14 (risks 3 and 4) and 15 (unsigned v1).
   - No PATH entry: Kustodian has no CLI.
 - Create: `kustodian/tools/release/windows/License.rtf`, the MIT licence text from `kustodian/LICENSE`.
 - Create: `kustodian/tools/release/windows/Assets/Dialog.bmp` (493×312) and `Banner.bmp` (493×58), rendered from
-  `kustodian/assets/icon.svg` by `make-icons.sh` (Task 3).
+  `assets/logo-source.webp` by `make-icons.sh` (Task 3).
 - Create: `kustodian/tools/release/windows/build.ps1`, modelled on Elevate's `build.ps1`. Parameters:
   `-Version` (default 1.0.0), `-Architectures` (x64, arm64, default both) and `-Sign`. For each architecture it:
   1. publishes with `publish.sh`'s properties: `dotnet publish -c Release -r win-<arch> -p:Version=<v>`;
