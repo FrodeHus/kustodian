@@ -17,6 +17,13 @@ public static class EngineHandler
     /// <summary>The runtime's message for an <see cref="OutOfMemoryException"/>, which is all KustoLoco passes on.</summary>
     internal const string OutOfMemoryMessage = "Exception of type 'System.OutOfMemoryException' was thrown.";
 
+    /// <summary>KustoLoco's message when a dynamic value is on the left of <c>in</c>, <c>!in</c>, <c>in~</c>, <c>!in~</c> or
+    /// <c>has_any</c>: it casts that column to string and fails.</summary>
+    private const string DynamicSetCast = "Unable to cast object of type 'KustoLoco.Core.DataSource.Columns.GenericInMemoryColumnOfJsonNode' to type 'KustoLoco.Core.DataSource.Columns.GenericTypedBaseColumnOfstring'.";
+
+    public const string DynamicSetMessage = "in, !in, in~, !in~ and has_any can't take a dynamic value on their left. Convert it "
+        + "first, for example tostring(permission.id) in (...).";
+
     public static EngineResponse Handle(EngineRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -64,7 +71,10 @@ public static class EngineHandler
         if (string.Equals(result.Error?.Trim(), OutOfMemoryMessage, StringComparison.Ordinal))
             throw new QueryOutOfMemoryException(result.Error!);
         if (!string.IsNullOrEmpty(result.Error))
-            return new EngineResponse(null, null, 0, dropped, UnsupportedPrefix + result.Error, null);
+        {
+            var error = string.Equals(result.Error.Trim(), DynamicSetCast, StringComparison.Ordinal) ? DynamicSetMessage : result.Error;
+            return new EngineResponse(null, null, 0, dropped, UnsupportedPrefix + error, null);
+        }
 
         var columns = result.Table.Type.Columns.Select(c => new EngineColumn(c.Name, TypeName(c.Type))).ToList();
         var rows = result.EnumerateRows(Math.Max(0, request.MaxRows))

@@ -7,6 +7,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- A Graph query with a dynamic value on the left of `in`, `!in`, `in~`, `!in~` or `has_any` says to convert it with
+  `tostring()` instead of showing an internal cast error.
 - Graph `directoryRoles` and each role's `members` no longer fail: Graph refuses any page size there, and the read now retries
   without `$top`.
 
