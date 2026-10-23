@@ -5,6 +5,11 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- A Graph query with a dynamic value on the left of `in`, `!in`, `in~`, `!in~` or `has_any` says to convert it with
+  `tostring()` instead of showing an internal cast error.
+
 ## [0.9.7] - 2026-10-22
 
 ### Added
