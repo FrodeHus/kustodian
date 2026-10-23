@@ -19,7 +19,8 @@ public sealed record GraphRelationshipRead(
 /// <summary>
 /// Reads one relationship (<c>memberOf</c>, <c>manager</c>, ...) of each object: <c>GET /{path}/{id}/{relationship}</c> sent
 /// through <c>POST /$batch</c> like <see cref="GraphBatchReader"/> (same batch size and batches in flight; <see cref="GraphBatchSender"/>
-/// retries a throttled item once). A collection's next pages are plain GETs, followed only to https on graph.microsoft.com, until the object
+/// retries a throttled item once). A collection is read with <c>$top=999</c>; an object whose read Graph refuses for the page size
+/// (<c>directoryRoles</c> members) is read once more without it. A collection's next pages are plain GETs, followed only to https on graph.microsoft.com, until the object
 /// has <see cref="GraphLimits.RelationshipEntriesPerObject"/> entries. Every body counts against the lease.
 /// </summary>
 public sealed class GraphRelationshipReader(HttpClient http, GraphLimits limits)
@@ -31,7 +32,12 @@ public sealed class GraphRelationshipReader(HttpClient http, GraphLimits limits)
 
     /// <summary>The relative URL of one object's read, with <c>{id}</c> for the id: what the fetch info shows.</summary>
     public static string Template(string path, string relationship, bool collection)
-        => path + "/{id}/" + relationship + "?" + Select + (collection ? "&$top=999" : "");
+        => path + "/{id}/" + relationship + "?" + Select + (collection ? TopPart : "");
+
+    private const string TopPart = "&$top=999";
+
+    private static string Url(string path, GraphColumn relationship, string id)
+        => "/" + Template(path, relationship.Name, relationship.Collection).Replace("{id}", Uri.EscapeDataString(id), StringComparison.Ordinal);
 
     /// <summary>A directory object as a <c>kustodian.directoryObjectRef</c>: <c>id</c>, <c>objectType</c> (the <c>@odata.type</c>
     /// without its prefix), then the shape fields the object has. Anything else is dropped; an explicit null is kept.</summary>
@@ -92,9 +98,21 @@ public sealed class GraphRelationshipReader(HttpClient http, GraphLimits limits)
         var chunks = ids.OfType<string>().Distinct(StringComparer.Ordinal).Chunk(GraphBatchReader.BatchSize);
         await Parallel.ForEachAsync(chunks, options, async (chunk, token) =>
         {
-            var urls = chunk.Select(id => "/" + Template(path, relationship.Name, relationship.Collection)
-                .Replace("{id}", Uri.EscapeDataString(id), StringComparison.Ordinal)).ToList();
+            var urls = chunk.Select(id => Url(path, relationship, id)).ToList();
             var answers = await GraphBatchSender.SendAsync(http, accountKey, path, urls, lease, diagnostics, token);
+            // A relationship that refuses a page size ($top) is read again without one.
+            var refusedTop = relationship.Collection
+                ? Enumerable.Range(0, chunk.Length).Where(i => answers[i].Status == (int)HttpStatusCode.BadRequest
+                    && GraphErrorText.NamesTop(GraphErrorText.Extract(answers[i].Body?.ToJsonString()))).ToArray()
+                : [];
+            if (refusedTop.Length > 0)
+            {
+                var again = await GraphBatchSender.SendAsync(http, accountKey, path,
+                    [.. refusedTop.Select(i => Url(path, relationship, chunk[i]).Replace(TopPart, "", StringComparison.Ordinal))],
+                    lease, diagnostics, token);
+                for (var j = 0; j < refusedTop.Length; j++)
+                    answers[refusedTop[j]] = again[j];
+            }
             // A chunk's follow-up pages are fetched one object at a time; the object cap
             // (GraphLimits.RelationshipObjectsPerTable) bounds how many there can be.
             for (var i = 0; i < chunk.Length; i++)
