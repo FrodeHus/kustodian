@@ -127,7 +127,7 @@ scope. A snippet inserts at the cursor or opens in a new tab. The user's own sni
 - Result tabs: Rows, Chart, JSON and Diagnostics (mockups: Main, Light, Diagnostics).
 - Grid: virtualized; sort; filter; hide and reorder columns; group by a column; show a cell as formatted JSON; copy cells or rows
   as CSV, Markdown or JSON.
-- Row details: a side sheet with every column of a row, dynamic values expanded (mockup: Palette).
+- Row details: a side sheet with every column of a row, opened from the inspect button that starts each row, dynamic values as a tree to open and close (mockup: Palette).
 - Chart: chosen from the result's shape. The types are column, bar, line, area, pie and time chart, and `render` in the KQL picks
   the type.
 - Export: CSV, Excel-friendly CSV (UTF-8 BOM, `;` separator when the locale uses decimal commas), JSON, and Markdown. Export writes

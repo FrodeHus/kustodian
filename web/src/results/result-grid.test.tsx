@@ -19,7 +19,7 @@ afterEach(() => {
   Reflect.deleteProperty(navigator, 'clipboard');
 });
 
-const headers = (container: HTMLElement) => [...container.querySelectorAll('thead th')].map((th) => th.textContent?.replace(/ [↑↓]$/, ''));
+const headers = (container: HTMLElement) => [...container.querySelectorAll('thead th:not(.inspect-col)')].map((th) => th.textContent?.replace(/ [↑↓]$/, ''));
 const bodyRows = (container: HTMLElement) => [...container.querySelectorAll<HTMLTableRowElement>('tbody tr[data-index]')];
 
 describe('ResultGrid', () => {
@@ -39,7 +39,7 @@ describe('ResultGrid', () => {
       ['Legacy', 1, ['a', 'b']],
     ];
     const { container } = render(<ResultGrid columns={columns} rows={rows} />);
-    const firstCells = () => [...container.querySelectorAll('tbody tr[data-index] td:first-child')].map((td) => td.textContent);
+    const firstCells = () => [...container.querySelectorAll('tbody tr[data-index] td:nth-child(2)')].map((td) => td.textContent);
 
     fireEvent.click(screen.getByRole('button', { name: /^n/ }));
     expect(firstCells()).toEqual(['Legacy', 'Payroll', 'Contoso']);
@@ -51,6 +51,34 @@ describe('ResultGrid', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show tags as JSON' }));
     const panel = screen.getByRole('dialog', { name: 'tags' });
     expect(within(panel).getByText(/"kind": "secret"/)).toBeTruthy();
+  });
+
+  it('grid_has_an_inspect_button_on_every_row', () => {
+    const rows = [
+      ['Payroll', 2, null],
+      ['Contoso', 10, null],
+      ['Legacy', 1, null],
+    ];
+    const onOpenRow = vi.fn();
+    const { container, rerender } = render(<ResultGrid columns={columns} rows={rows} onOpenRow={onOpenRow} />);
+    expect(container.querySelector('thead th.inspect-col')?.textContent).toBe('Inspect');
+
+    // Sorted by n: Legacy, Payroll, Contoso. Each button opens its row by its index in `rows`.
+    fireEvent.click(screen.getByRole('button', { name: /^n/ }));
+    const buttons = bodyRows(container).map((tr) => within(tr).getByRole('button', { name: /^Inspect row/ }));
+    expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(['Inspect row 3', 'Inspect row 1', 'Inspect row 2']);
+    fireEvent.click(buttons[0]!);
+    expect(onOpenRow).toHaveBeenLastCalledWith(2);
+
+    // The row open in the sheet: its button says so, points at the sheet, and closes it.
+    rerender(<ResultGrid columns={columns} rows={rows} onOpenRow={onOpenRow} inspected={2} inspectorId="sheet" />);
+    const open = screen.getByRole('button', { name: 'Inspect row 3' });
+    expect(open.getAttribute('aria-expanded')).toBe('true');
+    expect(open.getAttribute('aria-controls')).toBe('sheet');
+    expect(open.closest('tr')?.classList.contains('inspected')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Inspect row 1' }).getAttribute('aria-controls')).toBeNull();
+    fireEvent.click(open);
+    expect(onOpenRow).toHaveBeenLastCalledWith(null);
   });
 
   it('grid_hides_and_reorders_columns', () => {
@@ -65,7 +93,7 @@ describe('ResultGrid', () => {
 
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Move tags earlier' }));
     expect(headers(container)).toEqual(['tags', 'displayName']);
-    expect([...container.querySelectorAll('tbody tr[data-index] td')].map((td) => td.textContent)).toEqual(['null', 'Contoso']);
+    expect([...container.querySelectorAll('tbody tr[data-index] td:not(.inspect-col)')].map((td) => td.textContent)).toEqual(['null', 'Contoso']);
 
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Show all columns' }));
     expect(headers(container)).toEqual(['tags', 'displayName', 'n']);
