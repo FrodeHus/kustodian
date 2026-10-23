@@ -89,7 +89,7 @@ behind sign-in; Linux "owner" = headless container.
 | Results: chart | owner | owner | owner |
 | Results: JSON tab | owner | owner | owner |
 | Results: grid tools (sort, filter, columns) | owner | owner | owner |
-| Results: row details | owner | owner | owner |
+| Results: row details (inspect button, switching rows, the dynamic value tree) | owner | owner | owner |
 | Results: copy | owner | owner | owner |
 | Results: export | owner | owner | owner |
 | Results: compare | owner | owner | owner |

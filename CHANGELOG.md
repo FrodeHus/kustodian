@@ -5,6 +5,11 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- An inspect button on every row of the results opens the row in the row details sheet; another row's button switches the
+  sheet to that row, and the open row's button closes it. Dynamic values show as a tree to open and close, with Expand all.
+
 ### Fixed
 
 - A Graph query with a dynamic value on the left of `in`, `!in`, `in~`, `!in~` or `has_any` says to convert it with
