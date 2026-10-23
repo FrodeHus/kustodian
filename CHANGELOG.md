@@ -5,6 +5,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.8] - 2026-10-23
+
 ### Added
 
 - An inspect button on every row of the results opens the row in the row details sheet; another row's button switches the
