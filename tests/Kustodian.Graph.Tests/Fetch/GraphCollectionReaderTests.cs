@@ -193,6 +193,23 @@ public sealed partial class GraphCollectionReaderTests
         Assert.True(await probes.RefusesTopAsync(Account, "applications", CancellationToken.None));
     }
 
+    // directoryRoles refuses any page size without naming $top.
+    [Fact]
+    public async Task A_page_size_refusal_reads_every_page_without_top()
+    {
+        var probes = await ListingEverything();
+        var handler = new Scripted((r, n) => r.RequestUri!.Query.Contains("$top")
+            ? Json(HttpStatusCode.BadRequest, Error("Request_BadRequest",
+                "This resource does not support custom page sizes. Please retry without a page size argument."))
+            : Json(HttpStatusCode.OK, n < 3 ? Page((n - 1) * 20, 20, Next + n) : Page(40, 3)));
+
+        var result = await Read(Reader(handler, probes: probes), Fetch());
+
+        Assert.Equal(43, result.Objects.Count);
+        Assert.All(result.Requests.Skip(1), r => Assert.DoesNotContain("$top", r));
+        Assert.True(await probes.RefusesTopAsync(Account, "applications", CancellationToken.None));
+    }
+
     [Fact]
     public async Task Refresh_sends_a_refused_top_again_and_forgets_the_refusal_when_graph_takes_it()
     {

@@ -140,6 +140,50 @@ public sealed class GraphRelationshipReaderTests
         Assert.Equal(["u2"], result.Values.Keys);
     }
 
+    // directoryRoles/{id}/members refuses any page size: those objects are read again without $top.
+    [Fact]
+    public async Task A_page_size_refusal_reads_again_without_top()
+    {
+        var urls = new List<string>();
+        var graph = new FakeGraph
+        {
+            Answer = (request, _) =>
+            {
+                var batch = JsonNode.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult())!.AsObject();
+                lock (urls)
+                    urls.AddRange(batch["requests"]!.AsArray().Select(r => r!["url"]!.GetValue<string>()));
+                var withTop = urls[^1].Contains("$top", StringComparison.Ordinal);
+                return Task.FromResult(Batch(request, id => withTop
+                    ? (400, new { error = new { code = "Request_BadRequest", message = "This resource does not support custom page sizes. Please retry without a page size argument." } })
+                    : (200, new { value = new object[] { new { id = id + "-m1" } } })));
+            },
+        };
+
+        var result = await Read(Reader(graph), MemberOf, "r1", "r2");
+
+        Assert.Equal((0, 0), (result.Refused, result.Failed));
+        Assert.Equal(["r1-m1"], Assert.IsType<JsonArray>(result.Values["r1"]).Select(e => e!["id"]!.GetValue<string>()));
+        Assert.IsType<JsonArray>(result.Values["r2"]);
+        Assert.Equal(4, urls.Count);
+        Assert.All(urls.Skip(2), u => Assert.DoesNotContain("$top", u, StringComparison.Ordinal));
+    }
+
+    // Any other 400 is a failure, not a reason to read again.
+    [Fact]
+    public async Task Another_bad_request_fails_the_object_without_reading_again()
+    {
+        var graph = new FakeGraph
+        {
+            Answer = (request, _) => Task.FromResult(Batch(request, _ =>
+                (400, new { error = new { code = "Request_BadRequest", message = "Invalid filter clause" } }))),
+        };
+
+        var result = await Read(Reader(graph), MemberOf, "u1");
+
+        Assert.Equal(1, result.Failed);
+        Assert.Single(graph.Requests);
+    }
+
     [Fact]
     public async Task Refused_items_are_counted()
     {

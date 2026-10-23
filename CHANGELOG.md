@@ -5,6 +5,11 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Graph `directoryRoles` and each role's `members` no longer fail: Graph refuses any page size there, and the read now retries
+  without `$top`.
+
 ## [0.9.7] - 2026-10-22
 
 ### Added
