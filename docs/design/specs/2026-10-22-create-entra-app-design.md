@@ -90,8 +90,8 @@ Kustodian computes the set when the dialog opens. It is pure and deterministic, 
    not yet covered. Break ties by not requiring admin consent first, then by name.
 3. Add the source permissions (hunting, ARG) as they are.
 
-On today's schema this gives **67 Graph permissions covering 295 of the 303 tables** that have permission data, plus
-`ThreatHunting.Read.All` and `user_impersonation`. The other 133 tables have no delegated permission data at all. They are
+On today's schema this gives **125 Graph permissions covering 469 of the 485 tables** that have permission data, plus
+`ThreatHunting.Read.All` and `user_impersonation`. The other 270 tables have no delegated permission data at all. They are
 outside the list and the dialog says so in one line.
 
 Greedy cover is not always the true minimum. It is close, and its picks are easy to explain: "this one covers 127 tables".

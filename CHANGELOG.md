@@ -5,6 +5,13 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Graph collections one single-valued step below a singleton are now tables, such as
+  `reports_authenticationMethods_userRegistrationDetails` (MFA and passkey/FIDO2 registration per user),
+  `roleManagement_directory_roleAssignments` and `identity_conditionalAccess_policies`: 319 more tables. Paths through a `me`
+  segment (`education/me/...`) stay out, like `me` itself. The schema is regenerated from the latest beta metadata.
+
 ## [0.9.8] - 2026-10-23
 
 ### Added
