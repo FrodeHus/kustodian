@@ -16,7 +16,8 @@ namespace Kustodian.Messaging.Handlers;
 /// Azure access to that account (<see cref="AccountService.ConsentAsync"/>; a device code, when no browser opens, goes out as the
 /// same event) and answers <c>{}</c>; the user cancelling answers <c>cancelled</c>. <c>account.consent {key, audience: "graph",
 /// scope}</c> does the same for one read-only Graph permission (not for an Azure CLI account, whose permissions are fixed) and,
-/// once granted, drops the account's cached Graph objects, probe findings and licenses, which the new permission may change.</summary>
+/// once granted, drops the account's cached Graph objects, probe findings, licenses and advanced hunting schema, which the new
+/// permission may change.</summary>
 public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cache, IGraphObjectCache objects, IGraphProbeCache probes,
     HuntingSchemaSource? huntingSchema = null, ArmDirectory? armDirectory = null, ITenantLicenses? licenses = null)
 {
@@ -53,8 +54,11 @@ public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cac
 
             try
             {
+                // Once a Graph permission is granted, what the account could read before is no longer the whole story, even
+                // when the token refresh that follows fails or is cancelled.
                 await accounts.ConsentAsync(key, audience, ct,
-                    message => bridge.Emit("account.deviceCode", new DeviceCodeData(message)), scope);
+                    message => bridge.Emit("account.deviceCode", new DeviceCodeData(message)), scope,
+                    () => DropGraphFindingsAsync(key));
             }
             catch (SignInRequiredException ex)
             {
@@ -64,14 +68,6 @@ public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cac
             {
                 // The user closed the browser or said no: the same answer as any other cancelled request.
                 throw new OperationCanceledException(ex.Message, ex);
-            }
-
-            if (audience == Audience.Graph)
-            {
-                // What the account could read before is no longer the whole story.
-                await objects.RemoveAccountAsync(key, ct);
-                await probes.RemoveAccountAsync(key, ct);
-                licenses?.RemoveAccount(key);
             }
 
             return null;
@@ -87,6 +83,16 @@ public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cac
             licenses?.RemoveAccount(key);
             return null;
         });
+    }
+
+    /// <summary>Drops what the account's Graph permissions decided: its cached Graph objects, probe findings, licenses and
+    /// advanced hunting schema. Not cancelled with the request: it runs after a grant that already happened.</summary>
+    private async Task DropGraphFindingsAsync(string key)
+    {
+        await objects.RemoveAccountAsync(key, CancellationToken.None);
+        await probes.RemoveAccountAsync(key, CancellationToken.None);
+        licenses?.RemoveAccount(key);
+        huntingSchema?.RemoveAccount(key);
     }
 
     private async Task<AccountList> ListAsync()
@@ -110,13 +116,14 @@ public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cac
         return account;
     }
 
-    /// <summary>Graph consent asks for one read-only permission, named plainly (letters, digits and dots, as in
-    /// <c>Reports.Read.All</c>), on an account whose client can be granted permissions: never Azure CLI's. Returns the
-    /// permission, trimmed.</summary>
+    /// <summary>Graph consent asks for one read-only permission, named plainly (letters, digits, dots and hyphens, starting with
+    /// a letter or digit, as in <c>Reports.Read.All</c> or <c>NetworkAccess-Reports.Read.All</c>), on an account whose client
+    /// can be granted permissions: never Azure CLI's. Returns the permission, trimmed.</summary>
     private async Task<string> RequireGraphConsentAsync(string key, string? scope)
     {
         var permission = scope?.Trim();
-        if (string.IsNullOrEmpty(permission) || !permission.All(c => char.IsAsciiLetterOrDigit(c) || c == '.')
+        if (string.IsNullOrEmpty(permission) || !char.IsAsciiLetterOrDigit(permission[0])
+            || !permission.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '-')
             || !GraphPermissions.IsReadOnly(permission))
         {
             throw new BridgeException(

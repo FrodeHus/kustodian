@@ -425,6 +425,31 @@ public sealed class ArmAuthTests : IDisposable
         Assert.Empty(clients.For(ClientConfig.GraphCli).Removed);
     }
 
+    /// <summary>The token cache is shared: removing the stray pick on the Azure CLI client would sign out a listed account of that
+    /// user on another client.</summary>
+    [Fact]
+    public async Task Azure_consent_as_another_listed_graph_cli_account_keeps_that_account_signed_in()
+    {
+        var clients = new MsalPerClient();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir));
+        var ada = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
+        var graphCli = clients.For(ClientConfig.GraphCli);
+        var bob = new MsalAccount("home-2", "bob@contoso.com", "tenant-1");
+        graphCli.SignsInAs = bob;
+        var bobAccount = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
+        graphCli.SignsInAs = ArmMsal.Ada;
+        var azureCli = clients.For(ClientConfig.AzureCli);
+        azureCli.GrantAs = bob;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ConsentAsync(ada.Key, Audience.Arm, Ct));
+
+        Assert.Empty(azureCli.Removed);
+        Assert.Contains("home-2", graphCli.Cached);
+        var listed = (await service.ListAccountsAsync()).Single(a => a.Key == bobAccount.Key);
+        Assert.False(listed.Expired);
+        Assert.Equal("graph-cli:graph-token", await service.GetTokenAsync(bobAccount.Key, Audience.Graph, Ct));
+    }
+
     [Fact]
     public async Task Graph_cli_account_in_a_guest_tenant_asks_azure_cli_for_that_tenant()
     {
@@ -753,7 +778,6 @@ public sealed class ArmAuthTests : IDisposable
         /// <summary>The one account this fake signs in.</summary>
         public static readonly MsalAccount Ada = new("home-1", "ada@contoso.com", "tenant-1");
 
-        private readonly MsalAccount _account = Ada;
         private readonly Dictionary<string, MsalAccount> _cached = [];
 
         /// <summary>Put before every token this fake hands out, to tell one client's tokens from another's.</summary>
@@ -775,6 +799,10 @@ public sealed class ArmAuthTests : IDisposable
         public Exception? InteractiveFails { get; set; }
 
         public MsalAccount? GrantAs { get; set; }
+
+        /// <summary>The account a sign-in (and a consent without <see cref="GrantAs"/>) lands on; <see cref="Ada"/> by
+        /// default.</summary>
+        public MsalAccount SignsInAs { get; set; } = Ada;
 
         public List<(string Scope, string? LoginHint, bool ForceConsent)> Interactive { get; } = [];
 
@@ -861,14 +889,14 @@ public sealed class ArmAuthTests : IDisposable
         private MsalSignIn Grant(string scope)
         {
             var consent = scope != Audience.Graph.ScopeFor();
-            var account = consent && GrantAs is { } other ? other : _account;
+            var account = consent && GrantAs is { } other ? other : SignsInAs;
             _cached[account.HomeAccountId] = account;
-            if (scope == Audience.Arm.ScopeFor() && account == _account)
+            if (scope == Audience.Arm.ScopeFor() && account == SignsInAs)
             {
                 ArmNeedsUi = false;
             }
 
-            if (consent && scope != Audience.Arm.ScopeFor() && account == _account)
+            if (consent && scope != Audience.Arm.ScopeFor() && account == SignsInAs)
             {
                 GrantedGraph.Add(scope["https://graph.microsoft.com/".Length..]);
             }

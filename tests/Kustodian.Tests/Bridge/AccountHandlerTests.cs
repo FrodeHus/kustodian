@@ -188,6 +188,80 @@ public class AccountHandlerTests : IDisposable
         Assert.Null(await Consent(graphCli, "reports.read.all"));
     }
 
+    [Fact]
+    public async Task Account_consent_for_graph_accepts_a_permission_named_with_a_hyphen()
+    {
+        var bridge = NewBridge(new MemoryOnly("x"));
+        var graphCli = await SignInGraphCliAsync(bridge);
+
+        Assert.Null(await GraphConsentAsync(bridge, graphCli, "NetworkAccess-Reports.Read.All"));
+        Assert.Equal("bad_request", await GraphConsentAsync(bridge, graphCli, "-Reports.Read.All"));
+        Assert.Equal("bad_request", await GraphConsentAsync(bridge, graphCli, "Reports Read.All"));
+        Assert.Equal("bad_request", await GraphConsentAsync(bridge, graphCli, "Reports.Read.All,User.Read"));
+        Assert.Equal("bad_request", await GraphConsentAsync(bridge, graphCli, "Reports_Read.All"));
+    }
+
+    [Fact]
+    public async Task Account_consent_for_graph_drops_the_accounts_hunting_schema()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var http = new CountingHandler();
+        using var client = new HttpClient(http, disposeHandler: false);
+        var hunting = new HuntingSchemaSource(client, TimeProvider.System);
+        var bridge = NewBridge(new MemoryOnly("x"), hunting: hunting);
+        var graphCli = await SignInGraphCliAsync(bridge);
+        await hunting.GetAsync(graphCli, false, ct);
+        await hunting.GetAsync("someone-else", false, ct);
+
+        Assert.Null(await GraphConsentAsync(bridge, graphCli, "ThreatHunting.Read.All"));
+        await hunting.GetAsync(graphCli, false, ct);
+        await hunting.GetAsync("someone-else", false, ct);
+
+        Assert.Equal(3, http.Schema);
+    }
+
+    [Fact]
+    public async Task Account_consent_for_graph_drops_the_accounts_caches_even_when_the_refresh_fails()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var objects = new MemoryGraphObjectCache(TimeProvider.System);
+        var probes = new MemoryGraphProbeCache(TimeProvider.System);
+        var licenses = new RecordingLicenses();
+        var http = new CountingHandler();
+        using var client = new HttpClient(http, disposeHandler: false);
+        var hunting = new HuntingSchemaSource(client, TimeProvider.System);
+        var msal = new FakeMsal();
+        var bridge = NewBridge(new MemoryOnly("x"), probes, hunting, licenses: licenses, objects: objects, msal: msal);
+        var graphCli = await SignInGraphCliAsync(bridge);
+        await objects.SetAsync(graphCli, "/users", ["displayName"], "u1", """{"displayName":"Ada"}""", ct);
+        await probes.SetAsync(graphCli, "auditLogs/signIns", ["mfaDetail"], [], ct);
+        await hunting.GetAsync(graphCli, false, ct);
+        licenses.Removed.Clear();
+        msal.RefreshFails = new HttpRequestException("The network is down.");
+
+        Assert.NotNull(await GraphConsentAsync(bridge, graphCli, "Reports.Read.All"));
+
+        Assert.Null(await objects.GetAsync(graphCli, "/users", ["displayName"], "u1", ct));
+        Assert.Null(await probes.GetAsync(graphCli, "auditLogs/signIns", ct));
+        Assert.Equal([graphCli], licenses.Removed);
+        await hunting.GetAsync(graphCli, false, ct);
+        Assert.Equal(2, http.Schema);
+    }
+
+    private static async Task<string> SignInGraphCliAsync(Messaging.Bridge bridge) =>
+        Parse(await bridge.HandleAsync(
+                $$$"""{"id":"g","method":"account.signIn","params":{"clientId":"{{{ClientConfig.GraphCliClientId}}}"}}"""))
+            .GetProperty("result").GetProperty("key").GetString()!;
+
+    /// <summary>Sends <c>account.consent</c> for one Graph permission; the error code, or null when it was granted.</summary>
+    private static async Task<string?> GraphConsentAsync(Messaging.Bridge bridge, string key, string scope) =>
+        Parse(await bridge.HandleAsync(JsonSerializer.Serialize(new
+        {
+            id = "c",
+            method = "account.consent",
+            @params = new { key, audience = "graph", scope },
+        }))).TryGetProperty("error", out var error) ? error.GetProperty("code").GetString() : null;
+
     private sealed class RecordingLicenses : ITenantLicenses
     {
         public List<string> Removed { get; } = [];
@@ -235,7 +309,7 @@ public class AccountHandlerTests : IDisposable
     }
 
     private Messaging.Bridge NewBridge(TokenCacheStatus cache, IGraphProbeCache? probes = null, HuntingSchemaSource? hunting = null,
-        ArmDirectory? directory = null, ITenantLicenses? licenses = null, IGraphObjectCache? objects = null)
+        ArmDirectory? directory = null, ITenantLicenses? licenses = null, IGraphObjectCache? objects = null, FakeMsal? msal = null)
     {
         var bridge = new Messaging.Bridge(message =>
         {
@@ -244,8 +318,8 @@ public class AccountHandlerTests : IDisposable
                 _sent.Add(message);
             }
         });
-        var msal = new FakeMsal();
-        var accounts = new AccountService(_ => msal, new JsonFileStore(_dir));
+        var fake = msal ?? new FakeMsal();
+        var accounts = new AccountService(_ => fake, new JsonFileStore(_dir));
         new AccountHandler(accounts, cache, objects ?? new MemoryGraphObjectCache(TimeProvider.System), probes ?? NoGraphProbeCache.Instance, hunting, directory,
             licenses).Register(bridge);
         return bridge;
@@ -275,6 +349,9 @@ public class AccountHandlerTests : IDisposable
 
         private readonly List<MsalAccount> _accounts = [];
 
+        /// <summary>What a forced refresh throws, when set.</summary>
+        public Exception? RefreshFails { get; set; }
+
         public Task<MsalSignIn> AcquireInteractiveAsync(string scope, string? loginHint, CancellationToken ct, bool forceConsent = false) => Task.FromResult(SignIn());
 
         public Task<MsalSignIn> AcquireDeviceCodeAsync(string scope, Action<string> showCode, CancellationToken ct)
@@ -284,7 +361,9 @@ public class AccountHandlerTests : IDisposable
         }
 
         public Task<MsalToken> AcquireSilentAsync(string homeAccountId, string scope, CancellationToken ct, bool forceRefresh = false) =>
-            Task.FromResult(new MsalToken("not-a-jwt", DateTimeOffset.UtcNow.AddHours(1)));
+            forceRefresh && RefreshFails is { } failure
+                ? Task.FromException<MsalToken>(failure)
+                : Task.FromResult(new MsalToken("not-a-jwt", DateTimeOffset.UtcNow.AddHours(1)));
 
         public Task<IReadOnlyList<MsalAccount>> GetAccountsAsync() => Task.FromResult<IReadOnlyList<MsalAccount>>([.. _accounts]);
 

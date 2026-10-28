@@ -194,15 +194,16 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
     /// Graph sign-in are left as they are; the token lands in MSAL's cache, where <see cref="GetTokenAsync"/> finds it.
     /// For <see cref="Audience.Graph"/>, <paramref name="scope"/> names the one permission to grant (such as
     /// <c>Reports.Read.All</c>): the account's own client asks for it with <c>prompt=consent</c>, then refreshes the account's
-    /// Graph token so it, and the stored <see cref="AccountInfo.Scopes"/>, carry the new permission at once.</summary>
+    /// Graph token so it, and the stored <see cref="AccountInfo.Scopes"/>, carry the new permission at once. Once the permission
+    /// is granted, <paramref name="onGranted"/> runs after that refresh, whether or not the refresh succeeded.</summary>
     /// <exception cref="SignInRequiredException">That account is not signed in.</exception>
     /// <exception cref="ArgumentException">Graph consent without a <paramref name="scope"/>, or for one that is not
     /// read-only.</exception>
     /// <exception cref="InvalidOperationException">Graph consent for an Azure CLI account (its permissions are fixed), or the
-    /// user granted access as another account (removed again from MSAL's cache unless it was already there; the message names
-    /// both).</exception>
+    /// user granted access as another account (removed again from MSAL's cache unless it was already there or is a listed
+    /// account's; the message names both).</exception>
     public async Task ConsentAsync(string accountKey, Audience audience, CancellationToken ct, Action<string>? showCode = null,
-        string? scope = null)
+        string? scope = null, Func<Task>? onGranted = null)
     {
         if (audience == Audience.Graph && (string.IsNullOrWhiteSpace(scope) || !GraphPermissions.IsReadOnly(scope)))
         {
@@ -211,6 +212,7 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
 
         IMsalClient client;
         StoredAccount stored;
+        HashSet<string> listed;
         await _gate.WaitAsync(ct);
         try
         {
@@ -223,13 +225,16 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
             }
 
             client = ClientFor(ConfigFor(stored, audience));
+            listed = state.Accounts.Select(a => a.HomeAccountId).ToHashSet(StringComparer.Ordinal);
         }
         finally
         {
             _gate.Release();
         }
 
+        // The token cache is shared by every client, so a home account listed under any client counts as known here too.
         var known = (await client.GetAccountsAsync()).Select(a => a.HomeAccountId).ToHashSet(StringComparer.Ordinal);
+        known.UnionWith(listed);
 
         // As with sign-in, the browser or device-code wait happens outside the gate.
         var graph = audience == Audience.Graph;
@@ -247,7 +252,7 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
         if (!string.Equals(granted.Account.HomeAccountId, stored.HomeAccountId, StringComparison.Ordinal))
         {
             // The user picked another account in the browser. Its token is of no use to this account: drop it from MSAL's
-            // cache unless that account was there before (then it is someone's sign-in and stays).
+            // cache unless that account was there before or is listed (then it is someone's sign-in and stays).
             if (!known.Contains(granted.Account.HomeAccountId))
             {
                 await client.RemoveAsync(granted.Account.HomeAccountId);
@@ -259,7 +264,17 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
 
         if (graph)
         {
-            await RefreshGraphAsync(accountKey, client, ct);
+            try
+            {
+                await RefreshGraphAsync(accountKey, client, ct);
+            }
+            finally
+            {
+                if (onGranted is not null)
+                {
+                    await onGranted();
+                }
+            }
         }
     }
 
