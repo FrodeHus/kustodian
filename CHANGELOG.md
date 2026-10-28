@@ -5,6 +5,11 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- The Chart tab charts by a true/false, GUID or duration column as well as by text or a date, so
+  `summarize count() by accountEnabled` draws a column chart. Text still comes first along the axis.
+
 ## [0.9.7] - 2026-10-22
 
 ### Added

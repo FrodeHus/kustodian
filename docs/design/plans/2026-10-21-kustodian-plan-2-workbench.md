@@ -625,7 +625,7 @@ kustodian/web/src/
     - With no hint:
       - a datetime column and numeric column(s) give a timechart;
       - one string and one numeric column give column when there are 20 rows or fewer, and bar otherwise;
-      - otherwise null, and the Chart tab says "This result has no shape to chart: it needs a text or date column and a number column."
+      - otherwise null, and the Chart tab says "This result has no shape to chart: it needs a text, true/false or date column and a number column."
   - **ChartView:** Recharts, lazy-loaded, with a type picker that overrides the shape. Colours come from CSS tokens.
   - **`diffRows(a, b, keyColumn)`** returns `{added, removed, changed: {key, columns: string[]}[]}`. Compare shows two grids side by side, or the diff as a table with added rows in `--ok`, removed in `--bad` and changed cells marked. The key column is picked from the common columns.
   - **RunStatus status line:** rows (`total` when more than shown: "50,000 of 61,204 rows"), duration, requests sent (the sum of `tables[].requests.length`) and cached objects (the sum of `perObjectCached`).

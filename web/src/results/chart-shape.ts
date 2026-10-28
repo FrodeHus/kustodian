@@ -20,7 +20,7 @@ export const CHART_TYPES: { type: ChartType; name: string }[] = [
 ];
 
 /** The Chart tab's words for a result it can't chart. */
-export const NO_SHAPE = 'This result has no shape to chart: it needs a text or date column and a number column.';
+export const NO_SHAPE = 'This result has no shape to chart: it needs a text, true/false or date column and a number column.';
 
 /** KQL's `render` visualizations, and the chart each one picks. */
 export const RENDER_HINTS: Record<string, ChartType> = {
@@ -70,22 +70,27 @@ const NUMERIC = new Set(['int', 'long', 'real', 'decimal', 'double']);
 const isNumeric = (c: ResultColumn) => NUMERIC.has(c.type);
 const isDate = (c: ResultColumn) => c.type === 'datetime';
 const isText = (c: ResultColumn) => c.type === 'string';
+/** A column whose values name groups: text first, then the other single values (true/false, GUIDs, durations). Not `dynamic`,
+ * whose arrays and objects make poor labels. */
+const CATEGORY = ['string', 'bool', 'guid', 'timespan'];
+const isCategory = (c: ResultColumn) => CATEGORY.includes(c.type);
+const byCategory = (a: ResultColumn, b: ResultColumn) => CATEGORY.indexOf(a.type) - CATEGORY.indexOf(b.type);
 
 /**
- * How to chart a result. A `renderHint` picks the type: the x axis is the first date column (the first text column for a pie),
- * else the first text column, else the first column that isn't a number; the series are the number columns. With no hint, a
- * date column and number columns make a time chart, and one text column and one number column make a column chart (20 rows or
- * fewer) or a bar chart. Anything else is null: see {@link NO_SHAPE}.
+ * How to chart a result. A `renderHint` picks the type: the x axis is the first date column (the first category column for a
+ * pie), else the first category column (text before true/false, GUID and duration), else the first column that isn't a number;
+ * the series are the number columns. With no hint, a date column and number columns make a time chart, and one category column
+ * and one number column make a column chart (20 rows or fewer) or a bar chart. Anything else is null: see {@link NO_SHAPE}.
  */
 export function chartShape(columns: ResultColumn[], rows: Row[], renderHint?: ChartType): ChartSpec | null {
   const numbers = columns.filter(isNumeric);
   const dates = columns.filter(isDate);
-  const texts = columns.filter(isText);
+  const categories = columns.filter(isCategory).sort(byCategory);
   if (renderHint) {
     const x =
       renderHint === 'pie'
-        ? (texts[0] ?? dates[0] ?? columns.find((c) => !isNumeric(c)))
-        : (dates[0] ?? texts[0] ?? columns.find((c) => !isNumeric(c)));
+        ? (categories[0] ?? dates[0] ?? columns.find((c) => !isNumeric(c)))
+        : (dates[0] ?? categories[0] ?? columns.find((c) => !isNumeric(c)));
     const series = numbers.filter((c) => c !== x).map((c) => c.name);
     return x && series.length > 0 ? { type: renderHint, x: x.name, series: renderHint === 'pie' ? series.slice(0, 1) : series } : null;
   }
@@ -93,10 +98,10 @@ export function chartShape(columns: ResultColumn[], rows: Row[], renderHint?: Ch
   if (date && numbers.length > 0) {
     return { type: 'timechart', x: date.name, series: numbers.map((c) => c.name) };
   }
-  const text = texts[0];
+  const category = categories[0];
   const number = numbers[0];
-  if (texts.length === 1 && numbers.length === 1 && text && number) {
-    return { type: rows.length <= 20 ? 'column' : 'bar', x: text.name, series: [number.name] };
+  if (categories.length === 1 && numbers.length === 1 && category && number) {
+    return { type: rows.length <= 20 ? 'column' : 'bar', x: category.name, series: [number.name] };
   }
   return null;
 }
@@ -118,8 +123,9 @@ export interface ChartPoint {
 
 /**
  * The points to draw, one per x value in the order they first appear. A single series is split into one series per value of
- * the result's one other text column, when it has one (as `summarize count() by app, bin(day)` charts a series per app);
- * otherwise each row is a point and the series are the spec's.
+ * the result's one other text column, when it has one (as `summarize count() by app, bin(day)` charts a series per app), or
+ * else its one other category column (as `by enabled, bin(day)` charts a series for true and one for false); otherwise each
+ * row is a point and the series are the spec's.
  */
 export function chartData(columns: ResultColumn[], unsorted: Row[], spec: ChartSpec): { series: string[]; data: ChartPoint[] } {
   const index = (name: string) => columns.findIndex((c) => c.name === name);
@@ -128,7 +134,9 @@ export function chartData(columns: ResultColumn[], unsorted: Row[], spec: ChartS
   // Along a date or number axis the points go in order of x, however the rows came.
   const order = xColumn && isDate(xColumn) ? (v: unknown) => Date.parse(String(v)) : xColumn && isNumeric(xColumn) ? Number : undefined;
   const rows = order ? sortBy(unsorted, (row) => (row[xAt] === null || row[xAt] === undefined ? NaN : order(row[xAt]))) : unsorted;
-  const splits = columns.filter((c) => isText(c) && c.name !== spec.x);
+  const others = columns.filter((c) => isCategory(c) && c.name !== spec.x);
+  const texts = others.filter(isText);
+  const splits = texts.length > 0 ? texts : others;
   const split = spec.series.length === 1 && spec.type !== 'pie' && splits.length === 1 ? splits[0] : undefined;
 
   if (!split) {
