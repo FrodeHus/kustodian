@@ -467,34 +467,24 @@ public sealed class ArmAuthTests : IDisposable
     }
 
     [Fact]
-    public async Task Signing_out_graph_cli_removes_its_azure_cli_entry_unless_an_azure_cli_account_for_that_user_is_listed()
+    public async Task Signing_out_graph_cli_leaves_a_listed_azure_cli_account_for_that_user_signed_in()
     {
-        var alone = new MsalPerClient();
-        var service = new AccountService(alone.Create, new JsonFileStore(Path.Combine(_dir, "alone")));
-        var graphCli = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
-        await service.ConsentAsync(graphCli.Key, Audience.Arm, Ct);
-
-        await service.SignOutAsync(graphCli.Key);
-
-        Assert.Equal(["home-1"], alone.For(ClientConfig.GraphCli).Removed);
-        Assert.Equal(["home-1"], alone.For(ClientConfig.AzureCli).Removed);
-        Assert.Empty(await service.ListAccountsAsync());
-
-        var both = new MsalPerClient();
-        service = new AccountService(both.Create, new JsonFileStore(Path.Combine(_dir, "both")));
+        var clients = new MsalPerClient();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir));
         var azureCli = await service.SignInInteractiveAsync(ClientConfig.AzureCli, Ct);
-        graphCli = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
+        var graphCli = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
 
         await service.SignOutAsync(graphCli.Key);
 
-        Assert.Equal(["home-1"], both.For(ClientConfig.GraphCli).Removed);
-        Assert.Empty(both.For(ClientConfig.AzureCli).Removed);
-        Assert.Equal(azureCli.Key, Assert.Single(await service.ListAccountsAsync()).Key);
+        var listed = Assert.Single(await service.ListAccountsAsync());
+        Assert.Equal(azureCli.Key, listed.Key);
+        Assert.False(listed.Expired);
+        Assert.Equal("azure-cli:graph-token", await service.GetTokenAsync(azureCli.Key, Audience.Graph, Ct));
         Assert.Equal("azure-cli:arm-token", await service.GetTokenAsync(azureCli.Key, Audience.Arm, Ct));
     }
 
     [Fact]
-    public async Task Signing_out_azure_cli_keeps_its_cache_entry_while_a_graph_cli_account_for_that_user_is_listed()
+    public async Task Signing_out_azure_cli_leaves_a_listed_graph_cli_account_for_that_user_signed_in()
     {
         var clients = new MsalPerClient();
         var service = new AccountService(clients.Create, new JsonFileStore(_dir));
@@ -503,10 +493,49 @@ public sealed class ArmAuthTests : IDisposable
 
         await service.SignOutAsync(azureCli.Key);
 
-        Assert.Equal(graphCli.Key, Assert.Single(await service.ListAccountsAsync()).Key);
-        Assert.Empty(clients.For(ClientConfig.AzureCli).Removed);
-        Assert.Empty(clients.For(ClientConfig.GraphCli).Removed);
+        var listed = Assert.Single(await service.ListAccountsAsync());
+        Assert.Equal(graphCli.Key, listed.Key);
+        Assert.False(listed.Expired);
+        Assert.Equal("graph-cli:graph-token", await service.GetTokenAsync(graphCli.Key, Audience.Graph, Ct));
         Assert.Equal("azure-cli:arm-token", await service.GetTokenAsync(graphCli.Key, Audience.Arm, Ct));
+    }
+
+    [Fact]
+    public async Task Signing_out_an_own_app_account_leaves_a_listed_azure_cli_account_for_that_user_signed_in()
+    {
+        var own = new ClientConfig("11111111-2222-3333-4444-555555555555", "contoso.onmicrosoft.com");
+        var clients = new MsalPerClient();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir));
+        var azureCli = await service.SignInInteractiveAsync(ClientConfig.AzureCli, Ct);
+        var ownApp = await service.SignInInteractiveAsync(own, Ct);
+
+        await service.SignOutAsync(ownApp.Key);
+
+        var listed = Assert.Single(await service.ListAccountsAsync());
+        Assert.Equal(azureCli.Key, listed.Key);
+        Assert.False(listed.Expired);
+        Assert.Equal("azure-cli:graph-token", await service.GetTokenAsync(azureCli.Key, Audience.Graph, Ct));
+        Assert.Equal("azure-cli:arm-token", await service.GetTokenAsync(azureCli.Key, Audience.Arm, Ct));
+    }
+
+    [Fact]
+    public async Task Signing_out_the_last_account_for_a_user_removes_it_from_the_cache()
+    {
+        var clients = new MsalPerClient();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir));
+        var azureCli = await service.SignInInteractiveAsync(ClientConfig.AzureCli, Ct);
+        var graphCli = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
+        await service.ConsentAsync(graphCli.Key, Audience.Arm, Ct);
+        await service.SignOutAsync(azureCli.Key);
+
+        await service.SignOutAsync(graphCli.Key);
+
+        Assert.Empty(await service.ListAccountsAsync());
+        Assert.Contains("home-1", clients.For(ClientConfig.GraphCli).Removed);
+        Assert.Contains("home-1", clients.For(ClientConfig.AzureCli).Removed);
+        Assert.Empty(clients.For(ClientConfig.GraphCli).Cached);
+        Assert.Empty(clients.For(ClientConfig.AzureCli).Cached);
+        await Assert.ThrowsAsync<SignInRequiredException>(() => service.GetTokenAsync(graphCli.Key, Audience.Graph, Ct));
     }
 
     private static async Task SendForAccountAsync(HttpClient client, string url, bool leak = false)
@@ -551,7 +580,8 @@ public sealed class ArmAuthTests : IDisposable
     }
 
     /// <summary>A client factory that hands out one <see cref="ArmMsal"/> per <see cref="ClientConfig"/>, named after its client,
-    /// and records which configs the service asked for.</summary>
+    /// and records which configs the service asked for. Like Kustodian's one shared MSAL token cache (FOCI included), removing a
+    /// home account on any client removes it from every client.</summary>
     private sealed class MsalPerClient
     {
         private readonly Dictionary<ClientConfig, ArmMsal> _clients = [];
@@ -575,11 +605,19 @@ public sealed class ArmAuthTests : IDisposable
                     ClientKind.GraphCli => "graph-cli:",
                     _ => "own:",
                 };
-                msal = new ArmMsal { TokenPrefix = name };
+                msal = new ArmMsal { TokenPrefix = name, RemovedEverywhere = ForgetEverywhere };
                 _clients[config] = msal;
             }
 
             return msal;
+        }
+
+        private void ForgetEverywhere(string homeAccountId)
+        {
+            foreach (var msal in _clients.Values)
+            {
+                msal.Forget(homeAccountId);
+            }
         }
     }
 
@@ -597,6 +635,10 @@ public sealed class ArmAuthTests : IDisposable
 
         /// <summary>Put before every token this fake hands out, to tell one client's tokens from another's.</summary>
         public string TokenPrefix { get; init; } = "";
+
+        /// <summary>Called with the home account ID after <see cref="RemoveAsync"/>, to model a token cache shared with other
+        /// clients.</summary>
+        public Action<string>? RemovedEverywhere { get; init; }
 
         public bool GraphNeedsUi { get; set; }
 
@@ -671,8 +713,12 @@ public sealed class ArmAuthTests : IDisposable
         {
             Removed.Add(homeAccountId);
             _cached.Remove(homeAccountId);
+            RemovedEverywhere?.Invoke(homeAccountId);
             return Task.CompletedTask;
         }
+
+        /// <summary>Drops <paramref name="homeAccountId"/> from this fake's cache without recording a removal.</summary>
+        public void Forget(string homeAccountId) => _cached.Remove(homeAccountId);
 
         private MsalSignIn Grant(string scope)
         {
