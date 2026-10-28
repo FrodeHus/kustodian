@@ -67,7 +67,7 @@ describe('ChartView', () => {
 
   it('chart_view_empty_state_explains', () => {
     render(<ChartView columns={[{ name: 'tags', type: 'dynamic' }]} rows={[[[]]]} kql="t" />);
-    expect(screen.getByText('This result has no shape to chart: it needs a text or date column and a number column.')).toBeTruthy();
+    expect(screen.getByText('This result has no shape to chart: it needs a text, true/false or date column and a number column.')).toBeTruthy();
     expect(screen.queryByRole('combobox', { name: 'Chart type' })).toBeNull();
   });
 });

@@ -12,6 +12,11 @@ follow [Semantic Versioning](https://semver.org/).
   `roleManagement_directory_roleAssignments` and `identity_conditionalAccess_policies`: 319 more tables. Paths through a `me`
   segment (`education/me/...`) stay out, like `me` itself. The schema is regenerated from the latest beta metadata.
 
+### Changed
+
+- The Chart tab charts by a true/false, GUID or duration column as well as by text or a date, so
+  `summarize count() by accountEnabled` draws a column chart. Text still comes first along the axis.
+
 ## [0.9.8] - 2026-10-23
 
 ### Added
