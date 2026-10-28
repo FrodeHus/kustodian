@@ -130,12 +130,12 @@ public sealed class RunAccountTests : IAsyncDisposable
 
         public (string Home, string User, string Tenant) Next { get; set; } = ("home-1", "ada@contoso.com", "tenant-1");
 
-        public Task<MsalSignIn> AcquireInteractiveAsync(string scope, string? loginHint, CancellationToken ct) => Task.FromResult(SignIn());
+        public Task<MsalSignIn> AcquireInteractiveAsync(string scope, string? loginHint, CancellationToken ct, bool forceConsent = false) => Task.FromResult(SignIn());
 
         public Task<MsalSignIn> AcquireDeviceCodeAsync(string scope, Action<string> showCode, CancellationToken ct) =>
             Task.FromResult(SignIn());
 
-        public Task<MsalToken> AcquireSilentAsync(string homeAccountId, string scope, CancellationToken ct) =>
+        public Task<MsalToken> AcquireSilentAsync(string homeAccountId, string scope, CancellationToken ct, bool forceRefresh = false) =>
             _cached.ContainsKey(homeAccountId)
                 ? Task.FromResult(new MsalToken(TokenFor(homeAccountId), DateTimeOffset.UtcNow.AddHours(1)))
                 : throw new Microsoft.Identity.Client.MsalUiRequiredException("ui_required", "sign in again");

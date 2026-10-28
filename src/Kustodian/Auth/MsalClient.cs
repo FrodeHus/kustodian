@@ -14,12 +14,15 @@ public sealed record MsalSignIn(MsalAccount Account, MsalToken Token);
 public interface IMsalClient
 {
     /// <summary>Signs in through the system browser for <paramref name="scope"/>. With a <paramref name="loginHint"/> (a
-    /// username) the browser starts at that account; without one the user picks.</summary>
-    Task<MsalSignIn> AcquireInteractiveAsync(string scope, string? loginHint, CancellationToken ct);
+    /// username) the browser starts at that account; without one the user picks. <paramref name="forceConsent"/> makes the
+    /// browser show the consent prompt even when consent was already given.</summary>
+    Task<MsalSignIn> AcquireInteractiveAsync(string scope, string? loginHint, CancellationToken ct, bool forceConsent = false);
 
     Task<MsalSignIn> AcquireDeviceCodeAsync(string scope, Action<string> showCode, CancellationToken ct);
 
-    Task<MsalToken> AcquireSilentAsync(string homeAccountId, string scope, CancellationToken ct);
+    /// <summary>Gets a token for <paramref name="scope"/> from the cache or a refresh token. <paramref name="forceRefresh"/>
+    /// skips the cached access token and asks the service for a new one.</summary>
+    Task<MsalToken> AcquireSilentAsync(string homeAccountId, string scope, CancellationToken ct, bool forceRefresh = false);
 
     Task<IReadOnlyList<MsalAccount>> GetAccountsAsync();
 
@@ -45,10 +48,15 @@ public sealed class MsalClient : IMsalClient
         }
     }
 
-    public async Task<MsalSignIn> AcquireInteractiveAsync(string scope, string? loginHint, CancellationToken ct)
+    public async Task<MsalSignIn> AcquireInteractiveAsync(string scope, string? loginHint, CancellationToken ct, bool forceConsent = false)
     {
         var builder = _app.AcquireTokenInteractive([scope]).WithUseEmbeddedWebView(false);
         builder = loginHint is null ? builder.WithPrompt(Prompt.SelectAccount) : builder.WithLoginHint(loginHint);
+        if (forceConsent)
+        {
+            builder = builder.WithPrompt(Prompt.Consent);
+        }
+
         var result = await builder.ExecuteAsync(ct);
         return Map(result);
     }
@@ -63,11 +71,11 @@ public sealed class MsalClient : IMsalClient
         return Map(result);
     }
 
-    public async Task<MsalToken> AcquireSilentAsync(string homeAccountId, string scope, CancellationToken ct)
+    public async Task<MsalToken> AcquireSilentAsync(string homeAccountId, string scope, CancellationToken ct, bool forceRefresh = false)
     {
         var account = (await _app.GetAccountsAsync()).FirstOrDefault(a => a.HomeAccountId.Identifier == homeAccountId)
             ?? throw new MsalUiRequiredException(MsalError.UserNullError, "The account is no longer in the token cache.");
-        var result = await _app.AcquireTokenSilent([scope], account).ExecuteAsync(ct);
+        var result = await _app.AcquireTokenSilent([scope], account).WithForceRefresh(forceRefresh).ExecuteAsync(ct);
         return new MsalToken(result.AccessToken, result.ExpiresOn);
     }
 

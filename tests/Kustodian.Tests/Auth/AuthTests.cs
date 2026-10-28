@@ -406,10 +406,15 @@ public class AuthTests : IDisposable
 
         public List<string> Removed { get; } = [];
 
+        public List<(string Scope, string? LoginHint, bool ForceConsent)> Interactive { get; } = [];
+
+        public List<(string Scope, bool ForceRefresh)> Silent { get; } = [];
+
         public string LastJwt { get; private set; } = "";
 
-        public async Task<MsalSignIn> AcquireInteractiveAsync(string scope, string? loginHint, CancellationToken ct)
+        public async Task<MsalSignIn> AcquireInteractiveAsync(string scope, string? loginHint, CancellationToken ct, bool forceConsent = false)
         {
+            Interactive.Add((scope, loginHint, forceConsent));
             if (Block is not null)
             {
                 await Block.Task;
@@ -424,8 +429,9 @@ public class AuthTests : IDisposable
             return Task.FromResult(SignIn());
         }
 
-        public Task<MsalToken> AcquireSilentAsync(string homeAccountId, string scope, CancellationToken ct)
+        public Task<MsalToken> AcquireSilentAsync(string homeAccountId, string scope, CancellationToken ct, bool forceRefresh = false)
         {
+            Silent.Add((scope, forceRefresh));
             if (SilentNeedsUi || !_cached.ContainsKey(homeAccountId))
             {
                 throw new Microsoft.Identity.Client.MsalUiRequiredException("ui_required", "sign in again");

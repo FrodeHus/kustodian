@@ -200,8 +200,8 @@ public sealed class ArmAuthTests : IDisposable
         await service.ConsentAsync(account.Key, Audience.Arm, Ct);
 
         var consent = msal.Interactive[^1];
-        Assert.Equal(("https://management.azure.com/.default", "ada@contoso.com"), consent);
-        Assert.Equal(("https://graph.microsoft.com/.default", (string?)null), msal.Interactive[0]);
+        Assert.Equal(("https://management.azure.com/.default", "ada@contoso.com", false), consent);
+        Assert.Equal(("https://graph.microsoft.com/.default", (string?)null, false), msal.Interactive[0]);
         Assert.Equal("arm-token", await service.GetTokenAsync(account.Key, Audience.Arm, Ct));
         Assert.Equal(account.Key, service.ActiveAccountKey);
         Assert.Empty(msal.DeviceCodes);
@@ -260,7 +260,7 @@ public sealed class ArmAuthTests : IDisposable
 
         Assert.Equal(JsonValueKind.Object, ok.GetProperty("result").ValueKind);
         Assert.Empty(ok.GetProperty("result").EnumerateObject());
-        Assert.Equal(("https://management.azure.com/.default", "ada@contoso.com"), msal.Interactive[^1]);
+        Assert.Equal(("https://management.azure.com/.default", "ada@contoso.com", false), msal.Interactive[^1]);
         Assert.Equal("bad_request", badAudience.GetProperty("error").GetProperty("code").GetString());
         Assert.Equal("bad_request", noKey.GetProperty("error").GetProperty("code").GetString());
     }
@@ -427,7 +427,9 @@ public sealed class ArmAuthTests : IDisposable
 
         public MsalAccount? GrantAs { get; set; }
 
-        public List<(string Scope, string? LoginHint)> Interactive { get; } = [];
+        public List<(string Scope, string? LoginHint, bool ForceConsent)> Interactive { get; } = [];
+
+        public List<(string Scope, bool ForceRefresh)> Silent { get; } = [];
 
         public List<string> DeviceCodes { get; } = [];
 
@@ -437,9 +439,9 @@ public sealed class ArmAuthTests : IDisposable
 
         public void Cache(MsalAccount account) => _cached[account.HomeAccountId] = account;
 
-        public Task<MsalSignIn> AcquireInteractiveAsync(string scope, string? loginHint, CancellationToken ct)
+        public Task<MsalSignIn> AcquireInteractiveAsync(string scope, string? loginHint, CancellationToken ct, bool forceConsent = false)
         {
-            Interactive.Add((scope, loginHint));
+            Interactive.Add((scope, loginHint, forceConsent));
             if (InteractiveFails is { } failure && scope == Audience.Arm.ScopeFor())
             {
                 throw failure;
@@ -455,8 +457,9 @@ public sealed class ArmAuthTests : IDisposable
             return Task.FromResult(Grant(scope));
         }
 
-        public Task<MsalToken> AcquireSilentAsync(string homeAccountId, string scope, CancellationToken ct)
+        public Task<MsalToken> AcquireSilentAsync(string homeAccountId, string scope, CancellationToken ct, bool forceRefresh = false)
         {
+            Silent.Add((scope, forceRefresh));
             if (ForgetAccount || !_cached.ContainsKey(homeAccountId))
             {
                 throw new MsalUiRequiredException(MsalError.UserNullError, "The account is no longer in the token cache.");

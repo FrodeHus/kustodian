@@ -222,7 +222,7 @@ public class AccountHandlerTests : IDisposable
 
         private readonly List<MsalAccount> _accounts = [];
 
-        public Task<MsalSignIn> AcquireInteractiveAsync(string scope, string? loginHint, CancellationToken ct) => Task.FromResult(SignIn());
+        public Task<MsalSignIn> AcquireInteractiveAsync(string scope, string? loginHint, CancellationToken ct, bool forceConsent = false) => Task.FromResult(SignIn());
 
         public Task<MsalSignIn> AcquireDeviceCodeAsync(string scope, Action<string> showCode, CancellationToken ct)
         {
@@ -230,7 +230,7 @@ public class AccountHandlerTests : IDisposable
             return Task.FromResult(SignIn());
         }
 
-        public Task<MsalToken> AcquireSilentAsync(string homeAccountId, string scope, CancellationToken ct) =>
+        public Task<MsalToken> AcquireSilentAsync(string homeAccountId, string scope, CancellationToken ct, bool forceRefresh = false) =>
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<MsalAccount>> GetAccountsAsync() => Task.FromResult<IReadOnlyList<MsalAccount>>([.. _accounts]);
