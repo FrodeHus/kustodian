@@ -18,6 +18,11 @@ follow [Semantic Versioning](https://semver.org/).
   in full, when you are signed in with Graph Command Line Tools or your own app. It asks Microsoft for the one narrowest read
   permission listed. If you already hold a listed permission, the result says your account may be missing a role instead.
 
+### Changed
+
+- The Chart tab charts by a true/false, GUID or duration column as well as by text or a date, so
+  `summarize count() by accountEnabled` draws a column chart. Text still comes first along the axis.
+
 ## [0.9.8] - 2026-10-23
 
 ### Added

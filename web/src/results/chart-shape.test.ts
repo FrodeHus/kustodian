@@ -36,11 +36,44 @@ describe('chartShape', () => {
     });
   });
 
+  it('chart_shape_bool_and_number_is_column', () => {
+    const columns = [col('accountEnabled', 'bool'), col('n', 'long')];
+    const rows = [
+      [true, 40],
+      [false, 3],
+    ];
+    expect(chartShape(columns, rows)).toEqual({ type: 'column', x: 'accountEnabled', series: ['n'] });
+    expect(chartShape(columns, rows, 'pie')).toEqual({ type: 'pie', x: 'accountEnabled', series: ['n'] });
+    expect(chartData(columns, rows, { type: 'column', x: 'accountEnabled', series: ['n'] }).data).toEqual([
+      { x: 'true', values: { n: 40 } },
+      { x: 'false', values: { n: 3 } },
+    ]);
+    // Text comes before true/false along the axis.
+    expect(chartShape([col('enabled', 'bool'), col('app', 'string'), col('n', 'long')], [[true, 'Teams', 1]], 'column')?.x).toBe('app');
+  });
+
+  it('chart_data_splits_by_a_bool_column_when_there_is_no_other_text', () => {
+    const columns = [col('day', 'datetime'), col('enabled', 'bool'), col('n', 'long')];
+    const rows = [
+      ['2026-10-19T00:00:00Z', true, 5],
+      ['2026-10-19T00:00:00Z', false, 1],
+    ];
+    expect(chartData(columns, rows, { type: 'timechart', x: 'day', series: ['n'] })).toEqual({
+      series: ['true', 'false'],
+      data: [{ x: '2026-10-19T00:00:00Z', values: { true: 5, false: 1 } }],
+    });
+    // A text column still wins the split over a bool one.
+    const withText = [col('day', 'datetime'), col('app', 'string'), col('enabled', 'bool'), col('n', 'long')];
+    expect(chartData(withText, [['2026-10-19T00:00:00Z', 'Teams', true, 5]], { type: 'timechart', x: 'day', series: ['n'] }).series).toEqual([
+      'Teams',
+    ]);
+  });
+
   it('chart_shape_null_explains', () => {
     expect(chartShape([col('name', 'string'), col('tags', 'dynamic')], [['a', []]])).toBeNull();
     expect(chartShape([col('a', 'string'), col('b', 'string'), col('n', 'long')], [['a', 'b', 1]])).toBeNull();
     expect(chartShape([col('n', 'long')], [[1]], 'column')).toBeNull();
-    expect(NO_SHAPE).toBe('This result has no shape to chart: it needs a text or date column and a number column.');
+    expect(NO_SHAPE).toBe('This result has no shape to chart: it needs a text, true/false or date column and a number column.');
   });
 
   it('chart_data_splits_one_series_by_the_other_text_column', () => {
