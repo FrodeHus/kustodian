@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BridgeError } from '../bridge';
 import { useTabs } from '../tabs/tab-store';
-import type { RelationshipFetch, RunResult, TableFetch } from '../wire';
+import type { AccountInfo, RelationshipFetch, RunResult, TableFetch } from '../wire';
 import { RunStatus } from './run-status';
 
 const call = vi.hoisted(() => vi.fn());
@@ -263,6 +263,71 @@ describe('RunStatus', () => {
     second.unmount();
     render(<RunStatus run={done(result({}))} onSignIn={() => undefined} createApp />);
     expect(screen.queryByRole('button', { name: 'Create Entra ID application…' })).toBeNull();
+  });
+
+  describe('grant permission', () => {
+    const account = (clientKind: AccountInfo['clientKind'], scopes: string[] = []): AccountInfo => ({
+      key: 'k1',
+      username: 'ola@contoso.com',
+      tenantName: 'Contoso',
+      tenantId: 't1',
+      clientId: 'c1',
+      clientKind,
+      active: true,
+      expired: false,
+      scopes,
+    });
+    const refused = (permissions: string[]) => done(result({ outcome: 'noPermission', message: 'No permission.', permissions }));
+
+    it('no_permission_for_graph_cli_shows_grant_permission_and_reruns_after_consent', async () => {
+      call.mockResolvedValueOnce({});
+      const onConsented = vi.fn();
+      render(<RunStatus run={refused(['Reports.Read.All'])} account={account('graphCli')} accountKey="k1" onConsented={onConsented} onSignIn={() => undefined} />);
+      const grant = screen.getByRole('button', { name: 'Grant permission…' });
+      expect(grant.getAttribute('title')).toBe('Reports.Read.All');
+      fireEvent.click(grant);
+      await waitFor(() => expect(onConsented).toHaveBeenCalledTimes(1));
+      expect(call).toHaveBeenCalledWith('account.consent', { key: 'k1', audience: 'graph', scope: 'Reports.Read.All' });
+    });
+
+    it('grant_permission_refused_shows_not_granted_note', async () => {
+      call.mockRejectedValueOnce(new BridgeError('cancelled', 'The request was cancelled.'));
+      const onConsented = vi.fn();
+      render(<RunStatus run={refused(['Reports.Read.All'])} account={account('own')} accountKey="k1" onConsented={onConsented} onSignIn={() => undefined} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Grant permission…' }));
+      expect(await screen.findByText('Not granted. An administrator has to grant Reports.Read.All.')).toBeTruthy();
+      expect(onConsented).not.toHaveBeenCalled();
+    });
+
+    it('no_permission_for_azure_cli_shows_no_grant_permission', () => {
+      render(<RunStatus run={refused(['Reports.Read.All'])} account={account('azureCli')} accountKey="k1" onSignIn={() => undefined} />);
+      expect(screen.queryByRole('button', { name: 'Grant permission…' })).toBeNull();
+    });
+
+    it('no_permission_with_the_permission_held_shows_the_role_note', () => {
+      render(<RunStatus run={refused(['Reports.Read.All'])} account={account('graphCli', ['reports.read.all'])} accountKey="k1" onSignIn={() => undefined} />);
+      expect(screen.queryByRole('button', { name: 'Grant permission…' })).toBeNull();
+      expect(screen.getByText('You have Reports.Read.All; your account may be missing a role that this data needs.')).toBeTruthy();
+    });
+
+    it('refused_relationship_column_offers_grant_permission', () => {
+      const relationship: RelationshipFetch = {
+        column: 'memberOf',
+        objects: 40,
+        truncated: 0,
+        entryCap: 1000,
+        refused: 40,
+        permissions: ['GroupMember.Read.All', 'Directory.Read.All'],
+        capped: false,
+        filteredLocally: false,
+        limited: 0,
+      };
+      const run = done(result({ tables: [{ ...fetch, table: 'users', relationships: [relationship, { ...relationship, column: 'ownedObjects' }] }] }));
+      render(<RunStatus run={run} account={account('graphCli')} accountKey="k1" onSignIn={() => undefined} />);
+      const buttons = screen.getAllByRole('button', { name: 'Grant permission…' });
+      expect(buttons).toHaveLength(1);
+      expect(buttons[0]?.getAttribute('title')).toBe('GroupMember.Read.All');
+    });
   });
 
   describe('relationship chips', () => {

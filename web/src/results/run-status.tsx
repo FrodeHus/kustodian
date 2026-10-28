@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
 import { ConsentButton } from '../signin/consent-button';
+import { grantOffer } from '../signin/grant-permission';
+import { GrantPermissionButton } from '../signin/grant-permission-button';
 import { runCommand } from '../shell/commands';
 import { editorPosition, type TabRun } from '../tabs/tab-store';
-import type { ArgScope, RunResult, Source, TableFetch } from '../wire';
+import type { AccountInfo, ArgScope, RunResult, Source, TableFetch } from '../wire';
 import { plural, scopeText, serverRequests } from './source-wording';
 
 const count = (n: number) => n.toLocaleString('en-US');
@@ -157,11 +159,25 @@ interface RunStatusProps {
   onConsented?: () => void;
   /** The active account is the Azure CLI client: a run without permission offers to create an Entra ID application. */
   createApp?: boolean;
+  /** The active account: a refused run offers to grant the permission it needs unless the account already has it. */
+  account?: AccountInfo;
+}
+
+/** The permissions to offer granting for refused relationship columns, each once. */
+function relationshipGrants(result: RunResult, source: Source, account: AccountInfo | undefined): string[] {
+  const scopes = new Set<string>();
+  for (const r of result.tables.flatMap((t) => t.relationships)) {
+    const offer = r.refused > 0 ? grantOffer(account, r.permissions, source) : null;
+    if (offer && 'scope' in offer) {
+      scopes.add(offer.scope);
+    }
+  }
+  return [...scopes];
 }
 
 /** The line between the editor and the results: the run's progress, then how it ended and what it sent, worded for the source
  * the run went to. A run that needs Azure access offers "Grant Azure access", which runs it again once granted. */
-export function RunStatus({ run, scope, onSignIn, accountKey, onConsented, createApp = false }: RunStatusProps) {
+export function RunStatus({ run, scope, onSignIn, accountKey, onConsented, createApp = false, account }: RunStatusProps) {
   let content: ReactNode;
   let meta: string | null = null;
 
@@ -178,6 +194,9 @@ export function RunStatus({ run, scope, onSignIn, accountKey, onConsented, creat
     content = <span className="chip">Run cancelled</span>;
   } else {
     const result = run.result;
+    const source = run.source ?? 'graph';
+    const offer = result.outcome === 'noPermission' ? grantOffer(account, result.permissions, source) : null;
+    const grants = relationshipGrants(result, source, account).filter((s) => !(offer && 'scope' in offer && offer.scope === s));
     const at = result.error ? editorPosition(run.origin, result.error) : null;
     meta = `${new Date(run.startedAt).toLocaleTimeString('en-GB')} · ${duration(result.durationMs)}`;
     content = (
@@ -203,7 +222,14 @@ export function RunStatus({ run, scope, onSignIn, accountKey, onConsented, creat
           </button>
         )}
         {result.outcome === 'consentNeeded' && <ConsentButton accountKey={accountKey} onGranted={() => onConsented?.()} />}
-        {resultChips(result, run.source ?? 'graph', scope).map((chip, i) => (
+        {offer && 'scope' in offer && <GrantPermissionButton accountKey={accountKey} scope={offer.scope} onGranted={() => onConsented?.()} />}
+        {offer && 'held' in offer && (
+          <span className="chip warn">{`You have ${offer.held}; your account may be missing a role that this data needs.`}</span>
+        )}
+        {grants.map((s) => (
+          <GrantPermissionButton key={s} accountKey={accountKey} scope={s} onGranted={() => onConsented?.()} />
+        ))}
+        {resultChips(result, source, scope).map((chip, i) => (
           <span key={i} className={`chip${chip.tone ? ` ${chip.tone}` : ''}`} title={chip.title}>
             {chip.text}
           </span>

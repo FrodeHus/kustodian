@@ -622,6 +622,7 @@ export function App() {
                       scope={active.run?.options?.scope}
                       onSignIn={() => setAccountsOpen(true)}
                       accountKey={accountKey}
+                      account={account}
                       createApp={canCreateApp(account)}
                       onConsented={() => void useTabs.getState().rerun(active.id)}
                     />
