@@ -163,11 +163,11 @@ interface RunStatusProps {
   account?: AccountInfo;
 }
 
-/** The permissions to offer granting for refused relationship columns, each once. */
+/** The permissions to offer granting for relationship columns refused in full, each once. */
 function relationshipGrants(result: RunResult, source: Source, account: AccountInfo | undefined): string[] {
   const scopes = new Set<string>();
   for (const r of result.tables.flatMap((t) => t.relationships)) {
-    const offer = r.refused > 0 ? grantOffer(account, r.permissions, source) : null;
+    const offer = r.refused > 0 && r.refused === r.objects ? grantOffer(account, r.permissions, source) : null;
     if (offer && 'scope' in offer) {
       scopes.add(offer.scope);
     }

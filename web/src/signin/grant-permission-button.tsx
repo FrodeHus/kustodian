@@ -30,7 +30,7 @@ export function GrantPermissionButton({ accountKey, scope, onGranted }: { accoun
 
   return (
     <>
-      <button type="button" className="btn shrink-0" title={scope} disabled={busy || !accountKey} onClick={grant}>
+      <button type="button" className="btn shrink-0" title={scope} aria-label={`Grant permission ${scope}`} disabled={busy || !accountKey} onClick={grant}>
         Grant permission…
       </button>
       {problem && (

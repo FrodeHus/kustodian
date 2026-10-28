@@ -34,6 +34,10 @@ describe('grantOffer', () => {
     expect(grantOffer(graphCli([]), ['User.ReadWrite.All', 'User.Read.All'], 'graph')).toEqual({ scope: 'User.Read.All' }));
   it('says the permission is held, in any casing', () =>
     expect(grantOffer(graphCli(['reports.read.all']), ['Reports.Read.All'], 'graph')).toEqual({ held: 'Reports.Read.All' }));
+  it('says a held write permission is held, ahead of the read one', () =>
+    expect(grantOffer(graphCli(['user.readwrite.all']), ['User.Read.All', 'User.ReadWrite.All'], 'graph')).toEqual({ held: 'User.ReadWrite.All' }));
+  it('says a held write-only permission is held', () =>
+    expect(grantOffer(graphCli(['User.ReadWrite.All']), ['User.ReadWrite.All'], 'graph')).toEqual({ held: 'User.ReadWrite.All' }));
   it('offers threat hunting for hunting', () =>
     expect(grantOffer(own([]), ['ThreatHunting.Read.All'], 'hunting')).toEqual({ scope: 'ThreatHunting.Read.All' }));
 });

@@ -4,8 +4,8 @@ import type { AccountInfo } from '../wire';
 const isReadOnly = (permission: string) => /\.read/i.test(permission) && !/write/i.test(permission);
 
 /**
- * What a refused run offers the user: `{ scope }` is the read-only permission to grant (the first listed); `{ held }` is a listed
- * permission the account already has, so granting wouldn't help; `null` is no offer (no account, the Azure CLI whose client
+ * What a refused run offers the user: `{ scope }` is the read-only permission to grant (the first listed); `{ held }` is the first listed
+ * permission (of any kind) the account already has, so granting wouldn't help; `null` is no offer (no account, the Azure CLI whose client
  * can't be granted anything, a Resource Graph or raw run, or no read-only permission listed).
  */
 export function grantOffer(account: AccountInfo | undefined, permissions: string[], source: string): { scope: string } | { held: string } | null {
@@ -13,11 +13,10 @@ export function grantOffer(account: AccountInfo | undefined, permissions: string
     return null;
   }
   const held = new Set(account.scopes.map((s) => s.toLowerCase()));
-  const readable = permissions.filter(isReadOnly);
-  const alreadyHeld = readable.find((p) => held.has(p.toLowerCase()));
+  const alreadyHeld = permissions.find((p) => held.has(p.toLowerCase()));
   if (alreadyHeld) {
     return { held: alreadyHeld };
   }
-  const [scope] = readable;
+  const [scope] = permissions.filter(isReadOnly);
   return scope ? { scope } : null;
 }
