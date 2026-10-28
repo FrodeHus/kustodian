@@ -99,7 +99,7 @@ On a run whose outcome is `noPermission`, when all of these hold:
 - **none of the listed permissions is already in the account's `Scopes`**. A `noPermission` doesn't always mean missing consent:
   delegated reports also need an Entra role (Reports Reader for `Reports.Read.All`), and hunting's 401/403 also covers a missing
   Defender role. When the token already holds one of the permissions, there is no consent action; the result adds the note
-  "You have <permission>; your account may be missing a role that this data needs." **My call.**
+  "You have *permission*; your account may be missing a role that this data needs." **My call.**
 - the source is Graph or advanced hunting (both are Graph permissions). Not Resource Graph: with Graph CLT it uses Azure CLI;
   with the user's own app, Azure access already has its own **Grant Azure access** (`consentNeeded`).
 
@@ -118,8 +118,8 @@ The button reads **Grant permission…** (**My call**), and its tooltip names th
 first read permission in `Permissions` (none of which the account holds, per 6.1), which is the least-privileged read permission Microsoft lists for that path (**My call**:
 any one of them will do, and asking for the narrowest is the least an admin has to agree to).
 
-Clicking it calls a new bridge request, `account.consent {key, audience: "graph", scopes: ["Reports.Read.All"]}`.
-`AccountService.ConsentAsync` grows a scopes parameter: for Graph it runs an interactive acquire on the account's own client for
+Clicking it calls a new bridge request, `account.consent {key, audience: "graph", scope: "Reports.Read.All"}`.
+`AccountService.ConsentAsync` grows a scope parameter: for Graph it runs an interactive acquire on the account's own client for
 `https://graph.microsoft.com/<scope>` with the account's username as the login hint and `prompt=consent`, falling back to device
 code when no browser opens, as the ARM consent does. The account-mismatch check that exists today applies unchanged.
 
@@ -130,14 +130,17 @@ Then Microsoft decides:
   again.
 - **The user can't**: Microsoft's screen says admin approval is needed, and offers the tenant's request form if the tenant has
   one. MSAL returns an error or the user closes the browser. Kustodian goes back to the result as it was, with a short note
-  under it: "Not granted. An administrator has to grant Reports.Read.All." No new dialog.
+  under it: "Not granted. An administrator has to grant Reports.Read.All." No new dialog. Any other failure (another account
+  picked in the browser, a refused request, the network) shows the host's message there instead.
 
 ### 6.4 Picking up the new permission
 
 After consent, the cached `.default` access token still has the old `scp` until it expires. `ConsentAsync` for Graph ends by
 acquiring a `.default` token with force refresh, so `GetTokenAsync` and the stored `Scopes` (and with them **What this sign-in can
-read**, Explain and the account's cached probes) see the new permission at once. Graph objects and probes cached for the
-account are dropped, as a new sign-in drops licenses today. **My call.**
+read**, Explain and the account's cached probes) see the new permission at once. Graph objects, probes, licenses and the
+advanced hunting schema cached for the account are dropped once consent is granted, even if that refresh fails, as a new sign-in
+drops licenses today. The UI then reads the accounts again before it runs the query again, so a run still refused shows the role
+note, and reads a built-in or stale advanced hunting schema again. **My call.**
 
 ## 7. Azure queries behind a Graph CLT sign-in
 
@@ -188,7 +191,7 @@ does today, including **Create Entra ID application…** where that already show
   stored tenant; sign-out in both directions keeps the Azure CLI cache entry while the other account for that user is listed;
   Graph consent forces a refresh and updates stored scopes.
 - `GraphRunner` and hunting: `noPermission` results carry `Permissions`.
-- Bridge: `account.consent` with audience `graph` and scopes; refuses write scopes and the Azure CLI client.
+- Bridge: `account.consent` with audience `graph` and a scope; refuses write scopes and the Azure CLI client.
 - Web: the sign-in radio group's three choices; **Grant permission…** shows for Graph CLT and own app, not for Azure CLI, not
   for Resource Graph, not when only write permissions are listed, not when the account already holds a listed permission (the
   role note shows instead); "Not granted" note after a refusal or cancel.

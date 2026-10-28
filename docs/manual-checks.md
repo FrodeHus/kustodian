@@ -300,7 +300,7 @@ Use a **test tenant** for the consent rows: granting a permission changes what e
 | Resource Graph query behind a Graph Command Line Tools sign-in, first time: **Grant Azure access** is offered, completes in the browser, and the query runs | owner | owner | owner |
 | Resource Graph query behind a Graph Command Line Tools sign-in, after that: runs silently, no extra account in the list | owner | owner | owner |
 | **Grant permission…** as an admin: consent on Microsoft's screen, the query runs again | owner | owner | owner |
-| **Grant permission…** as a non-admin: "Not granted. An administrator has to grant <permission>." appears | owner | owner | owner |
+| **Grant permission…** as a non-admin: "Not granted. An administrator has to grant *permission*." appears | owner | owner | owner |
 
 ## Notes
 
