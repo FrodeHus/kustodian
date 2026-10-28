@@ -135,6 +135,57 @@ public class AccountHandlerTests : IDisposable
         Assert.Equal([key, key], licenses.Removed);
     }
 
+    [Fact]
+    public async Task Account_consent_for_graph_needs_a_read_only_scope_and_drops_the_accounts_caches()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var objects = new MemoryGraphObjectCache(TimeProvider.System);
+        var probes = new MemoryGraphProbeCache(TimeProvider.System);
+        var licenses = new RecordingLicenses();
+        var bridge = NewBridge(new MemoryOnly("x"), probes, licenses: licenses, objects: objects);
+        var azureCli = Parse(await bridge.HandleAsync("""{"id":"a","method":"account.signIn","params":{}}"""))
+            .GetProperty("result").GetProperty("key").GetString()!;
+        var graphCli = Parse(await bridge.HandleAsync(
+                $$$"""{"id":"g","method":"account.signIn","params":{"clientId":"{{{ClientConfig.GraphCliClientId}}}"}}"""))
+            .GetProperty("result").GetProperty("key").GetString()!;
+        foreach (var key in new[] { graphCli, "someone-else" })
+        {
+            await objects.SetAsync(key, "/users", ["displayName"], "u1", """{"displayName":"Ada"}""", ct);
+            await probes.SetAsync(key, "auditLogs/signIns", ["mfaDetail"], [], ct);
+        }
+
+        licenses.Removed.Clear();
+
+        async Task<string?> Consent(string key, string? scope) =>
+            Parse(await bridge.HandleAsync(JsonSerializer.Serialize(new
+            {
+                id = "c",
+                method = "account.consent",
+                @params = new { key, audience = "graph", scope },
+            }))).TryGetProperty("error", out var error) ? error.GetProperty("code").GetString() : null;
+
+        Assert.Equal("bad_request", await Consent(graphCli, null));
+        Assert.Equal("bad_request", await Consent(graphCli, "User.ReadWrite.All"));
+        Assert.Equal("bad_request", await Consent(graphCli, "Reports.Read.All offline_access"));
+        Assert.Equal("bad_request", await Consent(azureCli, "Reports.Read.All"));
+        Assert.Empty(licenses.Removed);
+        Assert.NotNull(await objects.GetAsync(graphCli, "/users", ["displayName"], "u1", ct));
+
+        var reply = Parse(await bridge.HandleAsync(JsonSerializer.Serialize(new
+        {
+            id = "c",
+            method = "account.consent",
+            @params = new { key = graphCli, audience = "graph", scope = "Reports.Read.All" },
+        })));
+
+        Assert.Empty(reply.GetProperty("result").EnumerateObject());
+        Assert.Null(await objects.GetAsync(graphCli, "/users", ["displayName"], "u1", ct));
+        Assert.NotNull(await objects.GetAsync("someone-else", "/users", ["displayName"], "u1", ct));
+        Assert.Null(await probes.GetAsync(graphCli, "auditLogs/signIns", ct));
+        Assert.NotNull(await probes.GetAsync("someone-else", "auditLogs/signIns", ct));
+        Assert.Equal([graphCli], licenses.Removed);
+    }
+
     private sealed class RecordingLicenses : ITenantLicenses
     {
         public List<string> Removed { get; } = [];
@@ -182,7 +233,7 @@ public class AccountHandlerTests : IDisposable
     }
 
     private Messaging.Bridge NewBridge(TokenCacheStatus cache, IGraphProbeCache? probes = null, HuntingSchemaSource? hunting = null,
-        ArmDirectory? directory = null, ITenantLicenses? licenses = null)
+        ArmDirectory? directory = null, ITenantLicenses? licenses = null, IGraphObjectCache? objects = null)
     {
         var bridge = new Messaging.Bridge(message =>
         {
@@ -193,7 +244,7 @@ public class AccountHandlerTests : IDisposable
         });
         var msal = new FakeMsal();
         var accounts = new AccountService(_ => msal, new JsonFileStore(_dir));
-        new AccountHandler(accounts, cache, new MemoryGraphObjectCache(TimeProvider.System), probes ?? NoGraphProbeCache.Instance, hunting, directory,
+        new AccountHandler(accounts, cache, objects ?? new MemoryGraphObjectCache(TimeProvider.System), probes ?? NoGraphProbeCache.Instance, hunting, directory,
             licenses).Register(bridge);
         return bridge;
     }
@@ -231,7 +282,7 @@ public class AccountHandlerTests : IDisposable
         }
 
         public Task<MsalToken> AcquireSilentAsync(string homeAccountId, string scope, CancellationToken ct, bool forceRefresh = false) =>
-            throw new NotSupportedException();
+            Task.FromResult(new MsalToken("not-a-jwt", DateTimeOffset.UtcNow.AddHours(1)));
 
         public Task<IReadOnlyList<MsalAccount>> GetAccountsAsync() => Task.FromResult<IReadOnlyList<MsalAccount>>([.. _accounts]);
 

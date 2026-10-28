@@ -98,7 +98,8 @@ public static partial class GraphPermissions
             StringComparer.OrdinalIgnoreCase);
     }
 
-    private static bool IsReadOnly(string permission)
+    /// <summary>Whether <paramref name="permission"/> only reads: its name has <c>.Read</c> and no <c>Write</c>.</summary>
+    public static bool IsReadOnly(string permission)
         => permission.Contains(".Read", StringComparison.Ordinal) && !permission.Contains("Write", StringComparison.Ordinal);
 
     /// <summary>A leading <c>/</c>, lower case, and every <c>{…}</c> placeholder as <c>{}</c>.</summary>

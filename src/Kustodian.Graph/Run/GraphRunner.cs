@@ -191,10 +191,7 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
 
     /// <summary><paramref name="permissions"/> with the read-only ones first, otherwise in their order.</summary>
     private static IEnumerable<string> ReadFirst(IEnumerable<string> permissions)
-        => permissions.OrderBy(p => IsReadOnly(p) ? 0 : 1);
-
-    private static bool IsReadOnly(string permission)
-        => permission.Contains(".Read", StringComparison.Ordinal) && !permission.Contains("Write", StringComparison.Ordinal);
+        => permissions.OrderBy(p => GraphPermissions.IsReadOnly(p) ? 0 : 1);
 
     /// <summary>Whether the failure is, or was caused by, the account needing to sign in again.</summary>
     private static bool IsSignIn(Exception? ex) => SignInRequiredException.IsIn(ex) || ex switch

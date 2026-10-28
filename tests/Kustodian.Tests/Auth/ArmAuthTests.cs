@@ -255,12 +255,14 @@ public sealed class ArmAuthTests : IDisposable
         new AccountHandler(service, new MemoryOnly("x"), new MemoryGraphObjectCache(TimeProvider.System), NoGraphProbeCache.Instance).Register(bridge);
 
         var ok = await Send(bridge, "account.consent", new { key = account.Key, audience = "arm" });
-        var badAudience = await Send(bridge, "account.consent", new { key = account.Key, audience = "graph" });
+        var graphWithoutScope = await Send(bridge, "account.consent", new { key = account.Key, audience = "graph" });
+        var badAudience = await Send(bridge, "account.consent", new { key = account.Key, audience = "kusto" });
         var noKey = await Send(bridge, "account.consent", new { audience = "arm" });
 
         Assert.Equal(JsonValueKind.Object, ok.GetProperty("result").ValueKind);
         Assert.Empty(ok.GetProperty("result").EnumerateObject());
         Assert.Equal(("https://management.azure.com/.default", "ada@contoso.com", false), msal.Interactive[^1]);
+        Assert.Equal("bad_request", graphWithoutScope.GetProperty("error").GetProperty("code").GetString());
         Assert.Equal("bad_request", badAudience.GetProperty("error").GetProperty("code").GetString());
         Assert.Equal("bad_request", noKey.GetProperty("error").GetProperty("code").GetString());
     }
@@ -538,6 +540,111 @@ public sealed class ArmAuthTests : IDisposable
         await Assert.ThrowsAsync<SignInRequiredException>(() => service.GetTokenAsync(graphCli.Key, Audience.Graph, Ct));
     }
 
+    [Fact]
+    public async Task Graph_consent_asks_for_the_one_permission_with_prompt_consent_and_a_login_hint()
+    {
+        var clients = new MsalPerClient();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
+
+        await service.ConsentAsync(account.Key, Audience.Graph, Ct, scope: "Reports.Read.All");
+
+        var graphCli = clients.For(ClientConfig.GraphCli);
+        Assert.Equal(("https://graph.microsoft.com/Reports.Read.All", "ada@contoso.com", true), graphCli.Interactive[^1]);
+        Assert.Empty(clients.For(ClientConfig.AzureCli).Interactive);
+        Assert.Empty(graphCli.DeviceCodes);
+    }
+
+    [Fact]
+    public async Task Graph_consent_falls_back_to_device_code_when_no_browser_can_open()
+    {
+        var clients = new MsalPerClient();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
+        var graphCli = clients.For(ClientConfig.GraphCli);
+        graphCli.InteractiveFails = new MsalClientException(MsalError.LinuxXdgOpen, "no browser");
+        string? shown = null;
+
+        await service.ConsentAsync(account.Key, Audience.Graph, Ct, m => shown = m, "Reports.Read.All");
+
+        Assert.Equal(["https://graph.microsoft.com/Reports.Read.All"], graphCli.DeviceCodes);
+        Assert.Equal(ArmMsal.DeviceCodeMessage, shown);
+        Assert.Contains("Reports.Read.All", Assert.Single(await service.ListAccountsAsync()).Scopes);
+    }
+
+    [Fact]
+    public async Task Graph_consent_refreshes_the_default_token_and_stores_the_new_scopes()
+    {
+        var clients = new MsalPerClient();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
+
+        await service.ConsentAsync(account.Key, Audience.Graph, Ct, scope: "Reports.Read.All");
+
+        Assert.Equal(("https://graph.microsoft.com/.default", true), clients.For(ClientConfig.GraphCli).Silent[^1]);
+        Assert.Contains("Reports.Read.All", (await service.ListAccountsAsync())[0].Scopes);
+        var reloaded = new AccountService(clients.Create, new JsonFileStore(_dir));
+        Assert.Contains("Reports.Read.All", (await reloaded.ListAccountsAsync())[0].Scopes);
+    }
+
+    [Fact]
+    public async Task Graph_consent_for_an_own_app_account_uses_its_own_client()
+    {
+        var own = new ClientConfig("11111111-2222-3333-4444-555555555555", "contoso.onmicrosoft.com");
+        var clients = new MsalPerClient();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(own, Ct);
+
+        await service.ConsentAsync(account.Key, Audience.Graph, Ct, scope: "Reports.Read.All");
+
+        Assert.Equal([own], clients.AskedFor);
+        Assert.Equal(("https://graph.microsoft.com/Reports.Read.All", "ada@contoso.com", true), clients.For(own).Interactive[^1]);
+    }
+
+    [Fact]
+    public async Task Graph_consent_as_another_account_is_refused_and_the_stray_account_removed()
+    {
+        var clients = new MsalPerClient();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
+        var graphCli = clients.For(ClientConfig.GraphCli);
+        graphCli.GrantAs = new MsalAccount("home-9", "mallory@fabrikam.com", "tenant-9");
+
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.ConsentAsync(account.Key, Audience.Graph, Ct, scope: "Reports.Read.All"));
+
+        Assert.Equal("You granted access as mallory@fabrikam.com; sign in as ada@contoso.com.", refused.Message);
+        Assert.Equal(["home-9"], graphCli.Removed);
+        Assert.Equal(["home-1"], graphCli.Cached);
+        Assert.DoesNotContain(graphCli.Silent, s => s.ForceRefresh);
+        Assert.DoesNotContain("Reports.Read.All", Assert.Single(await service.ListAccountsAsync()).Scopes);
+    }
+
+    [Fact]
+    public async Task Graph_consent_is_refused_for_the_azure_cli_client()
+    {
+        var clients = new MsalPerClient();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.AzureCli, Ct);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.ConsentAsync(account.Key, Audience.Graph, Ct, scope: "Reports.Read.All"));
+
+        Assert.Equal([("https://graph.microsoft.com/.default", (string?)null, false)], clients.For(ClientConfig.AzureCli).Interactive);
+    }
+
+    [Fact]
+    public async Task Graph_consent_needs_a_permission()
+    {
+        var clients = new MsalPerClient();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.ConsentAsync(account.Key, Audience.Graph, Ct));
+
+        Assert.Single(clients.For(ClientConfig.GraphCli).Interactive);
+    }
+
     private static async Task SendForAccountAsync(HttpClient client, string url, bool leak = false)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url).ForAccount("acct-1");
@@ -622,7 +729,9 @@ public sealed class ArmAuthTests : IDisposable
     }
 
     /// <summary>MSAL with one account whose Graph and ARM tokens can each need the user. An interactive or device-code acquire
-    /// for the ARM scope grants it, as <see cref="GrantAs"/> when set (the user picked another account in the browser).</summary>
+    /// for the ARM scope, or for one Graph permission, grants it, as <see cref="GrantAs"/> when set (the user picked another
+    /// account in the browser). A granted Graph permission shows in the <c>scp</c> of the next Graph token refreshed with force;
+    /// until then the cached token is unchanged.</summary>
     private sealed class ArmMsal : IMsalClient
     {
         public const string DeviceCodeMessage = "Go to https://microsoft.com/devicelogin and enter ARM";
@@ -661,6 +770,9 @@ public sealed class ArmAuthTests : IDisposable
 
         public List<string> Removed { get; } = [];
 
+        /// <summary>The Graph permissions granted with forced consent.</summary>
+        public List<string> GrantedGraph { get; } = [];
+
         public IReadOnlyCollection<string> Cached => _cached.Keys;
 
         public void Cache(MsalAccount account) => _cached[account.HomeAccountId] = account;
@@ -668,7 +780,7 @@ public sealed class ArmAuthTests : IDisposable
         public Task<MsalSignIn> AcquireInteractiveAsync(string scope, string? loginHint, CancellationToken ct, bool forceConsent = false)
         {
             Interactive.Add((scope, loginHint, forceConsent));
-            if (InteractiveFails is { } failure && scope == Audience.Arm.ScopeFor())
+            if (InteractiveFails is { } failure && scope != Audience.Graph.ScopeFor())
             {
                 throw failure;
             }
@@ -703,6 +815,11 @@ public sealed class ArmAuthTests : IDisposable
                 throw new MsalUiRequiredException("ui_required", "interaction required");
             }
 
+            if (!arm && forceRefresh)
+            {
+                return Task.FromResult(new MsalToken(JwtWithScopes(["User.Read", .. GrantedGraph]), DateTimeOffset.UtcNow.AddHours(1)));
+            }
+
             return Task.FromResult(new MsalToken(TokenPrefix + (arm ? "arm-token" : "graph-token"), DateTimeOffset.UtcNow.AddHours(1)));
         }
 
@@ -720,13 +837,26 @@ public sealed class ArmAuthTests : IDisposable
         /// <summary>Drops <paramref name="homeAccountId"/> from this fake's cache without recording a removal.</summary>
         public void Forget(string homeAccountId) => _cached.Remove(homeAccountId);
 
+        private static string JwtWithScopes(IEnumerable<string> scopes)
+        {
+            var payload = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(new { scp = string.Join(' ', scopes) }))
+                .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+            return $"h.{payload}.s";
+        }
+
         private MsalSignIn Grant(string scope)
         {
-            var account = scope == Audience.Arm.ScopeFor() && GrantAs is { } other ? other : _account;
+            var consent = scope != Audience.Graph.ScopeFor();
+            var account = consent && GrantAs is { } other ? other : _account;
             _cached[account.HomeAccountId] = account;
             if (scope == Audience.Arm.ScopeFor() && account == _account)
             {
                 ArmNeedsUi = false;
+            }
+
+            if (consent && scope != Audience.Arm.ScopeFor() && account == _account)
+            {
+                GrantedGraph.Add(scope["https://graph.microsoft.com/".Length..]);
             }
 
             return new MsalSignIn(account, new MsalToken("not-a-jwt", DateTimeOffset.UtcNow.AddHours(1)));
