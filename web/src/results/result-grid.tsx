@@ -197,8 +197,14 @@ export function MenuButton({
 interface GridProps {
   columns: ResultColumn[];
   rows: Row[];
-  /** A row was opened (double-click, or Enter on the selected row): its index in `rows`. */
-  onOpenRow?: (index: number) => void;
+  /**
+   * A row was opened (its inspect button, a double-click, or Enter on the selected row): its index in `rows`. Null when the
+   * inspect button of the row already open was pressed again, to close it.
+   */
+  onOpenRow?: (index: number | null) => void;
+  /** The row open in the row details sheet, by its index in `rows`, and the sheet's id. */
+  inspected?: number | null;
+  inspectorId?: string;
   /**
    * Where the grid's tools (filter, columns, group by, copy) go: an element of the result bar to render them into, null to
    * leave them out (the Rows tab isn't showing), or undefined for a bar of their own above the grid.
@@ -206,12 +212,20 @@ interface GridProps {
   toolbar?: Element | null;
 }
 
+/** A magnifier: the inspect button's icon. */
+const inspectIcon = (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+    <circle cx="10.5" cy="10.5" r="6.5" />
+    <path d="m15.5 15.5 5 5" />
+  </svg>
+);
+
 /**
  * The Rows tab (spec 6.5): a virtualized grid with sort, a row filter, hidden and reordered columns, grouping by a column,
  * row selection (click, Shift-click a range, Ctrl/⌘-click to toggle), copy as CSV, Markdown or JSON, and dynamic cells opened
- * as formatted JSON.
+ * as formatted JSON. Each row starts with an inspect button that opens it in the row details sheet, or closes it there.
  */
-export function ResultGrid({ columns, rows, onOpenRow, toolbar }: GridProps) {
+export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspectorId, toolbar }: GridProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [filter, setFilter] = useState('');
   const [opened, setOpened] = useState<Opened | null>(null);
@@ -455,6 +469,9 @@ export function ResultGrid({ columns, rows, onOpenRow, toolbar }: GridProps) {
           <thead>
             {table.getHeaderGroups().map((group) => (
               <tr key={group.id}>
+                <th scope="col" className="inspect-col">
+                  <span className="sr-only">Inspect</span>
+                </th>
                 {group.headers.map((header) => {
                   const column = meta.get(header.column.id);
                   const sorted = header.column.getIsSorted();
@@ -479,7 +496,7 @@ export function ResultGrid({ columns, rows, onOpenRow, toolbar }: GridProps) {
           <tbody>
             {padTop > 0 && (
               <tr aria-hidden="true">
-                <td style={{ height: padTop, padding: 0, border: 0 }} colSpan={visibleColumns.length} />
+                <td style={{ height: padTop, padding: 0, border: 0 }} colSpan={visibleColumns.length + 1} />
               </tr>
             )}
             {items.map((item) => {
@@ -492,7 +509,7 @@ export function ResultGrid({ columns, rows, onOpenRow, toolbar }: GridProps) {
                 const open = row.getIsExpanded();
                 return (
                   <tr key={row.id} data-index={item.index} style={{ height: ROW_HEIGHT }}>
-                    <td colSpan={visibleColumns.length} className="bg-panel2">
+                    <td colSpan={visibleColumns.length + 1} className="bg-panel2">
                       <button type="button" aria-expanded={open} onClick={row.getToggleExpandedHandler()}>
                         {open ? '▾' : '▸'} {row.groupingColumnId}: {value === '' ? 'null' : cellText(value)} · {count(row.getLeafRows().length)}
                       </button>
@@ -501,12 +518,13 @@ export function ResultGrid({ columns, rows, onOpenRow, toolbar }: GridProps) {
                 );
               }
               const isSelected = selected.has(row.id);
+              const isInspected = inspected === row.index;
               return (
                 <tr
                   key={row.id}
                   data-index={item.index}
                   style={{ height: ROW_HEIGHT }}
-                  className={isSelected ? 'sel' : undefined}
+                  className={[isSelected && 'sel', isInspected && 'inspected'].filter(Boolean).join(' ') || undefined}
                   aria-selected={isSelected}
                   onMouseDown={(e) => {
                     // Shift-click selects rows, and a double-click opens one, rather than selecting text.
@@ -517,6 +535,18 @@ export function ResultGrid({ columns, rows, onOpenRow, toolbar }: GridProps) {
                   onClick={(e) => select(row, e)}
                   onDoubleClick={() => onOpenRow?.(row.index)}
                 >
+                  <td className="inspect-col">
+                    <button
+                      type="button"
+                      aria-label={`Inspect row ${count(row.index + 1)}`}
+                      title="Inspect row"
+                      aria-expanded={isInspected}
+                      aria-controls={isInspected ? inspectorId : undefined}
+                      onClick={() => onOpenRow?.(isInspected ? null : row.index)}
+                    >
+                      {inspectIcon}
+                    </button>
+                  </td>
                   {row.getVisibleCells().map((cell) => {
                     const column = meta.get(cell.column.id);
                     const value = cell.getValue();
@@ -553,7 +583,7 @@ export function ResultGrid({ columns, rows, onOpenRow, toolbar }: GridProps) {
             })}
             {padBottom > 0 && (
               <tr aria-hidden="true">
-                <td style={{ height: padBottom, padding: 0, border: 0 }} colSpan={visibleColumns.length} />
+                <td style={{ height: padBottom, padding: 0, border: 0 }} colSpan={visibleColumns.length + 1} />
               </tr>
             )}
           </tbody>

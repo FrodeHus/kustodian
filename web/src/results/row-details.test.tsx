@@ -26,8 +26,11 @@ describe('RowDetails', () => {
     const sheet = screen.getByRole('dialog', { name: 'Row details: HR Connector' });
 
     expect(within(sheet).getByText('appRoles · dynamic')).toBeTruthy();
-    expect(sheet.querySelector('pre')?.textContent).toBe(JSON.stringify(row[1], null, 2));
-    expect(sheet.querySelector('pre')?.textContent).toContain('    "isEnabled": true');
+    // The first level of the tree starts open.
+    const tree = within(sheet).getByRole('group', { name: 'appRoles' });
+    expect(within(tree).getByRole('button', { name: '0: {2 keys}' }).getAttribute('aria-expanded')).toBe('true');
+    expect(tree.textContent).toContain('"value": "Employees.Read.All"');
+    expect(tree.textContent).toContain('"isEnabled": true');
     expect(within(sheet).getByText('owner · string')).toBeTruthy();
     expect(within(sheet).getByText('null')).toBeTruthy();
 
@@ -66,6 +69,46 @@ describe('RowDetails', () => {
 
     fireEvent.keyDown(sheet, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('row_details_opens_and_closes_the_tree', () => {
+    const value = { id: 7, owners: [{ name: 'Ada', roles: ['admin'] }], tags: [], note: null };
+    render(<RowDetails columns={[{ name: 'app', type: 'dynamic' }]} row={[value]} onClose={() => undefined} />);
+    const tree = screen.getByRole('group', { name: 'app' });
+
+    // The value's own entries show, and the first level under them; deeper ones start closed and say how many they hold.
+    expect(tree.textContent).toContain('"id": 7');
+    expect(tree.textContent).toContain('"tags": []');
+    expect(tree.textContent).toContain('"note": null');
+    const owners = within(tree).getByRole('button', { name: 'owners: [1 item]' });
+    expect(owners.getAttribute('aria-expanded')).toBe('true');
+    const first = within(tree).getByRole('button', { name: '0: {2 keys}' });
+    expect(first.getAttribute('aria-expanded')).toBe('false');
+    expect(tree.textContent).not.toContain('Ada');
+
+    fireEvent.click(first);
+    expect(first.getAttribute('aria-expanded')).toBe('true');
+    expect(tree.textContent).toContain('"name": "Ada"');
+    fireEvent.click(owners);
+    expect(owners.getAttribute('aria-expanded')).toBe('false');
+    expect(tree.textContent).not.toContain('Ada');
+
+    // Expand all opens every level; Collapse goes back to the first.
+    fireEvent.click(screen.getByRole('button', { name: 'Expand app' }));
+    const all = screen.getByRole('group', { name: 'app' });
+    expect(all.textContent).toContain('"admin"');
+    expect(within(all).getAllByRole('button').every((b) => b.getAttribute('aria-expanded') === 'true')).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse app' }));
+    expect(screen.getByRole('group', { name: 'app' }).textContent).not.toContain('Ada');
+  });
+
+  it('row_details_shows_a_cut_dynamic_value_as_text', () => {
+    const cut = `${'{"id": 1, "blob": "'.padEnd(998, 'x')}…`;
+    render(<RowDetails columns={[{ name: 'app', type: 'dynamic' }]} row={[cut]} onClose={() => undefined} />);
+
+    expect(screen.queryByRole('group', { name: 'app' })).toBeNull();
+    expect(document.querySelector('pre')?.textContent).toBe(cut);
+    expect(screen.getByText('Cut to 1,000 characters, so it shows as text.')).toBeTruthy();
   });
 
   it('row_details_says_when_copy_fails', async () => {

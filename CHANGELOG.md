@@ -5,10 +5,31 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Graph collections one single-valued step below a singleton are now tables, such as
+  `reports_authenticationMethods_userRegistrationDetails` (MFA and passkey/FIDO2 registration per user),
+  `roleManagement_directory_roleAssignments` and `identity_conditionalAccess_policies`: 319 more tables. Paths through a `me`
+  segment (`education/me/...`) stay out, like `me` itself. The schema is regenerated from the latest beta metadata.
+
 ### Changed
 
 - The Chart tab charts by a true/false, GUID or duration column as well as by text or a date, so
   `summarize count() by accountEnabled` draws a column chart. Text still comes first along the axis.
+
+## [0.9.8] - 2026-10-23
+
+### Added
+
+- An inspect button on every row of the results opens the row in the row details sheet; another row's button switches the
+  sheet to that row, and the open row's button closes it. Dynamic values show as a tree to open and close, with Expand all.
+
+### Fixed
+
+- A Graph query with a dynamic value on the left of `in`, `!in`, `in~`, `!in~` or `has_any` says to convert it with
+  `tostring()` instead of showing an internal cast error.
+- Graph `directoryRoles` and each role's `members` no longer fail: Graph refuses any page size there, and the read now retries
+  without `$top`.
 
 ## [0.9.7] - 2026-10-22
 
