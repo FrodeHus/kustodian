@@ -625,6 +625,18 @@ export function App() {
                       account={account}
                       createApp={canCreateApp(account)}
                       onConsented={() => void useTabs.getState().rerun(active.id)}
+                      onGranted={() => {
+                        const id = active.id;
+                        // The account's permissions are read again first, so a run still refused says what it lacks. A
+                        // built-in hunting schema, or one that couldn't be refreshed, may have been for want of the permission.
+                        void readAccounts(setAccounts, setAccountsError).then(() => {
+                          const hunting = useSchemas.getState().byKey.hunting;
+                          if (hunting?.origin === 'builtIn' || hunting?.fallbackReason) {
+                            void useSchemas.getState().load('hunting', { refresh: true });
+                          }
+                          void useTabs.getState().rerun(id);
+                        });
+                      }}
                     />
                     {explaining ? (
                       <ExplainView request={explaining} onOpenRaw={(url) => openRaw({ path: url, version: 'beta' })} />

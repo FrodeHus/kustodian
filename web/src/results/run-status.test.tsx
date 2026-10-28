@@ -281,22 +281,41 @@ describe('RunStatus', () => {
 
     it('no_permission_for_graph_cli_shows_grant_permission_and_reruns_after_consent', async () => {
       call.mockResolvedValueOnce({});
+      const onGranted = vi.fn();
       const onConsented = vi.fn();
-      render(<RunStatus run={refused(['Reports.Read.All'])} account={account('graphCli')} accountKey="k1" onConsented={onConsented} onSignIn={() => undefined} />);
+      render(
+        <RunStatus run={refused(['Reports.Read.All'])} account={account('graphCli')} accountKey="k1" onGranted={onGranted} onConsented={onConsented} onSignIn={() => undefined} />,
+      );
       const grant = screen.getByRole('button', { name: /^Grant permission/ });
       expect(grant.getAttribute('title')).toBe('Reports.Read.All');
       fireEvent.click(grant);
-      await waitFor(() => expect(onConsented).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(onGranted).toHaveBeenCalledTimes(1));
+      expect(onConsented).not.toHaveBeenCalled();
       expect(call).toHaveBeenCalledWith('account.consent', { key: 'k1', audience: 'graph', scope: 'Reports.Read.All' });
     });
 
-    it('grant_permission_refused_shows_not_granted_note', async () => {
-      call.mockRejectedValueOnce(new BridgeError('cancelled', 'The request was cancelled.'));
-      const onConsented = vi.fn();
-      render(<RunStatus run={refused(['Reports.Read.All'])} account={account('own')} accountKey="k1" onConsented={onConsented} onSignIn={() => undefined} />);
+    it.each([
+      ['cancelled', new BridgeError('cancelled', 'The request was cancelled.')],
+      ['refused by Microsoft', new BridgeError('failed', 'AADSTS90094: An administrator of Contoso has set a policy that prevents you from granting Kustodian the permissions it is requesting.')],
+    ])('grant_permission_%s_shows_not_granted_note', async (_, error) => {
+      call.mockRejectedValueOnce(error);
+      const onGranted = vi.fn();
+      render(<RunStatus run={refused(['Reports.Read.All'])} account={account('own')} accountKey="k1" onGranted={onGranted} onSignIn={() => undefined} />);
       fireEvent.click(screen.getByRole('button', { name: /^Grant permission/ }));
       expect(await screen.findByText('Not granted. An administrator has to grant Reports.Read.All.')).toBeTruthy();
-      expect(onConsented).not.toHaveBeenCalled();
+      expect(onGranted).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      new BridgeError('failed', 'You granted access as mallory@fabrikam.com; sign in as ola@contoso.com.'),
+      new BridgeError('bad_request', 'Graph consent needs one read-only permission, such as Reports.Read.All.'),
+      new BridgeError('failed', 'The network is down.'),
+    ])('grant_permission_failing_otherwise_shows_the_hosts_message: $message', async (error) => {
+      call.mockRejectedValueOnce(error);
+      render(<RunStatus run={refused(['Reports.Read.All'])} account={account('own')} accountKey="k1" onSignIn={() => undefined} />);
+      fireEvent.click(screen.getByRole('button', { name: /^Grant permission/ }));
+      expect(await screen.findByText(error.message)).toBeTruthy();
+      expect(screen.queryByText(/An administrator has to grant/)).toBeNull();
     });
 
     it('no_permission_for_azure_cli_shows_no_grant_permission', () => {

@@ -1,10 +1,17 @@
 import { useState } from 'react';
-import { call } from '../bridge';
+import { BridgeError, call } from '../bridge';
+import { errorText } from '../shell/errors';
+
+/** Whether a failed consent means the permission wasn't granted: the user cancelled (or closed the browser), or Microsoft refused
+ * it, which MSAL reports with an `AADSTS` code or `access_denied`. Anything else (another account picked, a bad request, the
+ * network) is the host's own message. */
+const notGranted = (e: unknown) =>
+  e instanceof BridgeError && (e.code === 'cancelled' || (e.code === 'failed' && /\bAADSTS\d+|\baccess_denied\b/i.test(e.message)));
 
 /**
  * "Grant permission…": asks the host to have the user consent to one Graph permission for the account (`account.consent {key,
- * audience: "graph", scope}`). Once granted, `onGranted` runs the query again. The user cancelling, or any other refusal (an
- * administrator has to grant it), is shown next to the button.
+ * audience: "graph", scope}`). Once granted, `onGranted` runs the query again. The user cancelling, or Microsoft refusing (an
+ * administrator has to grant it), is shown next to the button as "Not granted"; any other failure as the host's message.
  */
 export function GrantPermissionButton({ accountKey, scope, onGranted }: { accountKey: string | undefined; scope: string; onGranted?: () => void }) {
   const [busy, setBusy] = useState(false);
@@ -21,9 +28,9 @@ export function GrantPermissionButton({ accountKey, scope, onGranted }: { accoun
         setBusy(false);
         onGranted?.();
       },
-      () => {
+      (e: unknown) => {
         setBusy(false);
-        setProblem(`Not granted. An administrator has to grant ${scope}.`);
+        setProblem(notGranted(e) ? `Not granted. An administrator has to grant ${scope}.` : errorText(e));
       },
     );
   };

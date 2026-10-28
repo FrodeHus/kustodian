@@ -157,6 +157,8 @@ interface RunStatusProps {
   accountKey?: string;
   /** Azure access was granted after a run answered `consentNeeded`: the run goes again. */
   onConsented?: () => void;
+  /** A Graph permission was granted after a refused run: the account's permissions are read again, then the run goes again. */
+  onGranted?: () => void;
   /** The active account is the Azure CLI client: a run without permission offers to create an Entra ID application. */
   createApp?: boolean;
   /** The active account: a refused run offers to grant the permission it needs unless the account already has it. */
@@ -177,7 +179,7 @@ function relationshipGrants(result: RunResult, source: Source, account: AccountI
 
 /** The line between the editor and the results: the run's progress, then how it ended and what it sent, worded for the source
  * the run went to. A run that needs Azure access offers "Grant Azure access", which runs it again once granted. */
-export function RunStatus({ run, scope, onSignIn, accountKey, onConsented, createApp = false, account }: RunStatusProps) {
+export function RunStatus({ run, scope, onSignIn, accountKey, onConsented, onGranted, createApp = false, account }: RunStatusProps) {
   let content: ReactNode;
   let meta: string | null = null;
 
@@ -222,12 +224,12 @@ export function RunStatus({ run, scope, onSignIn, accountKey, onConsented, creat
           </button>
         )}
         {result.outcome === 'consentNeeded' && <ConsentButton accountKey={accountKey} onGranted={() => onConsented?.()} />}
-        {offer && 'scope' in offer && <GrantPermissionButton accountKey={accountKey} scope={offer.scope} onGranted={() => onConsented?.()} />}
+        {offer && 'scope' in offer && <GrantPermissionButton accountKey={accountKey} scope={offer.scope} onGranted={() => onGranted?.()} />}
         {offer && 'held' in offer && (
           <span className="chip warn">{`You have ${offer.held}; your account may be missing a role that this data needs.`}</span>
         )}
         {grants.map((s) => (
-          <GrantPermissionButton key={s} accountKey={accountKey} scope={s} onGranted={() => onConsented?.()} />
+          <GrantPermissionButton key={s} accountKey={accountKey} scope={s} onGranted={() => onGranted?.()} />
         ))}
         {resultChips(result, source, scope).map((chip, i) => (
           <span key={i} className={`chip${chip.tone ? ` ${chip.tone}` : ''}`} title={chip.title}>
