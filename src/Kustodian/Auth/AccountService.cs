@@ -106,8 +106,19 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
                 return;
             }
 
-            await ClientFor(new ClientConfig(stored.Info.ClientId, stored.Tenant)).RemoveAsync(stored.HomeAccountId);
             state.Accounts.Remove(stored);
+
+            // An MSAL entry stays while another listed account for the same user relies on that client: an Azure CLI account
+            // and a Graph CLT account (whose ARM tokens come from the Azure CLI client of its tenant) share one.
+            var others = state.Accounts.Where(a => a.HomeAccountId == stored.HomeAccountId).ToList();
+            foreach (var config in ClientsOf(stored))
+            {
+                if (!others.Any(a => ClientsOf(a).Contains(config)))
+                {
+                    await ClientFor(config).RemoveAsync(stored.HomeAccountId);
+                }
+            }
+
             _expired.Remove(accountKey);
             if (state.ActiveKey == accountKey)
             {
@@ -135,12 +146,13 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
             MsalToken token;
             try
             {
-                token = await ClientFor(new ClientConfig(stored.Info.ClientId, stored.Tenant))
-                    .AcquireSilentAsync(stored.HomeAccountId, audience.ScopeFor(), ct);
+                token = await ClientFor(ClientFor(stored, audience)).AcquireSilentAsync(stored.HomeAccountId, audience.ScopeFor(), ct);
             }
-            catch (MsalUiRequiredException ex) when (audience == Audience.Arm && IsConsent(ex))
+            catch (MsalUiRequiredException ex)
+                when (audience == Audience.Arm && (IsConsent(ex) || stored.Info.ClientKind == ClientKind.GraphCli))
             {
                 // The Graph sign-in is untouched: ARM needs consent or a Conditional Access step-up, granted with ConsentAsync.
+                // Behind a Graph CLT account, any ARM ui-required (no Azure CLI sign-in yet included) is cleared the same way.
                 throw new ConsentRequiredException("arm", ex);
             }
             catch (MsalUiRequiredException ex) when (audience == Audience.Arm)
@@ -194,7 +206,7 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
             var state = await LoadAsync(ct);
             stored = state.Accounts.FirstOrDefault(a => a.Info.Key == accountKey)
                 ?? throw new SignInRequiredException("That account is not signed in.");
-            client = ClientFor(new ClientConfig(stored.Info.ClientId, stored.Tenant));
+            client = ClientFor(ClientFor(stored, audience));
         }
         finally
         {
@@ -228,6 +240,17 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
                 $"You granted access as {granted.Account.Username}; sign in as {stored.Info.Username}.");
         }
     }
+
+    /// <summary>The client that gets <paramref name="audience"/> tokens for <paramref name="stored"/>: the account's own, except ARM
+    /// behind a Graph CLT account, which comes from the Azure CLI client in the account's tenant (the same home account).</summary>
+    private static ClientConfig ClientFor(StoredAccount stored, Audience audience) =>
+        audience == Audience.Arm && stored.Info.ClientKind == ClientKind.GraphCli
+            ? new ClientConfig(ClientConfig.AzureCliClientId, stored.Tenant)
+            : new ClientConfig(stored.Info.ClientId, stored.Tenant);
+
+    /// <summary>Every client <paramref name="stored"/> gets tokens from, for any audience.</summary>
+    private static IReadOnlySet<ClientConfig> ClientsOf(StoredAccount stored) =>
+        new HashSet<ClientConfig> { ClientFor(stored, Audience.Graph), ClientFor(stored, Audience.Arm) };
 
     /// <summary>Whether an ARM ui-required failure is cleared by an interactive acquire for the ARM scope ("Grant Azure access",
     /// <see cref="ConsentAsync"/>), ruling 7 as amended: MSAL classifies it as consent or as a Conditional Access step-up

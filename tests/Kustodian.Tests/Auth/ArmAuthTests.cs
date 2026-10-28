@@ -364,6 +364,151 @@ public sealed class ArmAuthTests : IDisposable
         Assert.Equal(("arg", "resources", "consentNeeded"), (recorded.Source, recorded.Text, recorded.Outcome));
     }
 
+    [Fact]
+    public async Task Graph_cli_account_gets_its_arm_token_from_the_azure_cli_client_for_the_same_home_account()
+    {
+        var clients = new MsalPerClient();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
+        clients.For(ClientConfig.AzureCli).Cache(ArmMsal.Ada);
+
+        Assert.Equal("azure-cli:arm-token", await service.GetTokenAsync(account.Key, Audience.Arm, Ct));
+
+        Assert.DoesNotContain(clients.For(ClientConfig.GraphCli).Silent, s => s.Scope == Audience.Arm.ScopeFor());
+    }
+
+    [Fact]
+    public async Task Graph_cli_account_without_an_azure_cli_sign_in_needs_azure_consent_and_stays_valid()
+    {
+        var clients = new MsalPerClient();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
+
+        var consent = await Assert.ThrowsAsync<ConsentRequiredException>(() => service.GetTokenAsync(account.Key, Audience.Arm, Ct));
+
+        Assert.Equal("arm", consent.Audience);
+        Assert.False(Assert.Single(await service.ListAccountsAsync()).Expired);
+    }
+
+    [Fact]
+    public async Task Azure_consent_for_a_graph_cli_account_signs_in_the_azure_cli_client_with_a_login_hint()
+    {
+        var clients = new MsalPerClient();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
+
+        await service.ConsentAsync(account.Key, Audience.Arm, Ct);
+
+        Assert.Equal([("https://management.azure.com/.default", "ada@contoso.com", false)],
+            clients.For(ClientConfig.AzureCli).Interactive);
+        Assert.Equal([("https://graph.microsoft.com/.default", (string?)null, false)], clients.For(ClientConfig.GraphCli).Interactive);
+        Assert.Equal("azure-cli:arm-token", await service.GetTokenAsync(account.Key, Audience.Arm, Ct));
+        var listed = Assert.Single(await service.ListAccountsAsync());
+        Assert.Equal(ClientKind.GraphCli, listed.ClientKind);
+    }
+
+    [Fact]
+    public async Task Azure_consent_for_a_graph_cli_account_as_another_account_is_refused_on_the_azure_cli_client()
+    {
+        var clients = new MsalPerClient();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
+        var azureCli = clients.For(ClientConfig.AzureCli);
+        azureCli.GrantAs = new MsalAccount("home-9", "mallory@fabrikam.com", "tenant-9");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ConsentAsync(account.Key, Audience.Arm, Ct));
+
+        Assert.Equal(["home-9"], azureCli.Removed);
+        Assert.Empty(azureCli.Cached);
+        Assert.Empty(clients.For(ClientConfig.GraphCli).Removed);
+    }
+
+    [Fact]
+    public async Task Graph_cli_account_in_a_guest_tenant_asks_azure_cli_for_that_tenant()
+    {
+        var clients = new MsalPerClient();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(new ClientConfig(ClientConfig.GraphCliClientId, "guest-tenant-id"), Ct);
+        var guestAzureCli = new ClientConfig(ClientConfig.AzureCliClientId, "guest-tenant-id");
+        clients.For(guestAzureCli).Cache(ArmMsal.Ada);
+
+        Assert.Equal("azure-cli:arm-token", await service.GetTokenAsync(account.Key, Audience.Arm, Ct));
+        await service.ConsentAsync(account.Key, Audience.Arm, Ct);
+
+        Assert.Contains(guestAzureCli, clients.AskedFor);
+        Assert.DoesNotContain(ClientConfig.AzureCli, clients.AskedFor);
+    }
+
+    [Fact]
+    public async Task Graph_cli_account_still_uses_its_own_client_for_graph()
+    {
+        var clients = new MsalPerClient();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
+        clients.For(ClientConfig.AzureCli).Cache(ArmMsal.Ada);
+
+        Assert.Equal("graph-cli:graph-token", await service.GetTokenAsync(account.Key, Audience.Graph, Ct));
+
+        Assert.Empty(clients.For(ClientConfig.AzureCli).Silent);
+    }
+
+    [Fact]
+    public async Task Own_app_account_uses_its_own_client_for_arm()
+    {
+        var own = new ClientConfig("11111111-2222-3333-4444-555555555555", "contoso.onmicrosoft.com");
+        var clients = new MsalPerClient();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(own, Ct);
+
+        Assert.Equal("own:arm-token", await service.GetTokenAsync(account.Key, Audience.Arm, Ct));
+        await service.ConsentAsync(account.Key, Audience.Arm, Ct);
+
+        Assert.Equal([own], clients.AskedFor);
+    }
+
+    [Fact]
+    public async Task Signing_out_graph_cli_removes_its_azure_cli_entry_unless_an_azure_cli_account_for_that_user_is_listed()
+    {
+        var alone = new MsalPerClient();
+        var service = new AccountService(alone.Create, new JsonFileStore(Path.Combine(_dir, "alone")));
+        var graphCli = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
+        await service.ConsentAsync(graphCli.Key, Audience.Arm, Ct);
+
+        await service.SignOutAsync(graphCli.Key);
+
+        Assert.Equal(["home-1"], alone.For(ClientConfig.GraphCli).Removed);
+        Assert.Equal(["home-1"], alone.For(ClientConfig.AzureCli).Removed);
+        Assert.Empty(await service.ListAccountsAsync());
+
+        var both = new MsalPerClient();
+        service = new AccountService(both.Create, new JsonFileStore(Path.Combine(_dir, "both")));
+        var azureCli = await service.SignInInteractiveAsync(ClientConfig.AzureCli, Ct);
+        graphCli = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
+
+        await service.SignOutAsync(graphCli.Key);
+
+        Assert.Equal(["home-1"], both.For(ClientConfig.GraphCli).Removed);
+        Assert.Empty(both.For(ClientConfig.AzureCli).Removed);
+        Assert.Equal(azureCli.Key, Assert.Single(await service.ListAccountsAsync()).Key);
+        Assert.Equal("azure-cli:arm-token", await service.GetTokenAsync(azureCli.Key, Audience.Arm, Ct));
+    }
+
+    [Fact]
+    public async Task Signing_out_azure_cli_keeps_its_cache_entry_while_a_graph_cli_account_for_that_user_is_listed()
+    {
+        var clients = new MsalPerClient();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir));
+        var azureCli = await service.SignInInteractiveAsync(ClientConfig.AzureCli, Ct);
+        var graphCli = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
+
+        await service.SignOutAsync(azureCli.Key);
+
+        Assert.Equal(graphCli.Key, Assert.Single(await service.ListAccountsAsync()).Key);
+        Assert.Empty(clients.For(ClientConfig.AzureCli).Removed);
+        Assert.Empty(clients.For(ClientConfig.GraphCli).Removed);
+        Assert.Equal("azure-cli:arm-token", await service.GetTokenAsync(graphCli.Key, Audience.Arm, Ct));
+    }
+
     private static async Task SendForAccountAsync(HttpClient client, string url, bool leak = false)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url).ForAccount("acct-1");
@@ -405,14 +550,53 @@ public sealed class ArmAuthTests : IDisposable
         }
     }
 
+    /// <summary>A client factory that hands out one <see cref="ArmMsal"/> per <see cref="ClientConfig"/>, named after its client,
+    /// and records which configs the service asked for.</summary>
+    private sealed class MsalPerClient
+    {
+        private readonly Dictionary<ClientConfig, ArmMsal> _clients = [];
+
+        public List<ClientConfig> AskedFor { get; } = [];
+
+        public IMsalClient Create(ClientConfig config)
+        {
+            AskedFor.Add(config);
+            return For(config);
+        }
+
+        /// <summary>The fake for <paramref name="config"/>, made on first use; not recorded in <see cref="AskedFor"/>.</summary>
+        public ArmMsal For(ClientConfig config)
+        {
+            if (!_clients.TryGetValue(config, out var msal))
+            {
+                var name = config.Kind switch
+                {
+                    ClientKind.AzureCli => "azure-cli:",
+                    ClientKind.GraphCli => "graph-cli:",
+                    _ => "own:",
+                };
+                msal = new ArmMsal { TokenPrefix = name };
+                _clients[config] = msal;
+            }
+
+            return msal;
+        }
+    }
+
     /// <summary>MSAL with one account whose Graph and ARM tokens can each need the user. An interactive or device-code acquire
     /// for the ARM scope grants it, as <see cref="GrantAs"/> when set (the user picked another account in the browser).</summary>
     private sealed class ArmMsal : IMsalClient
     {
         public const string DeviceCodeMessage = "Go to https://microsoft.com/devicelogin and enter ARM";
 
-        private readonly MsalAccount _account = new("home-1", "ada@contoso.com", "tenant-1");
+        /// <summary>The one account this fake signs in.</summary>
+        public static readonly MsalAccount Ada = new("home-1", "ada@contoso.com", "tenant-1");
+
+        private readonly MsalAccount _account = Ada;
         private readonly Dictionary<string, MsalAccount> _cached = [];
+
+        /// <summary>Put before every token this fake hands out, to tell one client's tokens from another's.</summary>
+        public string TokenPrefix { get; init; } = "";
 
         public bool GraphNeedsUi { get; set; }
 
@@ -477,7 +661,7 @@ public sealed class ArmAuthTests : IDisposable
                 throw new MsalUiRequiredException("ui_required", "interaction required");
             }
 
-            return Task.FromResult(new MsalToken(arm ? "arm-token" : "graph-token", DateTimeOffset.UtcNow.AddHours(1)));
+            return Task.FromResult(new MsalToken(TokenPrefix + (arm ? "arm-token" : "graph-token"), DateTimeOffset.UtcNow.AddHours(1)));
         }
 
         public Task<IReadOnlyList<MsalAccount>> GetAccountsAsync() =>
