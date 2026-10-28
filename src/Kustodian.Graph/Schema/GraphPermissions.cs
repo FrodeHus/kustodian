@@ -98,9 +98,11 @@ public static partial class GraphPermissions
             StringComparer.OrdinalIgnoreCase);
     }
 
-    /// <summary>Whether <paramref name="permission"/> only reads: its name has <c>.Read</c> and no <c>Write</c>.</summary>
+    /// <summary>Whether <paramref name="permission"/> only reads: its name has <c>.Read</c> and no <c>Write</c>, ignoring case
+    /// as Entra ID does for scope names.</summary>
     public static bool IsReadOnly(string permission)
-        => permission.Contains(".Read", StringComparison.Ordinal) && !permission.Contains("Write", StringComparison.Ordinal);
+        => permission.Contains(".Read", StringComparison.OrdinalIgnoreCase)
+           && !permission.Contains("Write", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>A leading <c>/</c>, lower case, and every <c>{…}</c> placeholder as <c>{}</c>.</summary>
     public static string NormalizePath(string path)

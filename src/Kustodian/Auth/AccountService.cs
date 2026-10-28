@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Kustodian.Graph.Run;
+using Kustodian.Graph.Schema;
 using Kustodian.Storage;
 using Microsoft.Identity.Client;
 
@@ -195,16 +196,17 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
     /// <c>Reports.Read.All</c>): the account's own client asks for it with <c>prompt=consent</c>, then refreshes the account's
     /// Graph token so it, and the stored <see cref="AccountInfo.Scopes"/>, carry the new permission at once.</summary>
     /// <exception cref="SignInRequiredException">That account is not signed in.</exception>
-    /// <exception cref="ArgumentException">Graph consent without a <paramref name="scope"/>.</exception>
+    /// <exception cref="ArgumentException">Graph consent without a <paramref name="scope"/>, or for one that is not
+    /// read-only.</exception>
     /// <exception cref="InvalidOperationException">Graph consent for an Azure CLI account (its permissions are fixed), or the
     /// user granted access as another account (removed again from MSAL's cache unless it was already there; the message names
     /// both).</exception>
     public async Task ConsentAsync(string accountKey, Audience audience, CancellationToken ct, Action<string>? showCode = null,
         string? scope = null)
     {
-        if (audience == Audience.Graph && string.IsNullOrWhiteSpace(scope))
+        if (audience == Audience.Graph && (string.IsNullOrWhiteSpace(scope) || !GraphPermissions.IsReadOnly(scope)))
         {
-            throw new ArgumentException("Graph consent needs the permission to ask for.", nameof(scope));
+            throw new ArgumentException("Graph consent needs one read-only permission to ask for.", nameof(scope));
         }
 
         IMsalClient client;

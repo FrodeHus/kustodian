@@ -645,6 +645,20 @@ public sealed class ArmAuthTests : IDisposable
         Assert.Single(clients.For(ClientConfig.GraphCli).Interactive);
     }
 
+    [Theory]
+    [InlineData("User.ReadWrite.All")]
+    [InlineData("User.Readwrite.All")]
+    public async Task Graph_consent_refuses_a_permission_that_is_not_read_only(string permission)
+    {
+        var clients = new MsalPerClient();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.ConsentAsync(account.Key, Audience.Graph, Ct, scope: permission));
+
+        Assert.Single(clients.For(ClientConfig.GraphCli).Interactive);
+    }
+
     private static async Task SendForAccountAsync(HttpClient client, string url, bool leak = false)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url).ForAccount("acct-1");

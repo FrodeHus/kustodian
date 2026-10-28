@@ -166,6 +166,7 @@ public class AccountHandlerTests : IDisposable
 
         Assert.Equal("bad_request", await Consent(graphCli, null));
         Assert.Equal("bad_request", await Consent(graphCli, "User.ReadWrite.All"));
+        Assert.Equal("bad_request", await Consent(graphCli, "User.Readwrite.All"));
         Assert.Equal("bad_request", await Consent(graphCli, "Reports.Read.All offline_access"));
         Assert.Equal("bad_request", await Consent(azureCli, "Reports.Read.All"));
         Assert.Empty(licenses.Removed);
@@ -184,6 +185,7 @@ public class AccountHandlerTests : IDisposable
         Assert.Null(await probes.GetAsync(graphCli, "auditLogs/signIns", ct));
         Assert.NotNull(await probes.GetAsync("someone-else", "auditLogs/signIns", ct));
         Assert.Equal([graphCli], licenses.Removed);
+        Assert.Null(await Consent(graphCli, "reports.read.all"));
     }
 
     private sealed class RecordingLicenses : ITenantLicenses
