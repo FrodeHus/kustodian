@@ -8,6 +8,7 @@ const account = (over: Partial<AccountInfo>): AccountInfo => ({
   tenantName: 'Contoso',
   tenantId: 't1',
   clientId: AZURE_CLI_CLIENT_ID,
+  clientKind: 'azureCli',
   active: true,
   expired: false,
   scopes: ['User.Read.All', 'application.readwrite.all'],

@@ -13,6 +13,7 @@ describe('TitleBar', () => {
           tenantName: 'Contoso Ltd',
           tenantId: 't',
           clientId: 'c',
+          clientKind: 'own',
           active: true,
           expired: false,
           scopes: [],

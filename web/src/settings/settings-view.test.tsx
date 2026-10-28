@@ -13,6 +13,7 @@ const creator: AccountInfo = {
   tenantName: 'Contoso',
   tenantId: 't0',
   clientId: '04b07795-8ddb-461a-bbee-02f9e1bf7b46',
+  clientKind: 'azureCli',
   active: true,
   expired: false,
   scopes: ['Application.ReadWrite.All', 'User.Read.All'],

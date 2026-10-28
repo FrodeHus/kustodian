@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AccountInfo, AccountList } from '../wire';
+import { GRAPH_CLI_CLIENT_ID, type AccountInfo, type AccountList } from '../wire';
 import { SignIn } from './sign-in';
 
 const bridge = vi.hoisted(() => ({ call: vi.fn(), events: new Map<string, (data: unknown) => void>() }));
@@ -21,6 +21,7 @@ const kari: AccountInfo = {
   tenantName: 'Contoso Ltd',
   tenantId: 't1',
   clientId: '04b07795-8ddb-461a-bbee-02f9e1bf7b46',
+  clientKind: 'azureCli',
   active: true,
   expired: false,
   scopes: ['Application.Read.All', 'User.Read.All'],
@@ -39,7 +40,7 @@ describe('SignIn', () => {
     const onChanged = vi.fn();
     render(<SignIn list={none} onChanged={onChanged} />);
 
-    expect(screen.getByRole('radio', { name: /Azure CLI/ })).toHaveProperty('checked', true);
+    expect(screen.getByRole('radio', { name: /^Azure CLI/ })).toHaveProperty('checked', true);
     expect(screen.getByLabelText('Client ID')).toHaveProperty('disabled', true);
     expect(screen.getByLabelText('Tenant')).toHaveProperty('disabled', true);
 
@@ -87,12 +88,55 @@ describe('SignIn', () => {
     expect(onChanged).toHaveBeenCalledTimes(2);
   });
 
+  it('offers three clients and signs in with graph cli', async () => {
+    bridge.call.mockResolvedValue(kari);
+    const onChanged = vi.fn();
+    render(<SignIn list={none} onChanged={onChanged} />);
+
+    expect(screen.getByRole('radio', { name: /^Azure CLI/ })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: /My own app registration/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole('radio', { name: /Microsoft Graph Command Line Tools/ }));
+    expect(screen.getByText(/Reaches what your tenant has granted Graph PowerShell\. Azure queries use your Azure CLI sign-in\./)).toBeTruthy();
+    // The client is fixed; only the tenant can be typed.
+    expect(screen.getByLabelText('Client ID')).toHaveProperty('disabled', true);
+    expect(screen.getByLabelText('Client ID')).toHaveProperty('value', GRAPH_CLI_CLIENT_ID);
+    expect(screen.getByLabelText('Tenant')).toHaveProperty('disabled', false);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with your browser' }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+    expect(bridge.call).toHaveBeenCalledWith('account.signIn', { clientId: GRAPH_CLI_CLIENT_ID, deviceCode: false });
+
+    fireEvent.change(screen.getByLabelText('Tenant'), { target: { value: ' contoso.example ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Use a device code instead' }));
+    expect(bridge.call).toHaveBeenCalledWith('account.signIn', { clientId: GRAPH_CLI_CLIENT_ID, tenant: 'contoso.example', deviceCode: true });
+  });
+
+  it('a saved graph cli default starts on graph cli, not own app', () => {
+    render(<SignIn list={none} onChanged={vi.fn()} defaults={{ clientId: GRAPH_CLI_CLIENT_ID.toUpperCase(), tenant: null }} />);
+    expect(screen.getByRole('radio', { name: /Microsoft Graph Command Line Tools/ })).toHaveProperty('checked', true);
+    expect(screen.getByRole('radio', { name: /My own app registration/ })).toHaveProperty('checked', false);
+    expect(screen.getByLabelText('Client ID')).toHaveProperty('disabled', true);
+  });
+
+  it('labels a graph cli account and says azure queries use azure cli', async () => {
+    bridge.call.mockResolvedValue(null);
+    const graph: AccountInfo = { ...kari, clientId: GRAPH_CLI_CLIENT_ID, clientKind: 'graphCli', expired: true };
+    render(<SignIn list={{ accounts: [graph], cache: 'persistent' }} onChanged={vi.fn()} />);
+
+    expect(screen.getByText(/Contoso Ltd · Graph Command Line Tools client/)).toBeTruthy();
+    expect(screen.getByText('Azure queries use your Azure CLI sign-in.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in again as kari@contoso.com' }));
+    await waitFor(() =>
+      expect(bridge.call).toHaveBeenCalledWith('account.signIn', { clientId: GRAPH_CLI_CLIENT_ID, tenant: 't1', deviceCode: false }),
+    );
+  });
+
   it('sign_in_prefills_default_client', async () => {
     bridge.call.mockResolvedValue(kari);
     const onChanged = vi.fn();
     const { rerender } = render(<SignIn list={none} onChanged={onChanged} defaults={{ clientId: null, tenant: null }} />);
     // No default client: the Azure CLI stays chosen.
-    expect(screen.getByRole('radio', { name: /Azure CLI/ })).toHaveProperty('checked', true);
+    expect(screen.getByRole('radio', { name: /^Azure CLI/ })).toHaveProperty('checked', true);
 
     // The settings arrive with a default client ID and tenant: "My own app registration" is chosen and filled in.
     rerender(<SignIn list={none} onChanged={onChanged} defaults={{ clientId: 'c0ffee00-0000-0000-0000-000000000001', tenant: 'contoso.example' }} />);

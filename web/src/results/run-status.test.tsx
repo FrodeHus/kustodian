@@ -43,6 +43,7 @@ function result(overrides: Partial<RunResult>): RunResult {
     droppedValues: 0,
     runId: 'run-1',
     diagnostics: [],
+    permissions: [],
     ...overrides,
   };
 }

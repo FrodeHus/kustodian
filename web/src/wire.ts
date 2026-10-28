@@ -161,6 +161,8 @@ export interface RunResult {
   runId: string;
   /** The run's log, in time order. */
   diagnostics: DiagnosticEntry[];
+  /** The Graph permissions a refused run needs (outcome `noPermission`); empty otherwise. */
+  permissions: string[];
 }
 
 /** One line of a run's diagnostics log. A request's `detail` is its method and URL relative to the Graph version. */
@@ -196,6 +198,8 @@ export interface AccountInfo {
   tenantName: string;
   tenantId: string;
   clientId: string;
+  /** Which sign-in client the account uses. */
+  clientKind: ClientKind;
   active: boolean;
   expired: boolean;
   scopes: string[];
@@ -210,6 +214,12 @@ export interface AccountList {
 
 /** The Azure CLI's public client, Kustodian's default. */
 export const AZURE_CLI_CLIENT_ID = '04b07795-8ddb-461a-bbee-02f9e1bf7b46';
+
+/** Microsoft Graph Command Line Tools' public client (Graph PowerShell). */
+export const GRAPH_CLI_CLIENT_ID = '14d82eec-204b-4c2f-b7e8-296a70dab67e';
+
+/** The sign-in client an account uses: a built-in public client, or the user's own app registration. */
+export type ClientKind = 'azureCli' | 'graphCli' | 'own';
 
 /** A query's parameter as saved with it: its last value, and the choices a list offers. */
 export interface ParameterDef {

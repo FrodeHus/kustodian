@@ -31,6 +31,7 @@ const ok: RunResult = {
   droppedValues: 0,
   runId: 'run-1',
   diagnostics: [],
+  permissions: [],
 };
 
 beforeEach(() => {

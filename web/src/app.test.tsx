@@ -42,6 +42,7 @@ const kari: AccountInfo = {
   tenantName: 'Contoso Ltd',
   tenantId: 't1',
   clientId: '04b07795-8ddb-461a-bbee-02f9e1bf7b46',
+  clientKind: 'azureCli',
   active: true,
   expired: false,
   scopes: ['Application.Read.All'],
@@ -59,6 +60,7 @@ const rows: RunResult = {
   droppedValues: 0,
   runId: 'run-1',
   diagnostics: [],
+  permissions: [],
 };
 
 const settings: SettingsAnswer = {
