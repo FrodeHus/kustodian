@@ -18,7 +18,11 @@ public interface ITokenSource
 /// Graph token.</summary>
 public sealed record AccountInfo(
     string Key, string Username, string TenantName, string TenantId, string ClientId, bool Active, bool Expired,
-    IReadOnlyList<string> Scopes);
+    IReadOnlyList<string> Scopes)
+{
+    /// <summary>Which sign-in client this account uses, derived from <see cref="ClientId"/>.</summary>
+    public ClientKind ClientKind => ClientConfig.KindOf(ClientId);
+}
 
 /// <summary>The accounts known to this install, backed by one MSAL public client per <see cref="ClientConfig"/>. Account metadata
 /// goes to <c>accounts.json</c>; tokens stay in MSAL's cache, which lives in the OS keychain or in memory.</summary>

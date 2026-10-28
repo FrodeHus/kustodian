@@ -24,6 +24,28 @@ public class AuthTests : IDisposable
     }
 
     [Fact]
+    public void GraphCli_config_has_its_client_id_and_organizations()
+    {
+        Assert.Equal("14d82eec-204b-4c2f-b7e8-296a70dab67e", ClientConfig.GraphCli.ClientId);
+        Assert.Equal("organizations", ClientConfig.GraphCli.Tenant);
+        Assert.True(ClientConfig.GraphCli.IsGraphCli);
+    }
+
+    [Theory]
+    [InlineData("04b07795-8ddb-461a-bbee-02f9e1bf7b46", ClientKind.AzureCli)]
+    [InlineData("14D82EEC-204B-4C2F-B7E8-296A70DAB67E", ClientKind.GraphCli)]
+    [InlineData("11111111-2222-3333-4444-555555555555", ClientKind.Own)]
+    public void KindOf_names_the_client(string clientId, ClientKind kind) => Assert.Equal(kind, ClientConfig.KindOf(clientId));
+
+    [Fact]
+    public void AccountInfo_serializes_its_client_kind()
+    {
+        var info = new AccountInfo("k", "ada@contoso.com", "contoso", "t", ClientConfig.GraphCliClientId, true, false, []);
+        var json = JsonSerializer.Serialize(info, Kustodian.Messaging.BridgeJson.Options);
+        Assert.Contains("\"clientKind\":\"graphCli\"", json);
+    }
+
+    [Fact]
     public void AzureCli_config_has_spec_client_id_and_organizations()
     {
         var config = ClientConfig.AzureCli;
