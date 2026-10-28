@@ -5,8 +5,9 @@ namespace Kustodian.Graph.Schema;
 /// <summary>A property of an entity or complex type, as the CSDL declares it (the type name is resolved to its full name).</summary>
 public sealed record CsdlProperty(string Name, string TypeName, bool IsCollection, string Description);
 
-/// <summary>A navigation property of an entity type, as the CSDL declares it (the type name is resolved to its full name).</summary>
-public sealed record CsdlNavigation(string Name, string TypeName, bool IsCollection, string Description);
+/// <summary>A navigation property of an entity type, as the CSDL declares it (the type name is resolved to its full name).
+/// <paramref name="ContainsTarget"/> is set when the target lives under this path (<c>ContainsTarget="true"</c>).</summary>
+public sealed record CsdlNavigation(string Name, string TypeName, bool IsCollection, string Description, bool ContainsTarget = false);
 
 /// <summary>An entity, complex or enum type. Properties include the inherited ones, base type first. The base type is its
 /// full name, or null.</summary>
@@ -18,7 +19,8 @@ public sealed record CsdlType(string FullName, string Kind, IReadOnlyList<CsdlPr
 }
 
 /// <summary>Something Graph lets you list: an entity set (<c>/applications</c>) or a contained collection of a singleton
-/// (<c>/security/incidents</c>).</summary>
+/// (<c>/security/incidents</c>), also one reached through single-valued contained navigations
+/// (<c>/reports/authenticationMethods/userRegistrationDetails</c>).</summary>
 public sealed record CsdlCollection(string Path, string EntityType);
 
 /// <summary>The parts of Graph's CSDL the schema needs, read from the msgraph-metadata "with descriptions" document.</summary>
@@ -27,6 +29,10 @@ public sealed class GraphMetadata
     private static readonly XNamespace Edm = "http://docs.oasis-open.org/odata/ns/edm";
     private const string DescriptionTerm = "Org.OData.Core.V1.Description";
     private const string CollectionPrefix = "Collection(";
+
+    /// <summary>How many single-valued contained navigations a singleton's collection may sit under
+    /// (<c>reports/authenticationMethods/userRegistrationDetails</c> is one).</summary>
+    private const int MaxSingleHops = 1;
 
     public required IReadOnlyDictionary<string, CsdlType> Types { get; init; }
 
@@ -105,7 +111,8 @@ public sealed class GraphMetadata
                 if (description.Length == 0)
                     description = external.GetValueOrDefault($"{fullName}/{name}", "");
                 navigations.RemoveAll(x => x.Name == name);
-                navigations.Add(new CsdlNavigation(name, Resolve(type), isCollection, description));
+                navigations.Add(new CsdlNavigation(name, Resolve(type), isCollection, description,
+                    (string?)n.Attribute("ContainsTarget") == "true"));
             }
             var typeDescription = DescriptionOf(element);
             if (typeDescription.Length == 0)
@@ -122,21 +129,24 @@ public sealed class GraphMetadata
         var collections = container.Elements(Edm + "EntitySet")
             .Select(s => new CsdlCollection((string)s.Attribute("Name")!, Resolve((string)s.Attribute("EntityType")!)))
             .ToList();
-        // A singleton's contained collections (security/incidents, identityProtection/riskyUsers, ...), one level deep.
-        foreach (var singleton in container.Elements(Edm + "Singleton"))
+        // A singleton's contained collections (security/incidents, identityProtection/riskyUsers, ...), also those under
+        // single-valued contained navigations (reports/authenticationMethods/userRegistrationDetails).
+        void AddContained(string path, string typeName, int hops, HashSet<string> visiting)
         {
-            var singletonType = Resolve((string)singleton.Attribute("Type")!);
-            if (!raw.TryGetValue(singletonType, out var st))
-                continue;
-            foreach (var nav in st.Element.Elements(Edm + "NavigationProperty"))
+            if (!types.TryGetValue(typeName, out var type) || !visiting.Add(typeName))
+                return;
+            foreach (var nav in type.Navigations.Where(n => n.ContainsTarget))
             {
-                var type = (string)nav.Attribute("Type")!;
-                if ((string?)nav.Attribute("ContainsTarget") != "true" || !type.StartsWith(CollectionPrefix, StringComparison.Ordinal))
-                    continue;
-                collections.Add(new CsdlCollection($"{(string)singleton.Attribute("Name")!}/{(string)nav.Attribute("Name")!}",
-                    Resolve(type[CollectionPrefix.Length..^1])));
+                var navPath = $"{path}/{nav.Name}";
+                if (nav.IsCollection)
+                    collections.Add(new CsdlCollection(navPath, nav.TypeName));
+                else if (hops < MaxSingleHops)
+                    AddContained(navPath, nav.TypeName, hops + 1, visiting);
             }
+            visiting.Remove(typeName);
         }
+        foreach (var singleton in container.Elements(Edm + "Singleton"))
+            AddContained((string)singleton.Attribute("Name")!, Resolve((string)singleton.Attribute("Type")!), 0, []);
         return new GraphMetadata { Types = types, Collections = collections };
     }
 
