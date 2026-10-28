@@ -115,9 +115,44 @@ describe('ResultPanel', () => {
 
     fireEvent.doubleClick(container.querySelector('tbody tr[data-index="0"]')!);
     const sheet = screen.getByRole('dialog', { name: 'Row details: Contoso' });
-    expect(within(sheet).getByText(/"kind": "secret"/)).toBeTruthy();
+    expect(within(sheet).getByRole('group', { name: 'tags' }).textContent).toContain('"kind": "secret"');
 
     fireEvent.keyDown(sheet, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: /Row details/ })).toBeNull();
+  });
+
+  it('result_panel_inspects_rows_from_their_buttons', () => {
+    render(<ResultPanel {...props} />);
+    const first = screen.getByRole('button', { name: 'Inspect row 1' });
+    const second = screen.getByRole('button', { name: 'Inspect row 2' });
+    expect(first.getAttribute('aria-expanded')).toBe('false');
+
+    first.focus();
+    fireEvent.click(first);
+    const sheet = screen.getByRole('dialog', { name: 'Row details: Contoso' });
+    expect(first.getAttribute('aria-expanded')).toBe('true');
+    expect(first.getAttribute('aria-controls')).toBe(sheet.id);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close row details' }));
+
+    // Another row's button switches the sheet to that row, leaves focus on the button, and says so.
+    second.focus();
+    fireEvent.click(second);
+    expect(screen.getByRole('dialog', { name: 'Row details: Payroll' })).toBe(sheet);
+    expect(first.getAttribute('aria-expanded')).toBe('false');
+    expect(second.getAttribute('aria-expanded')).toBe('true');
+    expect(document.activeElement).toBe(second);
+    expect(within(sheet).getByText('Showing Payroll').getAttribute('aria-live')).toBe('polite');
+
+    // Esc puts focus back on the button that opened the row shown.
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Close row details' }), { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: /Row details/ })).toBeNull();
+    expect(document.activeElement).toBe(second);
+
+    // The open row's button closes it again.
+    fireEvent.click(second);
+    expect(screen.getByRole('dialog', { name: 'Row details: Payroll' })).toBeTruthy();
+    fireEvent.click(second);
+    expect(screen.queryByRole('dialog', { name: /Row details/ })).toBeNull();
+    expect(second.getAttribute('aria-expanded')).toBe('false');
   });
 });

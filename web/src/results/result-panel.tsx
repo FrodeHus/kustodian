@@ -171,7 +171,17 @@ export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = fa
         )}
       </div>
       {notice && <NoticeLine notice={notice} onDismiss={() => setNotice(null)} />}
-      {panel('rows', <ResultGrid columns={result.columns} rows={result.rows} toolbar={active === 'rows' ? slot : null} onOpenRow={setDetails} />)}
+      {panel(
+        'rows',
+        <ResultGrid
+          columns={result.columns}
+          rows={result.rows}
+          toolbar={active === 'rows' ? slot : null}
+          onOpenRow={setDetails}
+          inspected={details}
+          inspectorId={`${id}-details`}
+        />,
+      )}
       {panel(
         'chart',
         active === 'chart' && (
@@ -199,7 +209,7 @@ export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = fa
       )}
       {panel('diagnostics', active === 'diagnostics' && <DiagnosticsView result={result} source={source} />)}
       {pinned && panel('compare', active === 'compare' && <CompareView pinned={pinned} current={result} />)}
-      {detailsRow && <RowDetails columns={result.columns} row={detailsRow} onClose={() => setDetails(null)} />}
+      {detailsRow && <RowDetails id={`${id}-details`} columns={result.columns} row={detailsRow} onClose={() => setDetails(null)} />}
     </div>
   );
 }

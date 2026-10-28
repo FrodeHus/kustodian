@@ -655,7 +655,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                         || response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden))
                     return new Retry(null, message ?? "", Failure(response, message));
                 // Checked before the filter: a refused $top would otherwise cost the filter.
-                if (page == 0 && sendTop && response.StatusCode == HttpStatusCode.BadRequest && NamesTop(message))
+                if (page == 0 && sendTop && response.StatusCode == HttpStatusCode.BadRequest && GraphErrorText.NamesTop(message))
                     return new Retry(null, message ?? "", Top: true);
                 // A sort or a clause with a feature (or the advanced query mode they need) is what this change sends that a
                 // table may refuse: left out first, before the whole filter.
@@ -820,10 +820,6 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
     /// <summary>Whether <paramref name="filter"/> has a clause of the fetch's with a feature.</summary>
     private static bool Featured(string filter, GraphFetch fetch)
         => fetch.FilterClauses.Any(c => c.Feature is not null && filter.Contains(c.OData, StringComparison.Ordinal));
-
-    /// <summary>Whether Graph's message for a 400 is about <c>$top</c>: it names <c>$top</c>, or OData's query option <c>'Top'</c>.</summary>
-    private static bool NamesTop(string? message) => message is not null
-        && (message.Contains("$top", StringComparison.OrdinalIgnoreCase) || message.Contains("'Top'", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>A 4xx that isn't throttling: Graph refusing what was asked, not being unable to answer.</summary>
     private static bool IsClientError(HttpStatusCode status) => (int)status is >= 400 and < 500 && status != HttpStatusCode.TooManyRequests;

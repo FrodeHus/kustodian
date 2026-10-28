@@ -356,4 +356,32 @@ public sealed class EngineHandlerTests
         Assert.NotNull(response.Error);
         Assert.StartsWith(EngineHandler.UnsupportedPrefix, response.Error);
     }
+
+
+    [Theory]
+    [InlineData("applications | mv-expand rra = requiredResourceAccess | mv-expand permission = rra.resourceAccess | where permission.id in (dynamic(['a'])) | project appId")]
+    [InlineData("applications | where tags !in ('x')")]
+    [InlineData("applications | where tags in~ ('x')")]
+    [InlineData("applications | where tags has_any ('x')")]
+    public void A_dynamic_value_left_of_in_says_to_convert_it(string kql)
+    {
+        var response = RunOnFixtures(kql);
+
+        Assert.Equal(EngineHandler.UnsupportedPrefix + EngineHandler.DynamicSetMessage, response.Error);
+    }
+
+    [Fact]
+    public void A_dynamic_value_converted_with_tostring_works_left_of_in()
+    {
+        var response = RunOnFixtures("""
+            let roles = servicePrincipals | mv-expand role = appRoles | project id = tostring(role.id);
+            applications
+            | mv-expand rra = requiredResourceAccess
+            | mv-expand permission = rra.resourceAccess
+            | where tostring(permission.id) in (roles)
+            | project appId
+            """);
+
+        AssertRan(response);
+    }
 }

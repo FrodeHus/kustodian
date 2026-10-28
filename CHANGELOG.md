@@ -7,12 +7,30 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Graph collections one single-valued step below a singleton are now tables, such as
+  `reports_authenticationMethods_userRegistrationDetails` (MFA and passkey/FIDO2 registration per user),
+  `roleManagement_directory_roleAssignments` and `identity_conditionalAccess_policies`: 319 more tables. Paths through a `me`
+  segment (`education/me/...`) stay out, like `me` itself. The schema is regenerated from the latest beta metadata.
 - Sign in with Microsoft Graph Command Line Tools, the public client Graph PowerShell uses, as a third choice next to the Azure
   CLI and your own app. It reaches what your tenant has granted Graph PowerShell. Azure Resource Graph queries use an Azure CLI
   sign-in for the same user, asked for once with **Grant Azure access**.
-- **Grant permission…** on a "No permission" result for Graph tables and advanced hunting, and on refused relationship columns,
-  when you are signed in with Graph Command Line Tools or your own app. It asks Microsoft for the one narrowest read permission
-  listed. If you already hold a listed permission, the result says your account may be missing a role instead.
+- **Grant permission…** on a "No permission" result for Graph tables and advanced hunting, and on relationship columns refused
+  in full, when you are signed in with Graph Command Line Tools or your own app. It asks Microsoft for the one narrowest read
+  permission listed. If you already hold a listed permission, the result says your account may be missing a role instead.
+
+## [0.9.8] - 2026-10-23
+
+### Added
+
+- An inspect button on every row of the results opens the row in the row details sheet; another row's button switches the
+  sheet to that row, and the open row's button closes it. Dynamic values show as a tree to open and close, with Expand all.
+
+### Fixed
+
+- A Graph query with a dynamic value on the left of `in`, `!in`, `in~`, `!in~` or `has_any` says to convert it with
+  `tostring()` instead of showing an internal cast error.
+- Graph `directoryRoles` and each role's `members` no longer fail: Graph refuses any page size there, and the read now retries
+  without `$top`.
 
 ## [0.9.7] - 2026-10-22
 

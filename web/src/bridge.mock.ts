@@ -27,17 +27,38 @@ const runResult = {
     { name: 'displayName', type: 'string' },
     { name: 'appId', type: 'string' },
     { name: 'createdDateTime', type: 'datetime' },
+    { name: 'appRoles', type: 'dynamic' },
   ],
   rows: [
-    ['Contoso Portal', '11111111-1111-1111-1111-111111111111', '2025-03-04T10:15:00Z'],
-    ['Payroll Connector', '22222222-2222-2222-2222-222222222222', '2025-06-19T08:02:41Z'],
-    ['Legacy Intranet', '33333333-3333-3333-3333-333333333333', '2024-11-27T14:30:12Z'],
+    ['Contoso Portal', '11111111-1111-1111-1111-111111111111', '2025-03-04T10:15:00Z', []],
+    [
+      'Payroll Connector',
+      '22222222-2222-2222-2222-222222222222',
+      '2025-06-19T08:02:41Z',
+      [
+        {
+          allowedMemberTypes: ['Application'],
+          displayName: 'Read employee records',
+          id: '4c3a6e1f-2b8d-4e5a-9c71-0d2f6b8e3a14',
+          isEnabled: true,
+          value: 'Employees.Read.All',
+        },
+        {
+          allowedMemberTypes: ['User', 'Application'],
+          displayName: 'Run payroll',
+          id: '9e1b7d2c-5f4a-4b3e-8d60-1a7c3e9f2b05',
+          isEnabled: false,
+          value: 'Payroll.Run',
+        },
+      ],
+    ],
+    ['Legacy Intranet', '33333333-3333-3333-3333-333333333333', '2024-11-27T14:30:12Z', null],
   ],
   total: 3,
   tables: [
     {
       table: 'applications',
-      requests: ['applications?$select=displayName,appId,createdDateTime&$top=999'],
+      requests: ['applications?$select=displayName,appId,createdDateTime,appRoles&$top=999'],
       unfiltered: false,
       unreadable: [],
       denied: [],
@@ -58,7 +79,7 @@ const runResult = {
     {
       atMs: 10,
       kind: 'request',
-      detail: 'GET applications?$select=displayName,appId,createdDateTime&$top=999',
+      detail: 'GET applications?$select=displayName,appId,createdDateTime,appRoles&$top=999',
       status: 200,
       durationMs: 300,
       bytes: 2048,
