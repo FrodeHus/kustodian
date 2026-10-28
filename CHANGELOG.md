@@ -5,6 +5,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.9] - 2026-10-28
+
 ### Added
 
 - Graph collections one single-valued step below a singleton are now tables, such as
