@@ -20,6 +20,35 @@ Its permissions are fixed by Microsoft, though, and you can't add to them. Secur
 hunting (`ThreatHunting.Read.All`) and other data behind specific permissions are often out of reach. For those, use your own
 app registration with the permissions your queries need.
 
+## Microsoft Graph Command Line Tools
+
+Kustodian can also sign in with Microsoft's public Microsoft Graph Command Line Tools client
+(`14d82eec-204b-4c2f-b7e8-296a70dab67e`), the one Graph PowerShell uses. Pick it under **Signing in as**.
+
+- It reaches what your tenant has granted Graph PowerShell. Tenants that use Graph PowerShell often have more consented there
+  than for the Azure CLI client, including some security and reports data. **What this sign-in can read** lists what you have.
+- Consent applies to the whole tenant. A permission granted to this client is granted to everyone in your tenant who uses it,
+  Graph PowerShell included. Grant only what you would be happy to see used there.
+- It is used for Microsoft Graph. Azure Resource Graph queries use an Azure CLI sign-in for the same user and tenant. The first
+  time, the run may ask you to **Grant Azure access**: that opens an Azure CLI sign-in in the browser, usually without typing
+  anything. After that it is silent. This Azure CLI sign-in is not shown as a separate account.
+
+### Grant permission
+
+When a Graph table or an advanced hunting query answers "No permission" and you are signed in with this client (or with your own
+app), the result can offer **Grant permission…**. It appears when the missing permission is read-only. It asks for one
+permission, the narrowest read permission listed for that data. A relationship column that was refused gets the same button.
+
+Microsoft's consent screen then decides:
+
+- If you are an administrator who may grant it, you can consent for the organization. Kustodian refreshes your sign-in and runs
+  the query again.
+- Otherwise the result says "Not granted. An administrator has to grant <permission>." Ask an administrator to grant it.
+
+There is no button if you already hold one of the listed permissions. The result then says "You have <permission>; your account
+may be missing a role that this data needs." Reports, for example, also need an Entra role such as Reports Reader. The button
+never shows for the Azure CLI client or for Azure Resource Graph.
+
 ## Your own app registration
 
 You can let Kustodian create the app registration for you, or create it yourself in the Microsoft Entra admin center. Either
