@@ -17,6 +17,17 @@ public sealed class GraphPermissionsTests
         return GraphPermissions.ReadDelegated(stream);
     }
 
+    [Theory]
+    [InlineData("Reports.Read.All", true)]
+    [InlineData("reports.read.all", true)]
+    [InlineData("AuditLog.READ.All", true)]
+    [InlineData("User.ReadWrite.All", false)]
+    [InlineData("User.Readwrite.All", false)]
+    [InlineData("user.readwrite.all", false)]
+    [InlineData("Directory.AccessAsUser.All", false)]
+    public void IsReadOnly_ignores_case(string permission, bool readOnly)
+        => Assert.Equal(readOnly, GraphPermissions.IsReadOnly(permission));
+
     [Fact]
     public void ReadDelegated_returns_least_privileged_delegated_permissions_per_path()
     {

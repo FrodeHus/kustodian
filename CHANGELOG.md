@@ -11,6 +11,12 @@ follow [Semantic Versioning](https://semver.org/).
   `reports_authenticationMethods_userRegistrationDetails` (MFA and passkey/FIDO2 registration per user),
   `roleManagement_directory_roleAssignments` and `identity_conditionalAccess_policies`: 319 more tables. Paths through a `me`
   segment (`education/me/...`) stay out, like `me` itself. The schema is regenerated from the latest beta metadata.
+- Sign in with Microsoft Graph Command Line Tools, the public client Graph PowerShell uses, as a third choice next to the Azure
+  CLI and your own app. It reaches what your tenant has granted Graph PowerShell. Azure Resource Graph queries use an Azure CLI
+  sign-in for the same user, asked for once with **Grant Azure access**.
+- **Grant permission…** on a "No permission" result for Graph tables and advanced hunting, and on relationship columns refused
+  in full, when you are signed in with Graph Command Line Tools or your own app. It asks Microsoft for the one narrowest read
+  permission listed. If you already hold a listed permission, the result says your account may be missing a role instead.
 
 ### Changed
 

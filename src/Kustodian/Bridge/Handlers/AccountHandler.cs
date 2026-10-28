@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Kustodian.Auth;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Run;
+using Kustodian.Graph.Schema;
 using Kustodian.Sources.Arg;
 using Kustodian.Sources.Hunting;
 using Microsoft.Identity.Client;
@@ -13,7 +14,10 @@ namespace Kustodian.Messaging.Handlers;
 /// cached Graph objects, what probing found for it, its advanced hunting schema, its Azure lists (subscriptions, resource
 /// types) and its tenant's licenses; signing in drops the licenses too, so they are read again. <c>account.consent {key, audience: "arm"}</c> asks the user to grant
 /// Azure access to that account (<see cref="AccountService.ConsentAsync"/>; a device code, when no browser opens, goes out as the
-/// same event) and answers <c>{}</c>; the user cancelling answers <c>cancelled</c>.</summary>
+/// same event) and answers <c>{}</c>; the user cancelling answers <c>cancelled</c>. <c>account.consent {key, audience: "graph",
+/// scope}</c> does the same for one read-only Graph permission (not for an Azure CLI account, whose permissions are fixed) and,
+/// once granted, drops the account's cached Graph objects, probe findings, licenses and advanced hunting schema, which the new
+/// permission may change.</summary>
 public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cache, IGraphObjectCache objects, IGraphProbeCache probes,
     HuntingSchemaSource? huntingSchema = null, ArmDirectory? armDirectory = null, ITenantLicenses? licenses = null)
 {
@@ -39,15 +43,22 @@ public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cac
         {
             var request = BridgeJson.Params<ConsentParams>(p);
             var key = RequireKey(new KeyParams(request.Key));
-            if (request.Audience != "arm")
+            var audience = request.Audience switch
             {
-                throw new BridgeException(BridgeErrorCodes.BadRequest, "Consent is only asked for Azure (audience arm).");
-            }
+                "arm" => Audience.Arm,
+                "graph" => Audience.Graph,
+                _ => throw new BridgeException(
+                    BridgeErrorCodes.BadRequest, "Consent is only asked for Azure or Graph (audience arm or graph)."),
+            };
+            var scope = audience == Audience.Graph ? await RequireGraphConsentAsync(key, request.Scope) : null;
 
             try
             {
-                await accounts.ConsentAsync(key, Audience.Arm, ct,
-                    message => bridge.Emit("account.deviceCode", new DeviceCodeData(message)));
+                // Once a Graph permission is granted, what the account could read before is no longer the whole story, even
+                // when the token refresh that follows fails or is cancelled.
+                await accounts.ConsentAsync(key, audience, ct,
+                    message => bridge.Emit("account.deviceCode", new DeviceCodeData(message)), scope,
+                    () => DropGraphFindingsAsync(key));
             }
             catch (SignInRequiredException ex)
             {
@@ -74,6 +85,16 @@ public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cac
         });
     }
 
+    /// <summary>Drops what the account's Graph permissions decided: its cached Graph objects, probe findings, licenses and
+    /// advanced hunting schema. Not cancelled with the request: it runs after a grant that already happened.</summary>
+    private async Task DropGraphFindingsAsync(string key)
+    {
+        await objects.RemoveAccountAsync(key, CancellationToken.None);
+        await probes.RemoveAccountAsync(key, CancellationToken.None);
+        licenses?.RemoveAccount(key);
+        huntingSchema?.RemoveAccount(key);
+    }
+
     private async Task<AccountList> ListAsync()
     {
         var list = await accounts.ListAccountsAsync();
@@ -95,6 +116,30 @@ public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cac
         return account;
     }
 
+    /// <summary>Graph consent asks for one read-only permission, named plainly (letters, digits, dots and hyphens, starting with
+    /// a letter or digit, as in <c>Reports.Read.All</c> or <c>NetworkAccess-Reports.Read.All</c>), on an account whose client
+    /// can be granted permissions: never Azure CLI's. Returns the permission, trimmed.</summary>
+    private async Task<string> RequireGraphConsentAsync(string key, string? scope)
+    {
+        var permission = scope?.Trim();
+        if (string.IsNullOrEmpty(permission) || !char.IsAsciiLetterOrDigit(permission[0])
+            || !permission.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '-')
+            || !GraphPermissions.IsReadOnly(permission))
+        {
+            throw new BridgeException(
+                BridgeErrorCodes.BadRequest, "Graph consent needs one read-only permission, such as Reports.Read.All.");
+        }
+
+        var account = (await accounts.ListAccountsAsync()).FirstOrDefault(a => a.Key == key);
+        if (account?.ClientKind == ClientKind.AzureCli)
+        {
+            throw new BridgeException(
+                BridgeErrorCodes.BadRequest, "The Azure CLI client's Graph permissions are fixed; there is nothing to grant.");
+        }
+
+        return permission;
+    }
+
     private static string RequireKey(KeyParams p) =>
         string.IsNullOrEmpty(p.Key) ? throw new BridgeException(BridgeErrorCodes.BadRequest, "The request needs an account key.") : p.Key;
 
@@ -109,5 +154,5 @@ public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cac
 
     private sealed record KeyParams(string? Key);
 
-    private sealed record ConsentParams(string? Key, string? Audience);
+    private sealed record ConsentParams(string? Key, string? Audience, string? Scope);
 }

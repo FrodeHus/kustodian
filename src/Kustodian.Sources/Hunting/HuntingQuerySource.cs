@@ -29,6 +29,7 @@ public sealed class HuntingQuerySource(HuntingClient client, TimeProvider time, 
             {
                 RunId = diagnostics.RunId,
                 Diagnostics = diagnostics.Entries,
+                Permissions = outcome == RunOutcome.NoPermission ? [HuntingClient.Permission] : [],
             };
 
         var substitution = ParameterSubstitution.Apply(request.Kql, request.Parameters);

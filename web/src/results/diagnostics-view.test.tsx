@@ -23,6 +23,7 @@ const result: RunResult = {
   droppedValues: 0,
   runId: 'run-1',
   diagnostics: entries,
+  permissions: [],
 };
 
 const writeText = vi.fn<(text: string) => Promise<void>>();

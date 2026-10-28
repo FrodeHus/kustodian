@@ -1,11 +1,18 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { call, on } from '../bridge';
-import { AZURE_CLI_CLIENT_ID, type AccountInfo, type AccountList } from '../wire';
+import { AZURE_CLI_CLIENT_ID, GRAPH_CLI_CLIENT_ID, type AccountInfo, type AccountList, type ClientKind } from '../wire';
 import { CreateAppDialog } from './create-app-dialog';
 import { CANNOT_CREATE_REASON, canCreateApp, canOfferCreateApp } from './permission-plan';
 import { TenantLicenses } from './tenant-licenses';
 
+function isGraphCli(clientId: string): boolean {
+  return clientId.toLowerCase() === GRAPH_CLI_CLIENT_ID;
+}
+
 function clientLabel(clientId: string): string {
+  if (isGraphCli(clientId)) {
+    return 'Graph Command Line Tools client';
+  }
   return clientId === AZURE_CLI_CLIENT_ID ? 'Azure CLI client' : `client ${clientId.slice(0, 4)}…${clientId.slice(-4)}`;
 }
 
@@ -17,7 +24,7 @@ interface SignInProps {
   onBack?: () => void;
   /** Why the accounts couldn't be read, if they couldn't. */
   error?: string | null;
-  /** The settings' default client ID and tenant: with a client ID, "My own app registration" starts chosen and filled in. */
+  /** The settings' default client ID and tenant: with a client ID, "My own app registration" (or Graph Command Line Tools, for its client ID) starts chosen and filled in. */
   defaults?: { clientId: string | null; tenant: string | null };
   /** "Create Entra ID application" is open (the palette command opens the screen with it open). Kept here when not given. */
   createAppOpen?: boolean;
@@ -32,21 +39,22 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
   const [localCreateOpen, setLocalCreateOpen] = useState(false);
   const createOpen = createAppOpen ?? localCreateOpen;
   const setCreateOpen = onCreateAppOpen ?? setLocalCreateOpen;
-  const [ownChoice, setOwn] = useState(false);
+  const [pickedChoice, setPicked] = useState<ClientKind>('azureCli');
   const [typedClientId, setClientId] = useState('');
   const [typedTenant, setTenant] = useState('');
   // The settings' defaults show until the user changes the form; they may arrive after the screen opened.
   const [touched, setTouched] = useState(false);
   const defaultClient = defaults?.clientId ?? null;
   const prefilled = !touched && defaultClient !== null;
-  const own = prefilled || ownChoice;
-  const clientId = prefilled ? defaultClient : typedClientId;
+  const choice: ClientKind = prefilled ? (isGraphCli(defaultClient) ? 'graphCli' : 'own') : pickedChoice;
+  const own = choice === 'own';
+  const clientId = choice === 'graphCli' ? GRAPH_CLI_CLIENT_ID : prefilled ? defaultClient : typedClientId;
   const tenant = prefilled ? (defaults?.tenant ?? '') : typedTenant;
   /** The user changes the form: from now on it holds what it shows, defaults included. */
   const touch = () => {
     if (prefilled) {
-      setOwn(true);
-      setClientId(clientId);
+      setPicked(choice);
+      setClientId(choice === 'own' ? clientId : '');
       setTenant(tenant);
     }
     setTouched(true);
@@ -84,7 +92,7 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
 
   function signInHere(useDeviceCode: boolean) {
     const params: { clientId?: string; tenant?: string; deviceCode: boolean } = { deviceCode: useDeviceCode };
-    if (own) {
+    if (choice !== 'azureCli') {
       if (clientId.trim()) {
         params.clientId = clientId.trim();
       }
@@ -95,7 +103,7 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
     void signIn(params);
   }
 
-  const canSignIn = !busy && (!own || clientId.trim() !== '');
+  const canSignIn = !busy && (choice !== 'own' || clientId.trim() !== '');
 
   return (
     <div className="flex min-h-0 flex-1 items-start gap-8 overflow-auto px-16 py-12">
@@ -128,10 +136,10 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
         <div className="flex flex-col gap-1" role="radiogroup" aria-label="Signing in as">
           <span className="muted text-[12px]">Signing in as</span>
           <ClientChoice
-            checked={!own}
+            checked={choice === 'azureCli'}
             onChange={() => {
               touch();
-              setOwn(false);
+              setPicked('azureCli');
             }}
           >
             <b>Azure CLI</b> <span className="faint">(default)</span>
@@ -141,10 +149,24 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
             </span>
           </ClientChoice>
           <ClientChoice
+            checked={choice === 'graphCli'}
+            onChange={() => {
+              touch();
+              setPicked('graphCli');
+            }}
+          >
+            <b>Microsoft Graph Command Line Tools</b>
+            <br />
+            <span className="muted text-[12px]">
+              Microsoft’s public client {GRAPH_CLI_CLIENT_ID}, used by Graph PowerShell. Reaches what your tenant has granted Graph
+              PowerShell. Azure queries use your Azure CLI sign-in.
+            </span>
+          </ClientChoice>
+          <ClientChoice
             checked={own}
             onChange={() => {
               touch();
-              setOwn(true);
+              setPicked('own');
             }}
           >
             <b>My own app registration</b>
@@ -152,8 +174,8 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
             <span className="muted text-[12px]">A public client with http://localhost as a redirect URI.</span>
           </ClientChoice>
         </div>
-        <div className="grid grid-cols-2 gap-3" style={{ opacity: own ? 1 : 0.55 }}>
-          <div className="field">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="field" style={{ opacity: own ? 1 : 0.55 }}>
             <label htmlFor="client-id">Client ID</label>
             <input
               id="client-id"
@@ -167,13 +189,13 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
               }}
             />
           </div>
-          <div className="field">
+          <div className="field" style={{ opacity: choice === 'azureCli' ? 0.55 : 1 }}>
             <label htmlFor="tenant">Tenant</label>
             <input
               id="tenant"
               className="textbox mono"
               placeholder="organizations or a tenant ID"
-              disabled={!own}
+              disabled={choice === 'azureCli'}
               value={tenant}
               onChange={(e) => {
                 touch();
@@ -227,7 +249,7 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
                     disabled={busy}
                     aria-label={`Sign in again as ${a.username}`}
                     onClick={() =>
-                      void signIn({ ...(a.clientId === AZURE_CLI_CLIENT_ID ? {} : { clientId: a.clientId }), tenant: a.tenantId, deviceCode: false })
+                      void signIn({ ...(a.clientKind === 'azureCli' ? {} : { clientId: a.clientId }), tenant: a.tenantId, deviceCode: false })
                     }
                   >
                     Sign in
@@ -272,6 +294,7 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
                 </span>
               ))}
             </div>
+            {active.clientKind === 'graphCli' && <span className="muted text-[12px]">Azure queries use your Azure CLI sign-in.</span>}
             <span className="faint text-[12px]">Delegated permissions are also limited by your own Entra roles.</span>
             <TenantLicenses accountKey={active.key} />
             {shownApp && (

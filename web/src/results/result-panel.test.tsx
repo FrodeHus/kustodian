@@ -32,6 +32,7 @@ const result: RunResult = {
   droppedValues: 0,
   runId: 'run-1',
   diagnostics: [{ atMs: 0, kind: 'request', detail: 'GET applications', status: 200, durationMs: 30, bytes: 100 }],
+  permissions: [],
 };
 
 const props = { tabId: 't1', title: 'Expired apps', kql: 'applications', result };

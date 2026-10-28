@@ -171,7 +171,7 @@ const controllers = new Map<string, AbortController>();
 let unsubscribeProgress: (() => void) | undefined;
 
 function failed(message: string, runId: string): RunResult {
-  return { outcome: 'failed', message, error: null, columns: [], rows: [], total: 0, tables: [], durationMs: 0, droppedValues: 0, runId, diagnostics: [] };
+  return { outcome: 'failed', message, error: null, columns: [], rows: [], total: 0, tables: [], durationMs: 0, droppedValues: 0, runId, diagnostics: [], permissions: [] };
 }
 
 export const useTabs = create<TabsState>()((set, get) => {

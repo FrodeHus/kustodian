@@ -78,7 +78,8 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
         GraphFetch? failed = null;
         IReadOnlyList<string> failedRequests = [];
 
-        RunResult End(RunOutcome outcome, string? message = null, GraphQueryError? error = null, EngineResponse? answer = null)
+        RunResult End(RunOutcome outcome, string? message = null, GraphQueryError? error = null, EngineResponse? answer = null,
+            IReadOnlyList<string>? permissions = null)
         {
             var tables = fetches.Select((f, i) => (Fetch: f, Read: collections[i])).Where(x => x.Read is not null)
                 .Select(x => Describe(x.Fetch, x.Read!, limits)).ToList();
@@ -89,6 +90,7 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
             {
                 RunId = diagnostics.RunId,
                 Diagnostics = diagnostics.Entries,
+                Permissions = permissions ?? [],
             };
         }
 
@@ -138,8 +140,10 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
             failed = ex.Fetch;
             if (ex.InnerException is GraphReadException read)
                 failedRequests = read.Requests;
-            var (outcome, message) = IsSignIn(ex.InnerException) ? (RunOutcome.SignInNeeded, SignInMessage) : ReadFailure(ex);
-            return End(outcome, message);
+            var (outcome, message, permissions) = IsSignIn(ex.InnerException)
+                ? (RunOutcome.SignInNeeded, SignInMessage, [])
+                : ReadFailure(ex);
+            return End(outcome, message, permissions: permissions);
         }
         catch (GraphEngineException ex)
         {
@@ -162,23 +166,23 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
         }
     }
 
-    private (RunOutcome Outcome, string Message) ReadFailure(FetchFailedException ex)
+    private (RunOutcome Outcome, string Message, IReadOnlyList<string> Permissions) ReadFailure(FetchFailedException ex)
     {
         var table = ex.Fetch.Table;
         if (ex.InnerException is not GraphReadException read)
-            return (RunOutcome.Failed, Unexpected);
+            return (RunOutcome.Failed, Unexpected, []);
         return read.Failure switch
         {
-            GraphReadFailure.NoPermission => (RunOutcome.NoPermission, NoPermissionMessage(table)),
+            GraphReadFailure.NoPermission => (RunOutcome.NoPermission, NoPermissionMessage(table), [.. ReadFirst(table.Permissions)]),
             GraphReadFailure.Throttled => (RunOutcome.Throttled, read.RetryAfterSeconds is { } seconds
                 ? string.Create(CultureInfo.InvariantCulture, $"Graph is throttling requests. Try again in {seconds} s.")
-                : read.Message),
+                : read.Message, []),
             GraphReadFailure.TooLarge => (RunOutcome.TooLarge,
                 $"Too much data from {table.Name} for one run ({(budget.MaxBytes / BytesPerMegabyte).ToString(CultureInfo.InvariantCulture)} MB). "
-                + "Add a filter or project fewer columns."),
+                + "Add a filter or project fewer columns.", []),
             // The object cap's own text says what to do: add a `where` Graph can filter on.
-            GraphReadFailure.TooManyObjects => (RunOutcome.TooLarge, read.Message),
-            _ => (RunOutcome.Failed, read.Message),
+            GraphReadFailure.TooManyObjects => (RunOutcome.TooLarge, read.Message, []),
+            _ => (RunOutcome.Failed, read.Message, []),
         };
     }
 
@@ -191,10 +195,7 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
 
     /// <summary><paramref name="permissions"/> with the read-only ones first, otherwise in their order.</summary>
     private static IEnumerable<string> ReadFirst(IEnumerable<string> permissions)
-        => permissions.OrderBy(p => IsReadOnly(p) ? 0 : 1);
-
-    private static bool IsReadOnly(string permission)
-        => permission.Contains(".Read", StringComparison.Ordinal) && !permission.Contains("Write", StringComparison.Ordinal);
+        => permissions.OrderBy(p => GraphPermissions.IsReadOnly(p) ? 0 : 1);
 
     /// <summary>Whether the failure is, or was caused by, the account needing to sign in again.</summary>
     private static bool IsSignIn(Exception? ex) => SignInRequiredException.IsIn(ex) || ex switch

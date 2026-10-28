@@ -42,6 +42,7 @@ const kari: AccountInfo = {
   tenantName: 'Contoso Ltd',
   tenantId: 't1',
   clientId: '04b07795-8ddb-461a-bbee-02f9e1bf7b46',
+  clientKind: 'azureCli',
   active: true,
   expired: false,
   scopes: ['Application.Read.All'],
@@ -59,6 +60,7 @@ const rows: RunResult = {
   droppedValues: 0,
   runId: 'run-1',
   diagnostics: [],
+  permissions: [],
 };
 
 const settings: SettingsAnswer = {
@@ -712,6 +714,58 @@ describe('App', () => {
     await waitFor(() => expect(screen.getByRole('tab', { name: 'Rows · 1' })).toBeTruthy());
     expect(bridge.call).toHaveBeenCalledWith('account.consent', { key: 'k1', audience: 'arm' });
     expect(runs).toBe(2);
+  });
+
+  it('app_grant_permission_reads_the_accounts_again_before_running_again', async () => {
+    const ada: AccountInfo = { ...kari, clientId: '14d82eec-204b-4c2f-b7e8-296a70dab67e', clientKind: 'graphCli', scopes: ['User.Read'] };
+    let list: AccountList = { accounts: [ada], cache: 'persistent' };
+    const refused: RunResult = { ...rows, outcome: 'noPermission', message: 'No permission.', rows: [], columns: [], total: 0, permissions: ['Reports.Read.All'] };
+    let runs = 0;
+    host(list);
+    answers['account.list'] = () => list;
+    answers['query.run'] = () => {
+      runs++;
+      return refused;
+    };
+    answers['account.consent'] = () => {
+      list = { ...list, accounts: [{ ...ada, scopes: ['User.Read', 'Reports.Read.All'] }] };
+      return {};
+    };
+    render(<App />);
+    fireEvent.change(await screen.findByRole('textbox', { name: 'KQL query' }), { target: { value: 'applications' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Run all Shift Enter' }));
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Grant permission Reports.Read.All' }));
+
+    // The account now holds the permission, yet the run is still refused: a missing role, not a permission to grant.
+    expect(await screen.findByText('You have Reports.Read.All; your account may be missing a role that this data needs.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Grant permission/ })).toBeNull();
+    expect(bridge.call).toHaveBeenCalledWith('account.consent', { key: 'k1', audience: 'graph', scope: 'Reports.Read.All' });
+    expect(runs).toBe(2);
+  });
+
+  it('app_grant_permission_reloads_a_built_in_hunting_schema', async () => {
+    const ada: AccountInfo = { ...kari, clientId: '14d82eec-204b-4c2f-b7e8-296a70dab67e', clientKind: 'graphCli', scopes: ['User.Read'] };
+    host({ accounts: [ada], cache: 'persistent' });
+    const refused: RunResult = { ...rows, outcome: 'noPermission', message: 'No permission.', rows: [], columns: [], total: 0, permissions: ['ThreatHunting.Read.All'] };
+    answers['query.run'] = () => refused;
+    answers['account.consent'] = () => ({});
+    answers['schema.get'] = (p) =>
+      (p as { source: string }).source === 'hunting'
+        ? { ...(schema as SchemaView), source: 'hunting', origin: 'builtIn', fallbackReason: 'The tenant’s schema couldn’t be read. The built-in schema is shown.' }
+        : schema;
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+    act(() => {
+      runCommand('tab.newHunting');
+    });
+    fireEvent.change(await screen.findByRole('textbox', { name: 'KQL query' }), { target: { value: 'DeviceInfo' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Run all Shift Enter' }));
+    expect(bridge.call).not.toHaveBeenCalledWith('schema.get', { source: 'hunting', refresh: true });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Grant permission ThreatHunting.Read.All' }));
+
+    await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('schema.get', { source: 'hunting', refresh: true }));
   });
 
   it('app_reads_every_open_sources_schema_again_for_another_account', async () => {

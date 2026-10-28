@@ -96,10 +96,16 @@ Kustodian still works, but you sign in again each time you start it.
 
 ## Signing in
 
-Sign in with your work account. By default Kustodian uses the Azure CLI's public client ID with delegated permissions, which
-covers common Graph and Azure Resource Graph queries. Security data, audit logs and advanced hunting often need more: use your
-own Entra ID app registration, or let Kustodian create one with **Create Entra ID application**.
-[Entra ID permissions](EntraPermissions.md) explains both, step by step.
+Sign in with your work account. You pick the client under **Signing in as**:
+
+- **Azure CLI** (the default): Microsoft's public Azure CLI client, with delegated permissions. It covers common Graph and Azure
+  Resource Graph queries.
+- **Microsoft Graph Command Line Tools**: Microsoft's public client used by Graph PowerShell. It reaches what your tenant has
+  granted Graph PowerShell. Azure queries use your Azure CLI sign-in.
+- **Your own app**: your own Entra ID app registration, or one Kustodian creates with **Create Entra ID application**.
+
+Security data, audit logs and advanced hunting often need more than the Azure CLI client has.
+[Entra ID permissions](EntraPermissions.md) explains each, step by step.
 
 ## Where data lives
 

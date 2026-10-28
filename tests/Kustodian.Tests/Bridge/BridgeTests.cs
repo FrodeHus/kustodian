@@ -478,8 +478,19 @@ public class BridgeTests
         Assert.Equal(1234, result.GetProperty("durationMs").GetInt64());
         Assert.False(result.TryGetProperty("duration", out _));
         Assert.Equal(
-            ["outcome", "message", "error", "columns", "rows", "total", "tables", "durationMs", "droppedValues", "runId", "diagnostics"],
+            ["outcome", "message", "error", "columns", "rows", "total", "tables", "durationMs", "droppedValues", "runId", "diagnostics",
+                "permissions"],
             result.EnumerateObject().Select(p => p.Name));
+    }
+
+    [Fact]
+    public async Task Run_result_wire_has_permissions()
+    {
+        var bridge = NewBridge((_, _, _, _, _, _, _) => Task.FromResult(Ok() with { Permissions = ["Reports.Read.All"] }));
+
+        var result = Parse(await bridge.HandleAsync(Run("r1", "t1", "users"))).GetProperty("result");
+
+        Assert.Equal(["Reports.Read.All"], result.GetProperty("permissions").EnumerateArray().Select(p => p.GetString()));
     }
 
     [Fact]
