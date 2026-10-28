@@ -65,4 +65,8 @@ public sealed record RunResult(RunOutcome Outcome, string? Message, GraphQueryEr
     public string RunId { get; init; } = "";
 
     public IReadOnlyList<DiagnosticEntry> Diagnostics { get; init; } = [];
+
+    /// <summary>The delegated permissions a <see cref="RunOutcome.NoPermission"/> run needs, any one of which will do, the
+    /// least to ask for first. Empty for every other outcome.</summary>
+    public IReadOnlyList<string> Permissions { get; init; } = [];
 }

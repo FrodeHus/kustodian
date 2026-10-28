@@ -632,6 +632,7 @@ public sealed class GraphRunnerTests
         Assert.Equal("You don't have permission to read groups. It needs one of: Group.ReadBasic.All, Group-NestingSupport.ReadWrite.All.",
             r.Message);
         Assert.Equal("groups", Assert.Single(r.Tables).Table);
+        Assert.Equal(["Group.ReadBasic.All", "Group-NestingSupport.ReadWrite.All"], r.Permissions);
     }
 
     [Fact]

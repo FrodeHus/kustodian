@@ -43,6 +43,9 @@ public sealed partial class HuntingClient(HttpClient graph, TimeProvider? time =
 
     public const string TooLarge = "The result is over Microsoft's 50 MB limit. Add summarize, project or take.";
 
+    /// <summary>The delegated permission advanced hunting needs.</summary>
+    public const string Permission = "ThreatHunting.Read.All";
+
     public const string NoPermission = "Advanced hunting needs the ThreatHunting.Read.All permission and a Defender role (for example "
         + "Security Reader). With the Azure CLI client this permission may not be available: use your own app registration.";
 

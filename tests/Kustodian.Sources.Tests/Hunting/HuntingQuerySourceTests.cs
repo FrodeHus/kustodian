@@ -89,6 +89,7 @@ public class HuntingQuerySourceTests
         Assert.Equal(RunOutcome.NoPermission, result.Outcome);
         Assert.Equal("Advanced hunting needs the ThreatHunting.Read.All permission and a Defender role (for example Security Reader). "
             + "With the Azure CLI client this permission may not be available: use your own app registration.", result.Message);
+        Assert.Equal(["ThreatHunting.Read.All"], result.Permissions);
     }
 
     [Fact]
