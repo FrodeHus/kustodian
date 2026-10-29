@@ -8,6 +8,7 @@ using Kustodian.Graph.Schema;
 using Kustodian.Library;
 using Kustodian.Messaging.Handlers;
 using Kustodian.Storage;
+using Microsoft.Extensions.Time.Testing;
 using Microsoft.Identity.Client;
 
 namespace Kustodian.Tests.Auth;
@@ -613,6 +614,71 @@ public sealed class ArmAuthTests : IDisposable
     }
 
     [Fact]
+    public async Task Graph_consent_refreshes_again_until_the_token_carries_the_grant()
+    {
+        var clients = new MsalPerClient();
+        var time = new FakeTimeProvider();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir), time);
+        var account = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
+        var graphCli = clients.For(ClientConfig.GraphCli);
+        graphCli.GrantHiddenForRefreshes = 2;
+
+        await Advancing(time, service.ConsentAsync(account.Key, Audience.Graph, Ct, scope: "Reports.Read.All"));
+
+        Assert.Equal(3, graphCli.Silent.Count(s => s.ForceRefresh));
+        Assert.Contains("Reports.Read.All", (await service.ListAccountsAsync())[0].Scopes);
+        // The grant arrived: later tokens come from the cache again.
+        await service.GetTokenAsync(account.Key, Audience.Graph, Ct);
+        Assert.False(graphCli.Silent[^1].ForceRefresh);
+    }
+
+    [Fact]
+    public async Task A_grant_still_missing_after_consent_is_refreshed_for_now_and_then_until_it_arrives()
+    {
+        var clients = new MsalPerClient();
+        var time = new FakeTimeProvider();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir), time);
+        var account = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
+        var graphCli = clients.For(ClientConfig.GraphCli);
+        graphCli.GrantHiddenForRefreshes = 5;
+
+        await Advancing(time, service.ConsentAsync(account.Key, Audience.Graph, Ct, scope: "Reports.Read.All"));
+
+        Assert.Equal(4, graphCli.Silent.Count(s => s.ForceRefresh));
+        Assert.DoesNotContain("Reports.Read.All", (await service.ListAccountsAsync())[0].Scopes);
+
+        // Right after the last refresh, a run's token comes from the cache; 15 seconds on, it is refreshed again.
+        time.Advance(TimeSpan.FromSeconds(1));
+        await service.GetTokenAsync(account.Key, Audience.Graph, Ct);
+        Assert.False(graphCli.Silent[^1].ForceRefresh);
+        time.Advance(TimeSpan.FromSeconds(15));
+        await service.GetTokenAsync(account.Key, Audience.Graph, Ct);
+        Assert.True(graphCli.Silent[^1].ForceRefresh);
+        Assert.DoesNotContain("Reports.Read.All", (await service.ListAccountsAsync())[0].Scopes);
+
+        time.Advance(TimeSpan.FromSeconds(15));
+        await service.GetTokenAsync(account.Key, Audience.Graph, Ct);
+        Assert.True(graphCli.Silent[^1].ForceRefresh);
+        Assert.Contains("Reports.Read.All", (await service.ListAccountsAsync())[0].Scopes);
+
+        time.Advance(TimeSpan.FromSeconds(15));
+        await service.GetTokenAsync(account.Key, Audience.Graph, Ct);
+        Assert.False(graphCli.Silent[^1].ForceRefresh);
+    }
+
+    /// <summary>Awaits <paramref name="task"/>, moving <paramref name="time"/> on a second at a time so its waits end.</summary>
+    private static async Task Advancing(FakeTimeProvider time, Task task)
+    {
+        while (!task.IsCompleted)
+        {
+            time.Advance(TimeSpan.FromSeconds(1));
+            await Task.Delay(5, Ct);
+        }
+
+        await task;
+    }
+
+    [Fact]
     public async Task Graph_consent_for_an_own_app_account_uses_its_own_client()
     {
         var own = new ClientConfig("11111111-2222-3333-4444-555555555555", "contoso.onmicrosoft.com");
@@ -815,6 +881,9 @@ public sealed class ArmAuthTests : IDisposable
         /// <summary>The Graph permissions granted with forced consent.</summary>
         public List<string> GrantedGraph { get; } = [];
 
+        /// <summary>How many forced Graph refreshes leave the granted permissions out, as Entra ID may just after a grant.</summary>
+        public int GrantHiddenForRefreshes { get; set; }
+
         public IReadOnlyCollection<string> Cached => _cached.Keys;
 
         public void Cache(MsalAccount account) => _cached[account.HomeAccountId] = account;
@@ -859,7 +928,8 @@ public sealed class ArmAuthTests : IDisposable
 
             if (!arm && forceRefresh)
             {
-                return Task.FromResult(new MsalToken(JwtWithScopes(["User.Read", .. GrantedGraph]), DateTimeOffset.UtcNow.AddHours(1)));
+                IEnumerable<string> granted = GrantHiddenForRefreshes-- > 0 ? [] : GrantedGraph;
+                return Task.FromResult(new MsalToken(JwtWithScopes(["User.Read", .. granted]), DateTimeOffset.UtcNow.AddHours(1)));
             }
 
             return Task.FromResult(new MsalToken(TokenPrefix + (arm ? "arm-token" : "graph-token"), DateTimeOffset.UtcNow.AddHours(1)));
