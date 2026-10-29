@@ -178,6 +178,42 @@ public sealed partial class GraphCollectionReaderTests
         Assert.Equal(10, second.Objects.Count);
     }
 
+    private static HttpResponseMessage RefusesSelect(HttpRequestMessage request, int n) => request.RequestUri!.Query.Contains("$select")
+        ? Json(HttpStatusCode.BadRequest, Error("BadRequest",
+            "Query option 'Select' is not allowed. To allow it, set the 'AllowedQueryOptions' property on EnableQueryAttribute or QueryValidationSettings."))
+        : Json(HttpStatusCode.OK, Page(n * 20, 20));
+
+    // reports/appCredentialSignInActivities and other reports refuse $select itself: not a property to probe for.
+    [Fact]
+    public async Task A_select_refusal_reads_again_without_it_and_is_remembered()
+    {
+        var probes = await ListingEverything();
+        var handler = new Scripted(RefusesSelect);
+        var diagnostics = new RunDiagnostics(TimeProvider.System);
+
+        var result = await Read(Reader(handler, probes: probes), Fetch() with { Top = 10 }, diagnostics: diagnostics);
+
+        Assert.Equal(2, result.Requests.Count);
+        Assert.Equal("applications?$top=10", result.Requests[1]);
+        Assert.Equal(10, result.Objects.Count);
+        Assert.Contains("applications: Graph refused $select; reading the columns it sends by default",
+            OfKind(diagnostics, DiagnosticKinds.Probe).Select(e => e.Detail));
+        Assert.Contains(GraphCollectionReader.SelectClause, await probes.RefusedAsync(Account, "applications", CancellationToken.None));
+
+        var again = new Scripted(RefusesSelect);
+        var second = await Read(Reader(again, probes: probes), Fetch() with { Top = 10 });
+
+        Assert.Equal(1, again.Calls);
+        Assert.Equal("applications?$top=10", second.Requests.Single());
+
+        // A refresh selects again, and forgets the refusal once Graph takes it.
+        var takes = new Scripted((_, n) => Json(HttpStatusCode.OK, Page(n * 20, 20)));
+        var refreshed = await Read(Reader(takes, probes: probes), Fetch() with { Top = 10 }, refresh: true);
+
+        Assert.Contains("$select=", refreshed.Requests[^1]);
+        Assert.DoesNotContain(GraphCollectionReader.SelectClause, await probes.RefusedAsync(Account, "applications", CancellationToken.None));
+    }
+
     // Refused for $top=999 as well: a read without a row limit leaves it out too.
     [Fact]
     public async Task A_top_refusal_without_a_row_limit_reads_every_page_without_it()

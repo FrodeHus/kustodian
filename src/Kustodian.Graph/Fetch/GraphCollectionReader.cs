@@ -79,10 +79,11 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
     /// <summary>Probes spent finding the columns a backend can't serve in a list (one for <c>id</c> alone, then halves).</summary>
     public const int MaxProbes = 16;
     private const string GraphHost = "graph.microsoft.com";
-    /// <summary>The names <see cref="IGraphProbeCache.RefusedAsync"/> keeps a refused count and sort under; a filter clause's is its
-    /// feature.</summary>
+    /// <summary>The names <see cref="IGraphProbeCache.RefusedAsync"/> keeps a refused count, sort and <c>$select</c> under; a filter
+    /// clause's is its feature.</summary>
     public const string CountClause = "$count";
     public const string OrderByClause = "$orderby";
+    public const string SelectClause = "$select";
     private const int PageSize = 999;
     private const int DefaultRetryAfterSeconds = 60;
     /// <summary>The longest a throttled request waits before it is sent once more.</summary>
@@ -183,6 +184,10 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
             var deniedFound = earlier?.Denied.Where(c => !refresh || !select.Contains(c)).ToList() ?? [];
             if (!refresh && earlier is not null && LeaveOut(select, earlier, unreadable, denied) is { Length: > 0 } leftOut)
                 Log(diagnostics, DiagnosticKinds.Probe, $"{table}: left out (found earlier) {leftOut}");
+            // A collection that refuses $select is read with the columns Graph sends by default; a refresh selects again.
+            var sendSelect = !refused.Contains(SelectClause);
+            if (!sendSelect)
+                Log(diagnostics, DiagnosticKinds.Probe, $"{table}: left out $select (Graph refused it earlier)");
             if (await _probes.RefusesTopAsync(accountKey, path, ct))
             {
                 // A refresh sends it again, and forgets the refusal if Graph takes it.
@@ -196,10 +201,11 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
             {
                 objects.Clear();
                 // Once only: after one license refusal nothing more is left out for it.
-                var optional = unlicensedReason is null ? Optional(fetch, select) : [];
+                var optional = unlicensedReason is null && sendSelect ? Optional(fetch, select) : [];
                 var filter = unfiltered ? null : Filter(clauses);
                 var advanced = Advanced(fetch.Table, unfiltered ? [] : clauses, orderBy);
-                var retry = await ReadPagesAsync(accountKey, fetch, new ListRequest(select, filter, limit, sendTop, orderBy, advanced), lease,
+                var retry = await ReadPagesAsync(accountKey, fetch,
+                    new ListRequest(sendSelect ? select : [], filter, limit, sendTop, orderBy, advanced), lease,
                     requests, objects, diagnostics, optional.Count > 0, unlicensedReason is not null, ct);
                 if (retry is null && orderBy is not null && OutOfOrder(objects, orderBy) is { } why)
                 {
@@ -215,6 +221,8 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                 {
                     if (refusedTopEarlier && sendTop)
                         await _probes.SetRefusesTopAsync(accountKey, path, false, ct);
+                    if (refusedEarlier.Contains(SelectClause) && sendSelect)
+                        await _probes.SetRefusedAsync(accountKey, path, SelectClause, false, ct);
                     // A refresh that read without probing found nothing in what it selected.
                     if (refresh && !probed && earlier is not null)
                         await _probes.SetAsync(accountKey, path, notListed, deniedFound, ct);
@@ -236,6 +244,12 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                         unlicensed.Add(column);
                     }
                     Log(diagnostics, DiagnosticKinds.Probe, $"{table}: dropped {string.Join(", ", optional)} ({retry.Message})");
+                }
+                else if (retry.NoSelect)
+                {
+                    sendSelect = false;
+                    Log(diagnostics, DiagnosticKinds.Probe, $"{table}: Graph refused $select; reading the columns it sends by default");
+                    await _probes.SetRefusedAsync(accountKey, path, SelectClause, true, ct);
                 }
                 else if (retry.Top)
                 {
@@ -603,14 +617,18 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
             Advanced(fetch.Table, clauses, fetch.OrderBy));
     }
 
-    /// <summary>A list read's first URL, with <c>$top</c> only when <paramref name="top"/> is given, and <c>$count=true</c> for
-    /// advanced query mode.</summary>
-    private static string ListUrl(string path, IReadOnlyList<string> select, string? filter, int? top, GraphOrderBy? orderBy, bool advanced) =>
-        path + "?$select=" + Uri.EscapeDataString(string.Join(",", select))
+    /// <summary>A list read's first URL, with <c>$select</c> only when <paramref name="select"/> names a column (a collection that
+    /// refuses it is read without), <c>$top</c> only when <paramref name="top"/> is given, and <c>$count=true</c> for advanced
+    /// query mode.</summary>
+    private static string ListUrl(string path, IReadOnlyList<string> select, string? filter, int? top, GraphOrderBy? orderBy, bool advanced)
+    {
+        var query = (select.Count == 0 ? "" : "&$select=" + Uri.EscapeDataString(string.Join(",", select)))
             + (string.IsNullOrEmpty(filter) ? "" : "&$filter=" + Uri.EscapeDataString(filter))
             + (orderBy is null ? "" : "&$orderby=" + Uri.EscapeDataString(orderBy.OData))
             + (advanced ? "&$count=true" : "")
             + (top is { } t ? "&$top=" + t.ToString(CultureInfo.InvariantCulture) : "");
+        return query.Length == 0 ? path : path + "?" + query[1..];
+    }
 
     /// <summary>What one run through the pages asks for: the row limit (<paramref name="Limit"/>), whether to send it as
     /// <c>$top</c>, the sort, and whether in advanced query mode.</summary>
@@ -654,7 +672,10 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                     && (response.StatusCode == HttpStatusCode.NotFound && GraphErrorText.IsHtml(raw)
                         || response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden))
                     return new Retry(null, message ?? "", Failure(response, message));
-                // Checked before the filter: a refused $top would otherwise cost the filter.
+                // Checked before the filter and the probes: a refused $select or $top would otherwise cost the filter, or be
+                // taken for one property's.
+                if (page == 0 && select.Count > 0 && response.StatusCode == HttpStatusCode.BadRequest && GraphErrorText.RefusesSelect(message))
+                    return new Retry(null, message ?? "", NoSelect: true);
                 if (page == 0 && sendTop && response.StatusCode == HttpStatusCode.BadRequest && GraphErrorText.NamesTop(message))
                     return new Retry(null, message ?? "", Top: true);
                 // A sort or a clause with a feature (or the advanced query mode they need) is what this change sends that a
@@ -808,11 +829,11 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
     /// <summary>What to change after Graph refused the first page. <see cref="Original"/> set: probe the selected columns, and
     /// throw it if probing finds none.
     /// <see cref="License"/> set: leave the optional columns out.
-    /// <see cref="Top"/> set: read without <c>$top</c>.
+    /// <see cref="Top"/> set: read without <c>$top</c>. <see cref="NoSelect"/> set: read without <c>$select</c>.
     /// <see cref="OrderBy"/> set: read without the sort. <see cref="Features"/> set: read without the filter clauses that have a
     /// feature.</summary>
     private sealed record Retry(string? Select, string Message, GraphReadException? Original = null, bool License = false, bool Top = false,
-        bool OrderBy = false, bool Features = false);
+        bool OrderBy = false, bool Features = false, bool NoSelect = false);
 
     /// <summary>The header that, with <c>$count=true</c>, asks for Graph's advanced query mode on directory objects.</summary>
     public const string ConsistencyLevel = "ConsistencyLevel";
