@@ -15,16 +15,16 @@
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@kusto/monaco-kusto": "15.0.1",
     "@tailwindcss/vite": "^4.3.3",
-    "@tanstack/react-table": "^8.21.3",
-    "@tanstack/react-virtual": "^3.14.21",
+    "@tanstack/react-table": "^9.3.1",
+    "@tanstack/react-virtual": "^3.14.23",
     "dompurify": "^3.4.17",
-    "monaco-editor": "~0.55.1",
+    "monaco-editor": "~0.57.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-is": "^19.3.1",
     "recharts": "^3.10.1",
     "tailwindcss": "^4.3.3",
-    "zustand": "^5.0.15"
+    "zustand": "^5.0.16"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.2",
@@ -33,9 +33,9 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
-    "jsdom": "^29.1.1",
+    "jsdom": "^30.1.3",
     "oxlint": "^1.81.0",
-    "typescript": "~6.0.2",
+    "typescript": "~7.0.2",
     "vite": "^8.3.4",
     "vitest": "^5.0.1"
   },
