@@ -5,6 +5,17 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- A query that makes the engine throw, such as `print x = ago(36500000d)`, now fails on its tab with the engine's message instead
+  of ending the worker as a crash.
+- The sign-in screen starts on the client the account in use signed in with, so it shows whether that is Azure CLI, Graph
+  Command Line Tools or your own app. A default client ID in Settings still comes first.
+- After **Grant permission…**, the query runs with the new permission without signing in again. Entra ID can take a few seconds
+  to put a new grant in tokens; Kustodian asks again until it does.
+- Graph collections that refuse `$select`, such as `reports_appCredentialSignInActivities`, are read with the columns Graph sends
+  by default instead of failing.
+
 ## [0.9.9] - 2026-10-28
 
 ### Added
