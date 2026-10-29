@@ -358,6 +358,17 @@ public sealed class EngineHandlerTests
     }
 
 
+    [Fact]
+    public void A_query_that_throws_is_an_error_not_a_dead_worker()
+    {
+        // ago() of a timespan reaching before year 1 overflows while now() is written into the query, and throws.
+        var response = Run("print x = ago(36500000d)");
+
+        Assert.NotNull(response.Error);
+        Assert.StartsWith(EngineHandler.UnsupportedPrefix, response.Error);
+        Assert.Contains(nameof(OverflowException), response.Error);
+    }
+
     [Theory]
     [InlineData("applications | mv-expand rra = requiredResourceAccess | mv-expand permission = rra.resourceAccess | where permission.id in (dynamic(['a'])) | project appId")]
     [InlineData("applications | where tags !in ('x')")]

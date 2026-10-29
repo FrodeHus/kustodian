@@ -36,6 +36,13 @@ public static class EngineHandler
         {
             return HandleInvariant(request);
         }
+        catch (Exception e) when (!OutOfMemory.Is(e))
+        {
+            // KustoLoco reports most failures as error text, but some throw: loading a table, evaluating a column lazily
+            // while the rows are read, or a bug of its own. That is this query's failure, not the worker's: it says so on the
+            // tab, and the worker lives on for the next run. (Running out of memory still ends the worker, EngineMain.cs.)
+            return new EngineResponse(null, null, 0, 0, UnsupportedPrefix + $"{e.GetType().Name}: {e.Message}", null);
+        }
         finally
         {
             CultureInfo.CurrentCulture = culture;
