@@ -42,14 +42,23 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
   const [pickedChoice, setPicked] = useState<ClientKind>('azureCli');
   const [typedClientId, setClientId] = useState('');
   const [typedTenant, setTenant] = useState('');
-  // The settings' defaults show until the user changes the form; they may arrive after the screen opened.
+  // The settings' defaults show until the user changes the form; they may arrive after the screen opened. Without them the
+  // form starts on the client the account in use signed in with, so it shows which one that is.
   const [touched, setTouched] = useState(false);
+  const accounts = list?.accounts ?? [];
+  const active = accounts.find((a) => a.active);
   const defaultClient = defaults?.clientId ?? null;
-  const prefilled = !touched && defaultClient !== null;
-  const choice: ClientKind = prefilled ? (isGraphCli(defaultClient) ? 'graphCli' : 'own') : pickedChoice;
+  const start: { choice: ClientKind; clientId: string; tenant: string } | null =
+    defaultClient !== null
+      ? { choice: isGraphCli(defaultClient) ? 'graphCli' : 'own', clientId: defaultClient, tenant: defaults?.tenant ?? '' }
+      : active
+        ? { choice: active.clientKind, clientId: active.clientKind === 'own' ? active.clientId : '', tenant: active.clientKind === 'own' ? active.tenantId : '' }
+        : null;
+  const prefilled = !touched && start !== null;
+  const choice: ClientKind = prefilled ? start.choice : pickedChoice;
   const own = choice === 'own';
-  const clientId = choice === 'graphCli' ? GRAPH_CLI_CLIENT_ID : prefilled ? defaultClient : typedClientId;
-  const tenant = prefilled ? (defaults?.tenant ?? '') : typedTenant;
+  const clientId = choice === 'graphCli' ? GRAPH_CLI_CLIENT_ID : prefilled ? start.clientId : typedClientId;
+  const tenant = prefilled ? start.tenant : typedTenant;
   /** The user changes the form: from now on it holds what it shows, defaults included. */
   const touch = () => {
     if (prefilled) {
@@ -65,8 +74,6 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
 
   useEffect(() => on('account.deviceCode', (data) => setDeviceCode((data as { message: string }).message)), []);
 
-  const accounts = list?.accounts ?? [];
-  const active = accounts.find((a) => a.active);
   const memoryOnly = list?.cache === 'memoryOnly';
   const offerCreate = canOfferCreateApp(active);
   /** Whether the active sign-in can also create app registrations (spec 6.1): decided here from its scopes, no host call. */
