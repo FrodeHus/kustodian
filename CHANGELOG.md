@@ -5,6 +5,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.10] - 2026-10-29
+
 ### Fixed
 
 - A query that makes the engine throw, such as `print x = ago(36500000d)`, now fails on its tab with the engine's message instead
