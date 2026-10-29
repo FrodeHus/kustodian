@@ -27,8 +27,16 @@ public sealed record AccountInfo(
 
 /// <summary>The accounts known to this install, backed by one MSAL public client per <see cref="ClientConfig"/>. Account metadata
 /// goes to <c>accounts.json</c>; tokens stay in MSAL's cache, which lives in the OS keychain or in memory.</summary>
-public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory, JsonFileStore store) : ITokenSource
+public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory, JsonFileStore store, TimeProvider? time = null)
+    : ITokenSource
 {
+    /// <summary>The waits between refreshes after a Graph grant, until a token carries it: Entra ID can take a few seconds to
+    /// issue tokens with a permission just granted.</summary>
+    private static readonly TimeSpan[] GrantRetryDelays = [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4)];
+
+    /// <summary>How often a Graph token is refreshed, at most, while a granted permission is still missing from it.</summary>
+    private static readonly TimeSpan AwaitedGrantRefresh = TimeSpan.FromSeconds(15);
+
     private const string FileName = "accounts.json";
 
     /// <summary>Put before a Graph permission name to ask for that one permission.</summary>
@@ -37,6 +45,12 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<ClientConfig, IMsalClient> _clients = [];
     private readonly HashSet<string> _expired = [];
+
+    /// <summary>Per account key: a Graph permission granted that its tokens don't carry yet, and when one was last refreshed for
+    /// it. Not persisted: after a restart the cached token has usually expired anyway.</summary>
+    private readonly Dictionary<string, (string Scope, DateTimeOffset Refreshed)> _awaitedGrants = [];
+
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
     private volatile string? _activeKey;
     private State? _state;
 
@@ -124,6 +138,7 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
             }
 
             _expired.Remove(accountKey);
+            _awaitedGrants.Remove(accountKey);
             if (state.ActiveKey == accountKey)
             {
                 state.ActiveKey = state.Accounts.FirstOrDefault()?.Info.Key;
@@ -147,10 +162,20 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
             var stored = state.Accounts.FirstOrDefault(a => a.Info.Key == accountKey)
                 ?? throw new SignInRequiredException("That account is not signed in.");
 
+            // While a granted permission is missing from the account's Graph token, the cached one is skipped now and then, so
+            // the permission arrives without a new sign-in.
+            var now = _time.GetUtcNow();
+            var refresh = audience == Audience.Graph && _awaitedGrants.TryGetValue(stored.Info.Key, out var awaited)
+                && now - awaited.Refreshed >= AwaitedGrantRefresh;
             MsalToken token;
             try
             {
-                token = await ClientFor(ConfigFor(stored, audience)).AcquireSilentAsync(stored.HomeAccountId, audience.ScopeFor(), ct);
+                token = await ClientFor(ConfigFor(stored, audience)).AcquireSilentAsync(stored.HomeAccountId, audience.ScopeFor(), ct,
+                    forceRefresh: refresh);
+                if (refresh)
+                {
+                    NoteAwaitedGrant(stored.Info.Key, token, now);
+                }
             }
             catch (MsalUiRequiredException ex)
                 when (audience == Audience.Arm && (IsConsent(ex) || stored.Info.ClientKind == ClientKind.GraphCli))
@@ -266,7 +291,7 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
         {
             try
             {
-                await RefreshGraphAsync(accountKey, client, ct);
+                await RefreshGraphAsync(accountKey, client, scope!.Trim(), ct);
             }
             finally
             {
@@ -279,27 +304,68 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
     }
 
     /// <summary>After Graph consent: the cached <c>.default</c> token keeps its old <c>scp</c> until it expires, so a new one is
-    /// fetched now and its scopes stored for the account (unless it was signed out meanwhile).</summary>
-    private async Task RefreshGraphAsync(string accountKey, IMsalClient client, CancellationToken ct)
+    /// fetched now and its scopes stored for the account (unless it was signed out meanwhile). Entra ID may issue a token
+    /// without <paramref name="granted"/> for a few seconds after the grant, so it is fetched again, a few times, until the
+    /// permission is in it; if it still isn't, <see cref="GetTokenAsync"/> keeps refreshing now and then until it is.</summary>
+    private async Task RefreshGraphAsync(string accountKey, IMsalClient client, string granted, CancellationToken ct)
     {
-        await _gate.WaitAsync(ct);
-        try
+        for (var attempt = 0; ; attempt++)
         {
-            var state = await LoadAsync(ct);
-            var stored = state.Accounts.FirstOrDefault(a => a.Info.Key == accountKey);
-            if (stored is null)
+            // The waits are outside the gate: other runs' tokens don't wait for this one.
+            if (attempt > 0)
             {
-                return;
+                await Task.Delay(GrantRetryDelays[attempt - 1], _time, ct);
             }
 
-            var token = await client.AcquireSilentAsync(stored.HomeAccountId, Audience.Graph.ScopeFor(), ct, forceRefresh: true);
-            _expired.Remove(accountKey);
-            await StoreScopesAsync(state, stored, token, ct);
+            await _gate.WaitAsync(ct);
+            try
+            {
+                var state = await LoadAsync(ct);
+                var stored = state.Accounts.FirstOrDefault(a => a.Info.Key == accountKey);
+                if (stored is null)
+                {
+                    return;
+                }
+
+                if (attempt == 0)
+                {
+                    _awaitedGrants[accountKey] = (granted, _time.GetUtcNow());
+                }
+
+                var token = await client.AcquireSilentAsync(stored.HomeAccountId, Audience.Graph.ScopeFor(), ct, forceRefresh: true);
+                _expired.Remove(accountKey);
+                await StoreScopesAsync(state, stored, token, ct);
+                if (!NoteAwaitedGrant(accountKey, token, _time.GetUtcNow()) || attempt == GrantRetryDelays.Length)
+                {
+                    return;
+                }
+            }
+            finally
+            {
+                _gate.Release();
+            }
         }
-        finally
+    }
+
+    /// <summary>After a refreshed Graph <paramref name="token"/> for <paramref name="accountKey"/>: forgets the awaited grant
+    /// once the token carries it (or its scopes can't be read), else notes the refresh. Whether it is still awaited. Call under
+    /// the gate.</summary>
+    private bool NoteAwaitedGrant(string accountKey, MsalToken token, DateTimeOffset refreshed)
+    {
+        if (!_awaitedGrants.TryGetValue(accountKey, out var awaited))
         {
-            _gate.Release();
+            return false;
         }
+
+        var scopes = ScopesOf(token.AccessToken);
+        if (scopes.Count == 0 || scopes.Contains(awaited.Scope, StringComparer.OrdinalIgnoreCase))
+        {
+            _awaitedGrants.Remove(accountKey);
+            return false;
+        }
+
+        _awaitedGrants[accountKey] = awaited with { Refreshed = refreshed };
+        return true;
     }
 
     /// <summary>Keeps the <c>scp</c> of a Graph <paramref name="token"/> as the account's <see cref="AccountInfo.Scopes"/> when

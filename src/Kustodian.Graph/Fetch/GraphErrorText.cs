@@ -81,6 +81,11 @@ public static partial class GraphErrorText
         && (message.Contains("$top", StringComparison.OrdinalIgnoreCase) || message.Contains("'Top'", StringComparison.OrdinalIgnoreCase)
             || message.Contains("page size", StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>Whether Graph's message for a 400 refuses <c>$select</c> itself, not a property in it: "Query option 'Select' is
+    /// not allowed" (<c>reports/appCredentialSignInActivities</c> and other report collections).</summary>
+    internal static bool RefusesSelect(string? message) => message is not null
+        && message.Contains("'Select'", StringComparison.OrdinalIgnoreCase) && message.Contains("not allowed", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Whether the answer is a 401 that rejects the token itself (expired, revoked), not a missing permission:
     /// <c>WWW-Authenticate</c> says <c>error="invalid_token"</c>, or Graph's error code is <c>InvalidAuthenticationToken</c>, or
     /// there is no Graph error body. A 401 with another code (<c>Authorization_RequestDenied</c>) is a permission refusal.</summary>

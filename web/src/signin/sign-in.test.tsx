@@ -118,6 +118,31 @@ describe('SignIn', () => {
     expect(screen.getByLabelText('Client ID')).toHaveProperty('disabled', true);
   });
 
+  it('without a saved default, starts on the client the account in use signed in with', () => {
+    const graph: AccountInfo = { ...kari, clientId: GRAPH_CLI_CLIENT_ID, clientKind: 'graphCli' };
+    const { unmount } = render(<SignIn list={{ accounts: [graph], cache: 'persistent' }} onChanged={vi.fn()} />);
+    expect(screen.getByRole('radio', { name: /Microsoft Graph Command Line Tools/ })).toHaveProperty('checked', true);
+    unmount();
+
+    const mine: AccountInfo = { ...kari, clientId: 'c0ffee00-0000-0000-0000-000000000001', clientKind: 'own' };
+    render(<SignIn list={{ accounts: [mine], cache: 'persistent' }} onChanged={vi.fn()} />);
+    expect(screen.getByRole('radio', { name: /My own app registration/ })).toHaveProperty('checked', true);
+    expect(screen.getByLabelText('Client ID')).toHaveProperty('value', 'c0ffee00-0000-0000-0000-000000000001');
+    expect(screen.getByLabelText('Tenant')).toHaveProperty('value', 't1');
+  });
+
+  it('a saved default wins over the account in use', () => {
+    const graph: AccountInfo = { ...kari, clientId: GRAPH_CLI_CLIENT_ID, clientKind: 'graphCli' };
+    render(
+      <SignIn
+        list={{ accounts: [graph], cache: 'persistent' }}
+        onChanged={vi.fn()}
+        defaults={{ clientId: 'c0ffee00-0000-0000-0000-000000000001', tenant: null }}
+      />,
+    );
+    expect(screen.getByRole('radio', { name: /My own app registration/ })).toHaveProperty('checked', true);
+  });
+
   it('labels a graph cli account and says azure queries use azure cli', async () => {
     bridge.call.mockResolvedValue(null);
     const graph: AccountInfo = { ...kari, clientId: GRAPH_CLI_CLIENT_ID, clientKind: 'graphCli', expired: true };
