@@ -3,3 +3,6 @@ export const IS_MAC = typeof navigator !== 'undefined' && /Mac/i.test(navigator.
 
 /** How the Ctrl/Cmd key is written in shortcut hints on this platform. */
 export const MOD = IS_MAC ? '⌘' : 'Ctrl';
+
+/** How the Shift key is written in shortcut hints on this platform. */
+export const SHIFT = IS_MAC ? '⇧' : 'Shift';

@@ -18,7 +18,7 @@ import { startSessionSync } from './session/session-sync';
 import { SettingsView } from './settings/settings-view';
 import { bindGlobalKeys, registerCommands, runCommand, type Command } from './shell/commands';
 import { errorText } from './shell/errors';
-import { MOD } from './shell/keys';
+import { MOD, SHIFT } from './shell/keys';
 import { Palette } from './shell/palette';
 import { canCreateApp } from './signin/permission-plan';
 import { chooseTheme, useTheme, type Theme } from './shell/theme';
@@ -730,7 +730,7 @@ function Toolbar(props: ToolbarProps) {
       <span className="faint whitespace-nowrap text-[12px]">the block at the cursor</span>
       <span className="kbd">{MOD} Enter</span>
       <button type="button" className="btn ghost" onClick={() => onRun('all')}>
-        Run all <span className="kbd">Shift Enter</span>
+        Run all <span className="kbd">{SHIFT} Enter</span>
       </button>
       <span className="sep" aria-hidden="true" />
       {tab.source === 'hunting' && (

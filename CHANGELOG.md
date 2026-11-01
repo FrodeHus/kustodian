@@ -5,6 +5,11 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Shortcut hints are easier to read: the ⌘ no longer shrinks to a dot on high-resolution screens, and on macOS Shift is shown as
+  ⇧, so Run all reads ⇧ Enter next to Run's ⌘ Enter.
+
 ## [0.9.10] - 2026-10-29
 
 ### Fixed
