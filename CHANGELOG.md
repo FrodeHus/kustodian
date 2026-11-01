@@ -5,6 +5,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.91.0] - 2026-11-01
+
 ### Fixed
 
 - Shortcut hints are easier to read: the ⌘ no longer shrinks to a dot on high-resolution screens, and on macOS Shift is shown as
