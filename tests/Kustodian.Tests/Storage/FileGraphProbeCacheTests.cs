@@ -168,7 +168,8 @@ public sealed class FileGraphProbeCacheTests : IDisposable
             """, Ct);
 
         Assert.Empty(await Cache().RefusedAsync("account-1", "users", Ct));
-        Assert.Equal(0, await Cache().TopLimitAsync("account-1", "users", Ct));
+        // Kept when only $top=999 was tried: smaller sizes are tried again.
+        Assert.Null(await Cache().TopLimitAsync("account-1", "users", Ct));
     }
 
     [Fact]

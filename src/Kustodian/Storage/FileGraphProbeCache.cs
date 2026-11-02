@@ -9,7 +9,7 @@ namespace Kustodian.Storage;
 /// clause, foundAt}]}</c>, for <see cref="GraphLimits.ProbeCacheTtl"/> of <paramref name="limits"/> (7 days by default), so a
 /// restarted app doesn't probe a table, read its default columns, or send it a <c>$top</c> or another clause it refused, again.
 /// A file written before <c>refusesTop</c> or <c>refused</c> existed reads as refusing none, and a <c>refusesTop</c> entry
-/// without <c>max</c> (written before it existed) as refusing <c>$top</c> at all.
+/// without <c>max</c> as none found: it was kept when only <c>$top=999</c> was tried, so smaller sizes are tried again.
 /// The file is read on first use and written on every change; expired entries are dropped as it is written. A file that is
 /// corrupt is moved aside and reads as empty.
 /// </summary>
@@ -60,7 +60,7 @@ public sealed class FileGraphProbeCache(JsonFileStore store, TimeProvider time, 
     public async ValueTask<int?> TopLimitAsync(string accountKey, string path, CancellationToken ct)
     {
         var table = await ReadAsync(held => held.RefusesTop.FirstOrDefault(t => t.Account == accountKey && t.Path == path), ct);
-        return table is null || Expired(table.FoundAt) ? null : table.Max ?? 0;
+        return table is null || Expired(table.FoundAt) ? null : table.Max;
     }
 
     public ValueTask SetTopLimitAsync(string accountKey, string path, int? max, CancellationToken ct) =>
@@ -161,8 +161,8 @@ public sealed class FileGraphProbeCache(JsonFileStore store, TimeProvider time, 
 
     private sealed record DefaultsTable(string Account, string Path, IReadOnlyList<string> Columns, DateTimeOffset ReadAt);
 
-    /// <summary><see cref="Max"/> is the largest <c>$top</c> Graph takes, 0 or null (an entry written before it existed) for
-    /// none at all.</summary>
+    /// <summary><see cref="Max"/> is the largest <c>$top</c> Graph takes, 0 for none at all; null in an entry written before it
+    /// existed, which reads as none found.</summary>
     private sealed record RefusedTop(string Account, string Path, DateTimeOffset FoundAt, int? Max = null);
 
     private sealed record RefusedClause(string Account, string Path, string Clause, DateTimeOffset FoundAt);
