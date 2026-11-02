@@ -167,8 +167,8 @@ public sealed partial class GraphCollectionReaderTests
         Assert.Contains("$filter=", result.Requests[1]);
         Assert.False(result.Unfiltered);
         Assert.Equal(10, result.Objects.Count);
-        Assert.Contains("applications: Graph refused $top; reading without it", OfKind(diagnostics, DiagnosticKinds.Probe).Select(e => e.Detail));
-        Assert.True(await probes.RefusesTopAsync(Account, "applications", CancellationToken.None));
+        Assert.Contains("applications: Graph refused $top=10; reading without it", OfKind(diagnostics, DiagnosticKinds.Probe).Select(e => e.Detail));
+        Assert.Equal(0, await probes.TopLimitAsync(Account, "applications", CancellationToken.None));
 
         var again = new Scripted(RefusesTop);
         var second = await Read(Reader(again, probes: probes), Fetch() with { Top = 10 });
@@ -214,19 +214,21 @@ public sealed partial class GraphCollectionReaderTests
         Assert.DoesNotContain(GraphCollectionReader.SelectClause, await probes.RefusedAsync(Account, "applications", CancellationToken.None));
     }
 
-    // Refused for $top=999 as well: a read without a row limit leaves it out too.
+    // Refused for $top=999, 500 and 100 as well: a read without a row limit leaves it out too.
     [Fact]
     public async Task A_top_refusal_without_a_row_limit_reads_every_page_without_it()
     {
         var probes = await ListingEverything();
         var handler = new Scripted((r, n) => r.RequestUri!.Query.Contains("$top") ? RefusesTop(r, n)
-            : Json(HttpStatusCode.OK, n < 4 ? Page(n * 20, 20, Next + n) : Page(80, 5)));
+            : Json(HttpStatusCode.OK, n < 6 ? Page((n - 3) * 20, 20, Next + n) : Page(60, 5)));
 
         var result = await Read(Reader(handler, probes: probes), Fetch());
 
         Assert.Equal(65, result.Objects.Count);
-        Assert.All(result.Requests.Skip(1), r => Assert.DoesNotContain("$top", r));
-        Assert.True(await probes.RefusesTopAsync(Account, "applications", CancellationToken.None));
+        Assert.EndsWith("$top=500", result.Requests[1], StringComparison.Ordinal);
+        Assert.EndsWith("$top=100", result.Requests[2], StringComparison.Ordinal);
+        Assert.All(result.Requests.Skip(3), r => Assert.DoesNotContain("$top", r));
+        Assert.Equal(0, await probes.TopLimitAsync(Account, "applications", CancellationToken.None));
     }
 
     // directoryRoles refuses any page size without naming $top.
@@ -237,26 +239,56 @@ public sealed partial class GraphCollectionReaderTests
         var handler = new Scripted((r, n) => r.RequestUri!.Query.Contains("$top")
             ? Json(HttpStatusCode.BadRequest, Error("Request_BadRequest",
                 "This resource does not support custom page sizes. Please retry without a page size argument."))
-            : Json(HttpStatusCode.OK, n < 3 ? Page((n - 1) * 20, 20, Next + n) : Page(40, 3)));
+            : Json(HttpStatusCode.OK, n < 5 ? Page((n - 3) * 20, 20, Next + n) : Page(40, 3)));
 
         var result = await Read(Reader(handler, probes: probes), Fetch());
 
         Assert.Equal(43, result.Objects.Count);
-        Assert.All(result.Requests.Skip(1), r => Assert.DoesNotContain("$top", r));
-        Assert.True(await probes.RefusesTopAsync(Account, "applications", CancellationToken.None));
+        Assert.All(result.Requests.Skip(3), r => Assert.DoesNotContain("$top", r));
+        Assert.Equal(0, await probes.TopLimitAsync(Account, "applications", CancellationToken.None));
+    }
+
+    // identityProtection/riskyUsers takes at most 500 a page: the size Graph takes is kept, not $top left out.
+    [Fact]
+    public async Task A_top_refused_for_its_size_reads_with_a_smaller_one_and_remembers_it()
+    {
+        var probes = await ListingEverything();
+        Func<HttpRequestMessage, int, HttpResponseMessage> respond = (r, n) => r.RequestUri!.Query.Contains("$top=999")
+            ? Json(HttpStatusCode.BadRequest, Error("BadRequest", "Invalid $top value: the page size must be at most 500."))
+            : Json(HttpStatusCode.OK, Page(n * 20, 20));
+        var handler = new Scripted(respond);
+        var diagnostics = new RunDiagnostics(TimeProvider.System);
+
+        var result = await Read(Reader(handler, probes: probes), Fetch(filter: "accountEnabled eq true"), diagnostics: diagnostics);
+
+        Assert.EndsWith("$top=500", result.Requests[1], StringComparison.Ordinal);
+        Assert.Contains("$filter=", result.Requests[1]);
+        Assert.Contains("applications: Graph refused $top=999; reading with $top=500",
+            OfKind(diagnostics, DiagnosticKinds.Probe).Select(e => e.Detail));
+        Assert.Equal(500, await probes.TopLimitAsync(Account, "applications", CancellationToken.None));
+
+        var again = new Scripted(respond);
+        var second = await Read(Reader(again, probes: probes), Fetch());
+
+        Assert.Equal(1, again.Calls);
+        Assert.EndsWith("$top=500", second.Requests.Single(), StringComparison.Ordinal);
+
+        // A smaller row limit is still sent as it is.
+        var limited = await Read(Reader(new Scripted(respond), probes: probes), Fetch() with { Top = 10 });
+        Assert.EndsWith("$top=10", limited.Requests.Single(), StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task Refresh_sends_a_refused_top_again_and_forgets_the_refusal_when_graph_takes_it()
     {
         var probes = await ListingEverything();
-        await probes.SetRefusesTopAsync(Account, "applications", true, CancellationToken.None);
+        await probes.SetTopLimitAsync(Account, "applications", 0, CancellationToken.None);
         var handler = new Scripted((_, _) => Json(HttpStatusCode.OK, Page(0, 10)));
 
         var result = await Read(Reader(handler, probes: probes), Fetch() with { Top = 10 }, refresh: true);
 
         Assert.EndsWith("&$top=10", result.Requests.Last(), StringComparison.Ordinal);
-        Assert.False(await probes.RefusesTopAsync(Account, "applications", CancellationToken.None));
+        Assert.Null(await probes.TopLimitAsync(Account, "applications", CancellationToken.None));
     }
 
     [Fact]

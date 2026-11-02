@@ -61,8 +61,8 @@ public sealed record GraphRelationshipOutcome(string Column, int Objects, int Tr
 /// list are kept there too, so the next run leaves them out at once. Without it neither is learnt nor kept.
 /// A request Graph throttles (429) is sent once more after its <c>Retry-After</c> (at most <see cref="MaxRetryWait"/>, on
 /// <paramref name="time"/>). With a row limit (<see cref="GraphFetch.Top"/>) the list asks for no more than that as <c>$top</c>
-/// and stops once it has that many objects; a table that refuses <c>$top</c> is read again without it (still stopping early),
-/// and with <paramref name="probes"/> later runs leave it out at once. A fetch that is a count (<see cref="GraphFetch.Count"/>) asks
+/// and stops once it has that many objects; a table that refuses <c>$top</c> is read again with a smaller one (500, then 100),
+/// then without it (still stopping early), and with <paramref name="probes"/> later runs send the size Graph took at once. A fetch that is a count (<see cref="GraphFetch.Count"/>) asks
 /// Graph for the count first (<c>/$count</c> on directory objects, else <c>$count=true</c>), and reads the objects only when
 /// Graph won't count. A sort (<see cref="GraphFetch.OrderBy"/>) is sent as <c>$orderby</c>, and what Graph returns is checked:
 /// out of order, or with a null in the sort column, the read starts again without the sort or the row limit. On directory
@@ -85,6 +85,8 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
     public const string OrderByClause = "$orderby";
     public const string SelectClause = "$select";
     private const int PageSize = 999;
+    /// <summary>The page sizes tried, largest first, when Graph refuses a <c>$top</c>: the maximums Graph's collections document.</summary>
+    private static readonly int[] SmallerPageSizes = [500, 100];
     private const int DefaultRetryAfterSeconds = 60;
     /// <summary>The longest a throttled request waits before it is sent once more.</summary>
     public static readonly TimeSpan MaxRetryWait = TimeSpan.FromSeconds(30);
@@ -133,8 +135,8 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         var path = fetch.Table.Path;
         var table = fetch.Table.Name;
         var limit = fetch.Top;
-        var sendTop = true;
-        var refusedTopEarlier = false;
+        int? topMax = null;
+        int? topMaxEarlier = null;
 
         try
         {
@@ -188,13 +190,17 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
             var sendSelect = !refused.Contains(SelectClause);
             if (!sendSelect)
                 Log(diagnostics, DiagnosticKinds.Probe, $"{table}: left out $select (Graph refused it earlier)");
-            if (await _probes.RefusesTopAsync(accountKey, path, ct))
+            if (await _probes.TopLimitAsync(accountKey, path, ct) is { } max)
             {
-                // A refresh sends it again, and forgets the refusal if Graph takes it.
-                refusedTopEarlier = refresh;
-                sendTop = refresh;
+                // A refresh sends the full page size again, and forgets the refusal if Graph takes it.
+                topMaxEarlier = max;
                 if (!refresh)
-                    Log(diagnostics, DiagnosticKinds.Probe, $"{table}: left out $top (Graph refused it earlier)");
+                {
+                    topMax = max;
+                    Log(diagnostics, DiagnosticKinds.Probe, max == 0
+                        ? $"{table}: left out $top (Graph refused it earlier)"
+                        : $"{table}: pages of at most {max} (Graph refused more earlier)");
+                }
             }
 
             while (true)
@@ -205,7 +211,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                 var filter = unfiltered ? null : Filter(clauses);
                 var advanced = Advanced(fetch.Table, unfiltered ? [] : clauses, orderBy);
                 var retry = await ReadPagesAsync(accountKey, fetch,
-                    new ListRequest(sendSelect ? select : [], filter, limit, sendTop, orderBy, advanced), lease,
+                    new ListRequest(sendSelect ? select : [], filter, limit, topMax, orderBy, advanced), lease,
                     requests, objects, diagnostics, optional.Count > 0, unlicensedReason is not null, ct);
                 if (retry is null && orderBy is not null && OutOfOrder(objects, orderBy) is { } why)
                 {
@@ -219,8 +225,8 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                 }
                 if (retry is null)
                 {
-                    if (refusedTopEarlier && sendTop)
-                        await _probes.SetRefusesTopAsync(accountKey, path, false, ct);
+                    if (refresh && topMaxEarlier is not null && topMax is null)
+                        await _probes.SetTopLimitAsync(accountKey, path, null, ct);
                     if (refusedEarlier.Contains(SelectClause) && sendSelect)
                         await _probes.SetRefusedAsync(accountKey, path, SelectClause, false, ct);
                     // A refresh that read without probing found nothing in what it selected.
@@ -253,9 +259,13 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                 }
                 else if (retry.Top)
                 {
-                    sendTop = false;
-                    Log(diagnostics, DiagnosticKinds.Probe, $"{table}: Graph refused $top; reading without it");
-                    await _probes.SetRefusesTopAsync(accountKey, path, true, ct);
+                    // Kept at once, as each smaller size is tried: the next run starts from the last one Graph didn't refuse.
+                    var sent = PageTop(limit, topMax)!.Value;
+                    topMax = SmallerPageSizes.FirstOrDefault(size => size < sent);
+                    Log(diagnostics, DiagnosticKinds.Probe, topMax == 0
+                        ? $"{table}: Graph refused $top={sent}; reading without it"
+                        : $"{table}: Graph refused $top={sent}; reading with $top={topMax}");
+                    await _probes.SetTopLimitAsync(accountKey, path, topMax, ct);
                 }
                 else if (retry.OrderBy)
                 {
@@ -630,21 +640,25 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         return query.Length == 0 ? path : path + "?" + query[1..];
     }
 
-    /// <summary>What one run through the pages asks for: the row limit (<paramref name="Limit"/>), whether to send it as
-    /// <c>$top</c>, the sort, and whether in advanced query mode.</summary>
-    private sealed record ListRequest(List<string> Select, string? Filter, int? Limit, bool SendTop, GraphOrderBy? OrderBy, bool Advanced);
+    /// <summary>What one run through the pages asks for: the row limit (<paramref name="Limit"/>), the largest <c>$top</c> to
+    /// send (<paramref name="TopMax"/>: null for the page size, 0 for none), the sort, and whether in advanced query mode.</summary>
+    private sealed record ListRequest(List<string> Select, string? Filter, int? Limit, int? TopMax, GraphOrderBy? OrderBy, bool Advanced);
+
+    /// <summary>The <c>$top</c> a page asks for: the row limit or the page size, at most <paramref name="topMax"/>; null when
+    /// that is 0 (Graph refuses <c>$top</c>).</summary>
+    private static int? PageTop(int? limit, int? topMax) => topMax == 0 ? null : Math.Min(limit ?? PageSize, topMax ?? PageSize);
 
     /// <summary>One run through the pages. Returns null when done, or what to change when Graph refused the first page. A refusal
     /// for a license or feature the tenant lacks asks to leave the optional columns out when <paramref name="canLeaveOut"/>, and
     /// fails the read when they already were (<paramref name="leftOut"/>); otherwise it is handled as any other. With a row
     /// limit, stops once that many objects have arrived (keeping no more) and asks for no more as <c>$top</c>; without
-    /// <see cref="ListRequest.SendTop"/> no <c>$top</c> is sent at all, and a refusal naming <c>$top</c> asks to read without it.
+    /// <see cref="ListRequest.TopMax"/> 0 no <c>$top</c> is sent at all, and a refusal naming <c>$top</c> asks to read with a smaller one.
     /// A 400 with a sort asks to read without the sort, then one with filter clauses that have a feature without those.</summary>
     private async Task<Retry?> ReadPagesAsync(string accountKey, GraphFetch fetch, ListRequest list, GraphFetchLease lease,
         List<string> requests, List<JsonObject> objects, RunDiagnostics? diagnostics, bool canLeaveOut, bool leftOut, CancellationToken ct)
     {
-        var (select, filter, limit, sendTop) = (list.Select, list.Filter, list.Limit, list.SendTop);
-        int? top = sendTop ? Math.Min(limit ?? PageSize, PageSize) : null;
+        var (select, filter, limit) = (list.Select, list.Filter, list.Limit);
+        var top = PageTop(limit, list.TopMax);
         Uri? next = new(ListUrl(fetch.Table.Path, select, filter, top, list.OrderBy, list.Advanced), UriKind.Relative);
         for (var page = 0; next is not null; page++)
         {
@@ -676,7 +690,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                 // taken for one property's.
                 if (page == 0 && select.Count > 0 && response.StatusCode == HttpStatusCode.BadRequest && GraphErrorText.RefusesSelect(message))
                     return new Retry(null, message ?? "", NoSelect: true);
-                if (page == 0 && sendTop && response.StatusCode == HttpStatusCode.BadRequest && GraphErrorText.NamesTop(message))
+                if (page == 0 && top is not null && response.StatusCode == HttpStatusCode.BadRequest && GraphErrorText.NamesTop(message))
                     return new Retry(null, message ?? "", Top: true);
                 // A sort or a clause with a feature (or the advanced query mode they need) is what this change sends that a
                 // table may refuse: left out first, before the whole filter.
