@@ -294,7 +294,9 @@ public static partial class GraphFilterTranslator
             var kind = target.Kind;
             if (target.Fold != Fold.None)
                 return Pushdown.Keep(PushdownReasons.Folded);
-            if (kind is Kind.Bool || !Allows(target, "in"))
+            // A column Graph filters with eq but not in (riskyUsers.riskLevel) is sent the same list as eq conditions joined by or.
+            var asEq = !Allows(target, "in");
+            if (kind is Kind.Bool || asEq && !Allows(target, "eq"))
                 return Pushdown.Keep(PushdownReasons.Operator(target.Name));
             // in~ ignores case, which Graph's in is only known to do on directory objects.
             var ignoresCase = @in.Operator.Text.Contains('~', StringComparison.Ordinal);
@@ -313,7 +315,10 @@ public static partial class GraphFilterTranslator
                     return value;
                 values.Add(value.Filter);
             }
-            return Push(target, $"{target.Path} in ({string.Join(",", values)})", kind != Kind.String || ignoresCase);
+            var filter = !asEq ? $"{target.Path} in ({string.Join(",", values)})"
+                : values.Count == 1 ? $"{target.Path} eq {values[0]}"
+                : "(" + string.Join(" or ", values.Select(v => $"{target.Path} eq {v}")) + ")";
+            return Push(target, filter, kind != Kind.String || ignoresCase);
         }
 
         /// <summary><c>set_has_element(c, "x")</c> on a column that is an array of text, as <c>c/any(p:p eq 'x')</c>: an

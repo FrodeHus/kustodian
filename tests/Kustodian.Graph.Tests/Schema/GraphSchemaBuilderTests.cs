@@ -100,6 +100,16 @@ public sealed class GraphSchemaBuilderTests
         Assert.False(GraphSchemaCatalog.Beta.Find("groups")!.Columns.Single(c => c.Name == column).Listable);
     }
 
+    [Theory]
+    [InlineData("riskyUsers", "riskLevel", "eq")]
+    [InlineData("identityProtection_riskyUsers", "riskState", "eq")]
+    [InlineData("riskyUsers", "riskLastUpdatedDateTime", "eq,ge,le")]
+    public void The_embedded_schema_has_the_known_filters_of_columns_whose_description_names_none(string table, string column, string ops)
+    {
+        Assert.Equal(ops.Split(','), GraphSchemaBuilder.KnownFilters[(table, column)]);
+        Assert.Equal(ops.Split(','), GraphSchemaCatalog.Beta.Find(table)!.Columns.Single(c => c.Name == column).Filter);
+    }
+
     // Both are served in a list (Learn's List users lists them with $select); without a license or role Graph refuses the
     // list (signInActivity, left to the license fallback) or returns null (customSecurityAttributes).
     [Theory]

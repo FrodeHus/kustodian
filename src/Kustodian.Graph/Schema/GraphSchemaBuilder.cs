@@ -33,6 +33,20 @@ public static partial class GraphSchemaBuilder
         ("groups", "unseenConversationsCount"), ("groups", "unseenMessagesCount"),
     };
 
+    /// <summary>The <c>$filter</c> operators of columns whose metadata description doesn't name them, keyed by table name and
+    /// column name. riskyUsers: tried on a tenant, Graph takes <c>eq</c> (with a plain string for the enums) and a datetime
+    /// range, and refuses <c>in</c>; Learn's riskyAgent documents the same for its matching properties.</summary>
+    public static readonly IReadOnlyDictionary<(string Table, string Column), IReadOnlyList<string>> KnownFilters =
+        new Dictionary<(string Table, string Column), IReadOnlyList<string>>
+        {
+            [("riskyUsers", "riskLevel")] = ["eq"],
+            [("riskyUsers", "riskState")] = ["eq"],
+            [("riskyUsers", "riskLastUpdatedDateTime")] = ["eq", "ge", "le"],
+            [("identityProtection_riskyUsers", "riskLevel")] = ["eq"],
+            [("identityProtection_riskyUsers", "riskState")] = ["eq"],
+            [("identityProtection_riskyUsers", "riskLastUpdatedDateTime")] = ["eq", "ge", "le"],
+        };
+
     /// <summary>Builds the schema with no relationship columns.</summary>
     public static GraphSchema Build(GraphMetadata metadata, IReadOnlyDictionary<string, IReadOnlyList<string>> permissions,
         string source, DateTimeOffset generatedAt)
@@ -106,7 +120,9 @@ public static partial class GraphSchemaBuilder
         var columns = type.Properties.Select(p =>
         {
             var kusto = KustoType(metadata, p);
-            return new GraphColumn(p.Name, kusto, p.Description, FilterOf(p.Description), SelectOnlyRegex().IsMatch(p.Description),
+            var filter = FilterOf(p.Description);
+            return new GraphColumn(p.Name, kusto, p.Description,
+                filter.Count > 0 ? filter : KnownFilters.GetValueOrDefault((name, p.Name)) ?? [], SelectOnlyRegex().IsMatch(p.Description),
                 ComplexOf(metadata, p), p.IsCollection,
                 // A stream (application.logo) is media read from its own URL; selecting it in a list makes Graph answer 404.
                 Listable: p.TypeName != "Edm.Stream" && !GetOnlyRegex().IsMatch(p.Description) && !KnownGetOnly.Contains((name, p.Name)))

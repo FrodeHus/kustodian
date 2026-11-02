@@ -10,6 +10,9 @@ follow [Semantic Versioning](https://semver.org/).
 - A Graph table that caps its page size, such as `riskyUsers` (at most 500), is now read in pages of that size instead of
   Graph's default of 20, which got throttled on large tenants. When Graph refuses `$top=999`, Kustodian tries 500, then
   100, before leaving `$top` out, and remembers the size Graph takes so later runs send it straight away.
+- `riskyUsers | where riskLevel in ("high", "medium")` is filtered by Graph instead of reading every risky user. `riskLevel`,
+  `riskState` and `riskLastUpdatedDateTime` on `riskyUsers` are now known to be filterable, and `in` on any column Graph filters
+  with `eq` but not `in` is sent as `eq` conditions joined by `or`.
 
 ## [0.92.0] - 2026-11-02
 

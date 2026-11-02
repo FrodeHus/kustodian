@@ -35106,18 +35106,29 @@
           "name": "riskLastUpdatedDateTime",
           "type": "datetime",
           "description": "The date and time that the risky user was last updated.  The DateTimeOffset type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z.",
+          "filter": [
+            "eq",
+            "ge",
+            "le"
+          ],
           "selectOnly": false
         },
         {
           "name": "riskLevel",
           "type": "string",
           "description": "Level of the detected risky user. The possible values are low, medium, high, hidden, none, unknownFutureValue.",
+          "filter": [
+            "eq"
+          ],
           "selectOnly": false
         },
         {
           "name": "riskState",
           "type": "string",
           "description": "State of the user's risk. The possible values are: none, confirmedSafe, remediated, dismissed, atRisk, confirmedCompromised, unknownFutureValue.",
+          "filter": [
+            "eq"
+          ],
           "selectOnly": false
         },
         {
@@ -44214,18 +44225,29 @@
           "name": "riskLastUpdatedDateTime",
           "type": "datetime",
           "description": "The date and time that the risky user was last updated.  The DateTimeOffset type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z.",
+          "filter": [
+            "eq",
+            "ge",
+            "le"
+          ],
           "selectOnly": false
         },
         {
           "name": "riskLevel",
           "type": "string",
           "description": "Level of the detected risky user. The possible values are low, medium, high, hidden, none, unknownFutureValue.",
+          "filter": [
+            "eq"
+          ],
           "selectOnly": false
         },
         {
           "name": "riskState",
           "type": "string",
           "description": "State of the user's risk. The possible values are: none, confirmedSafe, remediated, dismissed, atRisk, confirmedCompromised, unknownFutureValue.",
+          "filter": [
+            "eq"
+          ],
           "selectOnly": false
         },
         {

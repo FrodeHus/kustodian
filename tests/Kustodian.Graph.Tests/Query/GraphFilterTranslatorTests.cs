@@ -177,11 +177,16 @@ public sealed class GraphFilterTranslatorTests
     [InlineData("security_incidents | where weight < 2")]
     [InlineData("security_incidents | where isnotnull(weight)")]
     [InlineData("security_incidents | where id != 'x'")]
-    [InlineData("applications | where weight in (1, 2)")]
-    [InlineData("security_incidents | where weight in (1, 2)")]
     [InlineData("security_incidents | where displayName != 'x'")]
     public void Disallowed_operators_are_not_pushed(string kql) =>
         Assert.Null(Translate(kql.StartsWith("applications", StringComparison.Ordinal) ? Applications : Incidents, kql));
+
+    // riskyUsers.riskLevel takes eq but refuses in: a column without in is sent the list as eq conditions joined by or.
+    [Theory]
+    [InlineData("applications | where weight in (1.5, 2.5)", "(weight eq 1.5 or weight eq 2.5)")]
+    [InlineData("security_incidents | where weight in (1.5)", "weight eq 1.5")]
+    public void In_on_a_column_without_in_is_sent_as_eq_joined_by_or(string kql, string expected) =>
+        Assert.Equal(expected, Translate(kql.StartsWith("applications", StringComparison.Ordinal) ? Applications : Incidents, kql));
 
     [Fact]
     public void Pushes_the_pushable_conjuncts_only() =>
