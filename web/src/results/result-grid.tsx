@@ -23,6 +23,24 @@ import { cellText, type Row } from './export';
 
 const ROW_HEIGHT = 29;
 const NUMERIC = new Set(['int', 'long', 'real', 'decimal', 'double']);
+// Approximate pixels per character of the cell font (12px JetBrains Mono) and of the header, plus a cell's side padding.
+const CHAR_PX = 7.3;
+const HEADER_CHAR_PX = 7.6;
+const CELL_PAD = 24 + 16;
+const MAX_COL_PX = 480;
+// shortcut: widths come from the first rows only; a longer value further down is cut with an ellipsis. Scan more if that bites.
+const WIDTH_SAMPLE = 2000;
+
+/** A fixed width per column, from its header and its longest value, so scrolling never resizes columns. */
+function columnWidths(columns: ResultColumn[], rows: Row[]): Map<string, number> {
+  const sample = rows.slice(0, WIDTH_SAMPLE);
+  return new Map(
+    columns.map((c, i) => {
+      const longest = sample.reduce((n, row) => Math.max(n, row[i] === null || row[i] === undefined ? 4 : cellText(row[i]).length), 0);
+      return [c.name, Math.min(MAX_COL_PX, Math.ceil(Math.max(longest * CHAR_PX, c.name.length * HEADER_CHAR_PX) + CELL_PAD))];
+    }),
+  );
+}
 
 const isComplex = (value: unknown) => typeof value === 'object' && value !== null;
 const count = (n: number) => n.toLocaleString('en-US');
@@ -246,6 +264,7 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
   const scroller = useRef<HTMLDivElement>(null);
 
   const meta = useMemo(() => new Map(columns.map((c) => [c.name, c])), [columns]);
+  const widths = useMemo(() => columnWidths(columns, rows), [columns, rows]);
   const defs = useMemo<ColumnDef<Row>[]>(
     () =>
       columns.map((c, i) => ({
@@ -466,6 +485,12 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
       {toolbar === undefined ? <div className="rbar justify-end">{tools}</div> : toolbar && createPortal(tools, toolbar)}
       <div ref={scroller} className="min-h-0 flex-1 overflow-auto" tabIndex={0} role="region" aria-label="Result rows" onKeyDown={onGridKey}>
         <table className="datagrid">
+          <colgroup>
+            <col style={{ width: 30 }} />
+            {visibleColumns.map((c) => (
+              <col key={c.id} style={{ width: widths.get(c.id) }} />
+            ))}
+          </colgroup>
           <thead>
             {table.getHeaderGroups().map((group) => (
               <tr key={group.id}>
