@@ -5,6 +5,11 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Result columns keep their width while you scroll. Each result sets a fixed width per column from its header and longest
+  value, instead of resizing to the rows in view.
+
 ## [0.91.0] - 2026-11-01
 
 ### Fixed

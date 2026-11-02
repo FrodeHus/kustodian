@@ -180,9 +180,9 @@ body {
   .rbar { display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 38px; border-bottom: 1px solid var(--line); background: var(--panel); }
   .rtab { height: 38px; padding: 0 10px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font: inherit; font-weight: 500; }
   .rtab[aria-selected='true'] { color: var(--text); border-bottom-color: var(--accent); }
-  .datagrid { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .datagrid { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12.5px; }
   .datagrid th { position: sticky; top: 0; z-index: 1; text-align: left; font-weight: 600; color: var(--muted); background: var(--panel2); padding: 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
-  .datagrid th button { width: 100%; padding: 7px 12px; border: 0; background: transparent; color: inherit; font: inherit; text-align: inherit; cursor: pointer; }
+  .datagrid th button { width: 100%; padding: 7px 12px; border: 0; background: transparent; color: inherit; font: inherit; text-align: inherit; cursor: pointer; overflow: hidden; text-overflow: ellipsis; }
   .datagrid td { padding: 6px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; font-family: 'JetBrains Mono', monospace; font-size: 12px; max-width: 480px; overflow: hidden; text-overflow: ellipsis; }
   .datagrid td button { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
   .datagrid td button:hover { color: var(--accent); }
