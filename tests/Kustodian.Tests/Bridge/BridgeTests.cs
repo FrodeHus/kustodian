@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Kustodian.App;
+using Kustodian.Auth.EntraApp;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Query;
 using Kustodian.Graph.Run;
@@ -474,7 +475,7 @@ public class BridgeTests
     }
 
     private static AppHandler NewAppHandler(MemoryGraphObjectCache objects, IGraphProbeCache probes, Action<Uri>? open = null) =>
-        new(objects, probes, new UpdateCheck(new HttpClient(), "0.0.0"), open ?? (_ => { }));
+        new(objects, probes, new UpdateCheck(new HttpClient(), "0.0.0"), new SystemBrowser(open ?? (_ => { })));
 
     private Messaging.Bridge NewBridge() => new(message =>
     {

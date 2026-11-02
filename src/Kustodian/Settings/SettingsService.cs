@@ -9,10 +9,12 @@ namespace Kustodian.Settings;
 
 /// <summary>The app's settings (spec 6.11 and 9), as <c>settings.json</c> holds them and the UI edits them.
 /// <see cref="Theme"/> is <c>dark</c>, <c>light</c> or <c>system</c>; <see cref="RawDefaultVersion"/> is the Graph version the
-/// raw request tab starts with, <c>beta</c> or <c>v1.0</c>. <see cref="SkippedVersion"/> is the release "Skip" on the update dialog
-/// passed over: the dialog doesn't show for it again at startup.</summary>
+/// raw request tab starts with, <c>beta</c> or <c>v1.0</c>. <see cref="Telemetry"/> is whether the user shares Graph compatibility
+/// findings (<c>Kustodian.Telemetry.SharedProbeCache</c>); null until they have been asked, and nothing is shared then.
+/// <see cref="SkippedVersion"/> is the release "Skip" on the update dialog passed over: the dialog doesn't show for it again at
+/// startup.</summary>
 public sealed record AppSettings(int Version, string Theme, string RawDefaultVersion, SignInDefaults SignIn, LimitSettings Limits,
-    string? SkippedVersion = null)
+    bool? Telemetry = null, string? SkippedVersion = null)
 {
     public const int CurrentVersion = 1;
 

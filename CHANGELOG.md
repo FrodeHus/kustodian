@@ -10,6 +10,16 @@ follow [Semantic Versioning](https://semver.org/).
 - Settings shows the version you are running and has a "Check for update" button. At startup Kustodian asks GitHub for the
   latest release and, when it is newer, offers to open its release page, remind you next start, or skip that version.
 
+## [0.93.0] - 2026-11-02
+
+### Added
+
+- You can choose to share Graph compatibility findings: which Graph tables refuse `$top`, `$count`, `$orderby`, `$select`, a
+  filter, or columns in a list. They help build those limits into Kustodian so queries skip the probing. It is off until you
+  opt in. Kustodian asks once at first start, and you can change your answer under **Settings → Graph compatibility
+  findings**. Only the table path, the finding and the app version are sent. Your tenant, account, queries and data never are.
+  The [telemetry page](https://frodehus.github.io/kustodian/telemetry.html) shows exactly what is sent.
+
 ### Fixed
 
 - A Graph table that caps its page size, such as `riskyUsers` (at most 500), is now read in pages of that size instead of

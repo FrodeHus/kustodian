@@ -9,34 +9,37 @@ public interface ISystemBrowser
     void Open(Uri url);
 }
 
-/// <summary>Opens the OS default browser, but only for the Microsoft sign-in and Entra portal pages. The URL is never logged:
-/// the consent URL carries a <c>state</c>.</summary>
+/// <summary>Opens the OS default browser, but only for the Microsoft sign-in and Entra portal pages, Kustodian's own site and its
+/// GitHub release pages. The URL is never logged: the consent URL carries a <c>state</c>.</summary>
 public sealed class SystemBrowser(Action<Uri>? launch = null) : ISystemBrowser
 {
-    private static readonly string[] AllowedHosts = ["login.microsoftonline.com", "entra.microsoft.com"];
+    private static readonly string[] AllowedHosts = ["login.microsoftonline.com", "entra.microsoft.com", "frodehus.github.io"];
+
+    private const string ReleasePages = "/FrodeHus/kustodian/releases/";
 
     private readonly Action<Uri> _launch = launch ?? Launch;
 
-    /// <summary>Whether <paramref name="url"/> is an https address on one of the two allowed hosts, on the default port and without credentials.</summary>
+    /// <summary>Whether <paramref name="url"/> is an https address on one of the allowed hosts (or a Kustodian release page), on the default port and without credentials.</summary>
     public static bool IsAllowed(Uri url) =>
         url.IsAbsoluteUri
         && url.Scheme == Uri.UriSchemeHttps
         && url.IsDefaultPort
         && string.IsNullOrEmpty(url.UserInfo)
-        && AllowedHosts.Contains(url.Host, StringComparer.OrdinalIgnoreCase);
+        && (AllowedHosts.Contains(url.Host, StringComparer.OrdinalIgnoreCase)
+            || (url.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase)
+                && url.AbsolutePath.StartsWith(ReleasePages, StringComparison.Ordinal)));
 
     public void Open(Uri url)
     {
         if (!IsAllowed(url))
         {
-            throw new ArgumentException("Kustodian only opens Microsoft sign-in and Entra pages.", nameof(url));
+            throw new ArgumentException("Kustodian only opens Microsoft sign-in and Entra pages, its own site and its release pages.", nameof(url));
         }
 
         _launch(url);
     }
 
-    /// <summary>Opens <paramref name="url"/> with no check: the caller built it.</summary>
-    internal static void Launch(Uri url)
+    private static void Launch(Uri url)
     {
         var info = new ProcessStartInfo();
         if (OperatingSystem.IsWindows())

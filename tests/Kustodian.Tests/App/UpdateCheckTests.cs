@@ -1,5 +1,6 @@
 using System.Net;
 using Kustodian.App;
+using Kustodian.Auth.EntraApp;
 
 namespace Kustodian.Tests.App;
 
@@ -34,6 +35,14 @@ public sealed class UpdateCheckTests
     [InlineData(null, null)]
     public void Versions_are_read_from_tags(string? text, string? expected) =>
         Assert.Equal(expected, UpdateCheck.VersionOf(text)?.ToString());
+
+    [Fact]
+    public void The_browser_opens_release_pages_but_no_other_github_page()
+    {
+        Assert.True(SystemBrowser.IsAllowed(UpdateCheck.ReleasePage("0.93.0")!));
+        Assert.False(SystemBrowser.IsAllowed(new Uri("https://github.com/someone/else/releases/tag/v1.0.0")));
+        Assert.False(SystemBrowser.IsAllowed(new Uri("https://github.com/FrodeHus/kustodian/settings")));
+    }
 
     private sealed class Answering(string body) : HttpMessageHandler
     {

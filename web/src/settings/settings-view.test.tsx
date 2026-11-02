@@ -189,6 +189,25 @@ describe('SettingsView', () => {
     expect(stored.limits).toEqual(defaults.limits);
   });
 
+  it('sharing_findings_toggles_at_once_and_save_keeps_it', async () => {
+    const onChange = vi.fn();
+    render(<SettingsView onClose={vi.fn()} onChange={onChange} />);
+
+    const share = await screen.findByRole<HTMLInputElement>('checkbox', { name: 'Share Graph compatibility findings' });
+    expect(share.checked).toBe(false);
+    fireEvent.click(share);
+    await waitFor(() => expect(stored.telemetry).toBe(true));
+    await waitFor(() => expect(share.checked).toBe(true));
+    expect(onChange).toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Settings saved.');
+    expect(stored.telemetry).toBe(true);
+
+    fireEvent.click(share);
+    await waitFor(() => expect(stored.telemetry).toBe(false));
+  });
+
   it('settings_clear_cache', async () => {
     render(<SettingsView onClose={vi.fn()} onChange={vi.fn()} />);
 
