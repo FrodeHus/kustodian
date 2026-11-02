@@ -35,7 +35,8 @@ public sealed class SystemBrowser(Action<Uri>? launch = null) : ISystemBrowser
         _launch(url);
     }
 
-    private static void Launch(Uri url)
+    /// <summary>Opens <paramref name="url"/> with no check: the caller built it.</summary>
+    internal static void Launch(Uri url)
     {
         var info = new ProcessStartInfo();
         if (OperatingSystem.IsWindows())

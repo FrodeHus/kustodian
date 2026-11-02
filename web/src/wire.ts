@@ -375,6 +375,21 @@ export interface AppSettings {
   rawDefaultVersion: string;
   signIn: { clientId: string | null; tenant: string | null };
   limits: Record<string, number>;
+  /** The release "Skip" on the update dialog passed over. */
+  skippedVersion?: string | null;
+}
+
+/** `app.info`'s answer. */
+export interface AppInfo {
+  version: string;
+  platform: string;
+}
+
+/** `app.checkUpdate`'s answer: the running version, the latest release's and whether it is newer. */
+export interface UpdateInfo {
+  current: string;
+  latest: string;
+  available: boolean;
 }
 
 /** `settings.get`'s and `settings.set`'s answer. `corrupt`: the settings file was set aside as corrupt this session;

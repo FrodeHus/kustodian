@@ -7,8 +7,9 @@ import { runCommand } from '../shell/commands';
 import { CreateAppDialog } from '../signin/create-app-dialog';
 import type { CreatedApp } from '../signin/created-view';
 import { CANNOT_CREATE_REASON, canCreateApp } from '../signin/permission-plan';
-import type { AccountInfo, AppSettings, SettingsAnswer, Theme } from '../wire';
+import type { AccountInfo, AppInfo, AppSettings, SettingsAnswer, Theme, UpdateInfo } from '../wire';
 import { writeSettings } from './settings-writes';
+import { UpdateDialog } from './update-dialog';
 
 /**
  * The limits as the settings screen shows them, with the ranges the host allows. The host (`SettingsService`) checks them and
@@ -92,11 +93,20 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
   /** The app "Just show me the client ID" left behind: its note, with "Use as default client ID", stays until Settings close. */
   const [shownApp, setShownApp] = useState<CreatedApp | null>(null);
   const [copyNote, setCopyNote] = useState<string | null>(null);
+  const [version, setVersion] = useState<string | null>(null);
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const back = useRef<HTMLButtonElement>(null);
   const createAllowed = canCreateApp(account);
 
   // The view takes focus as it opens, so Esc closes it straight away.
   useEffect(() => back.current?.focus(), []);
+
+  useEffect(() => {
+    call<AppInfo>('app.info').then(
+      (info) => setVersion(info.version),
+      () => undefined,
+    );
+  }, []);
 
   useEffect(() => {
     call<SettingsAnswer>('settings.get').then(
@@ -173,6 +183,12 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
       (e: unknown) => setStatus({ tone: 'bad', text: `The cache couldn’t be cleared: ${errorText(e)}` }),
     );
 
+  const checkUpdate = () =>
+    call<UpdateInfo>('app.checkUpdate').then(
+      (info) => (info.available ? setUpdate(info) : setStatus({ tone: 'ok', text: `Kustodian ${info.current} is the latest version.` })),
+      (e: unknown) => setStatus({ tone: 'bad', text: `Couldn’t check for an update: ${errorText(e)}` }),
+    );
+
   const edit = (change: Partial<Draft>) => setDraft((d) => d && { ...d, ...change });
 
   /** "Switch and sign in" saved the app as the default (the dialog does that): the card shows what is stored now. */
@@ -204,7 +220,10 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
             ← Back to queries
           </button>
         </div>
-        <h1 className="m-0 text-[22px] leading-7 font-semibold">Settings</h1>
+        <div className="flex items-baseline gap-3">
+          <h1 className="m-0 text-[22px] leading-7 font-semibold">Settings</h1>
+          {version && <span className="muted text-[12px]">Kustodian {version}</span>}
+        </div>
         {loadError && (
           <span className="text-[12px] text-bad" role="alert">
             {loadError}
@@ -347,6 +366,9 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
               <button type="button" className="btn" onClick={() => void clearCache()}>
                 Clear cached Graph objects
               </button>
+              <button type="button" className="btn" onClick={() => void checkUpdate()}>
+                Check for update
+              </button>
               {status && (
                 <span className={`text-[12px] ${status.tone === 'bad' ? 'text-bad' : 'text-muted'}`} role={status.tone === 'bad' ? 'alert' : 'status'}>
                   {status.text}
@@ -356,6 +378,7 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
           </div>
         )}
       </div>
+      {update && <UpdateDialog info={update} onClose={() => setUpdate(null)} />}
       {createAppOpen && (
         <CreateAppDialog
           onClose={() => onCreateAppOpen?.(false)}

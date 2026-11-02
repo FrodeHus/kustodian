@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { BridgeError } from '../bridge';
 import { registerCommands } from '../shell/commands';
 import { applyTheme, useTheme } from '../shell/theme';
-import type { AccountInfo, AppSettings, SettingsAnswer } from '../wire';
+import type { AccountInfo, AppSettings, SettingsAnswer, UpdateInfo } from '../wire';
 import { SettingsView } from './settings-view';
 
 const creator: AccountInfo = {
@@ -55,15 +55,21 @@ const defaults: AppSettings = {
 };
 
 let stored: AppSettings;
+let update: UpdateInfo;
 /** What `settings.set` does with the next settings it is sent; by default it stores them. */
 let onSet: (settings: AppSettings) => SettingsAnswer | Promise<SettingsAnswer>;
 
 beforeEach(() => {
   stored = defaults;
+  update = { current: '1.2.3', latest: '1.3.0', available: true };
   onSet = (settings) => ({ settings, restartNeeded: false, corrupt: false, unreadable: false });
   bridge.call.mockReset();
   bridge.call.mockImplementation((method: string, params?: { settings: AppSettings }) => {
     switch (method) {
+      case 'app.info':
+        return Promise.resolve({ version: '1.2.3', platform: 'macos' });
+      case 'app.checkUpdate':
+        return Promise.resolve(update);
       case 'settings.get':
         return Promise.resolve({ settings: stored, restartNeeded: false, corrupt: false, unreadable: false });
       case 'settings.set':
@@ -82,6 +88,37 @@ afterEach(() => applyTheme('dark'));
 const field = (label: string) => screen.getByLabelText(label).closest('.field') as HTMLElement;
 
 describe('SettingsView', () => {
+  it('settings_shows_the_version_and_check_for_update_offers_the_newer_release', async () => {
+    render(<SettingsView onClose={vi.fn()} onChange={vi.fn()} />);
+
+    expect(await screen.findByText('Kustodian 1.2.3')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Check for update' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Kustodian 1.3.0 is available' });
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Update' }));
+    await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('app.openRelease', { version: '1.3.0' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('settings_check_for_update_says_when_this_is_the_latest', async () => {
+    update = { current: '1.2.3', latest: '1.2.3', available: false };
+    render(<SettingsView onClose={vi.fn()} onChange={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Check for update' }));
+
+    expect((await screen.findByRole('status')).textContent).toBe('Kustodian 1.2.3 is the latest version.');
+  });
+
+  it('update_dialog_skip_keeps_the_version_in_the_settings', async () => {
+    render(<SettingsView onClose={vi.fn()} onChange={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Check for update' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Skip this version' }));
+
+    await waitFor(() => expect(stored.skippedVersion).toBe('1.3.0'));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
   it('settings_shows_arg_rows_per_run_with_its_range_and_the_hosts_message', async () => {
     render(<SettingsView onClose={vi.fn()} onChange={vi.fn()} />);
 

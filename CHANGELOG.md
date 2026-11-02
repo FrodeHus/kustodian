@@ -5,6 +5,11 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Settings shows the version you are running and has a "Check for update" button. At startup Kustodian asks GitHub for the
+  latest release and, when it is newer, offers to open its release page, remind you next start, or skip that version.
+
 ### Fixed
 
 - A Graph table that caps its page size, such as `riskyUsers` (at most 500), is now read in pages of that size instead of
