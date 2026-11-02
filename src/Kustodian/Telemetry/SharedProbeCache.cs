@@ -1,10 +1,11 @@
+using System.Globalization;
 using Kustodian.Graph.Fetch;
 
 namespace Kustodian.Telemetry;
 
 /// <summary>
 /// <see cref="IGraphProbeCache"/> that also shares, when the user opted in (<paramref name="sharing"/>), each new thing probing
-/// finds about how Graph lists a table: that it refuses <c>$top</c>, a clause it refuses (<c>$count</c>, <c>$orderby</c>,
+/// finds about how Graph lists a table: the largest <c>$top</c> it takes (0: none at all), a clause it refuses (<c>$count</c>, <c>$orderby</c>,
 /// <c>$select</c>, a filter feature such as <c>proxyAddresses/any</c>), or columns it won't serve in a list. Each is one
 /// <c>GraphProbeFinding</c> event with the table's schema path, the kind of finding and its detail; never the account, the
 /// tenant, a query, a filter value or a row. Columns refused for permission aren't shared: they describe the account, not
@@ -36,14 +37,14 @@ public sealed class SharedProbeCache(IGraphProbeCache inner, Func<CancellationTo
     public ValueTask<IReadOnlyDictionary<string, GraphDefaultColumns>> DefaultsOfAsync(string accountKey, CancellationToken ct) =>
         inner.DefaultsOfAsync(accountKey, ct);
 
-    public ValueTask<bool> RefusesTopAsync(string accountKey, string path, CancellationToken ct) => inner.RefusesTopAsync(accountKey, path, ct);
+    public ValueTask<int?> TopLimitAsync(string accountKey, string path, CancellationToken ct) => inner.TopLimitAsync(accountKey, path, ct);
 
-    public async ValueTask SetRefusesTopAsync(string accountKey, string path, bool refuses, CancellationToken ct)
+    public async ValueTask SetTopLimitAsync(string accountKey, string path, int? max, CancellationToken ct)
     {
-        var earlier = await inner.RefusesTopAsync(accountKey, path, ct);
-        await inner.SetRefusesTopAsync(accountKey, path, refuses, ct);
-        if (refuses && !earlier)
-            await ShareAsync(path, "refusesTop", "$top", ct);
+        var earlier = await inner.TopLimitAsync(accountKey, path, ct);
+        await inner.SetTopLimitAsync(accountKey, path, max, ct);
+        if (max is { } found && found != earlier)
+            await ShareAsync(path, "topLimit", found.ToString(CultureInfo.InvariantCulture), ct);
     }
 
     public ValueTask<IReadOnlySet<string>> RefusedAsync(string accountKey, string path, CancellationToken ct) => inner.RefusedAsync(accountKey, path, ct);

@@ -84,8 +84,8 @@ td{color:var(--muted)}
       "name": "GraphProbeFinding",
       "properties": {
         "path": "auditLogs/signIns",
-        "finding": "refusesTop",
-        "detail": "$top"
+        "finding": "topLimit",
+        "detail": "500"
       }
     }
   }
@@ -94,8 +94,8 @@ td{color:var(--muted)}
 <thead><tr><th>Field</th><th>What it holds</th></tr></thead>
 <tbody>
 <tr><td><code>path</code></td><td>The table’s Graph path from Kustodian’s built-in schema, such as <code>users</code> or <code>auditLogs/signIns</code>. Never an object ID.</td></tr>
-<tr><td><code>finding</code></td><td><code>refusesTop</code> (Graph refused the page size), <code>refused</code> (Graph refused a clause) or <code>notListed</code> (Graph won’t serve columns in a list).</td></tr>
-<tr><td><code>detail</code></td><td>The clause (<code>$count</code>, <code>$orderby</code>, <code>$select</code>, or the filtered column, such as <code>proxyAddresses/any</code>), or the column names from the schema.</td></tr>
+<tr><td><code>finding</code></td><td><code>topLimit</code> (the largest page size Graph takes, after it refused <code>$top=999</code>; 0 when it takes no <code>$top</code>), <code>refused</code> (Graph refused a clause) or <code>notListed</code> (Graph won’t serve columns in a list).</td></tr>
+<tr><td><code>detail</code></td><td>The page size, the clause (<code>$count</code>, <code>$orderby</code>, <code>$select</code>, or the filtered column, such as <code>proxyAddresses/any</code>), or the column names from the schema.</td></tr>
 <tr><td><code>ai.application.ver</code></td><td>Kustodian’s version, so a finding can be matched to the code that made it.</td></tr>
 <tr><td><code>ai.location.ip</code></td><td>Always <code>0.0.0.0</code>, so Application Insights derives no location from your address.</td></tr>
 </tbody>

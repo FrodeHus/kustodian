@@ -31,7 +31,7 @@ public sealed class SharedProbeCacheTests : IDisposable
     {
         var cache = Cache(sharing: true);
 
-        await cache.SetRefusesTopAsync("account-1", "auditLogs/signIns", true, Ct);
+        await cache.SetTopLimitAsync("account-1", "auditLogs/signIns", 500, Ct);
         await cache.SetRefusedAsync("account-1", "users", GraphCollectionReader.CountClause, true, Ct);
         await cache.SetAsync("account-1", "users", ["signInActivity"], ["deniedColumn"], Ct);
         var bodies = await _sent.WaitForAsync(3);
@@ -49,7 +49,7 @@ public sealed class SharedProbeCacheTests : IDisposable
         });
         Assert.Equal(
             [
-                """{"path":"auditLogs/signIns","finding":"refusesTop","detail":"$top"}""",
+                """{"path":"auditLogs/signIns","finding":"topLimit","detail":"500"}""",
                 """{"path":"users","finding":"notListed","detail":"signInActivity"}""",
                 """{"path":"users","finding":"refused","detail":"$count"}""",
             ],
@@ -64,8 +64,8 @@ public sealed class SharedProbeCacheTests : IDisposable
     {
         var cache = Cache(sharing: true);
 
-        await cache.SetRefusesTopAsync("account-1", "users", true, Ct);
-        await cache.SetRefusesTopAsync("account-1", "users", true, Ct);
+        await cache.SetTopLimitAsync("account-1", "users", 500, Ct);
+        await cache.SetTopLimitAsync("account-1", "users", 500, Ct);
         await cache.SetAsync("account-1", "users", ["a"], [], Ct);
         await cache.SetAsync("account-1", "users", ["a", "b"], [], Ct);
         var bodies = await _sent.WaitForAsync(3);
@@ -82,12 +82,12 @@ public sealed class SharedProbeCacheTests : IDisposable
     {
         var cache = Cache(sharing);
 
-        await cache.SetRefusesTopAsync("account-1", "users", true, Ct);
+        await cache.SetTopLimitAsync("account-1", "users", 500, Ct);
         await cache.SetRefusedAsync("account-1", "users", GraphCollectionReader.OrderByClause, true, Ct);
         await Task.Delay(100, Ct);
 
         Assert.Empty(_sent.Bodies);
-        Assert.True(await cache.RefusesTopAsync("account-1", "users", Ct));
+        Assert.Equal(500, await cache.TopLimitAsync("account-1", "users", Ct));
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public sealed class SharedProbeCacheTests : IDisposable
     {
         var cache = Cache(sharing: true, connection: "");
 
-        await cache.SetRefusesTopAsync("account-1", "users", true, Ct);
+        await cache.SetTopLimitAsync("account-1", "users", 500, Ct);
         await Task.Delay(100, Ct);
 
         Assert.Empty(_sent.Bodies);

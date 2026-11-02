@@ -13,6 +13,12 @@ follow [Semantic Versioning](https://semver.org/).
   findings**. Only the table path, the finding and the app version are sent. Your tenant, account, queries and data never are.
   The [telemetry page](https://frodehus.github.io/kustodian/telemetry.html) shows exactly what is sent.
 
+### Fixed
+
+- A Graph table that caps its page size, such as `riskyUsers` (at most 500), is now read in pages of that size instead of
+  Graph's default of 20, which got throttled on large tenants. When Graph refuses `$top=999`, Kustodian tries 500, then
+  100, before leaving `$top` out, and remembers the size Graph takes so later runs send it straight away.
+
 ## [0.92.0] - 2026-11-02
 
 ### Fixed

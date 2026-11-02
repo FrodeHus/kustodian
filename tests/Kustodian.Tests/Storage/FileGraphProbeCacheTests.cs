@@ -93,30 +93,33 @@ public sealed class FileGraphProbeCacheTests : IDisposable
     [Fact]
     public async Task A_top_refusal_outlasts_the_app_until_the_ttl_or_it_is_forgotten()
     {
-        await Cache().SetRefusesTopAsync("account-1", "security/alerts_v2", true, Ct);
+        await Cache().SetTopLimitAsync("account-1", "security/alerts_v2", 0, Ct);
 
-        Assert.True(await Cache().RefusesTopAsync("account-1", "security/alerts_v2", Ct));
-        Assert.False(await Cache().RefusesTopAsync("account-2", "security/alerts_v2", Ct));
+        Assert.Equal(0, await Cache().TopLimitAsync("account-1", "security/alerts_v2", Ct));
+        Assert.Null(await Cache().TopLimitAsync("account-2", "security/alerts_v2", Ct));
 
-        await Cache().SetRefusesTopAsync("account-1", "security/alerts_v2", false, Ct);
-        Assert.False(await Cache().RefusesTopAsync("account-1", "security/alerts_v2", Ct));
+        await Cache().SetTopLimitAsync("account-1", "security/alerts_v2", null, Ct);
+        Assert.Null(await Cache().TopLimitAsync("account-1", "security/alerts_v2", Ct));
 
-        await Cache().SetRefusesTopAsync("account-1", "users", true, Ct);
+        await Cache().SetTopLimitAsync("account-1", "identityProtection/riskyUsers", 500, Ct);
+        Assert.Equal(500, await Cache().TopLimitAsync("account-1", "identityProtection/riskyUsers", Ct));
+
+        await Cache().SetTopLimitAsync("account-1", "users", 0, Ct);
         _time.Advance(GraphLimits.Default.ProbeCacheTtl);
-        Assert.False(await Cache().RefusesTopAsync("account-1", "users", Ct));
+        Assert.Null(await Cache().TopLimitAsync("account-1", "users", Ct));
     }
 
     [Fact]
     public async Task Removing_an_account_forgets_its_top_refusals()
     {
         var cache = Cache();
-        await cache.SetRefusesTopAsync("account-1", "users", true, Ct);
-        await cache.SetRefusesTopAsync("account-2", "users", true, Ct);
+        await cache.SetTopLimitAsync("account-1", "users", 0, Ct);
+        await cache.SetTopLimitAsync("account-2", "users", 0, Ct);
 
         await cache.RemoveAccountAsync("account-1", Ct);
 
-        Assert.False(await Cache().RefusesTopAsync("account-1", "users", Ct));
-        Assert.True(await Cache().RefusesTopAsync("account-2", "users", Ct));
+        Assert.Null(await Cache().TopLimitAsync("account-1", "users", Ct));
+        Assert.Equal(0, await Cache().TopLimitAsync("account-2", "users", Ct));
     }
 
     // A file from before top refusals were kept reads as refusing none, and keeps its findings.
@@ -129,7 +132,7 @@ public sealed class FileGraphProbeCacheTests : IDisposable
             {"version":1,"tables":[{"account":"account-1","path":"users","notListed":["x"],"denied":[],"foundAt":"{{foundAt}}"}],"defaults":[]}
             """, Ct);
 
-        Assert.False(await Cache().RefusesTopAsync("account-1", "users", Ct));
+        Assert.Null(await Cache().TopLimitAsync("account-1", "users", Ct));
         Assert.Equal(["x"], (await Cache().GetAsync("account-1", "users", Ct))!.NotListed);
     }
 
@@ -165,7 +168,7 @@ public sealed class FileGraphProbeCacheTests : IDisposable
             """, Ct);
 
         Assert.Empty(await Cache().RefusedAsync("account-1", "users", Ct));
-        Assert.True(await Cache().RefusesTopAsync("account-1", "users", Ct));
+        Assert.Equal(0, await Cache().TopLimitAsync("account-1", "users", Ct));
     }
 
     [Fact]

@@ -70,20 +70,20 @@ public sealed class MemoryGraphProbeCacheTests
     {
         var time = new FakeTimeProvider();
         var cache = new MemoryGraphProbeCache(time);
-        await cache.SetRefusesTopAsync("a", "users", true, Ct);
+        await cache.SetTopLimitAsync("a", "users", 0, Ct);
 
-        Assert.True(await cache.RefusesTopAsync("a", "users", Ct));
-        Assert.False(await cache.RefusesTopAsync("b", "users", Ct));
-        await cache.SetRefusesTopAsync("a", "users", false, Ct);
-        Assert.False(await cache.RefusesTopAsync("a", "users", Ct));
+        Assert.Equal(0, await cache.TopLimitAsync("a", "users", Ct));
+        Assert.Null(await cache.TopLimitAsync("b", "users", Ct));
+        await cache.SetTopLimitAsync("a", "users", null, Ct);
+        Assert.Null(await cache.TopLimitAsync("a", "users", Ct));
 
-        await cache.SetRefusesTopAsync("a", "users", true, Ct);
+        await cache.SetTopLimitAsync("a", "users", 0, Ct);
         time.Advance(GraphLimits.Default.ProbeCacheTtl);
-        Assert.False(await cache.RefusesTopAsync("a", "users", Ct));
+        Assert.Null(await cache.TopLimitAsync("a", "users", Ct));
 
-        await cache.SetRefusesTopAsync("a", "users", true, Ct);
+        await cache.SetTopLimitAsync("a", "users", 0, Ct);
         await cache.RemoveAccountAsync("a", Ct);
-        Assert.False(await cache.RefusesTopAsync("a", "users", Ct));
+        Assert.Null(await cache.TopLimitAsync("a", "users", Ct));
     }
 
     [Fact]
