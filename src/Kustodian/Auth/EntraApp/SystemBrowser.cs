@@ -9,15 +9,15 @@ public interface ISystemBrowser
     void Open(Uri url);
 }
 
-/// <summary>Opens the OS default browser, but only for the Microsoft sign-in and Entra portal pages. The URL is never logged:
-/// the consent URL carries a <c>state</c>.</summary>
+/// <summary>Opens the OS default browser, but only for the Microsoft sign-in and Entra portal pages and Kustodian's own site.
+/// The URL is never logged: the consent URL carries a <c>state</c>.</summary>
 public sealed class SystemBrowser(Action<Uri>? launch = null) : ISystemBrowser
 {
-    private static readonly string[] AllowedHosts = ["login.microsoftonline.com", "entra.microsoft.com"];
+    private static readonly string[] AllowedHosts = ["login.microsoftonline.com", "entra.microsoft.com", "frodehus.github.io"];
 
     private readonly Action<Uri> _launch = launch ?? Launch;
 
-    /// <summary>Whether <paramref name="url"/> is an https address on one of the two allowed hosts, on the default port and without credentials.</summary>
+    /// <summary>Whether <paramref name="url"/> is an https address on one of the allowed hosts, on the default port and without credentials.</summary>
     public static bool IsAllowed(Uri url) =>
         url.IsAbsoluteUri
         && url.Scheme == Uri.UriSchemeHttps
@@ -29,7 +29,7 @@ public sealed class SystemBrowser(Action<Uri>? launch = null) : ISystemBrowser
     {
         if (!IsAllowed(url))
         {
-            throw new ArgumentException("Kustodian only opens Microsoft sign-in and Entra pages.", nameof(url));
+            throw new ArgumentException("Kustodian only opens Microsoft sign-in and Entra pages and its own site.", nameof(url));
         }
 
         _launch(url);

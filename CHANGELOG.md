@@ -5,6 +5,14 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- You can choose to share Graph compatibility findings: which Graph tables refuse `$top`, `$count`, `$orderby`, `$select`, a
+  filter, or columns in a list. They help build those limits into Kustodian so queries skip the probing. It is off until you
+  opt in. Kustodian asks once at first start, and you can change your answer under **Settings → Graph compatibility
+  findings**. Only the table path, the finding and the app version are sent. Your tenant, account, queries and data never are.
+  The [telemetry page](https://frodehus.github.io/kustodian/telemetry.html) shows exactly what is sent.
+
 ## [0.92.0] - 2026-11-02
 
 ### Fixed

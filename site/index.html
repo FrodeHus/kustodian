@@ -334,10 +334,11 @@ GitHub
 <div>
 <p class="k-label">Privacy &amp; security</p>
 <h2 class="k-h2" id="privacy-h">Your tenant.<br>Your machine.</h2>
-<p class="k-lead">Kustodian is a desktop app that signs in as you. There is no Kustodian service in the middle, and nothing leaves your machine except calls to Microsoft.</p>
+<p class="k-lead">Kustodian is a desktop app that signs in as you. There is no Kustodian service in the middle, and nothing leaves your machine except calls to Microsoft, and Graph compatibility findings if you choose to share them.</p>
 </div>
 <dl class="k-facts">
 <div class="k-fact"><dt>Network</dt><dd>Talks only to Microsoft’s APIs.</dd></div>
+<div class="k-fact"><dt>Telemetry</dt><dd>Off unless you opt in. Then only which Graph tables refuse which query options is shared, never your tenant, queries or data. <a href="telemetry.html">What is shared</a>.</dd></div>
 <div class="k-fact"><dt>Tokens</dt><dd>Cached in the OS keychain (DPAPI, Keychain or libsecret), never written in plain text.</dd></div>
 <div class="k-fact"><dt>Your data</dt><dd>Settings, saved queries, snippets, history and tabs are local JSON files.</dd></div>
 <div class="k-fact"><dt>Sign-in</dt><dd>Delegated, with your work account. Use the Azure CLI’s public client, your own app registration, or let Kustodian create one. <a href="#permissions">How permissions work</a>.</dd></div>
@@ -432,6 +433,7 @@ GitHub
 <a href="https://github.com/FrodeHus/kustodian">GitHub</a>
 <a href="https://github.com/FrodeHus/kustodian/blob/main/CHANGELOG.md">Changelog</a>
 <a href="https://github.com/FrodeHus/kustodian/blob/main/SECURITY.md">Security</a>
+<a href="telemetry.html">Telemetry</a>
 <a href="https://github.com/FrodeHus/kustodian/blob/main/CODE_OF_CONDUCT.md">Code of Conduct</a>
 <a href="https://github.com/FrodeHus/kustodian/blob/main/LICENSE">License</a>
 </nav>
