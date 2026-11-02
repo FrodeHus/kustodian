@@ -8,7 +8,8 @@ import { CreateAppDialog } from '../signin/create-app-dialog';
 import type { CreatedApp } from '../signin/created-view';
 import { CANNOT_CREATE_REASON, canCreateApp } from '../signin/permission-plan';
 import type { AccountInfo, AppSettings, SettingsAnswer, Theme } from '../wire';
-import { writeSettings } from './settings-writes';
+import { setTelemetry, writeSettings } from './settings-writes';
+import { TelemetryExplainer } from './telemetry';
 
 /**
  * The limits as the settings screen shows them, with the ranges the host allows. The host (`SettingsService`) checks them and
@@ -167,6 +168,16 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
     }
   }
 
+  /** Applies at once, as the theme does, whatever else is being edited. */
+  const shareFindings = (on: boolean) =>
+    setTelemetry(on).then(
+      (answer) => {
+        setStored((s) => s && { ...s, settings: { ...s.settings, telemetry: answer.settings.telemetry } });
+        onChange(answer);
+      },
+      (e: unknown) => setStatus({ tone: 'bad', text: `The choice couldn’t be saved: ${errorText(e)}` }),
+    );
+
   const clearCache = () =>
     call('cache.clear').then(
       () => setStatus({ tone: 'ok', text: 'Cached Graph objects cleared.' }),
@@ -318,6 +329,14 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
                   </div>
                 </div>
               )}
+            </Card>
+            <Card title="Graph compatibility findings">
+              <TelemetryExplainer />
+              <label className="flex items-center gap-2 text-[12.5px]">
+                <input type="checkbox" checked={stored.settings.telemetry === true} onChange={(e) => shareFindings(e.target.checked)} />
+                Share Graph compatibility findings
+              </label>
+              <span className="faint text-[12px]">Applies at once.</span>
             </Card>
             <Card title="Limits">
               {stored.restartNeeded && (

@@ -16,6 +16,7 @@ import { RawTab } from './raw/raw-tab';
 import { schemaSourceOf, startSchemaLoading, useSchemas } from './schema/schema-store';
 import { startSessionSync } from './session/session-sync';
 import { SettingsView } from './settings/settings-view';
+import { TelemetryDialog } from './settings/telemetry';
 import { bindGlobalKeys, registerCommands, runCommand, type Command } from './shell/commands';
 import { errorText } from './shell/errors';
 import { MOD, SHIFT } from './shell/keys';
@@ -172,6 +173,7 @@ export function App() {
   const [saving, setSaving] = useState<string | null>(null);
   const [settings, setSettings] = useState<SettingsAnswer | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [telemetryClosed, setTelemetryClosed] = useState(false);
   /** The tab strip's close confirmation is open: a modal dialog. */
   const [confirming, setConfirming] = useState(false);
   const paletteShown = useRef(false);
@@ -414,12 +416,14 @@ export function App() {
 
   // Unreadable accounts also mean sign-in: it shows why, and signing in reads them again.
   const signingIn = accountsError !== null || (accounts !== null && (!account || accountsOpen));
+  // Asked once: until the user answers, the host keeps null. Closed unanswered, it asks again at the next start.
+  const askTelemetry = settings?.settings.telemetry === null && !telemetryClosed;
 
   // The window's shortcuts act on the workspace, so none fires while sign-in or settings covers it, or a dialog is open (the
   // palette, the save dialog or the close confirmation, which handle their own keys, Esc included).
   const shortcutsOn = useRef(false);
   useEffect(() => {
-    shortcutsOn.current = !signingIn && !settingsOpen && !paletteOpen && saving === null && !confirming;
+    shortcutsOn.current = !signingIn && !settingsOpen && !paletteOpen && saving === null && !confirming && !askTelemetry;
     paletteShown.current = paletteOpen;
     settingsShown.current = settingsOpen;
   });
@@ -674,6 +678,16 @@ export function App() {
           onClose={() => {
             setSaving(null);
             editor.current?.focus();
+          }}
+        />
+      )}
+      {askTelemetry && (
+        <TelemetryDialog
+          onClose={(answer) => {
+            setTelemetryClosed(true);
+            if (answer) {
+              setSettings(answer);
+            }
           }}
         />
       )}

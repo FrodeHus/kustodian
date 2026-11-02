@@ -375,6 +375,8 @@ export interface AppSettings {
   rawDefaultVersion: string;
   signIn: { clientId: string | null; tenant: string | null };
   limits: Record<string, number>;
+  /** Whether Graph compatibility findings are shared; null until the user has been asked. */
+  telemetry?: boolean | null;
 }
 
 /** `settings.get`'s and `settings.set`'s answer. `corrupt`: the settings file was set aside as corrupt this session;

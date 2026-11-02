@@ -16,6 +16,7 @@ using Kustodian.Sources;
 using Kustodian.Sources.Arg;
 using Kustodian.Sources.Hunting;
 using Kustodian.Storage;
+using Kustodian.Telemetry;
 
 namespace Kustodian.App;
 
@@ -23,7 +24,7 @@ namespace Kustodian.App;
 /// The host's services, built once from the settings the app started with: the fetch budget, the object cache, the reader, the
 /// runner, the engine pool and the Resource Graph source (its rows per run) all take their limits from <c>startup</c>, and keep
 /// them until the app restarts. Disposing stops
-/// the engine workers and closes the Graph, hunting and ARM HTTP clients (<see cref="ArmHttp"/>).
+/// the engine workers and closes the Graph, hunting, ARM and telemetry HTTP clients (<see cref="ArmHttp"/>).
 /// </summary>
 public sealed class AppServices : IAsyncDisposable
 {
@@ -35,6 +36,7 @@ public sealed class AppServices : IAsyncDisposable
     private readonly HttpClient _http;
     private readonly HttpClient _arm;
     private readonly HttpClient _hunting;
+    private readonly HttpClient _telemetry = new() { Timeout = TimeSpan.FromSeconds(30) };
     private readonly HuntingSchemaSource _huntingSchema;
     private readonly ArgClient _arg;
     private readonly ArmDirectory _armDirectory;
@@ -73,7 +75,9 @@ public sealed class AppServices : IAsyncDisposable
         _armDirectory = new ArmDirectory(_arm, time);
         Budget = new GraphFetchBudget(Limits.FetchBudgetBytes);
         Objects = new MemoryGraphObjectCache(time, Limits);
-        Probes = new FileGraphProbeCache(store, time, Limits);
+        Probes = new SharedProbeCache(new FileGraphProbeCache(store, time, Limits),
+            async ct => (await settings.GetAsync(ct)).Telemetry == true,
+            new AppInsightsTelemetry(_telemetry, AppInsightsTelemetry.ConnectionString, time, new StderrLogger<AppInsightsTelemetry>()));
         _licenses = new GraphTenantLicenses(_http, time);
         Runner = new GraphRunner(_schema, new GraphCollectionReader(_http, Budget, Objects, Limits, Probes, time), Budget, Pool, Limits, time,
             new StderrLogger<GraphRunner>(), _licenses);
@@ -91,7 +95,8 @@ public sealed class AppServices : IAsyncDisposable
 
     public MemoryGraphObjectCache Objects { get; }
 
-    /// <summary>The columns probing found each table can't serve in a list, kept on disk.</summary>
+    /// <summary>The columns probing found each table can't serve in a list, kept on disk; new findings are shared when the user
+    /// opted in.</summary>
     public IGraphProbeCache Probes { get; }
 
     public GraphRunner Runner { get; }
@@ -136,6 +141,7 @@ public sealed class AppServices : IAsyncDisposable
         _http.Dispose();
         _arm.Dispose();
         _hunting.Dispose();
+        _telemetry.Dispose();
         await Pool.DisposeAsync();
     }
 
