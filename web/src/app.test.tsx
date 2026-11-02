@@ -82,6 +82,8 @@ function host(list: AccountList, run: RunResult | Promise<RunResult> = rows, ses
     switch (method) {
       case 'session.get':
         return Promise.resolve(session && { session, corrupt: false });
+      case 'app.info':
+        return Promise.resolve({ version: '1.2.3', platform: 'macos' });
       case 'settings.get':
         return Promise.resolve(settings);
       case 'settings.set':

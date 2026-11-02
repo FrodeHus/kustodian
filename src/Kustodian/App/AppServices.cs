@@ -36,6 +36,7 @@ public sealed class AppServices : IAsyncDisposable
     private readonly HttpClient _http;
     private readonly HttpClient _arm;
     private readonly HttpClient _hunting;
+    private readonly HttpClient _github = UpdateCheck.CreateClient();
     private readonly HttpClient _telemetry = new() { Timeout = TimeSpan.FromSeconds(30) };
     private readonly HuntingSchemaSource _huntingSchema;
     private readonly ArgClient _arg;
@@ -109,7 +110,7 @@ public sealed class AppServices : IAsyncDisposable
     /// <summary>Registers every bridge method.</summary>
     public void Register(Bridge bridge)
     {
-        new AppHandler(Objects, Probes).Register(bridge);
+        new AppHandler(Objects, Probes, new UpdateCheck(_github, AppVersion.Text)).Register(bridge);
         new SettingsHandler(_settings, _startup.Limits).Register(bridge);
         new SchemaHandler(_schema, _huntingSchema, ActiveAccountAsync, Probes, _licenses).Register(bridge);
         new QueryHandler(_schema, ActiveAccountAsync, Sources(), _recent, _time, new StderrLogger<QueryHandler>(), Limits, _licenses)
@@ -141,6 +142,7 @@ public sealed class AppServices : IAsyncDisposable
         _http.Dispose();
         _arm.Dispose();
         _hunting.Dispose();
+        _github.Dispose();
         _telemetry.Dispose();
         await Pool.DisposeAsync();
     }

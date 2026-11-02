@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Kustodian.App;
+using Kustodian.Auth.EntraApp;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Query;
 using Kustodian.Graph.Run;
@@ -430,7 +432,7 @@ public class BridgeTests
     public async Task App_info_returns_version_and_platform()
     {
         var bridge = NewBridge();
-        new AppHandler(new MemoryGraphObjectCache(TimeProvider.System), NoGraphProbeCache.Instance).Register(bridge);
+        NewAppHandler(new MemoryGraphObjectCache(TimeProvider.System), NoGraphProbeCache.Instance).Register(bridge);
 
         var result = Parse(await bridge.HandleAsync("""{"id":"a","method":"app.info","params":{}}""")).GetProperty("result");
 
@@ -444,7 +446,7 @@ public class BridgeTests
         var bridge = NewBridge();
         var objects = new MemoryGraphObjectCache(TimeProvider.System);
         var probes = new MemoryGraphProbeCache(TimeProvider.System);
-        new AppHandler(objects, probes).Register(bridge);
+        NewAppHandler(objects, probes).Register(bridge);
         await probes.SetAsync("account-1", "auditLogs/signIns", ["mfaDetail"], [], CancellationToken.None);
         await objects.SetAsync("account-1", "applications", ["a"], "1", "{}", CancellationToken.None);
         await objects.SetAsync("account-2", "groups", ["b"], "2", "{}", CancellationToken.None);
@@ -457,6 +459,23 @@ public class BridgeTests
         Assert.Null(await objects.GetAsync("account-2", "groups", ["b"], "2", CancellationToken.None));
         Assert.Null(await probes.GetAsync("account-1", "auditLogs/signIns", CancellationToken.None));
     }
+
+    [Fact]
+    public async Task Open_release_opens_the_versions_github_page_and_refuses_anything_else()
+    {
+        var bridge = NewBridge();
+        var opened = new List<Uri>();
+        NewAppHandler(new MemoryGraphObjectCache(TimeProvider.System), NoGraphProbeCache.Instance, opened.Add).Register(bridge);
+
+        await bridge.HandleAsync("""{"id":"a","method":"app.openRelease","params":{"version":"0.93.0"}}""");
+        var refused = Parse(await bridge.HandleAsync("""{"id":"b","method":"app.openRelease","params":{"version":"https://evil.example"}}"""));
+
+        Assert.Equal(new Uri("https://github.com/FrodeHus/kustodian/releases/tag/v0.93.0"), Assert.Single(opened));
+        Assert.Equal("bad_request", refused.GetProperty("error").GetProperty("code").GetString());
+    }
+
+    private static AppHandler NewAppHandler(MemoryGraphObjectCache objects, IGraphProbeCache probes, Action<Uri>? open = null) =>
+        new(objects, probes, new UpdateCheck(new HttpClient(), "0.0.0"), new SystemBrowser(open ?? (_ => { })));
 
     private Messaging.Bridge NewBridge() => new(message =>
     {

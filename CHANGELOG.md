@@ -5,6 +5,11 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Settings shows the version you are running and has a "Check for update" button. At startup Kustodian asks GitHub for the
+  latest release and, when it is newer, offers to open its release page, remind you next start, or skip that version.
+
 ## [0.93.0] - 2026-11-02
 
 ### Added

@@ -377,6 +377,21 @@ export interface AppSettings {
   limits: Record<string, number>;
   /** Whether Graph compatibility findings are shared; null until the user has been asked. */
   telemetry?: boolean | null;
+  /** The release "Skip" on the update dialog passed over. */
+  skippedVersion?: string | null;
+}
+
+/** `app.info`'s answer. */
+export interface AppInfo {
+  version: string;
+  platform: string;
+}
+
+/** `app.checkUpdate`'s answer: the running version, the latest release's and whether it is newer. */
+export interface UpdateInfo {
+  current: string;
+  latest: string;
+  available: boolean;
 }
 
 /** `settings.get`'s and `settings.set`'s answer. `corrupt`: the settings file was set aside as corrupt this session;

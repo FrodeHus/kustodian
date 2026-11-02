@@ -4,6 +4,8 @@ import { blockAt } from './editor/block-at';
 import type { KqlEditorHandle } from './editor/kql-editor';
 import { ExplainView, type ExplainRequest } from './explain/explain-view';
 import { SaveDialog } from './library/save-dialog';
+import { newerRelease } from './settings/update-check';
+import { UpdateDialog } from './settings/update-dialog';
 import { openDroppedFile, openKqlFile, save, saveToFile } from './library/saving';
 import { findParams } from './params/find-params';
 import { ParamsForm } from './params/params-form';
@@ -32,7 +34,7 @@ import { TabStrip } from './tabs/tab-strip';
 import { SaveButton } from './toolbar/save-button';
 import { ScopePicker } from './toolbar/scope-picker';
 import { TimespanPicker } from './toolbar/timespan-picker';
-import type { AccountList, QueryOptions, SchemaView, SettingsAnswer, Source } from './wire';
+import type { AccountList, QueryOptions, SchemaView, SettingsAnswer, Source, UpdateInfo } from './wire';
 
 // Monaco and the Kusto language service are several megabytes: a chunk of their own, loaded after the window is up.
 const KqlEditor = lazy(() => import('./editor/kql-editor'));
@@ -172,6 +174,7 @@ export function App() {
   /** The tab the save dialog is open for. */
   const [saving, setSaving] = useState<string | null>(null);
   const [settings, setSettings] = useState<SettingsAnswer | null>(null);
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [telemetryClosed, setTelemetryClosed] = useState(false);
   /** The tab strip's close confirmation is open: a modal dialog. */
@@ -206,6 +209,8 @@ export function App() {
       (e: unknown) => setProblem(`The settings couldn’t be read: ${errorText(e)}`),
     );
   }, []);
+  // Offline or GitHub down: no dialog, and nothing to say about it.
+  useEffect(() => void newerRelease().then(setUpdate, () => undefined), []);
 
   // The last session's tabs come back, or one empty Graph tab.
   useEffect(() => startSessionSync(setProblem, setLasting), []);
@@ -423,7 +428,7 @@ export function App() {
   // palette, the save dialog or the close confirmation, which handle their own keys, Esc included).
   const shortcutsOn = useRef(false);
   useEffect(() => {
-    shortcutsOn.current = !signingIn && !settingsOpen && !paletteOpen && saving === null && !confirming && !askTelemetry;
+    shortcutsOn.current = !signingIn && !settingsOpen && !paletteOpen && saving === null && !confirming && !askTelemetry && !update;
     paletteShown.current = paletteOpen;
     settingsShown.current = settingsOpen;
   });
@@ -691,6 +696,7 @@ export function App() {
           }}
         />
       )}
+      {update && !askTelemetry && <UpdateDialog info={update} onClose={() => setUpdate(null)} />}
       {paletteOpen && (
         <Palette
           onClose={() => {
