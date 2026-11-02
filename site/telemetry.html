@@ -125,7 +125,7 @@ td{color:var(--muted)}
 </div>
 
 <h2>Where it goes and how long it is kept</h2>
-<p>Events go to an Azure Application Insights resource in an EU region, owned by the Kustodian maintainer. Microsoft processes them as Azure’s data processor. Application Insights stores the client IP as <code>0.0.0.0</code>, and Kustodian sends <code>0.0.0.0</code> as the location IP too, so no address or location is kept. Events are kept for 90 days, then deleted. They are used only to decide which tables get built-in query settings, and are not sold or shared with anyone.</p>
+<p>Events go to an Azure Application Insights resource in Azure’s North Europe region (Ireland), owned by the Kustodian maintainer. Microsoft processes them as Azure’s data processor. Application Insights stores the client IP as <code>0.0.0.0</code>, and Kustodian sends <code>0.0.0.0</code> as the location IP too, so no address or location is kept. Events are kept for 90 days, then deleted. They are used only to decide which tables get built-in query settings, and are not sold or shared with anyone.</p>
 
 <h2>Opting in and out</h2>
 <p>The first time you start a version of Kustodian that has this, it asks once. Nothing is shared before you answer, and closing the question without answering shares nothing (it asks again at the next start). To change your answer, open <b>Settings → Graph compatibility findings</b> and tick or untick <b>Share Graph compatibility findings</b>. It applies at once. The choice is stored as <code>"telemetry"</code> in <code>settings.json</code> in Kustodian’s data folder.</p>
