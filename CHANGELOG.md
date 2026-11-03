@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- The status bar says "Built-in Graph schema" and its date instead of the schema's full source, which no longer squeezes
+  the rest of the bar. Hover it for the source.
+- The Graph schema is regenerated from the latest beta metadata: the Copilot cost management tables
+  `copilot_costManagement_spendingPolicies` and `copilot_costManagement_userBalances` now list their read permissions.
+
+### Changed
+
 - The Windows MSIs, and the `Kustodian.exe` they install, are code-signed: Windows names the publisher, "Open Source
   Developer Frode Hus", instead of warning about an unknown one. The portable zips stay unsigned.
 
