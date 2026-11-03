@@ -53,8 +53,10 @@ Windows 11 on x64 or Arm. Nothing else is needed: WebView2 is part of Windows 11
   A newer MSI installs over the old version. Uninstall from **Settings → Apps → Installed apps**.
 - **Portable zip.** Before extracting, right-click the zip, choose **Properties**, tick **Unblock** and choose **OK**. Then
   extract it anywhere and run `Kustodian.exe`.
-- **Unsigned builds.** A release that isn't code-signed (the release notes say so) makes SmartScreen show "Windows protected
-  your PC". Choose **More info**, then **Run anyway**.
+- **Signing.** The MSIs, and the `Kustodian.exe` they install, are code-signed with a Certum certificate: Windows shows the
+  publisher as "Open Source Developer Frode Hus". SmartScreen can still warn about a new release until it has built up
+  reputation. The portable zips aren't signed, and neither were releases up to 0.94.0 (each release's notes say which).
+  When SmartScreen shows "Windows protected your PC", choose **More info**, then **Run anyway**.
 
 ## Linux
 

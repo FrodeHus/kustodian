@@ -5,6 +5,11 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- The Windows MSIs, and the `Kustodian.exe` they install, are code-signed: Windows names the publisher, "Open Source
+  Developer Frode Hus", instead of warning about an unknown one. The portable zips stay unsigned.
+
 ## [0.94.0] - 2026-11-02
 
 ### Added
