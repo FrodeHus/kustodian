@@ -15,7 +15,7 @@
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@kusto/monaco-kusto": "15.0.1",
     "@tailwindcss/vite": "^4.3.3",
-    "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-table": "^9.3.1",
     "@tanstack/react-virtual": "^3.14.23",
     "dompurify": "^3.4.17",
     "monaco-editor": "~0.55.1",
