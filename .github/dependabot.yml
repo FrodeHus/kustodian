@@ -15,6 +15,13 @@ updates:
     groups:
       npm:
         patterns: ["*"]
+    ignore:
+      # @kusto/monaco-kusto pins monaco-editor's minor (peer ^0.55.0); move both together once it supports a newer one.
+      - dependency-name: monaco-editor
+        update-types: ["version-update:semver-minor"]
+      # v9 is an API rewrite of result-grid.tsx; migrate it on purpose, not in a grouped bump.
+      - dependency-name: "@tanstack/react-table"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
