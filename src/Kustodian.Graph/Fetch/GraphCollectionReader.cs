@@ -692,6 +692,10 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                     return new Retry(null, message ?? "", NoSelect: true);
                 if (page == 0 && top is not null && response.StatusCode == HttpStatusCode.BadRequest && GraphErrorText.NamesTop(message))
                     return new Retry(null, message ?? "", Top: true);
+                // With no filter or sort, a 400 naming nothing is the $top's (or a column's, probed after $top is left out).
+                if (page == 0 && top is not null && filter is null && list.OrderBy is null && response.StatusCode == HttpStatusCode.BadRequest
+                    && GraphErrorText.IsUnsupportedQuery(message))
+                    return new Retry(null, message ?? "", Top: true);
                 // A sort or a clause with a feature (or the advanced query mode they need) is what this change sends that a
                 // table may refuse: left out first, before the whole filter.
                 if (page == 0 && response.StatusCode == HttpStatusCode.BadRequest && list.OrderBy is not null)
