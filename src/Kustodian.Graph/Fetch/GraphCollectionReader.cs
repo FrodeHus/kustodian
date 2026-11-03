@@ -404,7 +404,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
             if (GraphErrorText.IsTokenRejected(response, body))
                 throw SignInNeeded();
             if (response.StatusCode == HttpStatusCode.TooManyRequests)
-                throw Failure(response, null);
+                throw Failure(response, body, null);
             var refused = IsClientError(response.StatusCode) && response.StatusCode is not (HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden);
             Log(diagnostics, DiagnosticKinds.Probe, $"{table}: Graph didn't count; reading the objects", (int)response.StatusCode);
             return (null, refused);
@@ -540,7 +540,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
             if (GraphErrorText.IsTokenRejected(response, body))
                 throw SignInNeeded();
             if (response.StatusCode == HttpStatusCode.TooManyRequests)
-                throw Failure(response, null);
+                throw Failure(response, body, null);
             Log(diagnostics, DiagnosticKinds.Probe, $"{table}: the columns Graph lists by default couldn't be read; selecting as before",
                 (int)response.StatusCode);
             return null;
@@ -678,14 +678,14 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                     if (canLeaveOut)
                         return new Retry(null, message ?? "", License: true);
                     if (leftOut)
-                        throw Failure(response, message);
+                        throw Failure(response, body, message);
                 }
                 // A web page for a 404 means a backend behind Graph couldn't serve some selected property, and a 401 or 403 may
                 // be one property's permission rather than the table's: probe to find which, if any.
                 if (page == 0 && select.Any(c => c != "id")
                     && (response.StatusCode == HttpStatusCode.NotFound && GraphErrorText.IsHtml(raw)
                         || response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden))
-                    return new Retry(null, message ?? "", Failure(response, message));
+                    return new Retry(null, message ?? "", Failure(response, body, message));
                 // Checked before the filter and the probes: a refused $select or $top would otherwise cost the filter, or be
                 // taken for one property's.
                 if (page == 0 && select.Count > 0 && response.StatusCode == HttpStatusCode.BadRequest && GraphErrorText.RefusesSelect(message))
@@ -714,8 +714,8 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                 }
                 // Any other client error on the first page may be one selected property's: probe to find it, if any.
                 if (page == 0 && select.Any(c => c != "id") && IsClientError(response.StatusCode))
-                    return new Retry(null, message ?? "", Failure(response, message));
-                throw Failure(response, message);
+                    return new Retry(null, message ?? "", Failure(response, body, message));
+                throw Failure(response, body, message);
             }
 
             await lease.AddAsync(body.Length, ct);
@@ -828,10 +828,10 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
 
     private static GraphReadException SignInNeeded() => new(GraphReadFailure.SignInNeeded, GraphErrorText.SignInMessage);
 
-    private static GraphReadException Failure(HttpResponseMessage response, string? message)
+    private static GraphReadException Failure(HttpResponseMessage response, byte[] body, string? message)
     {
         var status = (int)response.StatusCode;
-        return response.StatusCode switch
+        GraphReadException failure = response.StatusCode switch
         {
             HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
                 => new(GraphReadFailure.NoPermission, message ?? "Graph refused the request (" + status + ")"),
@@ -842,6 +842,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
             _ when status >= 500 => new(GraphReadFailure.Failed, "Graph didn't answer (" + status + ")"),
             _ => new(GraphReadFailure.Failed, message ?? "Graph didn't answer (" + status + ")"),
         };
+        return new(failure.Failure, failure.Message, failure.RetryAfterSeconds) { Status = status, Code = GraphErrorText.Code(body) };
     }
 
     /// <summary>What to change after Graph refused the first page. <see cref="Original"/> set: probe the selected columns, and
@@ -893,7 +894,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                 return ProbeAnswer.Denied;
             if (group.Count > 0 && IsClientError(response.StatusCode))
                 return ProbeAnswer.NotListed;
-            throw Failure(response, raw is null ? null : GraphErrorText.Describe((int)response.StatusCode, raw));
+            throw Failure(response, body, raw is null ? null : GraphErrorText.Describe((int)response.StatusCode, raw));
         }
 
         if (await ReadsAsync([]) is not ProbeAnswer.Reads)

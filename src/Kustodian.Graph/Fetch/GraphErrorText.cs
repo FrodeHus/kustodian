@@ -75,6 +75,23 @@ public static partial class GraphErrorText
         }
     }
 
+    /// <summary>Graph's <c>error.code</c> in a JSON response body, or null. Only a code made of letters, digits, dots and
+    /// underscores is returned: anything else isn't one of Graph's codes.</summary>
+    internal static string? Code(byte[] body)
+    {
+        try
+        {
+            return JsonNode.Parse(body)?["error"]?["code"]?.GetValue<string>() is { Length: > 0 and <= 100 } code
+                && code.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '_')
+                ? code
+                : null;
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Whether Graph's message for a 400 is about <c>$top</c>: it names <c>$top</c> or OData's query option <c>'Top'</c>,
     /// or it refuses a custom page size (<c>directoryRoles</c> and its <c>members</c>).</summary>
     internal static bool NamesTop(string? message) => message is not null

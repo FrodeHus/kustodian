@@ -52,12 +52,40 @@ public static class PushdownReasons
 
     /// <summary>The operator isn't one Graph's <c>$filter</c> allows on <paramref name="column"/>, or the column's type
     /// can't be filtered on at all.</summary>
-    public static string Operator(string column) => $"Graph doesn't allow this operator on {column}";
+    public static string Operator(string column) => OperatorPrefix + column;
+
+    private const string OperatorPrefix = "Graph doesn't allow this operator on ";
+    private const string UnlicensedPart = " isn't read: the tenant doesn't have ";
+    private const string AlonePrefix = "Graph filters on ";
+    private const string AloneSuffix = " only on its own, so this runs locally";
+
+    private static readonly Dictionary<string, string> Codes = new(StringComparer.Ordinal)
+    {
+        [CaseInsensitive] = "caseInsensitive", [AdvancedQuery] = "advancedQuery", [CaseFolded] = "caseFolded",
+        [EmptyString] = "emptyString", [IsNotNullOnText] = "isNotNullOnText", [Not] = "not", [OrSide] = "orSide",
+        [NotLeading] = "notLeading", [FixedValue] = "fixedValue", [Inexact] = "inexact", [WordsInArray] = "wordsInArray",
+        [Folded] = "folded", [DirectoryOnly] = "directoryOnly",
+    };
+
+    /// <summary>A short, stable name for <paramref name="reason"/> (one of these reasons), and the column it names, if any:
+    /// <c>operator</c>, <c>unlicensed</c> and <c>alone</c> name one. Null for text that isn't one of them.</summary>
+    public static (string Code, string? Column)? Code(string reason)
+    {
+        if (Codes.TryGetValue(reason, out var code))
+            return (code, null);
+        if (reason.StartsWith(OperatorPrefix, StringComparison.Ordinal))
+            return ("operator", reason[OperatorPrefix.Length..]);
+        if (reason.IndexOf(UnlicensedPart, StringComparison.Ordinal) is > 0 and var at)
+            return ("unlicensed", reason[..at]);
+        if (reason.StartsWith(AlonePrefix, StringComparison.Ordinal) && reason.EndsWith(AloneSuffix, StringComparison.Ordinal))
+            return ("alone", reason[AlonePrefix.Length..^AloneSuffix.Length]);
+        return null;
+    }
 
     /// <summary><paramref name="column"/> isn't read: the tenant lacks <paramref name="license"/>, which it needs.</summary>
-    public static string Unlicensed(string column, string license) => $"{column} isn't read: the tenant doesn't have {license}";
+    public static string Unlicensed(string column, string license) => column + UnlicensedPart + license;
 
     /// <summary>Graph filters on <paramref name="column"/> (users' <c>signInActivity</c>) only with no other property in the
     /// same <c>$filter</c>: the conditions on it are sent, the others run locally.</summary>
-    public static string Alone(string column) => $"Graph filters on {column} only on its own, so this runs locally";
+    public static string Alone(string column) => AlonePrefix + column + AloneSuffix;
 }

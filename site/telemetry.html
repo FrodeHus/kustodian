@@ -64,14 +64,15 @@ td{color:var(--muted)}
 <main class="k-wrap">
 <p class="k-label">Telemetry</p>
 <h1>Graph compatibility findings</h1>
-<p class="k-lead">Kustodian can share one kind of data, and only if you say yes: which Microsoft Graph tables refuse which query options. Nothing else is collected, and it is off until you opt in.</p>
+<p class="k-lead">Kustodian can share how Microsoft Graph and Kustodian behave on your queries, and only if you say yes: which Graph tables refuse which query options, and where Kustodian falls short of reading them well. Nothing about your tenant or your data is collected, and it is off until you opt in.</p>
 
 <h2>Why it helps</h2>
 <p>Graph doesn’t support every query option on every collection. Some refuse <code>$top=999</code>, some refuse <code>$count</code>, <code>$orderby</code> or <code>$select</code>, some refuse a filter on a nested or multi-valued column, and some won’t list certain columns at all. Kustodian finds out by probing: it sends the request, reads the refusal and tries again without the option. It remembers what it learnt for 7 days, on your machine.</p>
 <p>Probing costs time and requests, and some collections, such as sign-in logs, throttle hard. When findings are shared, the ones that hold across tenants can be built into Kustodian, so every user’s queries on those tables skip the probing from the first run.</p>
+<p>Kustodian also shares where it falls short: a refusal from Graph it couldn’t work around, a filter it couldn’t send to Graph and ran locally instead, a permission Graph didn’t accept although the schema lists it, and a limit a query hit. Those show which tables, filters and limits to fix first.</p>
 
 <h2>What is sent</h2>
-<p>One event each time probing finds something new about a table. The event is exactly this:</p>
+<p>One event each time probing finds something new about a table, or a run finds one of the things below. The event is exactly this:</p>
 <pre><code>{
   "name": "Microsoft.ApplicationInsights.Event",
   "time": "2026-11-02T12:00:00.0000000+00:00",
@@ -93,11 +94,21 @@ td{color:var(--muted)}
 <table>
 <thead><tr><th>Field</th><th>What it holds</th></tr></thead>
 <tbody>
-<tr><td><code>path</code></td><td>The table’s Graph path from Kustodian’s built-in schema, such as <code>users</code> or <code>auditLogs/signIns</code>. Never an object ID.</td></tr>
-<tr><td><code>finding</code></td><td><code>topLimit</code> (the largest page size Graph takes, after it refused <code>$top=999</code>; 0 when it takes no <code>$top</code>), <code>refused</code> (Graph refused a clause) or <code>notListed</code> (Graph won’t serve columns in a list).</td></tr>
-<tr><td><code>detail</code></td><td>The page size, the clause (<code>$count</code>, <code>$orderby</code>, <code>$select</code>, or the filtered column, such as <code>proxyAddresses/any</code>), or the column names from the schema.</td></tr>
+<tr><td><code>path</code></td><td>The table’s Graph path from Kustodian’s built-in schema, such as <code>users</code> or <code>auditLogs/signIns</code>. Never an object ID. For a limit of the whole run, the paths of the tables it read, separated by commas.</td></tr>
 <tr><td><code>ai.application.ver</code></td><td>Kustodian’s version, so a finding can be matched to the code that made it.</td></tr>
 <tr><td><code>ai.location.ip</code></td><td>Always <code>0.0.0.0</code>, so Application Insights derives no location from your address.</td></tr>
+</tbody>
+</table>
+
+<p>Besides <code>path</code>, each kind of event holds only these properties:</p>
+<table>
+<thead><tr><th>Event</th><th>Sent when</th><th>Properties</th></tr></thead>
+<tbody>
+<tr><td><code>GraphProbeFinding</code></td><td>Probing finds something new about a table.</td><td><code>finding</code>: <code>topLimit</code> (the largest page size Graph takes; 0 when it takes no <code>$top</code>), <code>refused</code> (Graph refused a clause) or <code>notListed</code> (Graph won’t serve columns in a list). <code>detail</code>: the page size, the clause (<code>$count</code>, <code>$orderby</code>, <code>$select</code>, or the filtered column, such as <code>proxyAddresses/any</code>), or the column names from the schema.</td></tr>
+<tr><td><code>GraphRefusal</code></td><td>Graph refused a table with a client error Kustodian couldn’t work around (not a permission, sign-in or throttling answer).</td><td><code>status</code>: the HTTP status, such as <code>400</code>. <code>code</code>: Graph’s error code, such as <code>Request_UnsupportedQuery</code>. Never Graph’s error message, which can quote values from your query.</td></tr>
+<tr><td><code>GraphPushdownMiss</code></td><td>A <code>where</code> condition ran on your machine instead of being sent to Graph as <code>$filter</code>.</td><td><code>reason</code>: why, as a short code, such as <code>operator</code> or <code>caseInsensitive</code>. <code>column</code>: the column, only when it is one of the table’s columns in the schema. Never the condition or its value.</td></tr>
+<tr><td><code>GraphPermissionMismatch</code></td><td>Graph refused a table for permission although your sign-in holds a permission the schema lists for it.</td><td><code>permission</code>: that permission, such as <code>AuditLog.Read.All</code>.</td></tr>
+<tr><td><code>GraphLimitHit</code></td><td>A run hit one of Kustodian’s limits.</td><td><code>limit</code>: which one, such as <code>objectsPerTable</code>, <code>rowsPerRun</code> or <code>engineTimeoutSeconds</code>. <code>value</code>: its value in your settings. <code>column</code>: the relationship column, for the relationship limits.</td></tr>
 </tbody>
 </table>
 
@@ -108,16 +119,17 @@ td{color:var(--muted)}
 <li>Your tenant, account, user name or client ID</li>
 <li>Query text, filter values or parameters</li>
 <li>Results, rows or any directory data</li>
-<li>Columns refused for permission (they describe your account, not Graph)</li>
+<li>Columns refused for permission, or left out for a license your tenant lacks (they describe your account, not Graph)</li>
+<li>Graph’s error messages, which can quote your values</li>
 <li>Machine name, OS user, device or install ID</li>
-<li>Usage, clicks, errors or crash reports</li>
+<li>Usage, clicks or crash reports</li>
 </ul>
 </div>
 <div class="k-panel ok">
 <h3>How it is kept small</h3>
 <ul>
 <li>Kustodian builds the event itself; no SDK, so nothing is collected on the side</li>
-<li>A finding already known on your machine isn’t sent again</li>
+<li>A finding already known on your machine isn’t sent again, and a run’s event is sent at most once each time Kustodian starts</li>
 <li>A send that fails is dropped, never retried or queued</li>
 <li>Builds from source and forks send nothing: the destination is only built into official releases</li>
 </ul>
@@ -125,13 +137,13 @@ td{color:var(--muted)}
 </div>
 
 <h2>Where it goes and how long it is kept</h2>
-<p>Events go to an Azure Application Insights resource in Azure’s North Europe region (Ireland), owned by the Kustodian maintainer. Microsoft processes them as Azure’s data processor. Application Insights stores the client IP as <code>0.0.0.0</code>, and Kustodian sends <code>0.0.0.0</code> as the location IP too, so no address or location is kept. Events are kept for 90 days, then deleted. They are used only to decide which tables get built-in query settings, and are not sold or shared with anyone.</p>
+<p>Events go to an Azure Application Insights resource in Azure’s North Europe region (Ireland), owned by the Kustodian maintainer. Microsoft processes them as Azure’s data processor. Application Insights stores the client IP as <code>0.0.0.0</code>, and Kustodian sends <code>0.0.0.0</code> as the location IP too, so no address or location is kept. Events are kept for 90 days, then deleted. They are used only to decide which tables get built-in query settings and what to improve in Kustodian, and are not sold or shared with anyone.</p>
 
 <h2>Opting in and out</h2>
-<p>The first time you start a version of Kustodian that has this, it asks once. Nothing is shared before you answer, and closing the question without answering shares nothing (it asks again at the next start). To change your answer, open <b>Settings → Graph compatibility findings</b> and tick or untick <b>Share Graph compatibility findings</b>. It applies at once. The choice is stored as <code>"telemetry"</code> in <code>settings.json</code> in Kustodian’s data folder.</p>
+<p>The first time you start a version of Kustodian that has this, it asks once. If you said yes before Kustodian shared run findings, it asks again and shares nothing until you answer. Nothing is shared before you answer, and closing the question without answering shares nothing (it asks again at the next start). To change your answer, open <b>Settings → Graph compatibility findings</b> and tick or untick <b>Share Graph compatibility findings</b>. It applies at once. The choice is stored as <code>"telemetry"</code> in <code>settings.json</code> in Kustodian’s data folder.</p>
 
 <h2>Check it yourself</h2>
-<p>Kustodian is open source. The code that builds and sends the event is <a href="https://github.com/FrodeHus/kustodian/blob/main/src/Kustodian/Telemetry/AppInsightsTelemetry.cs">AppInsightsTelemetry.cs</a>, and what triggers it is <a href="https://github.com/FrodeHus/kustodian/blob/main/src/Kustodian/Telemetry/SharedProbeCache.cs">SharedProbeCache.cs</a>. Questions or concerns: <a href="https://github.com/FrodeHus/kustodian/issues">open an issue</a>.</p>
+<p>Kustodian is open source. The code that builds and sends the event is <a href="https://github.com/FrodeHus/kustodian/blob/main/src/Kustodian/Telemetry/AppInsightsTelemetry.cs">AppInsightsTelemetry.cs</a>, and what triggers it is <a href="https://github.com/FrodeHus/kustodian/blob/main/src/Kustodian/Telemetry/SharedProbeCache.cs">SharedProbeCache.cs</a> and <a href="https://github.com/FrodeHus/kustodian/blob/main/src/Kustodian/Telemetry/SharedRunFindings.cs">SharedRunFindings.cs</a>. Questions or concerns: <a href="https://github.com/FrodeHus/kustodian/issues">open an issue</a>.</p>
 </main>
 
 <footer class="k-foot">
