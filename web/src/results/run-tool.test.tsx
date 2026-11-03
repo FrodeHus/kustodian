@@ -42,11 +42,17 @@ describe('run tool', () => {
     expect(screen.getByText('Runs once, with 1 row on stdin as JSON:')).toBeTruthy();
   });
 
-  it('disables_a_tool_whose_columns_the_result_lacks_and_says_which', async () => {
-    render(<ToolItems columns={[{ name: 'id', type: 'string' }]} onChoose={() => undefined} onError={() => undefined} />);
+  it('says_why_a_tool_whose_columns_the_result_lacks_cant_run', async () => {
+    const chosen: string[] = [];
+    const errors: string[] = [];
+    render(<ToolItems columns={[{ name: 'id', type: 'string' }]} onChoose={(t) => chosen.push(t.name)} onError={(e) => errors.push(e)} />);
 
     const item = await screen.findByRole('menuitem', { name: /Echo the name/ });
     expect(item.textContent).toBe('Echo the name · needs displayName');
-    expect((item as HTMLButtonElement).disabled).toBe(true);
+    expect(item.getAttribute('aria-disabled')).toBe('true');
+
+    fireEvent.click(item);
+    expect(chosen).toEqual([]);
+    expect(errors).toEqual(['Echo the name can’t run: it needs the column displayName, which this result doesn’t have.']);
   });
 });

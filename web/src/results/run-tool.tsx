@@ -8,7 +8,8 @@ import { commandLine, fillArgs, toolColumns } from './tool-args';
 
 const rowCount = (n: number) => `${n.toLocaleString('en-US')} ${n === 1 ? 'row' : 'rows'}`;
 
-/** The Run tool menu's items: the user's tools (one whose columns the result lacks is disabled), then Edit tools. */
+/** The Run tool menu's items: the user's tools, then Edit tools. Choosing a tool whose columns the result lacks says so rather
+ * than running it. */
 export function ToolItems({
   columns,
   onChoose,
@@ -44,8 +45,12 @@ export function ToolItems({
             type="button"
             role="menuitem"
             tabIndex={-1}
-            disabled={missing.length > 0}
-            onClick={() => onChoose(tool)}
+            aria-disabled={missing.length > 0}
+            onClick={() =>
+              missing.length > 0
+                ? onError(`${tool.name} can’t run: it needs the column ${missing.join(', ')}, which this result doesn’t have.`)
+                : onChoose(tool)
+            }
           >
             {tool.name}
             {missing.length > 0 && <span className="faint"> · needs {missing.join(', ')}</span>}

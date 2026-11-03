@@ -20,7 +20,8 @@ example there first if there is no file.
 ```
 
 - `each` runs the command once per row, one row at a time. Each `{column}` in `args` becomes that row's value: text as it is,
-  null as nothing, and dynamic values as JSON. A tool whose columns the result doesn't have is disabled in the menu.
+  null as nothing, and dynamic values as JSON. A tool whose columns the result doesn't have says
+  which it needs, and choosing it explains why it can't run.
 - `batch` runs it once and writes the rows to its stdin as a JSON array of objects. Its `args` can't name columns.
 
 Before anything runs, Kustodian shows the command line for the first row and how many rows it will run on. Afterwards it shows
