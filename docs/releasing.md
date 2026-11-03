@@ -34,6 +34,25 @@ the release at "Cut the release".
    changelog section, install instructions and the signing note) and the checksums. Then publish it.
 5. Check one package per platform, as in [manual-checks.md](manual-checks.md), and that `Kustodian --version` prints the
    version.
+6. Publishing starts the `winget` workflow, which submits the release to winget (see [winget](#winget)).
+
+## winget
+
+Kustodian is submitted to winget as `Reothor.Kustodian`. Publishing a release starts the `winget` workflow
+(`.github/workflows/winget.yml`): it downloads the two MSIs from the release, refuses them unless they're validly signed,
+writes the manifest from their hashes with `tools/release/windows/winget/New-Manifest.ps1`, checks it with
+`winget validate`, and runs `tools/release/submit-winget.sh`, which opens the pull request on
+[microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) from the token account's fork (created on first use).
+Microsoft's checks and a moderator then publish it, usually within a day or two. It runs on publishing, not in the build,
+because a draft release's download URLs don't work.
+
+The submission needs the `WINGET_TOKEN` secret: a classic personal access token with the `public_repo` scope (the same one
+Elevate uses works). Without it the manifest is still validated and kept as the run's `winget-manifest` artifact, and
+nothing is submitted. To submit a release again, or one published before the token was set: Actions → winget →
+*Run workflow* with its version. The script leaves an already open pull request for the same version alone.
+
+The manifest templates are in `tools/release/windows/winget/templates/`. Every version is its own submission; winget-pkgs
+doesn't pick up releases by itself.
 
 ## Tagging by hand
 
