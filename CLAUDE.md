@@ -8,8 +8,8 @@ Warnings are always fixed, never suppressed. That covers compiler and analyzer w
 
 Known open warnings (owner's decision, 2026-10-21):
 
-- `react(incompatible-library)` from oxlint on TanStack Table's `useReactTable` (`web/src/results/result-grid.tsx`). It stays
-  until TanStack Table v9, which is built for the React Compiler. Don't suppress it.
+- `react(incompatible-library)` from oxlint on TanStack Virtual's `useVirtualizer` (`web/src/results/result-grid.tsx`). TanStack
+  Table v9 cleared it for `useTable`; it stays until TanStack Virtual ships a React Compiler-safe hook. Don't suppress it.
 - Vite's chunk-size warning (over 500 kB) for the lazily loaded Monaco editor chunk. It is local and loaded on demand. Don't
   raise `build.chunkSizeWarningLimit`.
 
