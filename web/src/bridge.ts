@@ -111,6 +111,12 @@ export function createBridge(transport: Transport): Bridge {
             send('query.cancel', { tabId });
           }
         }
+        if (method === 'tools.run') {
+          const runId = (params as { runId?: unknown } | undefined)?.runId;
+          if (typeof runId === 'string') {
+            send('tools.cancel', { runId });
+          }
+        }
         reject(new BridgeError('cancelled', 'The request was cancelled.'));
       };
 

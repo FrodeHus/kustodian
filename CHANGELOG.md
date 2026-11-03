@@ -5,6 +5,11 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- A **Run tool** menu on the Rows tab runs your own commands, set up in `tools.json`, on the selected rows: once per row
+  with `{column}` values as arguments, or once with the rows as JSON on stdin. See [docs/external-tools.md](docs/external-tools.md).
+
 ### Changed
 
 - The status bar says "Built-in Graph schema" and its date instead of the schema's full source, which no longer squeezes
