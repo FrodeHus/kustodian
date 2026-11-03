@@ -5,6 +5,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-03
+
 ### Changed
 
 - The Windows MSIs, and the `Kustodian.exe` they install, are code-signed: Windows names the publisher, "Open Source
