@@ -83,7 +83,8 @@ function schemaFooter(source: Source, view: SchemaView | undefined, resourceType
     const refresh = view.fallbackReason?.replace(/\s*The schema read earlier is shown\.?$/, '').replace(/\.$/, '');
     return refresh ? `${tenant} · ${refresh}` : tenant;
   }
-  return `Schema: ${view.source} · ${formatDate(view.generatedAt)}`;
+  // The full source (metadata commit, permissions URL) is the span's tooltip; it's too long for the status bar.
+  return `Built-in Graph schema · ${formatDate(view.generatedAt)}`;
 }
 
 /** What the status bar calls the active tab's language. */
@@ -672,7 +673,7 @@ export function App() {
             </span>
           )}
           <span>{LANGUAGE[active?.source ?? 'graph']}</span>
-          {footer && <span>{footer}</span>}
+          {footer && <span title={footerSource === 'graph' ? schemas.graph?.source : undefined}>{footer}</span>}
           <div className="grow" />
           <span title="Theme">{theme.theme === 'system' ? `System (${THEME_NAMES[theme.resolved]})` : THEME_NAMES[theme.theme]}</span>
         </footer>
