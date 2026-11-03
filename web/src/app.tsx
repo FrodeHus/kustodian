@@ -4,6 +4,8 @@ import { blockAt } from './editor/block-at';
 import type { KqlEditorHandle } from './editor/kql-editor';
 import { ExplainView, type ExplainRequest } from './explain/explain-view';
 import { SaveDialog } from './library/save-dialog';
+import { newerRelease } from './settings/update-check';
+import { UpdateDialog } from './settings/update-dialog';
 import { openDroppedFile, openKqlFile, save, saveToFile } from './library/saving';
 import { findParams } from './params/find-params';
 import { ParamsForm } from './params/params-form';
@@ -16,6 +18,7 @@ import { RawTab } from './raw/raw-tab';
 import { schemaSourceOf, startSchemaLoading, useSchemas } from './schema/schema-store';
 import { startSessionSync } from './session/session-sync';
 import { SettingsView } from './settings/settings-view';
+import { TelemetryDialog } from './settings/telemetry';
 import { bindGlobalKeys, registerCommands, runCommand, type Command } from './shell/commands';
 import { errorText } from './shell/errors';
 import { MOD, SHIFT } from './shell/keys';
@@ -31,7 +34,7 @@ import { TabStrip } from './tabs/tab-strip';
 import { SaveButton } from './toolbar/save-button';
 import { ScopePicker } from './toolbar/scope-picker';
 import { TimespanPicker } from './toolbar/timespan-picker';
-import type { AccountList, QueryOptions, SchemaView, SettingsAnswer, Source } from './wire';
+import type { AccountList, QueryOptions, SchemaView, SettingsAnswer, Source, UpdateInfo } from './wire';
 
 // Monaco and the Kusto language service are several megabytes: a chunk of their own, loaded after the window is up.
 const KqlEditor = lazy(() => import('./editor/kql-editor'));
@@ -171,7 +174,9 @@ export function App() {
   /** The tab the save dialog is open for. */
   const [saving, setSaving] = useState<string | null>(null);
   const [settings, setSettings] = useState<SettingsAnswer | null>(null);
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [telemetryClosed, setTelemetryClosed] = useState(false);
   /** The tab strip's close confirmation is open: a modal dialog. */
   const [confirming, setConfirming] = useState(false);
   const paletteShown = useRef(false);
@@ -204,6 +209,8 @@ export function App() {
       (e: unknown) => setProblem(`The settings couldn’t be read: ${errorText(e)}`),
     );
   }, []);
+  // Offline or GitHub down: no dialog, and nothing to say about it.
+  useEffect(() => void newerRelease().then(setUpdate, () => undefined), []);
 
   // The last session's tabs come back, or one empty Graph tab.
   useEffect(() => startSessionSync(setProblem, setLasting), []);
@@ -414,12 +421,14 @@ export function App() {
 
   // Unreadable accounts also mean sign-in: it shows why, and signing in reads them again.
   const signingIn = accountsError !== null || (accounts !== null && (!account || accountsOpen));
+  // Asked once: until the user answers, the host keeps null. Closed unanswered, it asks again at the next start.
+  const askTelemetry = settings?.settings.telemetry === null && !telemetryClosed;
 
   // The window's shortcuts act on the workspace, so none fires while sign-in or settings covers it, or a dialog is open (the
   // palette, the save dialog or the close confirmation, which handle their own keys, Esc included).
   const shortcutsOn = useRef(false);
   useEffect(() => {
-    shortcutsOn.current = !signingIn && !settingsOpen && !paletteOpen && saving === null && !confirming;
+    shortcutsOn.current = !signingIn && !settingsOpen && !paletteOpen && saving === null && !confirming && !askTelemetry && !update;
     paletteShown.current = paletteOpen;
     settingsShown.current = settingsOpen;
   });
@@ -677,6 +686,17 @@ export function App() {
           }}
         />
       )}
+      {askTelemetry && (
+        <TelemetryDialog
+          onClose={(answer) => {
+            setTelemetryClosed(true);
+            if (answer) {
+              setSettings(answer);
+            }
+          }}
+        />
+      )}
+      {update && !askTelemetry && <UpdateDialog info={update} onClose={() => setUpdate(null)} />}
       {paletteOpen && (
         <Palette
           onClose={() => {

@@ -24,6 +24,11 @@ on:
 permissions:
   contents: read
 
+# The Application Insights resource that shared Graph compatibility findings go to (site/telemetry.html), a repository variable
+# (not a secret: it ships inside the app). MSBuild reads it as a property; a build without it sends nothing.
+env:
+  KUSTODIAN_TELEMETRY_CONNECTION_STRING: ${{ vars.KUSTODIAN_TELEMETRY_CONNECTION_STRING }}
+
 jobs:
   prepare:
     name: Cut the release and tag

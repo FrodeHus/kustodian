@@ -82,6 +82,8 @@ function host(list: AccountList, run: RunResult | Promise<RunResult> = rows, ses
     switch (method) {
       case 'session.get':
         return Promise.resolve(session && { session, corrupt: false });
+      case 'app.info':
+        return Promise.resolve({ version: '1.2.3', platform: 'macos' });
       case 'settings.get':
         return Promise.resolve(settings);
       case 'settings.set':
@@ -958,6 +960,36 @@ describe('App', () => {
     answers['settings.get'] = () => ({ ...settings, unreadable: true });
     render(<App />);
     expect(await screen.findByText('The settings file couldn’t be read, so the defaults are in use.')).toBeTruthy();
+  });
+
+  it('app_asks_once_whether_to_share_findings_and_keeps_the_answer', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    answers['settings.get'] = () => ({ ...settings, settings: { ...settings.settings, telemetry: null } });
+    const view = render(<App />);
+    const dialog = await screen.findByRole('dialog', { name: 'Help improve Kustodian’s Graph support?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Share findings' }));
+    await waitFor(() =>
+      expect(bridge.call).toHaveBeenCalledWith('settings.set', { settings: { ...settings.settings, telemetry: true } }),
+    );
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /Graph support/ })).toBeNull());
+    view.unmount();
+
+    // Answered (either way): not asked again.
+    answers['settings.get'] = () => ({ ...settings, settings: { ...settings.settings, telemetry: false } });
+    render(<App />);
+    await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('settings.get'));
+    await act(async () => undefined);
+    expect(screen.queryByRole('dialog', { name: /Graph support/ })).toBeNull();
+  });
+
+  it('app_telemetry_dialog_closed_unanswered_saves_nothing', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    answers['settings.get'] = () => ({ ...settings, settings: { ...settings.settings, telemetry: null } });
+    render(<App />);
+    const dialog = await screen.findByRole('dialog', { name: /Graph support/ });
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: /Graph support/ })).toBeNull();
+    expect(bridge.call).not.toHaveBeenCalledWith('settings.set', expect.anything());
   });
 
   it('app_palette_command_is_disabled_while_the_palette_is_open', async () => {
