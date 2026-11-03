@@ -4,7 +4,8 @@ using Kustodian.ExternalTools;
 namespace Kustodian.Messaging.Handlers;
 
 /// <summary><c>tools.list</c> answers <c>{tools, problem, path}</c>; <c>tools.edit</c> opens <c>tools.json</c> in an editor;
-/// <c>tools.run</c> takes <c>{runId, name, columns, rows}</c> and answers <c>{outcomes}</c>, sending <c>tools.progress</c>
+/// <c>tools.run</c> takes <c>{runId, name, columns, rows, mapping}</c> (<c>mapping</c>, optional, names the column for each
+/// <c>{parameter}</c>; one it leaves out takes the column of the same name) and answers <c>{outcomes}</c>, sending <c>tools.progress</c>
 /// (<c>{runId, done, total}</c>) after each row; <c>tools.cancel</c> takes <c>{runId}</c> and stops that run, which answers with
 /// the error code <c>cancelled</c>. A tool that can't run is a <c>bad_request</c> whose message says why.</summary>
 public sealed class ExternalToolHandler(ExternalToolService tools)
@@ -63,7 +64,7 @@ public sealed class ExternalToolHandler(ExternalToolService tools)
 
         try
         {
-            return await Rejected(async () => new RunAnswer(await tools.RunAsync(p.Name, p.Columns, p.Rows,
+            return await Rejected(async () => new RunAnswer(await tools.RunAsync(p.Name, p.Columns, p.Rows, p.Mapping,
                 done => bridge.Emit("tools.progress", new Progress(runId, done, p.Rows.Length)), cts.Token)));
         }
         finally
@@ -87,7 +88,8 @@ public sealed class ExternalToolHandler(ExternalToolService tools)
         }
     }
 
-    private sealed record RunParams(string? RunId, string? Name, string[]? Columns, JsonElement[][]? Rows);
+    private sealed record RunParams(string? RunId, string? Name, string[]? Columns, JsonElement[][]? Rows,
+        Dictionary<string, string>? Mapping);
 
     private sealed record CancelParams(string? RunId);
 

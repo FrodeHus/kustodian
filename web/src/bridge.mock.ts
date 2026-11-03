@@ -392,6 +392,7 @@ interface MockRequest {
     name?: string;
     columns?: string[];
     rows?: unknown[][];
+    mapping?: Record<string, string>;
   };
 }
 
@@ -648,7 +649,7 @@ export function createMockTransport(): Transport {
         break;
       case 'tools.run': {
         // As `/bin/echo name={displayName}` would answer, row by row.
-        const at = params?.columns?.indexOf('displayName') ?? -1;
+        const at = params?.columns?.indexOf(params.mapping?.displayName || 'displayName') ?? -1;
         const outcomes = (params?.rows ?? []).map((row) => {
           const value = row[at];
           const args = [`name=${value === null || value === undefined ? '' : typeof value === 'string' ? value : JSON.stringify(value)}`];

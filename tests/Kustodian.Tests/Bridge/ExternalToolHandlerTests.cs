@@ -115,6 +115,30 @@ public sealed class ExternalToolHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task A_mapping_fills_a_parameter_from_another_column()
+    {
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "Uses /bin/echo.");
+        WriteTools("""{"tools":[{"name":"echo","command":"/bin/echo","args":["{upn}","{id}"],"mode":"each"}]}""");
+
+        var response = await CallAsync("tools.run", """
+            {"runId":"r","name":"echo","columns":["id","userPrincipalName"],"rows":[["a","a@contoso.com"]],"mapping":{"upn":"userPrincipalName"}}
+            """);
+
+        Assert.Equal("a@contoso.com a\n", response.GetProperty("result").GetProperty("outcomes")[0].GetProperty("output").GetString());
+    }
+
+    [Fact]
+    public async Task A_mapping_to_a_column_the_result_lacks_is_refused()
+    {
+        WriteTools("""{"tools":[{"name":"echo","command":"/bin/echo","args":["{upn}"],"mode":"each"}]}""");
+
+        var response = await CallAsync("tools.run", """{"runId":"r","name":"echo","columns":["id"],"rows":[["a"]],"mapping":{"upn":"mail"}}""");
+
+        Assert.Equal("bad_request", response.GetProperty("error").GetProperty("code").GetString());
+        Assert.Contains("no column mail", response.GetProperty("error").GetProperty("message").GetString());
+    }
+
+    [Fact]
     public async Task A_command_that_cant_start_is_refused()
     {
         WriteTools("""{"tools":[{"name":"gone","command":"/no/such/command","args":[],"mode":"batch"}]}""");

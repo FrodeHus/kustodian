@@ -4,12 +4,12 @@ import { errorText } from '../shell/errors';
 import { newId } from '../shell/ids';
 import type { ExternalTool, ResultColumn, ToolList, ToolOutcome } from '../wire';
 import type { Row } from './export';
-import { commandLine, fillArgs, toolColumns } from './tool-args';
+import { commandLine, defaultMapping, fillArgs, toolColumns, type ColumnMapping } from './tool-args';
 
 const rowCount = (n: number) => `${n.toLocaleString('en-US')} ${n === 1 ? 'row' : 'rows'}`;
 
-/** The Run tool menu's items: the user's tools, then Edit tools. Choosing a tool whose columns the result lacks says so rather
- * than running it. */
+/** The Run tool menu's items: the user's tools, then Edit tools. A tool whose parameters have no column of the same name says
+ * which it needs mapping; choosing it opens the run dialog, where they are mapped. */
 export function ToolItems({
   columns,
   onChoose,
@@ -38,22 +38,11 @@ export function ToolItems({
       )}
       {list && !problem && list.tools.length === 0 && <span className="faint px-2.5 py-1 text-[11.5px]">No tools yet.</span>}
       {list?.tools.map((tool) => {
-        const missing = toolColumns(tool).filter((c) => !names.has(c));
+        const unmatched = toolColumns(tool).filter((c) => !names.has(c));
         return (
-          <button
-            key={tool.name}
-            type="button"
-            role="menuitem"
-            tabIndex={-1}
-            aria-disabled={missing.length > 0}
-            onClick={() =>
-              missing.length > 0
-                ? onError(`${tool.name} can’t run: it needs the column ${missing.join(', ')}, which this result doesn’t have.`)
-                : onChoose(tool)
-            }
-          >
+          <button key={tool.name} type="button" role="menuitem" tabIndex={-1} onClick={() => onChoose(tool)}>
             {tool.name}
-            {missing.length > 0 && <span className="faint"> · needs {missing.join(', ')}</span>}
+            {unmatched.length > 0 && <span className="faint"> · map {unmatched.join(', ')}</span>}
           </button>
         );
       })}
@@ -65,8 +54,8 @@ export function ToolItems({
 }
 
 /**
- * Runs a tool on rows once the user has seen what will run: the command line for the first row (or the one batch run) and how
- * many rows. While it runs it shows how far it got and can be stopped; then it shows each run's command line and output.
+ * Runs a tool on rows once the user has mapped a column to each of its parameters (a column of the same name is chosen for
+ * them) and seen what will run: the command line for the first row (or the one batch run) and how many rows. While it runs it shows how far it got and can be stopped; then it shows each run's command line and output.
  * Closing it stops a run still going.
  */
 export function RunToolDialog({ tool, columns, rows, onClose }: { tool: ExternalTool; columns: ResultColumn[]; rows: Row[]; onClose: () => void }) {
@@ -75,12 +64,15 @@ export function RunToolDialog({ tool, columns, rows, onClose }: { tool: External
   const [done, setDone] = useState(0);
   const [outcomes, setOutcomes] = useState<ToolOutcome[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [mapping, setMapping] = useState<ColumnMapping>(() => defaultMapping(tool, columns));
   const abort = useRef<AbortController | null>(null);
   useEffect(() => () => abort.current?.abort(), []);
 
   const batch = tool.mode === 'batch';
   const first = rows[0];
-  const preview = commandLine(tool.command, batch || !first ? tool.args : fillArgs(tool, columns, first));
+  const parameters = Object.keys(mapping);
+  const mapped = parameters.every((p) => mapping[p]);
+  const preview = commandLine(tool.command, batch || !first || !mapped ? tool.args : fillArgs(tool, columns, first, mapping));
 
   const run = () => {
     const runId = newId();
@@ -93,7 +85,7 @@ export function RunToolDialog({ tool, columns, rows, onClose }: { tool: External
         setDone(progress.done);
       }
     });
-    call<{ outcomes: ToolOutcome[] }>('tools.run', { runId, name: tool.name, columns: columns.map((c) => c.name), rows }, controller.signal)
+    call<{ outcomes: ToolOutcome[] }>('tools.run', { runId, name: tool.name, columns: columns.map((c) => c.name), rows, mapping }, controller.signal)
       .then(
         (answer) => setOutcomes(answer.outcomes),
         (e: unknown) => setError(errorText(e)),
@@ -136,6 +128,29 @@ export function RunToolDialog({ tool, columns, rows, onClose }: { tool: External
         <b id={`${id}-title`} className="text-[14px]">
           Run {tool.name}
         </b>
+        {!batch && parameters.length > 0 && (
+          <fieldset className="m-0 flex flex-col gap-2 border-0 p-0" disabled={stage !== 'confirm'}>
+            <legend className="mb-2 p-0 text-[12.5px]">Choose the column for each parameter:</legend>
+            {parameters.map((p) => (
+              <label key={p} className="flex items-center gap-3 text-[12.5px]">
+                <span className="mono w-[160px] shrink-0 truncate">{`{${p}}`}</span>
+                <select
+                  className="textbox min-w-0 flex-1"
+                  value={mapping[p]}
+                  aria-invalid={!mapping[p]}
+                  onChange={(e) => setMapping({ ...mapping, [p]: e.target.value })}
+                >
+                  <option value="">Choose a column…</option>
+                  {columns.map((c) => (
+                    <option key={c.name} value={c.name}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </fieldset>
+        )}
         <span className="text-[12.5px]">
           {batch ? `Runs once, with ${rowCount(rows.length)} on stdin as JSON:` : `Runs once for each of ${rowCount(rows.length)}. The first:`}
         </span>
@@ -161,7 +176,7 @@ export function RunToolDialog({ tool, columns, rows, onClose }: { tool: External
               <button type="button" className="btn" onClick={onClose}>
                 Cancel
               </button>
-              <button type="button" className="btn primary" autoFocus disabled={!batch && rows.length === 0} onClick={run}>
+              <button type="button" className="btn primary" autoFocus disabled={!batch && (rows.length === 0 || !mapped)} onClick={run}>
                 Run
               </button>
             </>

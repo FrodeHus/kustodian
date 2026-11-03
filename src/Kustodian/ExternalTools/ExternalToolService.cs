@@ -82,10 +82,11 @@ public sealed partial class ExternalToolService(string root, Action<string>? ope
     }
 
     /// <summary>Runs the tool named <paramref name="name"/> on <paramref name="rows"/> (each a value per column of
-    /// <paramref name="columns"/>), one row at a time in <c>each</c> mode, reporting how many are done after each. Throws
+    /// <paramref name="columns"/>), one row at a time in <c>each</c> mode, reporting how many are done after each. Each
+    /// <c>{parameter}</c> takes the column <paramref name="mapping"/> names for it, or the column of the same name. Throws
     /// <see cref="ToolRejectedException"/> when the tool can't run, before anything starts.</summary>
     public async Task<IReadOnlyList<ToolOutcome>> RunAsync(string name, IReadOnlyList<string> columns, IReadOnlyList<JsonElement[]> rows,
-        Action<int>? done = null, CancellationToken ct = default)
+        IReadOnlyDictionary<string, string>? mapping = null, Action<int>? done = null, CancellationToken ct = default)
     {
         var list = await ListAsync(ct);
         if (list.Problem is { } problem)
@@ -99,18 +100,22 @@ public sealed partial class ExternalToolService(string root, Action<string>? ope
             return [await RunOnceAsync(tool.Command, tool.Args, StdinJson(columns, rows), ct)];
         }
 
-        var missing = tool.Args.SelectMany(a => Placeholder().Matches(a)).Select(m => m.Groups[1].Value).Distinct()
-            .Where(c => !columns.Contains(c)).ToList();
-        if (missing.Count > 0)
+        var at = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var parameter in tool.Args.SelectMany(a => Placeholder().Matches(a)).Select(m => m.Groups[1].Value).Distinct())
         {
-            throw new ToolRejectedException($"{tool.Name} needs the column {string.Join(", ", missing)}, which the result doesn't have.");
+            var column = mapping is not null && mapping.TryGetValue(parameter, out var mapped) ? mapped : parameter;
+            at[parameter] = IndexOf(columns, column);
+            if (at[parameter] < 0)
+            {
+                throw new ToolRejectedException($"{tool.Name} needs a column for {parameter}, and the result has no column {column}.");
+            }
         }
 
         // shortcut: rows run one at a time; run a few at once if long lists of slow commands get common.
         var outcomes = new List<ToolOutcome>(rows.Count);
         foreach (var row in rows)
         {
-            var args = tool.Args.Select(a => Placeholder().Replace(a, m => CellText(row[IndexOf(columns, m.Groups[1].Value)]))).ToList();
+            var args = tool.Args.Select(a => Placeholder().Replace(a, m => CellText(row[at[m.Groups[1].Value]]))).ToList();
             outcomes.Add(await RunOnceAsync(tool.Command, args, null, ct));
             done?.Invoke(outcomes.Count);
         }
