@@ -1,9 +1,9 @@
 # Releasing Kustodian
 
 A release is cut by one run of `.github/workflows/release.yml`. It moves the Unreleased changelog entries under the new
-version, sets the version in `Directory.Build.props`, tags `main`, builds every package from that commit and creates a
-draft GitHub release "Kustodian x.y.z" with the packages and `SHA256SUMS.txt`. Nothing is published until you publish the
-draft.
+version, sets the version in `Directory.Build.props`, tags `main`, builds every package from that commit, publishes the
+GitHub release "Kustodian x.y.z" with the packages and `SHA256SUMS.txt`, and submits the Windows MSIs to winget. There is no
+draft to review: once the tag is pushed, the release goes out when the build passes.
 
 ## Changelog entries
 
@@ -28,27 +28,27 @@ the release at "Cut the release".
      sets `<Version>` in `Directory.Build.props` (it refuses an empty Unreleased section, or a version that already has a
      section);
    - commits that to `main` as "chore: version x.y.z" and pushes the annotated tag `vx.y.z`.
-3. The tag push starts a second release run, which builds the packages and drafts the release. Watch it under
-   Actions → release.
-4. Review the draft on the [releases page](https://github.com/FrodeHus/kustodian/releases): the assets, the notes (the
-   changelog section, install instructions and the signing note) and the checksums. Then publish it.
+3. The tag push starts a second release run, which builds the packages, publishes the release and then submits it to
+   winget (see [winget](#winget)). Watch it under Actions → release.
+4. Look over the published release on the [releases page](https://github.com/FrodeHus/kustodian/releases): the assets, the
+   notes (the changelog section, install instructions and the signing note) and the checksums.
 5. Check one package per platform, as in [manual-checks.md](manual-checks.md), and that `Kustodian --version` prints the
    version.
-6. Publishing starts the `winget` workflow, which submits the release to winget (see [winget](#winget)).
 
 ## winget
 
-Kustodian is submitted to winget as `Reothor.Kustodian`. Publishing a release starts the `winget` workflow
-(`.github/workflows/winget.yml`): it downloads the two MSIs from the release, refuses them unless they're validly signed,
+Kustodian is submitted to winget as `Reothor.Kustodian`. Once the release is published, the release workflow's last job
+runs the `winget` workflow (`.github/workflows/winget.yml`): it downloads the two MSIs from the release, refuses them unless they're validly signed,
 writes the manifest from their hashes with `tools/release/windows/winget/New-Manifest.ps1`, checks it with
 `winget validate`, and runs `tools/release/submit-winget.sh`, which opens the pull request on
 [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) from the token account's fork (created on first use).
-Microsoft's checks and a moderator then publish it, usually within a day or two. It runs on publishing, not in the build,
-because a draft release's download URLs don't work.
+Microsoft's checks and a moderator then publish it, usually within a day or two; a new package's first submission can take
+longer. It runs after publishing because the manifest points at the release's download URLs. A failed winget job fails the
+release run, but the release itself is already out.
 
 The submission needs the `WINGET_TOKEN` secret: a classic personal access token with the `public_repo` scope (the same one
 Elevate uses works). Without it the manifest is still validated and kept as the run's `winget-manifest` artifact, and
-nothing is submitted. To submit a release again, or one published before the token was set: Actions → winget →
+nothing is submitted. To submit a release again, for example after a failed submission: Actions → winget →
 *Run workflow* with its version. The script leaves an already open pull request for the same version alone.
 
 The manifest templates are in `tools/release/windows/winget/templates/`. Every version is its own submission; winget-pkgs
@@ -63,9 +63,13 @@ refuses any other tag before anything is built or signed.
 
 ## Redoing a release
 
-Delete the draft release and the tag, fix what was wrong on `main`, then push the tag again at a commit on `main` (see
-[Tagging by hand](#tagging-by-hand)); the version commit and changelog section from the first try are already there.
-`gh release create` fails if a release for the tag still exists.
+If the build fails before the release job, nothing was published: fix what was wrong on `main`, delete the tag, then push
+it again at a commit on `main` (see [Tagging by hand](#tagging-by-hand)); the version commit and changelog section from the
+first try are already there.
+
+Once a release is published, people may have downloaded it, the app's update check offers it, and winget may have a pull
+request for it. Don't redo it: fix `main` and cut the next patch version. `gh release create` fails if a release for the tag
+already exists.
 
 ## The deploy key and the rulesets
 
