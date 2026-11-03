@@ -5,6 +5,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-03
+
 ### Changed
 
 - The status bar says "Built-in Graph schema" and its date instead of the schema's full source, which no longer squeezes
