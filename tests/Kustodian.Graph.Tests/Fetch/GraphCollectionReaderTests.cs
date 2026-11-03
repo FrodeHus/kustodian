@@ -248,6 +248,22 @@ public sealed partial class GraphCollectionReaderTests
         Assert.Equal(0, await probes.TopLimitAsync(Account, "applications", CancellationToken.None));
     }
 
+    // roleManagement/directory/roleDefinitions takes $top=500 only and names nothing when it refuses another.
+    [Fact]
+    public async Task An_unsupported_query_refusal_without_a_filter_tries_a_smaller_top()
+    {
+        var probes = await ListingEverything();
+        var handler = new Scripted((r, n) => r.RequestUri!.Query.Contains("$top=500")
+            ? Json(HttpStatusCode.OK, Page(0, 20))
+            : Json(HttpStatusCode.BadRequest, Error("Request_UnsupportedQuery", "Invalid/unsupported query request.")));
+
+        var result = await Read(Reader(handler, probes: probes), Fetch());
+
+        Assert.Equal(20, result.Objects.Count);
+        Assert.EndsWith("$top=500", result.Requests[1], StringComparison.Ordinal);
+        Assert.Equal(500, await probes.TopLimitAsync(Account, "applications", CancellationToken.None));
+    }
+
     // identityProtection/riskyUsers takes at most 500 a page: the size Graph takes is kept, not $top left out.
     [Fact]
     public async Task A_top_refused_for_its_size_reads_with_a_smaller_one_and_remembers_it()

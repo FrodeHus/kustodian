@@ -81,6 +81,11 @@ public static partial class GraphErrorText
         && (message.Contains("$top", StringComparison.OrdinalIgnoreCase) || message.Contains("'Top'", StringComparison.OrdinalIgnoreCase)
             || message.Contains("page size", StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>Whether Graph's message for a 400 names no query option at all: "Invalid/unsupported query request."
+    /// (<c>roleManagement/directory/roleDefinitions</c> answers so for any <c>$top</c> but 500).</summary>
+    internal static bool IsUnsupportedQuery(string? message) => message is not null
+        && message.Contains("Invalid/unsupported query request", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Whether Graph's message for a 400 refuses <c>$select</c> itself, not a property in it: "Query option 'Select' is
     /// not allowed" (<c>reports/appCredentialSignInActivities</c> and other report collections).</summary>
     internal static bool RefusesSelect(string? message) => message is not null
