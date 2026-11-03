@@ -1,8 +1,8 @@
 name: winget
 
-# Submits Reothor.Kustodian to microsoft/winget-pkgs when a release is published. The release workflow only drafts the
-# release, and a draft's download URLs do not work, so this runs on publishing rather than as part of the build. Running it
-# by hand with a version resubmits that release, e.g. after the WINGET_TOKEN secret was added or a submission failed.
+# Submits Reothor.Kustodian to microsoft/winget-pkgs. The release workflow calls it once the release is published (a
+# release published with the workflow token starts no other workflow, so a `release` trigger would never fire). Running it
+# by hand with a version resubmits that release, e.g. after a submission failed.
 #
 # It downloads both MSIs from the release, refuses them unless their Authenticode signatures are valid (winget moderation
 # expects signed installers, and the pull request says they are), writes the manifest from their hashes, validates it
@@ -10,8 +10,15 @@ name: winget
 # the token the manifest is still validated and kept as an artifact, and nothing is submitted.
 
 on:
-  release:
-    types: [published]
+  workflow_call:
+    inputs:
+      version:
+        description: "Published release to submit, e.g. 1.2.3"
+        required: true
+        type: string
+    secrets:
+      WINGET_TOKEN:
+        required: false
   workflow_dispatch:
     inputs:
       version:
@@ -25,12 +32,11 @@ permissions:
 jobs:
   submit:
     name: Submit to winget-pkgs
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'v')
     timeout-minutes: 20
     runs-on: windows-latest
     env:
       # The typed input stays in an environment variable, never expanded into a script.
-      REQUESTED: ${{ inputs.version || github.event.release.tag_name }}
+      REQUESTED: ${{ inputs.version }}
     steps:
       - uses: actions/checkout@v7
         with:

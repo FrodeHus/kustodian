@@ -1,14 +1,14 @@
 name: release
 
-# Builds every package from one commit and creates a draft GitHub release with all of them and SHA256SUMS.txt. Runs on a
-# pushed `v<version>` tag. The tagged commit must be on main, match the project's version (Directory.Build.props) and
-# have a CHANGELOG.md section for it; the version job refuses anything else before a build starts. Nothing is
-# published: the owner reviews the draft and publishes it.
+# Builds every package from one commit, publishes a GitHub release with all of them and SHA256SUMS.txt, then submits the
+# Windows MSIs to winget (winget.yml). Runs on a pushed `v<version>` tag. The tagged commit must be on main, match the
+# project's version (Directory.Build.props) and have a CHANGELOG.md section for it; the version job refuses anything else
+# before a build starts.
 #
 # Running the workflow by hand with a version does the steps before the tag as well: it checks that main is green, runs
 # tools/release/cut-release.sh (the Unreleased changelog entries move under the new version, and Directory.Build.props
-# gets it), commits that to main and pushes the tag. That tag push starts a second run, which builds and drafts the
-# release; the manual run ends after the tag. Both pushes use the RELEASE_DEPLOY_KEY deploy key, which the main ruleset
+# gets it), commits that to main and pushes the tag. That tag push starts a second run, which builds and publishes
+# the release; the manual run ends after the tag. Both pushes use the RELEASE_DEPLOY_KEY deploy key, which the main ruleset
 # lets bypass the pull-request requirement (the workflow token cannot, and a tag pushed with it would start no run).
 
 on:
@@ -118,9 +118,9 @@ jobs:
           git tag -a "v$VERSION" -m "Kustodian $VERSION"
           git push origin HEAD:main
           git push origin "v$VERSION"
-          echo "Pushed v$VERSION; the tag run builds and drafts the release." >>"$GITHUB_STEP_SUMMARY"
+          echo "Pushed v$VERSION; the tag run builds and publishes the release." >>"$GITHUB_STEP_SUMMARY"
 
-  # Everything after this job signs with the release certificate and drafts the release. Only a commit that already
+  # Everything after this job signs with the release certificate and publishes the release. Only a commit that already
   # reached main, through a pull request or the manual run above, may get there; any other tag stops here.
   version:
     name: Check the tag
@@ -379,7 +379,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    name: Draft the release
+    name: Publish the release
     needs: [version, windows, macos, linux]
     runs-on: ubuntu-latest
     permissions:
@@ -444,14 +444,24 @@ jobs:
       # The tag already exists (--verify-tag makes sure), so the release takes its commit and needs no --target. With
       # --target set to the tag's commit, GitHub refused the workflow token (403, "Resource not accessible by integration")
       # for v0.9.7, after a later change to main's workflow files: such a target asks for the workflows permission too.
-      - name: Create the draft release
+      - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
           gh release create "v$VERSION"
           artifacts/Kustodian-*
           artifacts/SHA256SUMS.txt
-          --draft
           --verify-tag
           --title "Kustodian $VERSION"
           --notes-file notes.md
+
+  # A release published with the workflow token starts no other workflow, so a `release: published` trigger in winget.yml
+  # would never fire: it is called from here instead.
+  winget:
+    name: winget
+    needs: [version, release]
+    uses: ./.github/workflows/winget.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+    secrets:
+      WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
