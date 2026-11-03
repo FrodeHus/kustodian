@@ -5,6 +5,13 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- The status bar says "Built-in Graph schema" and its date instead of the schema's full source, which no longer squeezes
+  the rest of the bar. Hover it for the source.
+- The Graph schema is regenerated from the latest beta metadata: the Copilot cost management tables
+  `copilot_costManagement_spendingPolicies` and `copilot_costManagement_userBalances` now list their read permissions.
+
 ## [1.0.0] - 2026-11-03
 
 ### Changed
