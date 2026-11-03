@@ -1,5 +1,5 @@
 {
-  "source": "msgraph-metadata@1fd0ef510f79f3dadb3e083bdebc9496f939a11c; permissions https://raw.githubusercontent.com/microsoftgraph/microsoft-graph-devx-content/master/permissions/new/permissions.json",
+  "source": "msgraph-metadata@4c15d2c64f66348a6a2ff7227655c64a14ad39b7; permissions https://raw.githubusercontent.com/microsoftgraph/microsoft-graph-devx-content/master/permissions/new/permissions.json",
   "permissions": [
     {
       "name": "APIConnectors.ReadWrite.All",
@@ -586,6 +586,30 @@
       "description": "Allows the app to read app consent requests for your approval, and deny or approve those request on your behalf.",
       "tables": [
         "identityGovernance/appConsent/appConsentRequests"
+      ]
+    },
+    {
+      "name": "CopilotCostManagement-Policy.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read your organization's Copilot spending policies and their configuration on your behalf, including budget limits, alert thresholds, who created and last changed each policy, and who receives its alerts.",
+      "tables": [
+        "copilot/costManagement/spendingPolicies"
+      ]
+    },
+    {
+      "name": "CopilotCostManagement-Policy.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read, create, update, and delete your organization's Copilot spending policies on your behalf, including changing who receives a policy's spending alerts. Creating a policy also sets who it applies to, may take effect immediately and begin restricting how much users can spend, and may include selecting the billing method that funds it.",
+      "tables": [
+        "copilot/costManagement/spendingPolicies"
+      ]
+    },
+    {
+      "name": "CopilotCostManagement-UserData.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read Copilot cost data attributed to individual users and security groups in your organization, on your behalf. This includes any named user's credit balance, consumption rankings, usage totalled by security group, and raw usage grouped by service or activity session, including session identifiers when available and first and last activity timestamps.",
+      "tables": [
+        "copilot/costManagement/userBalances"
       ]
     },
     {

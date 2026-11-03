@@ -164,7 +164,7 @@ describe('App', () => {
     render(<App />);
 
     const footer = () => document.querySelector('footer.statusbar')?.textContent ?? '';
-    await waitFor(() => expect(footer()).toContain('Schema: '));
+    await waitFor(() => expect(footer()).toContain('Built-in Graph schema · '));
     expect(footer()).toContain('KQL');
     // Nothing asks ARM for anything before a Resource Graph tab opens.
     expect(bridge.call.mock.calls.some(([m]) => m === 'arm.resourceTypes')).toBe(false);
