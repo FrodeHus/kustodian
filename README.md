@@ -1,6 +1,9 @@
 # Kustodian
 
 [![ci](https://github.com/FrodeHus/kustodian/actions/workflows/ci.yml/badge.svg)](https://github.com/FrodeHus/kustodian/actions/workflows/ci.yml)
+[![release](https://github.com/FrodeHus/kustodian/actions/workflows/release.yml/badge.svg)](https://github.com/FrodeHus/kustodian/actions/workflows/release.yml)
+[![graph-schema](https://github.com/FrodeHus/kustodian/actions/workflows/graph-schema.yml/badge.svg)](https://github.com/FrodeHus/kustodian/actions/workflows/graph-schema.yml)
+[![Latest release](https://img.shields.io/github/v/release/FrodeHus/kustodian)](https://github.com/FrodeHus/kustodian/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A desktop KQL workbench for your Microsoft tenant. Write one query language against **Microsoft Graph**, **Defender advanced
