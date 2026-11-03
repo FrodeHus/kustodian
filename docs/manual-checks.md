@@ -302,6 +302,19 @@ Use a **test tenant** for the consent rows: granting a permission changes what e
 | **Grant permission…** as an admin: consent on Microsoft's screen, the query runs again | owner | owner | owner |
 | **Grant permission…** as a non-admin: "Not granted. An administrator has to grant *permission*." appears | owner | owner | owner |
 
+## Windows signing (2026-11-03)
+
+The release workflow signs `Kustodian.exe` and both MSIs with the Certum certificate once the `CERTUM_*` secrets are set.
+The first signed release is the one after 0.94.0; these rows are for it.
+
+| Check | Windows x64 | Windows arm64 |
+| --- | --- | --- |
+| The SimplySign session opens on a hosted runner and signs a file (`signing-check.yml`) | ok (run 41587610269: signer "Open Source Developer Frode Hus", timestamp "Certum Timestamp 2026") | n/a |
+| The MSI's **Properties → Digital Signatures** shows "Open Source Developer Frode Hus" with a timestamp | owner | owner |
+| The installed `%LOCALAPPDATA%\Programs\Kustodian\Kustodian.exe` carries the same signature | owner | owner |
+| The installer's prompt names the publisher instead of "Unknown Publisher" | owner | owner |
+| The portable zip's `Kustodian.exe` is unsigned, as the install guide says | owner | owner |
+
 ## Notes
 
 - macOS launch check: the window title was "Kustodian". It showed a signed-in account because of an earlier owner sign-in cached
