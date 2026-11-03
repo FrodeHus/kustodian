@@ -70,6 +70,19 @@ describe('bridge', () => {
     expect(seen).toEqual([1]);
   });
 
+  it('abort_signal_sends_tools_cancel', async () => {
+    const host = fakeTransport();
+    const { call } = createBridge(host.transport);
+    const controller = new AbortController();
+
+    const pending = call('tools.run', { runId: 'run-3', name: 'echo', columns: [], rows: [] }, controller.signal);
+    controller.abort();
+
+    await expect(pending).rejects.toMatchObject({ code: 'cancelled' });
+    expect(host.sent.map((m) => m.method)).toEqual(['tools.run', 'tools.cancel']);
+    expect(host.sent[1]?.params).toEqual({ runId: 'run-3' });
+  });
+
   it('abort_signal_sends_query_cancel', async () => {
     const host = fakeTransport();
     const { call } = createBridge(host.transport);

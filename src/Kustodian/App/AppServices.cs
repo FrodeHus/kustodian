@@ -7,6 +7,7 @@ using Kustodian.Graph.Run;
 using Kustodian.Graph.Schema;
 using Kustodian.Library;
 using Kustodian.Messaging;
+using Kustodian.ExternalTools;
 using Kustodian.Messaging.Handlers;
 using Kustodian.Raw;
 using Kustodian.Sessions;
@@ -45,6 +46,7 @@ public sealed class AppServices : IAsyncDisposable
     private readonly RecentService _recent;
     private readonly SessionService _session;
     private readonly SnippetService _snippets;
+    private readonly ExternalToolService _tools;
     private readonly AllowedFilePaths _allowedFiles;
     private readonly GraphSchema _schema = GraphSchemaCatalog.Beta;
     private readonly GraphTenantLicenses _licenses;
@@ -62,6 +64,7 @@ public sealed class AppServices : IAsyncDisposable
         _recent = new RecentService(store, new StderrLogger<RecentService>());
         _session = new SessionService(store);
         _snippets = new SnippetService(store, new StderrLogger<SnippetService>());
+        _tools = new ExternalToolService(store.Root);
         _allowedFiles = new AllowedFilePaths(_session, new StderrLogger<AllowedFilePaths>());
         Limits = SettingsService.ToGraphLimits(startup.Limits);
 
@@ -121,6 +124,7 @@ public sealed class AppServices : IAsyncDisposable
         new LibraryHandler(_library, _recent).Register(bridge);
         new SessionHandler(_session, _allowedFiles).Register(bridge);
         new SnippetHandler(_snippets).Register(bridge);
+        new ExternalToolHandler(_tools).Register(bridge);
         new FileHandler(new PhotinoFileDialogs(Window), _allowedFiles).Register(bridge);
         new AccountHandler(_accounts, _tokenCache, Objects, Probes, _huntingSchema, _armDirectory, _licenses).Register(bridge);
         new RawHandler(new RawRequestService(_http, _time), ActiveAccountAsync).Register(bridge);
