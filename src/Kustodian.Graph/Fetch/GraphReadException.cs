@@ -14,7 +14,13 @@ public sealed class GraphReadException(GraphReadFailure failure, string message,
     public int? RetryAfterSeconds { get; } = retryAfterSeconds;
     public IReadOnlyList<string> Requests { get; init; } = [];
 
+    /// <summary>The HTTP status of Graph's answer, when the failure is one.</summary>
+    public int? Status { get; init; }
+
+    /// <summary>Graph's <c>error.code</c> (<c>Request_UnsupportedQuery</c>, <c>BadRequest</c>), when its answer had one.</summary>
+    public string? Code { get; init; }
+
     /// <summary>The same failure, with the requests that led to it.</summary>
     public GraphReadException WithRequests(IReadOnlyList<string> requests)
-        => new(Failure, Message, RetryAfterSeconds, InnerException) { Requests = requests };
+        => new(Failure, Message, RetryAfterSeconds, InnerException) { Requests = requests, Status = Status, Code = Code };
 }
