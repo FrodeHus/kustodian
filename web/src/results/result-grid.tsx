@@ -1,18 +1,25 @@
 import {
+  columnFilteringFeature,
+  columnGroupingFeature,
+  columnOrderingFeature,
+  columnVisibilityFeature,
+  createExpandedRowModel,
+  createFilteredRowModel,
+  createGroupedRowModel,
+  createSortedRowModel,
   flexRender,
-  getCoreRowModel,
-  getExpandedRowModel,
-  getFilteredRowModel,
-  getGroupedRowModel,
-  getSortedRowModel,
-  useReactTable,
+  globalFilteringFeature,
+  rowExpandingFeature,
+  rowSortingFeature,
+  tableFeatures,
+  useTable,
   type ColumnDef,
+  type ColumnVisibilityState,
   type ExpandedState,
   type FilterFn,
   type Row as TableRow,
-  type SortingFn,
+  type SortFn,
   type SortingState,
-  type VisibilityState,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
@@ -42,12 +49,27 @@ function columnWidths(columns: ResultColumn[], rows: Row[]): Map<string, number>
   );
 }
 
+const features = tableFeatures({
+  columnFilteringFeature,
+  globalFilteringFeature,
+  rowSortingFeature,
+  columnVisibilityFeature,
+  columnOrderingFeature,
+  columnGroupingFeature,
+  rowExpandingFeature,
+  filteredRowModel: createFilteredRowModel(),
+  groupedRowModel: createGroupedRowModel(),
+  sortedRowModel: createSortedRowModel(),
+  expandedRowModel: createExpandedRowModel(),
+});
+type Features = typeof features;
+
 const isComplex = (value: unknown) => typeof value === 'object' && value !== null;
 const count = (n: number) => n.toLocaleString('en-US');
 const rowCount = (n: number) => `${count(n)} ${n === 1 ? 'row' : 'rows'}`;
 
 /** Nulls last; numbers by value; everything else by its text. */
-const compareCells: SortingFn<Row> = (a, b, columnId) => {
+const compareCells: SortFn<Features, Row> = (a, b, columnId) => {
   const x = a.getValue(columnId);
   const y = b.getValue(columnId);
   if (x === null || x === undefined) {
@@ -63,13 +85,13 @@ const compareCells: SortingFn<Row> = (a, b, columnId) => {
 };
 
 /** A row matches when any of its cells' text contains the filter, ignoring case. */
-const rowContains: FilterFn<Row> = (row, _columnId, filter: string) => {
+const rowContains: FilterFn<Features, Row> = (row, _columnId, filter: string) => {
   const needle = filter.toLowerCase();
   return row.original.some((value) => cellText(value).toLowerCase().includes(needle));
 };
 
 /** The leaf rows under `rows` in the order shown, groups opened or not. */
-function leaves(rows: TableRow<Row>[]): TableRow<Row>[] {
+function leaves(rows: TableRow<Features, Row>[]): TableRow<Features, Row>[] {
   return rows.flatMap((r) => (r.getIsGrouped() ? leaves(r.subRows) : [r]));
 }
 
@@ -247,7 +269,7 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
   const [sorting, setSorting] = useState<SortingState>([]);
   const [filter, setFilter] = useState('');
   const [opened, setOpened] = useState<Opened | null>(null);
-  const [visibility, setVisibility] = useState<VisibilityState>({});
+  const [visibility, setVisibility] = useState<ColumnVisibilityState>({});
   const [order, setOrder] = useState<string[]>([]);
   const [grouping, setGrouping] = useState<string[]>([]);
   const [expanded, setExpanded] = useState<ExpandedState>({});
@@ -265,20 +287,21 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
 
   const meta = useMemo(() => new Map(columns.map((c) => [c.name, c])), [columns]);
   const widths = useMemo(() => columnWidths(columns, rows), [columns, rows]);
-  const defs = useMemo<ColumnDef<Row>[]>(
+  const defs = useMemo<ColumnDef<Features, Row>[]>(
     () =>
       columns.map((c, i) => ({
         id: c.name,
         header: c.name,
         accessorFn: (row) => row[i],
-        sortingFn: compareCells,
+        sortFn: compareCells,
         sortUndefined: 'last',
         getGroupingValue: (row) => cellText(row[i]),
       })),
     [columns],
   );
 
-  const table = useReactTable<Row>({
+  const table = useTable({
+    features,
     data: rows,
     columns: defs,
     state: { sorting, globalFilter: filter, columnVisibility: visibility, columnOrder: order, grouping, expanded },
@@ -293,11 +316,6 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
     groupedColumnMode: false,
     // The first click sorts ascending for every type (TanStack would start numbers descending).
     sortDescFirst: false,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getGroupedRowModel: getGroupedRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getExpandedRowModel: getExpandedRowModel(),
   });
 
   const visible = table.getRowModel().rows;
@@ -334,7 +352,7 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
     setOrder([...rest.slice(0, at), id, ...rest.slice(at)]);
   };
 
-  const select = (row: TableRow<Row>, e: MouseEvent) => {
+  const select = (row: TableRow<Features, Row>, e: MouseEvent) => {
     if (e.shiftKey && anchor !== null) {
       const from = shownLeaves.findIndex((r) => r.id === anchor);
       const to = shownLeaves.indexOf(row);
