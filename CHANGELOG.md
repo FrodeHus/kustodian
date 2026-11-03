@@ -5,6 +5,50 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-03
+
+### Changed
+
+- The Windows MSIs, and the `Kustodian.exe` they install, are code-signed: Windows names the publisher, "Open Source
+  Developer Frode Hus", instead of warning about an unknown one. The portable zips stay unsigned.
+
+## [0.94.0] - 2026-11-02
+
+### Added
+
+- Settings shows the version you are running and has a "Check for update" button. At startup Kustodian asks GitHub for the
+  latest release and, when it is newer, offers to open its release page, remind you next start, or skip that version.
+
+## [0.93.0] - 2026-11-02
+
+### Added
+
+- You can choose to share Graph compatibility findings: which Graph tables refuse `$top`, `$count`, `$orderby`, `$select`, a
+  filter, or columns in a list. They help build those limits into Kustodian so queries skip the probing. It is off until you
+  opt in. Kustodian asks once at first start, and you can change your answer under **Settings → Graph compatibility
+  findings**. Only the table path, the finding and the app version are sent. Your tenant, account, queries and data never are.
+  The [telemetry page](https://frodehus.github.io/kustodian/telemetry.html) shows exactly what is sent.
+
+### Fixed
+
+- A Graph table that caps its page size, such as `riskyUsers` (at most 500), is now read in pages of that size instead of
+  Graph's default of 20, which got throttled on large tenants. When Graph refuses `$top=999`, Kustodian tries 500, then
+  100, before leaving `$top` out, and remembers the size Graph takes so later runs send it straight away.
+
+## [0.92.0] - 2026-11-02
+
+### Fixed
+
+- Result columns keep their width while you scroll. Each result sets a fixed width per column from its header and longest
+  value, instead of resizing to the rows in view.
+
+## [0.91.0] - 2026-11-01
+
+### Fixed
+
+- Shortcut hints are easier to read: the ⌘ no longer shrinks to a dot on high-resolution screens, and on macOS Shift is shown as
+  ⇧, so Run all reads ⇧ Enter next to Run's ⌘ Enter.
+
 ## [0.9.10] - 2026-10-29
 
 ### Fixed

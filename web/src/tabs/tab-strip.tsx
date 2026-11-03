@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { openRaw } from '../raw/raw-request';
 import { registerCommands, type Command } from '../shell/commands';
-import { MOD } from '../shell/keys';
+import { MOD, SHIFT } from '../shell/keys';
 import type { Source } from '../wire';
 import { SourceBadge } from './source-badge';
 import { SOURCES } from './sources';
@@ -204,13 +204,13 @@ export function TabStrip({ onDialog }: { onDialog?: (open: boolean) => void } = 
               <SourceBadge source="hunting" />
               Defender hunting query
               <span className="grow" />
-              <span className="kbd">{MOD} Shift H</span>
+              <span className="kbd">{MOD} {SHIFT} H</span>
             </button>
             <button type="button" role="menuitem" onClick={() => openNew('arg')}>
               <SourceBadge source="arg" />
               Resource Graph query
               <span className="grow" />
-              <span className="kbd">{MOD} Shift A</span>
+              <span className="kbd">{MOD} {SHIFT} A</span>
             </button>
             <button type="button" role="menuitem" onClick={() => openNew('raw')}>
               <SourceBadge source="raw" />

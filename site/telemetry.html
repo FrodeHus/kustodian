@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kustodian telemetry</title>
+<meta name="description" content="What Kustodian shares when you opt in to Graph compatibility findings, why, and how to turn it off.">
+<meta name="theme-color" content="#0F1115">
+<link rel="icon" href="favicon.png" type="image/png" sizes="32x32">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0F1115}
+.k-site{--bg:#0F1115;--panel:#161A20;--line:#2A303A;--text:#E6E9EE;--muted:#A3ADBB;--faint:#7D8796;--accent:#4CC2FF;--ok:#7FD4A8;--bad:#FF8A80;
+  background:var(--bg);color:var(--text);font-family:"Inter",system-ui,sans-serif;font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+.k-site *{box-sizing:border-box}
+.k-site a{color:var(--accent);text-decoration:none}
+.k-site a:hover{color:#8AD8FF}
+.k-wrap{max-width:820px;margin:0 auto;padding:0 32px}
+.k-nav{border-bottom:1px solid var(--line)}
+.k-nav .k-wrap{display:flex;align-items:center;height:64px;max-width:1200px}
+.k-site a.k-logo{display:flex;align-items:center;gap:10px;color:var(--text);font-weight:700;font-size:18px}
+.k-label{font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin:72px 0 16px}
+h1{font-size:44px;line-height:1.1;letter-spacing:-.03em;margin:0 0 20px}
+h2{font-size:24px;letter-spacing:-.01em;margin:56px 0 12px}
+.k-lead{font-size:20px;color:var(--muted);margin:0}
+p,li{color:var(--muted)}
+li{margin:6px 0}
+code,.k-mono{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.88em;color:var(--text)}
+pre{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;overflow-x:auto;font-size:14px;line-height:1.7}
+pre code{font-size:inherit}
+.k-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}
+.k-panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px 24px}
+.k-panel h3{margin:0 0 8px;font-size:16px}
+.k-panel ul{margin:0;padding-left:20px}
+.k-panel.ok h3{color:var(--ok)}
+.k-panel.no h3{color:var(--bad)}
+table{width:100%;border-collapse:collapse;margin-top:12px;font-size:15px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--text);font-weight:600}
+td{color:var(--muted)}
+.k-foot{padding:72px 0 64px;font-size:14px;color:var(--faint)}
+@media (max-width:640px){
+  .k-wrap{padding:0 16px}
+  h1{font-size:32px}
+  .k-lead{font-size:18px}
+  .k-cols{grid-template-columns:minmax(0,1fr)}
+  table{display:block;overflow-x:auto}
+}
+</style>
+</head>
+<body>
+<div class="k-site">
+
+<header class="k-nav">
+<div class="k-wrap">
+<a class="k-logo" href="./" aria-label="Kustodian home">
+<img src="logo.png" width="28" height="28" alt="">
+<span>Kustodian</span>
+</a>
+</div>
+</header>
+
+<main class="k-wrap">
+<p class="k-label">Telemetry</p>
+<h1>Graph compatibility findings</h1>
+<p class="k-lead">Kustodian can share one kind of data, and only if you say yes: which Microsoft Graph tables refuse which query options. Nothing else is collected, and it is off until you opt in.</p>
+
+<h2>Why it helps</h2>
+<p>Graph doesn’t support every query option on every collection. Some refuse <code>$top=999</code>, some refuse <code>$count</code>, <code>$orderby</code> or <code>$select</code>, some refuse a filter on a nested or multi-valued column, and some won’t list certain columns at all. Kustodian finds out by probing: it sends the request, reads the refusal and tries again without the option. It remembers what it learnt for 7 days, on your machine.</p>
+<p>Probing costs time and requests, and some collections, such as sign-in logs, throttle hard. When findings are shared, the ones that hold across tenants can be built into Kustodian, so every user’s queries on those tables skip the probing from the first run.</p>
+
+<h2>What is sent</h2>
+<p>One event each time probing finds something new about a table. The event is exactly this:</p>
+<pre><code>{
+  "name": "Microsoft.ApplicationInsights.Event",
+  "time": "2026-11-02T12:00:00.0000000+00:00",
+  "iKey": "&lt;Kustodian's Application Insights key&gt;",
+  "tags": { "ai.application.ver": "0.93.0", "ai.location.ip": "0.0.0.0" },
+  "data": {
+    "baseType": "EventData",
+    "baseData": {
+      "ver": 2,
+      "name": "GraphProbeFinding",
+      "properties": {
+        "path": "auditLogs/signIns",
+        "finding": "topLimit",
+        "detail": "500"
+      }
+    }
+  }
+}</code></pre>
+<table>
+<thead><tr><th>Field</th><th>What it holds</th></tr></thead>
+<tbody>
+<tr><td><code>path</code></td><td>The table’s Graph path from Kustodian’s built-in schema, such as <code>users</code> or <code>auditLogs/signIns</code>. Never an object ID.</td></tr>
+<tr><td><code>finding</code></td><td><code>topLimit</code> (the largest page size Graph takes, after it refused <code>$top=999</code>; 0 when it takes no <code>$top</code>), <code>refused</code> (Graph refused a clause) or <code>notListed</code> (Graph won’t serve columns in a list).</td></tr>
+<tr><td><code>detail</code></td><td>The page size, the clause (<code>$count</code>, <code>$orderby</code>, <code>$select</code>, or the filtered column, such as <code>proxyAddresses/any</code>), or the column names from the schema.</td></tr>
+<tr><td><code>ai.application.ver</code></td><td>Kustodian’s version, so a finding can be matched to the code that made it.</td></tr>
+<tr><td><code>ai.location.ip</code></td><td>Always <code>0.0.0.0</code>, so Application Insights derives no location from your address.</td></tr>
+</tbody>
+</table>
+
+<div class="k-cols">
+<div class="k-panel no">
+<h3>Never sent</h3>
+<ul>
+<li>Your tenant, account, user name or client ID</li>
+<li>Query text, filter values or parameters</li>
+<li>Results, rows or any directory data</li>
+<li>Columns refused for permission (they describe your account, not Graph)</li>
+<li>Machine name, OS user, device or install ID</li>
+<li>Usage, clicks, errors or crash reports</li>
+</ul>
+</div>
+<div class="k-panel ok">
+<h3>How it is kept small</h3>
+<ul>
+<li>Kustodian builds the event itself; no SDK, so nothing is collected on the side</li>
+<li>A finding already known on your machine isn’t sent again</li>
+<li>A send that fails is dropped, never retried or queued</li>
+<li>Builds from source and forks send nothing: the destination is only built into official releases</li>
+</ul>
+</div>
+</div>
+
+<h2>Where it goes and how long it is kept</h2>
+<p>Events go to an Azure Application Insights resource in Azure’s North Europe region (Ireland), owned by the Kustodian maintainer. Microsoft processes them as Azure’s data processor. Application Insights stores the client IP as <code>0.0.0.0</code>, and Kustodian sends <code>0.0.0.0</code> as the location IP too, so no address or location is kept. Events are kept for 90 days, then deleted. They are used only to decide which tables get built-in query settings, and are not sold or shared with anyone.</p>
+
+<h2>Opting in and out</h2>
+<p>The first time you start a version of Kustodian that has this, it asks once. Nothing is shared before you answer, and closing the question without answering shares nothing (it asks again at the next start). To change your answer, open <b>Settings → Graph compatibility findings</b> and tick or untick <b>Share Graph compatibility findings</b>. It applies at once. The choice is stored as <code>"telemetry"</code> in <code>settings.json</code> in Kustodian’s data folder.</p>
+
+<h2>Check it yourself</h2>
+<p>Kustodian is open source. The code that builds and sends the event is <a href="https://github.com/FrodeHus/kustodian/blob/main/src/Kustodian/Telemetry/AppInsightsTelemetry.cs">AppInsightsTelemetry.cs</a>, and what triggers it is <a href="https://github.com/FrodeHus/kustodian/blob/main/src/Kustodian/Telemetry/SharedProbeCache.cs">SharedProbeCache.cs</a>. Questions or concerns: <a href="https://github.com/FrodeHus/kustodian/issues">open an issue</a>.</p>
+</main>
+
+<footer class="k-foot">
+<div class="k-wrap">
+<a href="./">← Back to Kustodian</a>
+</div>
+</footer>
+
+</div>
+</body>
+</html>

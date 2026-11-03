@@ -39,6 +39,12 @@
     <ProjectReference Include="..\Kustodian.Sources\Kustodian.Sources.csproj" />
   </ItemGroup>
 
+  <!-- Where shared Graph compatibility findings go (AppInsightsTelemetry): the release workflow sets it from a repository
+       variable. Local builds and forks have none, so they send nothing. -->
+  <ItemGroup>
+    <AssemblyMetadata Include="TelemetryConnectionString" Value="$(KUSTODIAN_TELEMETRY_CONNECTION_STRING)" />
+  </ItemGroup>
+
   <ItemGroup>
     <EmbeddedResource Include="Snippets\builtin-snippets.json" LogicalName="builtin-snippets.json" />
     <!-- The window icon (WindowIcon): the PNG for Linux, the .ico for Windows, where Photino reads .ico files only. -->

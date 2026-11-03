@@ -1,4 +1,4 @@
-import { IS_MAC, MOD } from './keys';
+import { IS_MAC, MOD, SHIFT } from './keys';
 
 /**
  * An action of the window (spec 6.11: every action is a command, and the palette lists each with its shortcut).
@@ -122,10 +122,10 @@ export function parseShortcut(shortcut: string | undefined): Chord[] {
     });
 }
 
-/** How a shortcut is shown: one string per alternative, such as `Ctrl Shift P` or `⌘ Shift P`. */
+/** How a shortcut is shown: one string per alternative, such as `Ctrl Shift P` or `⌘ ⇧ P`. */
 export function formatShortcut(shortcut: string | undefined): string[] {
   return parseShortcut(shortcut).map((c) =>
-    [c.mod && MOD, c.ctrl && 'Ctrl', c.shift && 'Shift', c.alt && 'Alt', c.key === 'Comma' ? ',' : c.key].filter((p): p is string => !!p).join(' '),
+    [c.mod && MOD, c.ctrl && 'Ctrl', c.shift && SHIFT, c.alt && 'Alt', c.key === 'Comma' ? ',' : c.key].filter((p): p is string => !!p).join(' '),
   );
 }
 

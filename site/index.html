@@ -334,10 +334,11 @@ GitHub
 <div>
 <p class="k-label">Privacy &amp; security</p>
 <h2 class="k-h2" id="privacy-h">Your tenant.<br>Your machine.</h2>
-<p class="k-lead">Kustodian is a desktop app that signs in as you. There is no Kustodian service in the middle, and nothing leaves your machine except calls to Microsoft.</p>
+<p class="k-lead">Kustodian is a desktop app that signs in as you. There is no Kustodian service in the middle, and nothing leaves your machine except calls to Microsoft, and Graph compatibility findings if you choose to share them.</p>
 </div>
 <dl class="k-facts">
 <div class="k-fact"><dt>Network</dt><dd>Talks only to Microsoft’s APIs.</dd></div>
+<div class="k-fact"><dt>Telemetry</dt><dd>Off unless you opt in. Then only which Graph tables refuse which query options is shared, never your tenant, queries or data. <a href="telemetry.html">What is shared</a>.</dd></div>
 <div class="k-fact"><dt>Tokens</dt><dd>Cached in the OS keychain (DPAPI, Keychain or libsecret), never written in plain text.</dd></div>
 <div class="k-fact"><dt>Your data</dt><dd>Settings, saved queries, snippets, history and tabs are local JSON files.</dd></div>
 <div class="k-fact"><dt>Sign-in</dt><dd>Delegated, with your work account. Use the Azure CLI’s public client, your own app registration, or let Kustodian create one. <a href="#permissions">How permissions work</a>.</dd></div>
@@ -352,11 +353,16 @@ GitHub
 <p class="k-label">Permissions</p>
 <h2 class="k-h2" id="permissions-h">Start with Azure CLI.<br>Grow into your own app.</h2>
 <p class="k-lead">Kustodian uses delegated permissions: it reads what the app you sign in with is allowed to, and never more than your own roles allow.</p>
-<div class="k-split">
+<div class="k-sources">
 <div class="k-panel k-perm">
 <span class="k-chip ok">No setup</span>
 <h3 class="k-h3">Azure CLI client (default)</h3>
 <p>Microsoft’s public client, already consented in most tenants. A good start for common Graph and Azure Resource Graph queries, but its permissions are fixed: security data, audit logs and advanced hunting are often out of reach.</p>
+</div>
+<div class="k-panel k-perm">
+<span class="k-chip ok">No setup</span>
+<h3 class="k-h3">Microsoft Graph Command Line Tools</h3>
+<p>The public client Graph PowerShell uses. It reaches whatever your tenant has granted Graph PowerShell, often including security and reports data. An admin’s consent applies to everyone who uses the client. Resource Graph queries use an Azure CLI sign-in for the same account.</p>
 </div>
 <div class="k-panel k-perm">
 <span class="k-chip">Admin consent</span>
@@ -377,7 +383,7 @@ GitHub
 <div class="k-step">
 <span class="k-step-n">Windows 11 · x64 &amp; Arm</span>
 <h3 class="k-h3">MSI or portable zip</h3>
-<p><span class="k-mono">Kustodian-&lt;version&gt;-x64.msi</span> (or <span class="k-mono">-arm64.msi</span>) installs for you alone, no admin rights needed. Add <span class="k-mono">ALLUSERS=1</span> to install for everyone. Or extract <span class="k-mono">Kustodian-&lt;version&gt;-win-x64.zip</span> (or <span class="k-mono">-win-arm64.zip</span>) anywhere; unblock it in Properties first. On an unsigned build, SmartScreen asks once: More info → Run anyway.</p>
+<p><span class="k-mono">Kustodian-&lt;version&gt;-x64.msi</span> (or <span class="k-mono">-arm64.msi</span>) installs for you alone, no admin rights needed. Add <span class="k-mono">ALLUSERS=1</span> to install for everyone. Or extract <span class="k-mono">Kustodian-&lt;version&gt;-win-x64.zip</span> (or <span class="k-mono">-win-arm64.zip</span>) anywhere; unblock it in Properties first. The MSIs and the app they install are code-signed; for the unsigned zips, or if SmartScreen warns about a new release, choose More info → Run anyway.</p>
 <pre class="k-term"><span class="p">&gt; </span>msiexec /i Kustodian-&lt;version&gt;-x64.msi ALLUSERS=1</pre>
 </div>
 <div class="k-step">
@@ -432,6 +438,7 @@ GitHub
 <a href="https://github.com/FrodeHus/kustodian">GitHub</a>
 <a href="https://github.com/FrodeHus/kustodian/blob/main/CHANGELOG.md">Changelog</a>
 <a href="https://github.com/FrodeHus/kustodian/blob/main/SECURITY.md">Security</a>
+<a href="telemetry.html">Telemetry</a>
 <a href="https://github.com/FrodeHus/kustodian/blob/main/CODE_OF_CONDUCT.md">Code of Conduct</a>
 <a href="https://github.com/FrodeHus/kustodian/blob/main/LICENSE">License</a>
 </nav>

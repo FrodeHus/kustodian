@@ -131,6 +131,7 @@ const defaultSettings = {
     graphRowsPerRun: 50000,
     argRowsPerRun: 50000,
   },
+  telemetry: null,
 };
 
 /** `arm.subscriptions`', `arm.managementGroups`' and `arm.resourceTypes`' answers, as `ArmHandler` writes them. */
@@ -556,8 +557,17 @@ export function createMockTransport(): Transport {
       case 'app.info':
         reply(id, { version: '0.0.0-mock', platform: 'macos' });
         break;
+      case 'app.checkUpdate':
+        reply(id, { current: '0.0.0-mock', latest: '0.0.0', available: false });
+        break;
+      case 'app.openRelease':
+        reply(id, null);
+        break;
       case 'settings.get':
         reply(id, settingsAnswer());
+        break;
+      case 'app.openTelemetryDocs':
+        reply(id, null);
         break;
       case 'settings.set':
         settings = { ...(params?.settings ?? settings), version: 1 };

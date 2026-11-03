@@ -1,0 +1,98 @@
+name: winget
+
+# Submits Reothor.Kustodian to microsoft/winget-pkgs. The release workflow calls it once the release is published (a
+# release published with the workflow token starts no other workflow, so a `release` trigger would never fire). Running it
+# by hand with a version resubmits that release, e.g. after a submission failed.
+#
+# It downloads both MSIs from the release, refuses them unless their Authenticode signatures are valid (winget moderation
+# expects signed installers, and the pull request says they are), writes the manifest from their hashes, validates it
+# with `winget validate` and opens the winget-pkgs pull request from the fork of the account behind WINGET_TOKEN. Without
+# the token the manifest is still validated and kept as an artifact, and nothing is submitted.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Published release to submit, e.g. 1.2.3"
+        required: true
+        type: string
+    secrets:
+      WINGET_TOKEN:
+        required: false
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Published release to submit, e.g. 1.2.3 or v1.2.3"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  submit:
+    name: Submit to winget-pkgs
+    timeout-minutes: 20
+    runs-on: windows-latest
+    env:
+      # The typed input stays in an environment variable, never expanded into a script.
+      REQUESTED: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Version
+        shell: bash
+        run: |
+          VERSION="${REQUESTED#v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version must be x.y.z or vx.y.z, got '$REQUESTED'"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >>"$GITHUB_ENV"
+
+      - name: Submit script tests
+        shell: bash
+        run: tools/release/submit-winget.test.sh
+
+      - name: Download and check the MSIs
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $release = gh release view "v$env:VERSION" --json isDraft | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw "No release v$env:VERSION" }
+          if ($release.isDraft) { throw "v$env:VERSION is still a draft; publish it first, its download URLs do not work until then." }
+          $dir = Join-Path $env:RUNNER_TEMP "msi"
+          gh release download "v$env:VERSION" --pattern "Kustodian-$env:VERSION-*.msi" --dir $dir
+          if ($LASTEXITCODE -ne 0) { throw "gh release download failed" }
+          $hashes = @{}
+          foreach ($arch in "x64", "arm64") {
+            $msi = Join-Path $dir "Kustodian-$env:VERSION-$arch.msi"
+            if (-not (Test-Path $msi)) { throw "Kustodian-$env:VERSION-$arch.msi is not in the release" }
+            $signature = Get-AuthenticodeSignature $msi
+            if ($signature.Status -ne "Valid") { throw "$(Split-Path -Leaf $msi) is not validly signed ($($signature.Status)); not submitting it." }
+            Write-Host "$arch signed by $($signature.SignerCertificate.Subject)"
+            $hashes[$arch] = (Get-FileHash -Algorithm SHA256 $msi).Hash
+          }
+          ./tools/release/windows/winget/New-Manifest.ps1 -Version $env:VERSION -X64Sha256 $hashes["x64"] -Arm64Sha256 $hashes["arm64"] -Repository $env:GITHUB_REPOSITORY
+
+      - name: Validate the manifest
+        shell: pwsh
+        run: |
+          winget validate --manifest artifacts/winget
+          if ($LASTEXITCODE -ne 0) { throw "winget validate failed" }
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: winget-manifest
+          path: artifacts/winget
+          if-no-files-found: error
+
+      - name: Submit
+        shell: bash
+        env:
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+          TAG: v${{ env.VERSION }}
+        run: tools/release/submit-winget.sh artifacts/winget Reothor.Kustodian "$VERSION"
