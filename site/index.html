@@ -353,11 +353,16 @@ GitHub
 <p class="k-label">Permissions</p>
 <h2 class="k-h2" id="permissions-h">Start with Azure CLI.<br>Grow into your own app.</h2>
 <p class="k-lead">Kustodian uses delegated permissions: it reads what the app you sign in with is allowed to, and never more than your own roles allow.</p>
-<div class="k-split">
+<div class="k-sources">
 <div class="k-panel k-perm">
 <span class="k-chip ok">No setup</span>
 <h3 class="k-h3">Azure CLI client (default)</h3>
 <p>Microsoft’s public client, already consented in most tenants. A good start for common Graph and Azure Resource Graph queries, but its permissions are fixed: security data, audit logs and advanced hunting are often out of reach.</p>
+</div>
+<div class="k-panel k-perm">
+<span class="k-chip ok">No setup</span>
+<h3 class="k-h3">Microsoft Graph Command Line Tools</h3>
+<p>The public client Graph PowerShell uses. It reaches whatever your tenant has granted Graph PowerShell, often including security and reports data. An admin’s consent applies to everyone who uses the client. Resource Graph queries use an Azure CLI sign-in for the same account.</p>
 </div>
 <div class="k-panel k-perm">
 <span class="k-chip">Admin consent</span>
