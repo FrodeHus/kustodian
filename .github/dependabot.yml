@@ -15,6 +15,10 @@ updates:
     groups:
       npm:
         patterns: ["*"]
+    ignore:
+      # @kusto/monaco-kusto pins monaco-editor's minor (peer ^0.55.0); move both together once it supports a newer one.
+      - dependency-name: monaco-editor
+        update-types: ["version-update:semver-minor"]
 
   - package-ecosystem: github-actions
     directory: /
