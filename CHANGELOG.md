@@ -16,6 +16,16 @@ follow [Semantic Versioning](https://semver.org/).
   the rest of the bar. Hover it for the source.
 - The Graph schema is regenerated from the latest beta metadata: the Copilot cost management tables
   `copilot_costManagement_spendingPolicies` and `copilot_costManagement_userBalances` now list their read permissions.
+- Sharing Graph compatibility findings now covers where Kustodian falls short too: Graph refusals it can't work around,
+  `where` conditions it can't send to Graph, permissions Graph didn't accept although the schema lists them, and limits a
+  query hit. Each event holds only the table's schema path and short codes, never your tenant, queries, values or Graph's
+  error messages. If you said yes before, Kustodian asks again and shares nothing until you answer.
+
+### Fixed
+
+- Graph queries that read `roleManagement_directory_roleDefinitions` (for example to name the roles in PIM activations) no
+  longer fail with "This resource requires a minimum page size of 20". Kustodian now reads the table 500 rows at a time,
+  the only page size Graph accepts for it.
 
 ## [1.0.0] - 2026-11-03
 

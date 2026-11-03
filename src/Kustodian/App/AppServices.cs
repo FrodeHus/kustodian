@@ -50,6 +50,7 @@ public sealed class AppServices : IAsyncDisposable
     private readonly AllowedFilePaths _allowedFiles;
     private readonly GraphSchema _schema = GraphSchemaCatalog.Beta;
     private readonly GraphTenantLicenses _licenses;
+    private readonly SharedRunFindings _findings;
 
     private AppServices(AppSettings startup, SettingsService settings, AccountService accounts, TokenCacheStatus tokenCache,
         EngineCommand engine, JsonFileStore store, TimeProvider time)
@@ -79,9 +80,11 @@ public sealed class AppServices : IAsyncDisposable
         _armDirectory = new ArmDirectory(_arm, time);
         Budget = new GraphFetchBudget(Limits.FetchBudgetBytes);
         Objects = new MemoryGraphObjectCache(time, Limits);
-        Probes = new SharedProbeCache(new FileGraphProbeCache(store, time, Limits),
-            async ct => (await settings.GetAsync(ct)).Telemetry == true,
-            new AppInsightsTelemetry(_telemetry, AppInsightsTelemetry.ConnectionString, time, new StderrLogger<AppInsightsTelemetry>()));
+        Func<CancellationToken, Task<bool>> sharing = async ct => (await settings.GetAsync(ct)).Telemetry == true;
+        var telemetry = new AppInsightsTelemetry(_telemetry, AppInsightsTelemetry.ConnectionString, time, new StderrLogger<AppInsightsTelemetry>());
+        Probes = new SharedProbeCache(new FileGraphProbeCache(store, time, Limits), sharing, telemetry);
+        _findings = new SharedRunFindings(_schema, Limits, options, sharing, telemetry,
+            async (key, _) => (await accounts.ListAccountsAsync()).FirstOrDefault(a => a.Key == key)?.Scopes ?? []);
         _licenses = new GraphTenantLicenses(_http, time);
         Runner = new GraphRunner(_schema, new GraphCollectionReader(_http, Budget, Objects, Limits, Probes, time), Budget, Pool, Limits, time,
             new StderrLogger<GraphRunner>(), _licenses);
@@ -134,7 +137,7 @@ public sealed class AppServices : IAsyncDisposable
     {
         IQuerySource[] sources =
         [
-            new GraphQuerySource(Runner),
+            new GraphQuerySource(Runner, _findings),
             new HuntingQuerySource(new HuntingClient(_hunting, _time), _time, new StderrLogger<HuntingQuerySource>()),
             new ArgQuerySource(_arg, _startup.Limits.ArgRowsPerRun, _time, new StderrLogger<ArgQuerySource>()),
         ];

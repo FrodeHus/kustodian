@@ -226,6 +226,35 @@ public sealed class SettingsServiceTests : IDisposable
         Assert.False(File.Exists(SettingsPath));
     }
 
+    // A yes given before run findings were shared isn't a yes to them: asked again. A no stays a no.
+    [Theory]
+    [InlineData("""{"version":1,"theme":"dark","rawDefaultVersion":"beta","signIn":{},"limits":{},"telemetry":true}""", null)]
+    [InlineData("""{"version":1,"theme":"dark","rawDefaultVersion":"beta","signIn":{},"limits":{},"telemetry":true,"telemetryConsent":1}""", null)]
+    [InlineData("""{"version":1,"theme":"dark","rawDefaultVersion":"beta","signIn":{},"limits":{},"telemetry":false}""", false)]
+    [InlineData("""{"version":1,"theme":"dark","rawDefaultVersion":"beta","signIn":{},"limits":{},"telemetry":true,"telemetryConsent":2}""", true)]
+    public async Task A_yes_to_sharing_less_reads_as_not_asked(string content, bool? telemetry)
+    {
+        Directory.CreateDirectory(_dir);
+        await File.WriteAllTextAsync(SettingsPath, content, Ct);
+
+        Assert.Equal(telemetry, (await NewService().GetAsync(Ct)).Telemetry);
+    }
+
+    [Fact]
+    public async Task An_answer_on_sharing_is_stored_as_given_to_what_is_shared_now()
+    {
+        var service = NewService();
+
+        var answered = await service.SetAsync(AppSettings.Default with { Telemetry = true }, Ct);
+        var unanswered = await NewService().SetAsync(AppSettings.Default, Ct);
+
+        Assert.Equal(AppSettings.CurrentTelemetryConsent, answered.TelemetryConsent);
+        Assert.Equal(0, unanswered.TelemetryConsent);
+        Assert.Null((await service.GetAsync(Ct)).Telemetry);
+        await service.SetAsync(AppSettings.Default with { Telemetry = true }, Ct);
+        Assert.True((await NewService().GetAsync(Ct)).Telemetry);
+    }
+
     [Fact]
     public async Task Settings_file_missing_fields_loads_them_with_defaults()
     {

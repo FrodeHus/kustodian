@@ -75,11 +75,33 @@ public static partial class GraphErrorText
         }
     }
 
+    /// <summary>Graph's <c>error.code</c> in a JSON response body, or null. Only a code made of letters, digits, dots and
+    /// underscores is returned: anything else isn't one of Graph's codes.</summary>
+    internal static string? Code(byte[] body)
+    {
+        try
+        {
+            return JsonNode.Parse(body)?["error"]?["code"]?.GetValue<string>() is { Length: > 0 and <= 100 } code
+                && code.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '_')
+                ? code
+                : null;
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Whether Graph's message for a 400 is about <c>$top</c>: it names <c>$top</c> or OData's query option <c>'Top'</c>,
     /// or it refuses a custom page size (<c>directoryRoles</c> and its <c>members</c>).</summary>
     internal static bool NamesTop(string? message) => message is not null
         && (message.Contains("$top", StringComparison.OrdinalIgnoreCase) || message.Contains("'Top'", StringComparison.OrdinalIgnoreCase)
             || message.Contains("page size", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Whether Graph's message for a 400 names no query option at all: "Invalid/unsupported query request."
+    /// (<c>roleManagement/directory/roleDefinitions</c> answers so for any <c>$top</c> but 500).</summary>
+    internal static bool IsUnsupportedQuery(string? message) => message is not null
+        && message.Contains("Invalid/unsupported query request", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Whether Graph's message for a 400 refuses <c>$select</c> itself, not a property in it: "Query option 'Select' is
     /// not allowed" (<c>reports/appCredentialSignInActivities</c> and other report collections).</summary>

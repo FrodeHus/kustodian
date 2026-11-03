@@ -74,15 +74,17 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
         var started = time.GetTimestamp();
         var now = time.GetUtcNow();
         IReadOnlyList<GraphFetch> fetches = [];
+        IReadOnlyList<FilterExplanation> filters = [];
         GraphCollection?[] collections = [];
+        RunReadFailure? readFailure = null;
         GraphFetch? failed = null;
         IReadOnlyList<string> failedRequests = [];
 
         RunResult End(RunOutcome outcome, string? message = null, GraphQueryError? error = null, EngineResponse? answer = null,
             IReadOnlyList<string>? permissions = null)
         {
-            var tables = fetches.Select((f, i) => (Fetch: f, Read: collections[i])).Where(x => x.Read is not null)
-                .Select(x => Describe(x.Fetch, x.Read!, limits)).ToList();
+            var tables = fetches.Select((f, i) => (Fetch: f, Read: collections[i], Filter: filters[i])).Where(x => x.Read is not null)
+                .Select(x => Describe(x.Fetch, x.Read!, x.Filter, limits)).ToList();
             if (failed is not null)
                 tables.Add(new TableFetch(failed.Table.Name, failedRequests, false, [], [], [], 0, false, 0));
             return new RunResult(outcome, message, error, answer?.Columns ?? [], answer?.Rows ?? [], answer?.Total ?? 0, tables,
@@ -91,6 +93,7 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
                 RunId = diagnostics.RunId,
                 Diagnostics = diagnostics.Entries,
                 Permissions = permissions ?? [],
+                ReadFailure = readFailure,
             };
         }
 
@@ -98,7 +101,8 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
         {
             progress?.Report(new RunEvent("planning", "Planning the query"));
             var gate = licenses is null ? null : new GraphLicenseGate(GraphLicenses.Bundled, await licenses.GetAsync(accountKey, false, ct));
-            var plan = GraphQueryPlanner.Plan(schema, kql, now, gate);
+            var explained = GraphQueryPlanner.PlanExplained(schema, kql, now, gate);
+            var plan = explained.Plan;
             if (plan.Error is { } error)
             {
                 var (line, column) = mapBack(error.Line, error.Column);
@@ -113,6 +117,7 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
                     + string.Join(", ", fetch.LicenseLeftOut.Select(g => $"{g.Column} (needs {g.Requirement.License}, which the tenant doesn't have)")),
                     null, null, null));
             fetches = plan.Fetches;
+            filters = explained.Filters;
             collections = new GraphCollection?[fetches.Count];
 
             // One lease for the whole run, held until the engine has answered.
@@ -139,7 +144,10 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
         {
             failed = ex.Fetch;
             if (ex.InnerException is GraphReadException read)
+            {
                 failedRequests = read.Requests;
+                readFailure = new RunReadFailure(failed.Table.Name, read.Failure, read.Status, read.Code);
+            }
             var (outcome, message, permissions) = IsSignIn(ex.InnerException)
                 ? (RunOutcome.SignInNeeded, SignInMessage, [])
                 : ReadFailure(ex);
@@ -290,7 +298,7 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
         }
     }
 
-    private static TableFetch Describe(GraphFetch fetch, GraphCollection read, GraphLimits limits)
+    private static TableFetch Describe(GraphFetch fetch, GraphCollection read, FilterExplanation filter, GraphLimits limits)
         => new(fetch.Table.Name, read.Requests, read.Unfiltered, read.Unreadable, read.Denied, read.PerObject,
             read.PerObjectFailed + read.Relationships.Sum(r => r.Failed), read.PerObjectCapped,
             read.PerObjectCached + read.Relationships.Sum(r => r.Cached))
@@ -298,6 +306,7 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
             Unlicensed = read.Unlicensed,
             UnlicensedReason = read.UnlicensedReason,
             LicenseLeftOut = [.. fetch.LicenseLeftOut.Select(g => new LicenseLeftOut(g.Column, g.Requirement.License, g.Requirement.Source))],
+            Local = filter.Local,
             Relationships = [.. read.Relationships.Select(r => new RelationshipFetch(r.Column, r.Objects, r.Truncated,
                 limits.RelationshipEntriesPerObject, r.Refused,
                 fetch.Table.Columns.FirstOrDefault(c => c.Name == r.Column)?.Permissions ?? [], r.Capped,
