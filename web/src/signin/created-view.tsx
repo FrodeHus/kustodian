@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { call } from '../bridge';
 import { errorText } from '../shell/errors';
+import { ErrorReportActions, type Shown } from '../shell/error-report';
+import { reportIdOf } from '../shell/report-id';
 import type { AppSettings, EntraAppConsentStatus, EntraAppCreateResult, SettingsAnswer } from '../wire';
 
 const NEEDS_ADMIN = /AADSTS65001|AADSTS90094/;
@@ -30,12 +32,12 @@ export function CreatedView({ name, initial, listed, onClose, onSwitched, onSwit
   const [canGrant, setCanGrant] = useState<boolean | null>(null);
   const [status, setStatus] = useState<EntraAppConsentStatus | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<Shown | null>(null);
   const [busy, setBusy] = useState(false);
-  const [switchProblem, setSwitchProblem] = useState<string | null>(null);
+  const [switchProblem, setSwitchProblem] = useState<Shown | null>(null);
   const [consentProblem, setConsentProblem] = useState<string | null>(null);
   /** Why "Open in Entra" in the missing-service-principal block failed; shown next to that button. */
-  const [portalProblem, setPortalProblem] = useState<string | null>(null);
+  const [portalProblem, setPortalProblem] = useState<Shown | null>(null);
   const grantButton = useRef<HTMLButtonElement>(null);
 
   const { appId, objectId, tenantId, adminScopes } = result;
@@ -68,7 +70,7 @@ export function CreatedView({ name, initial, listed, onClose, onSwitched, onSwit
     try {
       await work();
     } catch (e) {
-      setProblem(errorText(e));
+      setProblem({ text: errorText(e), reportId: reportIdOf(e) });
     } finally {
       setBusy(false);
     }
@@ -105,7 +107,7 @@ export function CreatedView({ name, initial, listed, onClose, onSwitched, onSwit
     try {
       await call('entraApp.openPortal', { appId });
     } catch (e) {
-      setPortalProblem(errorText(e));
+      setPortalProblem({ text: errorText(e), reportId: reportIdOf(e) });
     } finally {
       setBusy(false);
     }
@@ -130,7 +132,7 @@ export function CreatedView({ name, initial, listed, onClose, onSwitched, onSwit
         setConsentProblem('This app still needs an admin to grant its permissions');
         focusGrant.current = true;
       } else {
-        setSwitchProblem(text);
+        setSwitchProblem({ text, reportId: reportIdOf(e) });
       }
       setBusy(false);
       onSwitching(false);
@@ -189,7 +191,8 @@ export function CreatedView({ name, initial, listed, onClose, onSwitched, onSwit
           </div>
           {portalProblem && (
             <span className="text-[12px] text-bad" role="alert">
-              {portalProblem}
+              {portalProblem.text}
+              <ErrorReportActions reportId={portalProblem.reportId} uiSections={{ message: portalProblem.text }} />
             </span>
           )}
         </div>
@@ -234,7 +237,8 @@ export function CreatedView({ name, initial, listed, onClose, onSwitched, onSwit
         )}
         {problem && (
           <span className="text-[12px] text-bad" role="alert">
-            {problem}
+            {problem.text}
+            <ErrorReportActions reportId={problem.reportId} uiSections={{ message: problem.text }} />
           </span>
         )}
       </div>
@@ -243,7 +247,8 @@ export function CreatedView({ name, initial, listed, onClose, onSwitched, onSwit
         <b>2. What now?</b>
         {switchProblem && (
           <span className="text-[12.5px] text-bad" role="alert">
-            {switchProblem}
+            {switchProblem.text}
+            <ErrorReportActions reportId={switchProblem.reportId} uiSections={{ message: switchProblem.text }} />
           </span>
         )}
         <div className="flex flex-wrap items-start gap-6">

@@ -2,6 +2,8 @@ import { useId, useState } from 'react';
 import { call } from '../bridge';
 import { findSaved, useRevisions } from '../library/saving';
 import { errorText } from '../shell/errors';
+import { ErrorReportActions } from '../shell/error-report';
+import { reportIdOf } from '../shell/report-id';
 import { useTabs, type Tab } from '../tabs/tab-store';
 import type { ParameterDef, SavedQuery } from '../wire';
 import { PARAMETER_TYPES, findParams, mergeParameters, previewText } from './find-params';
@@ -86,7 +88,7 @@ function ParameterFields({ def, onChange }: { def: ParameterDef; onChange: (patc
  * parameters with the tab's saved query, leaving its text as saved.
  */
 export function ParamsForm({ tab, query, onRun }: { tab: Tab; query: string; onRun: () => void }) {
-  const [status, setStatus] = useState<{ text: string; bad: boolean } | null>(null);
+  const [status, setStatus] = useState<{ text: string; bad: boolean; reportId?: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const previewId = useId();
   const hintId = useId();
@@ -147,7 +149,7 @@ export function ParamsForm({ tab, query, onRun }: { tab: Tab; query: string; onR
               },
               (e: unknown) => {
                 setBusy(false);
-                setStatus({ text: `The defaults couldn’t be kept: ${errorText(e)}`, bad: true });
+                setStatus({ text: `The defaults couldn’t be kept: ${errorText(e)}`, bad: true, reportId: reportIdOf(e) });
               },
             );
           }}
@@ -162,6 +164,7 @@ export function ParamsForm({ tab, query, onRun }: { tab: Tab; query: string; onR
         {status && (
           <span role={status.bad ? 'alert' : 'status'} className={`text-[12px] ${status.bad ? 'text-bad' : 'text-ok'}`}>
             {status.text}
+            {status.bad && <ErrorReportActions reportId={status.reportId} uiSections={{ message: status.text }} />}
           </span>
         )}
       </div>

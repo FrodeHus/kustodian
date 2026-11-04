@@ -2,11 +2,14 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './app';
 import { hasHost, NO_HOST_MESSAGE } from './bridge';
+import { installErrorCapture } from './shell/error-capture';
+import { ErrorBoundary } from './shell/error-report';
 import { applyTheme, initialTheme } from './shell/theme';
 import './styles.css';
 
 // The host puts the saved theme in the start URL, so the first paint is already in it.
 applyTheme(initialTheme(location.search));
+installErrorCapture();
 
 const root = document.getElementById('root');
 if (!root) {
@@ -17,7 +20,9 @@ if (!root) {
 createRoot(root).render(
   <StrictMode>
     {import.meta.env.DEV || hasHost() ? (
-      <App />
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
     ) : (
       <p role="alert" className="flex h-full items-center justify-center bg-bg text-text">
         {NO_HOST_MESSAGE}

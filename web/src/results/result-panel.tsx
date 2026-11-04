@@ -1,5 +1,6 @@
 import { Component, Suspense, lazy, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { errorText } from '../shell/errors';
+import { reportIdOf } from '../shell/report-id';
 import { useTabs } from '../tabs/tab-store';
 import type { RunResult, Source } from '../wire';
 import { CompareView } from './compare-view';
@@ -104,7 +105,7 @@ export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = fa
   const exportAs = (format: ExportFormat) =>
     exportResult(format, title, result).then(
       (file) => file && setNotice({ tone: 'ok', text: `Exported ${rowCount(result.rows.length)} to ${file.name}.` }),
-      (e: unknown) => setNotice({ tone: 'bad', text: `Couldn’t export: ${errorText(e)}` }),
+      (e: unknown) => setNotice({ tone: 'bad', text: `Couldn’t export: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
 
   const panel = (name: ResultTab, content: ReactNode) => (

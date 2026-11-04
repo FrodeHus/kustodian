@@ -83,7 +83,7 @@ export interface RawState {
   accountKey: string | undefined;
   sending: boolean;
   /** The last request's error, and the control it is about: a refusal shows beside it. */
-  error: { code: string; message: string; about: 'path' | 'version' | 'headers' | 'next' } | null;
+  error: { code: string; message: string; about: 'path' | 'version' | 'headers' | 'next'; reportId?: string } | null;
 }
 
 export const IDLE: RawState = { pages: [], accountKey: undefined, sending: false, error: null };

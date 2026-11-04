@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { BridgeError, call } from '../bridge';
 import { useSchemas } from '../schema/schema-store';
 import { errorText } from '../shell/errors';
+import { ErrorReportActions, type Shown } from '../shell/error-report';
+import { reportIdOf } from '../shell/report-id';
 
 /**
  * "Grant Azure access": asks the host to have the user grant Azure access to the account (`account.consent {key, audience:
@@ -11,7 +13,7 @@ import { errorText } from '../shell/errors';
  */
 export function ConsentButton({ accountKey, onGranted }: { accountKey: string | undefined; onGranted?: () => void }) {
   const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<Shown | null>(null);
 
   const grant = () => {
     if (!accountKey) {
@@ -28,7 +30,7 @@ export function ConsentButton({ accountKey, onGranted }: { accountKey: string | 
       (e: unknown) => {
         setBusy(false);
         if (!(e instanceof BridgeError && e.code === 'cancelled')) {
-          setProblem(errorText(e));
+          setProblem({ text: errorText(e), reportId: reportIdOf(e) });
         }
       },
     );
@@ -41,7 +43,8 @@ export function ConsentButton({ accountKey, onGranted }: { accountKey: string | 
       </button>
       {problem && (
         <span role="alert" className="min-w-0 text-[12px] text-bad">
-          {problem}
+          {problem.text}
+          <ErrorReportActions reportId={problem.reportId} uiSections={{ message: problem.text }} />
         </span>
       )}
     </>

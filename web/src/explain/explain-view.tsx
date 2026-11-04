@@ -2,6 +2,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { call } from '../bridge';
 import { copyFailed, copyText } from '../results/copy';
 import { NoticeLine, type Notice } from '../results/result-grid';
+import { ErrorReportActions } from '../shell/error-report';
+import { reportIdOf } from '../shell/report-id';
 import { errorText } from '../shell/errors';
 import { editorPosition } from '../tabs/tab-store';
 import type { ExplainResult, ExplainTable, ParameterValue } from '../wire';
@@ -18,7 +20,7 @@ export interface ExplainRequest {
 
 const count = (n: number) => n.toLocaleString('en-US');
 
-type Answer = { state: 'loading' } | { state: 'done'; result: ExplainResult } | { state: 'failed'; message: string };
+type Answer = { state: 'loading' } | { state: 'done'; result: ExplainResult } | { state: 'failed'; message: string; reportId?: string };
 
 /**
  * Explain (spec 6.8, mockup Explain): what a Graph query would ask Graph for, without sending anything. Per table, the URL
@@ -40,7 +42,7 @@ export function ExplainView({ request, onOpenRaw }: { request: ExplainRequest; o
     const settle = (a: Answer) => current && setAnswered({ for: sent, answer: a });
     call<ExplainResult>('query.explain', JSON.parse(sent) as unknown).then(
       (result) => settle({ state: 'done', result }),
-      (e: unknown) => settle({ state: 'failed', message: `The query couldn’t be explained: ${errorText(e)}` }),
+      (e: unknown) => settle({ state: 'failed', message: `The query couldn’t be explained: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
     return () => {
       current = false;
@@ -61,7 +63,12 @@ export function ExplainView({ request, onOpenRaw }: { request: ExplainRequest; o
     );
   }
   if (answer.state === 'failed') {
-    return <Problem>{answer.message}</Problem>;
+    return (
+      <Problem>
+        {answer.message}
+        <ErrorReportActions reportId={answer.reportId} uiSections={{ message: answer.message, query: request.kql }} />
+      </Problem>
+    );
   }
 
   const { result } = answer;

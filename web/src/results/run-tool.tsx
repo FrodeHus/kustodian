@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { call, on } from '../bridge';
 import { errorText } from '../shell/errors';
+import { ErrorReportActions, type Shown } from '../shell/error-report';
+import { reportIdOf } from '../shell/report-id';
 import { newId } from '../shell/ids';
 import type { ExternalTool, ResultColumn, ToolList, ToolOutcome } from '../wire';
 import type { Row } from './export';
@@ -17,16 +19,16 @@ export function ToolItems({
 }: {
   columns: ResultColumn[];
   onChoose: (tool: ExternalTool) => void;
-  onError: (text: string) => void;
+  onError: (text: string, reportId?: string) => void;
 }) {
   const [list, setList] = useState<ToolList | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Shown | null>(null);
   // Read on every open, so a tool just added to tools.json shows.
   useEffect(() => {
-    call<ToolList>('tools.list').then(setList, (e: unknown) => setError(errorText(e)));
+    call<ToolList>('tools.list').then(setList, (e: unknown) => setError({ text: errorText(e), reportId: reportIdOf(e) }));
   }, []);
   const names = new Set(columns.map((c) => c.name));
-  const problem = error ?? list?.problem;
+  const problem = error?.text ?? list?.problem;
 
   return (
     <>
@@ -34,6 +36,7 @@ export function ToolItems({
       {problem && (
         <span role="alert" className="max-w-[320px] px-2.5 py-1 text-[11.5px] text-bad">
           {problem}
+          <ErrorReportActions reportId={error?.reportId} uiSections={{ message: problem }} />
         </span>
       )}
       {list && !problem && list.tools.length === 0 && <span className="faint px-2.5 py-1 text-[11.5px]">No tools yet.</span>}
@@ -46,7 +49,7 @@ export function ToolItems({
           </button>
         );
       })}
-      <button type="button" role="menuitem" tabIndex={-1} onClick={() => void call('tools.edit').catch((e: unknown) => onError(errorText(e)))}>
+      <button type="button" role="menuitem" tabIndex={-1} onClick={() => void call('tools.edit').catch((e: unknown) => onError(errorText(e), reportIdOf(e)))}>
         Edit tools…
       </button>
     </>
@@ -63,7 +66,7 @@ export function RunToolDialog({ tool, columns, rows, onClose }: { tool: External
   const [stage, setStage] = useState<'confirm' | 'running' | 'done'>('confirm');
   const [done, setDone] = useState(0);
   const [outcomes, setOutcomes] = useState<ToolOutcome[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Shown | null>(null);
   const [mapping, setMapping] = useState<ColumnMapping>(() => defaultMapping(tool, columns));
   const abort = useRef<AbortController | null>(null);
   useEffect(() => () => abort.current?.abort(), []);
@@ -88,7 +91,7 @@ export function RunToolDialog({ tool, columns, rows, onClose }: { tool: External
     call<{ outcomes: ToolOutcome[] }>('tools.run', { runId, name: tool.name, columns: columns.map((c) => c.name), rows, mapping }, controller.signal)
       .then(
         (answer) => setOutcomes(answer.outcomes),
-        (e: unknown) => setError(errorText(e)),
+        (e: unknown) => setError({ text: errorText(e), reportId: reportIdOf(e) }),
       )
       .finally(() => {
         off();
@@ -162,7 +165,8 @@ export function RunToolDialog({ tool, columns, rows, onClose }: { tool: External
         )}
         {error && (
           <span role="alert" className="text-[12px] text-bad">
-            {error}
+            {error.text}
+            <ErrorReportActions reportId={error.reportId} uiSections={{ message: error.text }} />
           </span>
         )}
         {transcript && (

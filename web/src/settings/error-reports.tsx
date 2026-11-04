@@ -1,5 +1,7 @@
 import { useId, useState } from 'react';
 import { errorText } from '../shell/errors';
+import { ErrorReportActions, type Shown } from '../shell/error-report';
+import { reportIdOf } from '../shell/report-id';
 import type { SettingsAnswer } from '../wire';
 import { openTelemetryDocs, setErrorReports } from './settings-writes';
 
@@ -28,7 +30,7 @@ export function ErrorReportsExplainer() {
  */
 export function ErrorReportsDialog({ onClose }: { onClose: (answer?: SettingsAnswer) => void }) {
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Shown | null>(null);
   const id = useId();
 
   const answer = (on: boolean) => {
@@ -36,7 +38,7 @@ export function ErrorReportsDialog({ onClose }: { onClose: (answer?: SettingsAns
     setError(null);
     setErrorReports(on).then(onClose, (e: unknown) => {
       setBusy(false);
-      setError(`The choice couldn’t be saved: ${errorText(e)}`);
+      setError({ text: `The choice couldn’t be saved: ${errorText(e)}`, reportId: reportIdOf(e) });
     });
   };
 
@@ -62,7 +64,8 @@ export function ErrorReportsDialog({ onClose }: { onClose: (answer?: SettingsAns
         <span className="faint text-[12px]">Nothing is sent unless you choose to. You can change this any time in Settings.</span>
         {error && (
           <span className="text-[12px] text-bad" role="alert">
-            {error}
+            {error.text}
+            <ErrorReportActions reportId={error.reportId} uiSections={{ message: error.text }} />
           </span>
         )}
         <div className="flex justify-end gap-2">

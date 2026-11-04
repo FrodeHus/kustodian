@@ -1,6 +1,6 @@
 /**
  * The page's side of the host bridge. Messages are JSON strings:
- * request `{ id, method, params }`, response `{ id, result }` or `{ id, error: { code, message } }`,
+ * request `{ id, method, params }`, response `{ id, result }` or `{ id, error: { code, message, reportId? } }`,
  * event `{ event, data }`.
  *
  * Under Photino the transport is `window.external.sendMessage` / `receiveMessage`. Without them, a development build
@@ -13,11 +13,14 @@ export const NO_HOST_MESSAGE = "Kustodian couldn't connect to its host.";
 
 export class BridgeError extends Error {
   readonly code: string;
+  /** The plain 8-character ID of the error report the host made for this error, if it made one. */
+  readonly reportId?: string;
 
-  constructor(code: string, message: string) {
+  constructor(code: string, message: string, reportId?: string) {
     super(message);
     this.name = 'BridgeError';
     this.code = code;
+    this.reportId = reportId;
   }
 }
 
@@ -40,7 +43,7 @@ interface Pending {
 interface Incoming {
   id?: unknown;
   result?: unknown;
-  error?: { code?: unknown; message?: unknown };
+  error?: { code?: unknown; message?: unknown; reportId?: unknown };
   event?: unknown;
   data?: unknown;
 }
@@ -81,8 +84,14 @@ export function createBridge(transport: Transport): Bridge {
     }
     pending.delete(message.id);
     if (message.error) {
-      const { code, message: text } = message.error;
-      entry.reject(new BridgeError(typeof code === 'string' ? code : 'failed', typeof text === 'string' ? text : 'The request failed.'));
+      const { code, message: text, reportId } = message.error;
+      entry.reject(
+        new BridgeError(
+          typeof code === 'string' ? code : 'failed',
+          typeof text === 'string' ? text : 'The request failed.',
+          typeof reportId === 'string' ? reportId : undefined,
+        ),
+      );
     } else {
       entry.resolve(message.result);
     }

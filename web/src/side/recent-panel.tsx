@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { call } from '../bridge';
 import { openRecent, runTitle } from '../library/open-library';
 import { errorText } from '../shell/errors';
+import { ErrorReportActions, type Shown } from '../shell/error-report';
+import { reportIdOf } from '../shell/report-id';
 import { SourceBadge } from '../tabs/source-badge';
 import { useTabs } from '../tabs/tab-store';
 import type { RecentRun, Source } from '../wire';
@@ -42,7 +44,7 @@ function when(iso: string, now = Date.now()): string {
  * timespan or scope ({@link openRecent}). Read again whenever a run ends. */
 export function RecentPanel({ source = 'graph' }: { source?: Source }) {
   const [runs, setRuns] = useState<RecentRun[] | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<Shown | null>(null);
   const [cleared, setCleared] = useState(0);
   const [all, setAll] = useState(false);
   // Changes when any tab's run ends: the host has added it to Recent by then.
@@ -57,7 +59,7 @@ export function RecentPanel({ source = 'graph' }: { source?: Source }) {
     let live = true;
     call<{ runs: RecentRun[] }>('recent.list').then(
       (r) => live && setRuns(r.runs),
-      (e: unknown) => live && setProblem(`Recent runs couldn’t be read: ${errorText(e)}`),
+      (e: unknown) => live && setProblem({ text: `Recent runs couldn’t be read: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
     return () => {
       live = false;
@@ -72,7 +74,7 @@ export function RecentPanel({ source = 'graph' }: { source?: Source }) {
         setProblem(null);
         setCleared((n) => n + 1);
       },
-      (e: unknown) => setProblem(`Recent runs couldn’t be cleared: ${errorText(e)}`),
+      (e: unknown) => setProblem({ text: `Recent runs couldn’t be cleared: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
 
   return (
@@ -81,7 +83,8 @@ export function RecentPanel({ source = 'graph' }: { source?: Source }) {
       <div className="min-h-0 flex-1 overflow-y-auto pb-3">
         {problem && (
           <p role="alert" className="m-0 px-[14px] pb-2 text-[12px] text-bad">
-            {problem}
+            {problem.text}
+            <ErrorReportActions reportId={problem.reportId} uiSections={{ message: problem.text }} />
           </p>
         )}
         {shown?.length === 0 && <p className="faint m-0 px-[14px] text-[12px]">{runs?.length ? 'No runs of this source yet.' : 'No runs yet.'}</p>}

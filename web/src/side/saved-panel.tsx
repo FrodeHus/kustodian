@@ -3,6 +3,8 @@ import { call } from '../bridge';
 import { openSaved } from '../library/open-library';
 import { MAX_NAME_LENGTH, useRevisions } from '../library/saving';
 import { errorText } from '../shell/errors';
+import { ErrorReportActions, type Shown } from '../shell/error-report';
+import { reportIdOf } from '../shell/report-id';
 import { MOD } from '../shell/keys';
 import { SourceBadge } from '../tabs/source-badge';
 import { useTabs } from '../tabs/tab-store';
@@ -22,7 +24,7 @@ function skippedText(n: number): string {
 export function SavedPanel({ source = 'graph' }: { source?: Source }) {
   const revision = useRevisions((s) => s.library);
   const [list, setList] = useState<LibraryList | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<Shown | null>(null);
   const [search, setSearch] = useState('');
   const [folded, setFolded] = useState<Record<string, boolean>>({});
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -34,7 +36,7 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
     let live = true;
     call<LibraryList>('library.list').then(
       (l) => live && setList(l),
-      (e: unknown) => live && setProblem(`The saved queries couldn’t be read: ${errorText(e)}`),
+      (e: unknown) => live && setProblem({ text: `The saved queries couldn’t be read: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
     return () => {
       live = false;
@@ -57,7 +59,7 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
         setProblem(null);
         changed();
       },
-      (e: unknown) => setProblem(`It couldn’t be renamed: ${errorText(e)}`),
+      (e: unknown) => setProblem({ text: `It couldn’t be renamed: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
   };
 
@@ -68,7 +70,7 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
         setProblem(null);
         changed();
       },
-      (e: unknown) => setProblem(`It couldn’t be deleted: ${errorText(e)}`),
+      (e: unknown) => setProblem({ text: `It couldn’t be deleted: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
   };
 
@@ -147,7 +149,8 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
       <div className="min-h-0 flex-1 overflow-y-auto pb-3">
         {problem && (
           <p role="alert" className="m-0 px-[14px] pb-2 text-[12px] text-bad">
-            {problem}
+            {problem.text}
+            <ErrorReportActions reportId={problem.reportId} uiSections={{ message: problem.text }} />
           </p>
         )}
         {list && list.skipped > 0 && <p className="m-0 px-[14px] pb-2 text-[12px] text-warn">{skippedText(list.skipped)}</p>}

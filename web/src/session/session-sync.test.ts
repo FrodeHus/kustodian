@@ -241,7 +241,7 @@ describe('session sync', () => {
 
     useTabs.getState().setTitle('a', 'Kept');
     await vi.advanceTimersByTimeAsync(1000);
-    expect(notify).toHaveBeenCalledWith('The open tabs couldn’t be saved: The disk is full.');
+    expect(notify).toHaveBeenCalledWith('The open tabs couldn’t be saved: The disk is full.', undefined);
     await vi.advanceTimersByTimeAsync(4999);
     expect(saves()).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(1);

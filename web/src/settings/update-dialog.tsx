@@ -1,6 +1,8 @@
 import { useId, useState } from 'react';
 import { call } from '../bridge';
 import { errorText } from '../shell/errors';
+import { ErrorReportActions, type Shown } from '../shell/error-report';
+import { reportIdOf } from '../shell/report-id';
 import type { UpdateInfo } from '../wire';
 import { writeSettings } from './settings-writes';
 
@@ -9,11 +11,11 @@ import { writeSettings } from './settings-writes';
  * version" keeps it from asking again until a newer one is out.
  */
 export function UpdateDialog({ info, onClose }: { info: UpdateInfo; onClose: () => void }) {
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Shown | null>(null);
   const id = useId();
 
   const attempt = (action: () => Promise<unknown>) =>
-    action().then(onClose, (e: unknown) => setError(errorText(e)));
+    action().then(onClose, (e: unknown) => setError({ text: errorText(e), reportId: reportIdOf(e) }));
 
   return (
     <div className="fixed inset-0 z-20">
@@ -36,7 +38,8 @@ export function UpdateDialog({ info, onClose }: { info: UpdateInfo; onClose: () 
         <span className="text-[12.5px]">You are running {info.current}.</span>
         {error && (
           <span role="alert" className="text-[12px] text-bad">
-            {error}
+            {error.text}
+            <ErrorReportActions reportId={error.reportId} uiSections={{ message: error.text }} />
           </span>
         )}
         <div className="flex justify-end gap-2">

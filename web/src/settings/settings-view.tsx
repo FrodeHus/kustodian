@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BridgeError, call } from '../bridge';
 import { RAW_VERSIONS } from '../raw/raw-request';
 import { errorText } from '../shell/errors';
+import { ErrorReportActions, type Shown } from '../shell/error-report';
+import { reportIdOf } from '../shell/report-id';
 import { chooseTheme } from '../shell/theme';
 import { runCommand } from '../shell/commands';
 import { CreateAppDialog } from '../signin/create-app-dialog';
@@ -86,11 +88,11 @@ interface SettingsViewProps {
  */
 export function SettingsView({ onClose, onChange, account, createAppOpen = false, onCreateAppOpen, onAccountSwitched }: SettingsViewProps) {
   const [stored, setStored] = useState<SettingsAnswer | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<Shown | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [theme, setTheme] = useState<Theme>('dark');
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [status, setStatus] = useState<{ tone: 'ok' | 'bad'; text: string } | null>(null);
+  const [status, setStatus] = useState<{ tone: 'ok' | 'bad'; text: string; reportId?: string } | null>(null);
   const [busy, setBusy] = useState(false);
   /** The app "Just show me the client ID" left behind: its note, with "Use as default client ID", stays until Settings close. */
   const [shownApp, setShownApp] = useState<CreatedApp | null>(null);
@@ -117,7 +119,7 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
         setDraft(draftOf(answer.settings));
         setTheme(answer.settings.theme);
       },
-      (e: unknown) => setLoadError(`The settings couldn’t be read: ${errorText(e)}`),
+      (e: unknown) => setLoadError({ text: `The settings couldn’t be read: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
   }, []);
 
@@ -125,7 +127,7 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
     setTheme(next);
     chooseTheme(next).then(
       () => setStored((s) => s && { ...s, settings: { ...s.settings, theme: next } }),
-      (e: unknown) => setStatus({ tone: 'bad', text: `The theme couldn’t be kept for the next start: ${errorText(e)}` }),
+      (e: unknown) => setStatus({ tone: 'bad', text: `The theme couldn’t be kept for the next start: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
   };
 
@@ -172,7 +174,7 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
       if (field) {
         setErrors({ [field]: message });
       } else {
-        setStatus({ tone: 'bad', text: `The settings couldn’t be saved: ${message}` });
+        setStatus({ tone: 'bad', text: `The settings couldn’t be saved: ${message}`, reportId: reportIdOf(e) });
       }
     } finally {
       setBusy(false);
@@ -186,7 +188,7 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
         setStored((s) => s && { ...s, settings: { ...s.settings, telemetry: answer.settings.telemetry } });
         onChange(answer);
       },
-      (e: unknown) => setStatus({ tone: 'bad', text: `The choice couldn’t be saved: ${errorText(e)}` }),
+      (e: unknown) => setStatus({ tone: 'bad', text: `The choice couldn’t be saved: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
 
   const sendErrorReports = (on: boolean) =>
@@ -195,19 +197,19 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
         setStored((s) => s && { ...s, settings: { ...s.settings, errorReports: answer.settings.errorReports } });
         onChange(answer);
       },
-      (e: unknown) => setStatus({ tone: 'bad', text: `The choice couldn’t be saved: ${errorText(e)}` }),
+      (e: unknown) => setStatus({ tone: 'bad', text: `The choice couldn’t be saved: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
 
   const clearCache = () =>
     call('cache.clear').then(
       () => setStatus({ tone: 'ok', text: 'Cached Graph objects cleared.' }),
-      (e: unknown) => setStatus({ tone: 'bad', text: `The cache couldn’t be cleared: ${errorText(e)}` }),
+      (e: unknown) => setStatus({ tone: 'bad', text: `The cache couldn’t be cleared: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
 
   const checkUpdate = () =>
     call<UpdateInfo>('app.checkUpdate').then(
       (info) => (info.available ? setUpdate(info) : setStatus({ tone: 'ok', text: `Kustodian ${info.current} is the latest version.` })),
-      (e: unknown) => setStatus({ tone: 'bad', text: `Couldn’t check for an update: ${errorText(e)}` }),
+      (e: unknown) => setStatus({ tone: 'bad', text: `Couldn’t check for an update: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
 
   const edit = (change: Partial<Draft>) => setDraft((d) => d && { ...d, ...change });
@@ -222,7 +224,7 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
         edit({ clientId: answer.settings.signIn.clientId ?? '', tenant: answer.settings.signIn.tenant ?? '' });
         onChange(answer);
       },
-      (e: unknown) => setStatus({ tone: 'bad', text: `The settings couldn’t be read: ${errorText(e)}` }),
+      (e: unknown) => setStatus({ tone: 'bad', text: `The settings couldn’t be read: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
   };
 
@@ -247,7 +249,8 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
         </div>
         {loadError && (
           <span className="text-[12px] text-bad" role="alert">
-            {loadError}
+            {loadError.text}
+            <ErrorReportActions reportId={loadError.reportId} uiSections={{ message: loadError.text }} />
           </span>
         )}
         {stored?.corrupt && (
@@ -409,6 +412,7 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
               {status && (
                 <span className={`text-[12px] ${status.tone === 'bad' ? 'text-bad' : 'text-muted'}`} role={status.tone === 'bad' ? 'alert' : 'status'}>
                   {status.text}
+                  {status.tone === 'bad' && <ErrorReportActions reportId={status.reportId} uiSections={{ message: status.text }} />}
                 </span>
               )}
             </div>

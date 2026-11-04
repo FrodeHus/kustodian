@@ -1,4 +1,4 @@
-import { Component, Suspense, lazy, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Component, Suspense, lazy, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { call } from './bridge';
 import { blockAt } from './editor/block-at';
 import type { KqlEditorHandle } from './editor/kql-editor';
@@ -22,6 +22,8 @@ import { ErrorReportsDialog } from './settings/error-reports';
 import { TelemetryDialog } from './settings/telemetry';
 import { bindGlobalKeys, registerCommands, runCommand, type Command } from './shell/commands';
 import { errorText } from './shell/errors';
+import { ErrorReportActions } from './shell/error-report';
+import { reportIdOf } from './shell/report-id';
 import { MOD, SHIFT } from './shell/keys';
 import { Palette } from './shell/palette';
 import { canCreateApp } from './signin/permission-plan';
@@ -162,7 +164,8 @@ function readAccounts(onList: (list: AccountList) => void, onError: (text: strin
 /** The main window (spec 6.1, mockup Main), or sign-in when no account is active (mockup SignIn). */
 export function App() {
   const [accounts, setAccounts] = useState<AccountList | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblemState] = useState<{ text: string; reportId?: string } | null>(null);
+  const setProblem = useCallback((text: string | null, reportId?: string) => setProblemState(text ? { text, reportId } : null), []);
   /** A notice that stays for the rest of the window's life: it has no Dismiss. */
   const [lasting, setLasting] = useState<string | null>(null);
   const [accountsOpen, setAccountsOpen] = useState(false);
@@ -209,14 +212,14 @@ export function App() {
           }
         }
       },
-      (e: unknown) => setProblem(`The settings couldn’t be read: ${errorText(e)}`),
+      (e: unknown) => setProblem(`The settings couldn’t be read: ${errorText(e)}`, reportIdOf(e)),
     );
-  }, []);
+  }, [setProblem]);
   // Offline or GitHub down: no dialog, and nothing to say about it.
   useEffect(() => void newerRelease().then(setUpdate, () => undefined), []);
 
   // The last session's tabs come back, or one empty Graph tab.
-  useEffect(() => startSessionSync(setProblem, setLasting), []);
+  useEffect(() => startSessionSync(setProblem, setLasting), [setProblem]);
   // Explain closes when its tab's source changes from Graph, so coming back to Graph doesn't explain the query again unasked.
   useEffect(
     () =>
@@ -248,10 +251,10 @@ export function App() {
       stopLoading();
       stopWatching();
     };
-  }, []);
+  }, [setProblem]);
 
   useEffect(() => {
-    const fail = (what: string) => (e: unknown) => setProblem(`${what}: ${errorText(e)}`);
+    const fail = (what: string) => (e: unknown) => setProblem(`${what}: ${errorText(e)}`, reportIdOf(e));
     const runnable = () => {
       const tab = activeTab();
       return !!tab && tab.source !== 'raw';
@@ -399,7 +402,7 @@ export function App() {
       },
     ];
     return registerCommands(commands);
-  }, []);
+  }, [setProblem]);
 
   const account = accounts?.accounts.find((a) => a.active);
   const accountKey = account?.key;
@@ -457,7 +460,7 @@ export function App() {
         return;
       }
       for (const file of files) {
-        openDroppedFile(file).catch((error: unknown) => setProblem(errorText(error)));
+        openDroppedFile(file).catch((error: unknown) => setProblem(errorText(error), reportIdOf(error)));
       }
     };
     window.addEventListener('dragover', onDragOver);
@@ -466,7 +469,7 @@ export function App() {
       window.removeEventListener('dragover', onDragOver);
       window.removeEventListener('drop', onDrop);
     };
-  }, []);
+  }, [setProblem]);
 
   const cursor = active ? cursors[active.id] : undefined;
   const raw = active?.source === 'raw';
@@ -515,7 +518,8 @@ export function App() {
       )}
       {problem && (
         <div className="flex items-center gap-3 border-b border-line bg-bad-soft px-3 py-1.5 text-[12px] text-bad" role="alert">
-          {problem}
+          {problem.text}
+          <ErrorReportActions reportId={problem.reportId} uiSections={{ message: problem.text }} />
           <div className="grow" />
           <button type="button" className="btn ghost" onClick={() => setProblem(null)}>
             Dismiss

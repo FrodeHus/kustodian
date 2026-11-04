@@ -3,6 +3,7 @@ import { ConsentButton } from '../signin/consent-button';
 import { grantOffer } from '../signin/grant-permission';
 import { GrantPermissionButton } from '../signin/grant-permission-button';
 import { runCommand } from '../shell/commands';
+import { ErrorReportActions } from '../shell/error-report';
 import { editorPosition, type TabRun } from '../tabs/tab-store';
 import type { AccountInfo, ArgScope, RunResult, Source, TableFetch } from '../wire';
 import { plural, scopeText, serverRequests } from './source-wording';
@@ -206,6 +207,7 @@ export function RunStatus({ run, scope, onSignIn, accountKey, onConsented, onGra
         {result.outcome !== 'ok' && (
           <span className="flex min-w-0 items-center gap-2 text-bad" role="alert">
             <span className="min-w-0">{result.message ?? 'The query failed.'}</span>
+            <ErrorReportActions reportId={result.reportId} uiSections={{ message: result.message ?? 'The query failed.', query: run.kql }} />
             {at && (
               <span className="mono faint shrink-0 text-[11.5px]">
                 Ln {at.line}, Col {at.column}

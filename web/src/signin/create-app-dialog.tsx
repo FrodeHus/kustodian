@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BridgeError, call, on } from '../bridge';
 import { errorText } from '../shell/errors';
+import { ErrorReportActions, type Shown } from '../shell/error-report';
+import { reportIdOf } from '../shell/report-id';
 import type { EntraAppCreateResult, EntraAppPlan, EntraAppStep } from '../wire';
 import { CreatedView, type CreatedApp } from './created-view';
 import { PermissionList } from './permission-list';
@@ -32,11 +34,11 @@ export function CreateAppDialog({
 }) {
   const [phase, setPhase] = useState<Phase>('loading');
   const [plan, setPlan] = useState<EntraAppPlan | null>(null);
-  const [planError, setPlanError] = useState<string | null>(null);
+  const [planError, setPlanError] = useState<Shown | null>(null);
   const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set());
   const [typedName, setName] = useState<string | null>(null);
   const [step, setStep] = useState<EntraAppStep | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<Shown | null>(null);
   /** The sign-in is gone: the problem can't be fixed from the permissions, so the dialog only offers Close. */
   const [signInGone, setSignInGone] = useState(false);
   /** The failure came after the create request was sent (a lost answer, a timeout, a server error): the app may exist. */
@@ -62,7 +64,7 @@ export function CreateAppDialog({
       },
       (e: unknown) => {
         if (live) {
-          setPlanError(errorText(e));
+          setPlanError({ text: errorText(e), reportId: reportIdOf(e) });
         }
       },
     );
@@ -171,7 +173,10 @@ export function CreateAppDialog({
         // host answers when the create request itself failed in a way that leaves it unknown. The ticks stay either way.
         setSignInGone(isSignInNeeded(e));
         setMayExist(e instanceof BridgeError && e.code === 'mayHaveCreated');
-        setProblem(e instanceof BridgeError && e.code === 'cancelled' ? 'The request was cancelled.' : errorText(e));
+        setProblem({
+          text: e instanceof BridgeError && e.code === 'cancelled' ? 'The request was cancelled.' : errorText(e),
+          reportId: reportIdOf(e),
+        });
         setPhase('failed');
       },
     );
@@ -200,7 +205,8 @@ export function CreateAppDialog({
         {planError !== null ? (
           <div className="flex flex-1 flex-col items-start gap-3 p-6">
             <span className="text-[12px] text-bad" role="alert">
-              {planError}
+              {planError.text}
+              <ErrorReportActions reportId={planError.reportId} uiSections={{ message: planError.text }} />
             </span>
             <button type="button" className="btn" data-autofocus="" onClick={onClose}>
               Close
@@ -223,7 +229,8 @@ export function CreateAppDialog({
             ) : (
               <>
                 <span className="text-[13px] text-bad" role="alert">
-                  {problem}
+                  {problem?.text}
+                  <ErrorReportActions reportId={problem?.reportId} uiSections={{ message: problem?.text ?? '' }} />
                 </span>
                 <span className="muted">
                   {mayExist ? 'The app may have been created. Check App registrations in Entra before trying again.' : 'Nothing was created.'}
