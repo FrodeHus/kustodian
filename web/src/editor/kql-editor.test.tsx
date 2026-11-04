@@ -82,10 +82,7 @@ vi.mock('monaco-editor/esm/vs/editor/edcore.main.js', () => ({}));
 vi.mock('monaco-editor/esm/vs/editor/editor.api.js', () => fake.monaco);
 vi.mock('monaco-editor/esm/vs/editor/editor.worker.js?worker', () => ({ default: class {} }));
 vi.mock('./kusto.worker?worker', () => ({ default: class {} }));
-vi.mock('@kusto/monaco-kusto/release/esm/monaco.contribution.js', () => ({
-  getKustoWorker: () => fake.kustoWorker(),
-  kustoDefaults: { languageSettings: {}, setLanguageSettings: () => undefined },
-}));
+vi.mock('@kusto/monaco-kusto/release/esm/monaco.contribution.js', () => ({ getKustoWorker: () => fake.kustoWorker() }));
 const bridge = vi.hoisted(() => ({ call: vi.fn() }));
 vi.mock('../bridge', () => ({ call: bridge.call, on: () => () => undefined }));
 
