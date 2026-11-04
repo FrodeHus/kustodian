@@ -9,6 +9,11 @@ follow [Semantic Versioning](https://semver.org/).
 
 - A **Run tool** menu on the Rows tab runs your own commands, set up in `tools.json`, on the selected rows: once per row
   with `{column}` values as arguments, or once with the rows as JSON on stdin. See [docs/external-tools.md](docs/external-tools.md).
+- Error reports, off until you opt in: when Kustodian fails in a way it shouldn't, it sends the error's types, where in
+  Kustodian's code it happened, the recent steps before it as codes, the app version and the OS. Never your tenant,
+  account, queries, values, results or error messages. See [what is sent](https://frodehus.github.io/kustodian/telemetry.html).
+- Every error now shows a report ID and **Send details**, which shows the full report for that one error (query, messages,
+  Graph's answer, engine output) and sends it only when you click **Send**, with any parts you untick left out.
 
 ### Changed
 
