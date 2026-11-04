@@ -716,6 +716,7 @@ export function createMockTransport(): Transport {
         reply(id, null);
         break;
       case 'account.consent':
+      case 'account.refresh':
         reply(id, {});
         break;
       case 'entraApp.plan':
