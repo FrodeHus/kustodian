@@ -238,6 +238,11 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
                 text.AppendLine(request);
             }
 
+            if (read.Body is { Length: > 0 } body)
+            {
+                text.AppendLine().AppendLine(body);
+            }
+
             details.Add(new FullReportSection("graphError", "Graph error", text.ToString().TrimEnd(), false));
         }
 

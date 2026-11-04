@@ -146,11 +146,17 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
             if (ex.InnerException is GraphReadException read)
             {
                 failedRequests = read.Requests;
-                readFailure = new RunReadFailure(failed.Table.Name, read.Failure, read.Status, read.Code);
+                readFailure = new RunReadFailure(failed.Table.Name, read.Failure, read.Status, read.Code) { Body = read.Body };
             }
-            var (outcome, message, permissions) = IsSignIn(ex.InnerException)
-                ? (RunOutcome.SignInNeeded, SignInMessage, [])
-                : ReadFailure(ex);
+            if (IsSignIn(ex.InnerException))
+                return End(RunOutcome.SignInNeeded, SignInMessage);
+            if (ex.InnerException is not GraphReadException failure)
+            {
+                // A reader bug, not Graph's answer: logged and reported as the catch-all's are.
+                _log.LogError(ex.InnerException, "A Graph query failed unexpectedly");
+                return End(RunOutcome.Failed, Unexpected) with { Cause = ex.InnerException };
+            }
+            var (outcome, message, permissions) = ReadFailure(ex.Fetch.Table, failure);
             return End(outcome, message, permissions: permissions);
         }
         catch (GraphEngineException ex)
@@ -175,11 +181,8 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
         }
     }
 
-    private (RunOutcome Outcome, string Message, IReadOnlyList<string> Permissions) ReadFailure(FetchFailedException ex)
+    private (RunOutcome Outcome, string Message, IReadOnlyList<string> Permissions) ReadFailure(GraphTable table, GraphReadException read)
     {
-        var table = ex.Fetch.Table;
-        if (ex.InnerException is not GraphReadException read)
-            return (RunOutcome.Failed, Unexpected, []);
         return read.Failure switch
         {
             GraphReadFailure.NoPermission => (RunOutcome.NoPermission, NoPermissionMessage(table), [.. ReadFirst(table.Permissions)]),

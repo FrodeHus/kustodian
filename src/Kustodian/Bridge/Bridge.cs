@@ -9,7 +9,7 @@ namespace Kustodian.Messaging;
 /// which answers with the response text; events go out through the <c>send</c> callback. A handler's exception becomes an
 /// error response with its message only: never a stack trace or an exception type. With a <paramref name="reporter"/>, every
 /// error answer but a cancel carries a report ID: a handler's unexpected exception (kind <c>bridge.failed</c>) is reported, and
-/// the rest are kept as expected errors (kind <c>bridge.&lt;code&gt;</c>), each added to the <paramref name="trail"/> as
+/// the rest are kept as expected errors (kind <c>bridge.refused.&lt;code&gt;</c>, even for a handler's own <c>failed</c>), each added to the <paramref name="trail"/> as
 /// <c>bridge.error(&lt;code&gt;)</c>.</summary>
 public sealed class Bridge(Action<string> send, ILogger<Bridge>? logger = null, ErrorReporter? reporter = null, ErrorTrail? trail = null)
 {
@@ -98,7 +98,7 @@ public sealed class Bridge(Action<string> send, ILogger<Bridge>? logger = null, 
             ];
             if (unexpected is not null)
                 details.Add(new FullReportSection("exception", "Exception", unexpected.ToString(), false));
-            reportId = reporter.Capture(new ErrorCapture(unexpected is null ? $"bridge.{code}" : "bridge.failed", unexpected is not null,
+            reportId = reporter.Capture(new ErrorCapture(unexpected is null ? $"bridge.refused.{code}" : "bridge.failed", unexpected is not null,
                 unexpected is null ? [] : ErrorScrubber.Of(unexpected), new ErrorFacts(Source: "host"), details));
         }
 

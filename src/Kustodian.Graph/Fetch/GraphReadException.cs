@@ -20,7 +20,13 @@ public sealed class GraphReadException(GraphReadFailure failure, string message,
     /// <summary>Graph's <c>error.code</c> (<c>Request_UnsupportedQuery</c>, <c>BadRequest</c>), when its answer had one.</summary>
     public string? Code { get; init; }
 
+    /// <summary>Graph's answer's body as text, cut to <see cref="MaxBody"/> characters, when the failure is one. For a full error
+    /// report only: it may hold the tenant's data.</summary>
+    public string? Body { get; init; }
+
+    public const int MaxBody = 8192;
+
     /// <summary>The same failure, with the requests that led to it.</summary>
     public GraphReadException WithRequests(IReadOnlyList<string> requests)
-        => new(Failure, Message, RetryAfterSeconds, InnerException) { Requests = requests, Status = Status, Code = Code };
+        => new(Failure, Message, RetryAfterSeconds, InnerException) { Requests = requests, Status = Status, Code = Code, Body = Body };
 }

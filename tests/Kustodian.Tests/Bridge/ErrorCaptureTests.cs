@@ -87,9 +87,23 @@ public sealed class ErrorCaptureTests : IDisposable
         var error = Parse(await bridge.HandleAsync("""{"id":"1","method":"refuse","params":{}}""")).GetProperty("error");
 
         var report = Assert.IsType<FullReport>(_reporter.Details(error.GetProperty("reportId").GetString()!));
-        Assert.Equal("bridge.bad_request", report.Kind);
+        Assert.Equal("bridge.refused.bad_request", report.Kind);
         Assert.Equal("Not like that.", Section(report, "message").Text);
         Assert.Contains("bridge.error(bad_request)", _trail.Render(), StringComparison.Ordinal);
+        Assert.Empty(await PostedAsync());
+    }
+
+    [Fact]
+    public async Task BridgeException_with_code_failed_is_expected_not_a_bug()
+    {
+        var bridge = NewBridge();
+        bridge.Register("save", (_, _) => throw new BridgeException(BridgeErrorCodes.Failed, "The file couldn't be written."));
+
+        var error = Parse(await bridge.HandleAsync("""{"id":"1","method":"save","params":{}}""")).GetProperty("error");
+
+        Assert.Equal("failed", error.GetProperty("code").GetString());
+        var report = Assert.IsType<FullReport>(_reporter.Details(error.GetProperty("reportId").GetString()!));
+        Assert.Equal("bridge.refused.failed", report.Kind);
         Assert.Empty(await PostedAsync());
     }
 
@@ -113,7 +127,10 @@ public sealed class ErrorCaptureTests : IDisposable
             Result(RunOutcome.Ok),
             Result(RunOutcome.NoPermission, "You don't have permission to read groups.") with
             {
-                ReadFailure = new RunReadFailure("groups", GraphReadFailure.NoPermission, 403, "Authorization_RequestDenied"),
+                ReadFailure = new RunReadFailure("groups", GraphReadFailure.NoPermission, 403, "Authorization_RequestDenied")
+                {
+                    Body = $$$"""{"error":{"code":"Authorization_RequestDenied","message":"Missing GroupMember.Read.All for {{{Secret}}}"}}""",
+                },
                 Tables = [new TableFetch("groups", ["groups?$select=id"], false, [], [], [], 0, false, 0)],
             },
             Result(RunOutcome.Failed, "The query engine stopped unexpectedly") with
@@ -144,6 +161,10 @@ public sealed class ErrorCaptureTests : IDisposable
         Assert.Equal($"id (text) = {Secret}", Section(deniedReport, "parameters").Text);
         Assert.Contains("groups?$select=id", Section(deniedReport, "graphError").Text, StringComparison.Ordinal);
         Assert.Contains("Authorization_RequestDenied", Section(deniedReport, "graphError").Text, StringComparison.Ordinal);
+        Assert.Contains($"Missing GroupMember.Read.All for {Secret}", Section(deniedReport, "graphError").Text, StringComparison.Ordinal);
+        // Graph's body is the full report's only: not on the wire, not in the trail.
+        Assert.DoesNotContain(Secret, denied.GetRawText(), StringComparison.Ordinal);
+        Assert.DoesNotContain("GroupMember", denied.GetRawText(), StringComparison.Ordinal);
 
         var crashReport = Assert.IsType<FullReport>(_reporter.Details(crashed.GetProperty("reportId").GetString()!));
         Assert.Equal("engine.crash", crashReport.Kind);
@@ -153,6 +174,7 @@ public sealed class ErrorCaptureTests : IDisposable
         // Only the crash is unexpected; its automatic report has the worker's own frames and the engine's numbers, no text.
         var posted = Assert.Single(await PostedAsync());
         Assert.DoesNotContain(Secret, posted, StringComparison.Ordinal);
+        Assert.DoesNotContain(Secret, _trail.Render(), StringComparison.Ordinal);
         Assert.Contains("Kustodian.Engine.EngineHandler.Handle", posted, StringComparison.Ordinal);
         Assert.Contains("\"exitCode\":\"134\"", posted, StringComparison.Ordinal);
         Assert.Contains("\"peakMemoryMb\":\"300\"", posted, StringComparison.Ordinal);

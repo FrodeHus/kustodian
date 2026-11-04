@@ -644,7 +644,7 @@ public sealed class GraphRunnerTests
         var r = await h.RunAsync("applications | project id", ct: Ct);
 
         Assert.Equal(RunOutcome.Failed, r.Outcome);
-        Assert.Equal(new RunReadFailure("applications", GraphReadFailure.Failed, 400, "Request_BadRequest"), r.ReadFailure);
+        Assert.Equal(new RunReadFailure("applications", GraphReadFailure.Failed, 400, "Request_BadRequest"), r.ReadFailure! with { Body = null });
     }
 
     [Fact]
@@ -738,6 +738,14 @@ public sealed class GraphRunnerTests
 
             Assert.Equal((RunOutcome.Failed, GraphRunner.Unexpected), (broken.Outcome, broken.Message));
             Assert.Equal("licenses broke", Assert.IsType<InvalidOperationException>(broken.Cause).Message);
+
+            // A reader bug: the read failed with something other than Graph's answer.
+            graph.Answer = (_, _) => throw new InvalidOperationException("reader broke");
+            var reader = await new GraphRunner(GraphSchemaCatalog.Beta, graph.Reader(budget), budget, pool, GraphLimits.Default,
+                TimeProvider.System).RunAsync(Account, Kql, refresh: false, null, Ct);
+
+            Assert.Equal((RunOutcome.Failed, GraphRunner.Unexpected), (reader.Outcome, reader.Message));
+            Assert.Equal("reader broke", Assert.IsType<InvalidOperationException>(reader.Cause).Message);
         }
 
         // A worker that answers garbage crashes; with no crashes allowed the pool pauses, so the next run is Busy.
@@ -786,5 +794,7 @@ public sealed class GraphRunnerTests
             [RunOutcome.EngineTimeout, RunOutcome.NoPermission, RunOutcome.Failed, RunOutcome.SignInNeeded],
             new[] { timedOut, denied, refused, signIn }.Select(r => r.Outcome));
         Assert.All(new[] { timedOut, denied, refused, signIn }, r => Assert.Null(r.Cause));
+        // Graph's answer is kept for a full report.
+        Assert.Contains("Off.", refused.ReadFailure?.Body, StringComparison.Ordinal);
     }
 }

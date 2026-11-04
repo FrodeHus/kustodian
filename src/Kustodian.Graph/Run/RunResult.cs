@@ -63,7 +63,13 @@ public sealed record TableFetch(string Table, IReadOnlyList<string> Requests, bo
 
 /// <summary>How the read of <paramref name="Table"/> failed: the <paramref name="Failure"/>, and Graph's HTTP
 /// <paramref name="Status"/> and <c>error.code</c> (<paramref name="Code"/>) when the failure was Graph's answer.</summary>
-public sealed record RunReadFailure(string Table, GraphReadFailure Failure, int? Status, string? Code);
+public sealed record RunReadFailure(string Table, GraphReadFailure Failure, int? Status, string? Code)
+{
+    /// <summary>Graph's answer's body (<see cref="GraphReadException.Body"/>). For a full error report only: it never goes out
+    /// with the result.</summary>
+    [JsonIgnore]
+    public string? Body { get; init; }
+}
 
 /// <summary>A run's answer. <see cref="Message"/> is the text to show when the outcome isn't <see cref="RunOutcome.Ok"/>;
 /// <see cref="Error"/> carries the position of a <see cref="RunOutcome.QueryError"/>. <see cref="RunId"/> names the run (its
