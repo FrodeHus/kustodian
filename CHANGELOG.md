@@ -25,6 +25,9 @@ follow [Semantic Versioning](https://semver.org/).
   type. A result of one row with several number columns charts those columns side by side, one bar each.
 - A **Split by** picker on the Chart tab draws a value once per value of another column, as grouped bars or one line
   each. A result with two text columns and a number now charts this way on its own: along the first, split by the second.
+- A query's `| render ... with (...)` now sets up its chart: `xcolumn`, `ycolumns` and `series` pick the x axis, the values
+  and the split, `title` names the chart, and `kind=stacked` or `kind=stacked100` stacks it. A **Stacking** picker on the
+  Chart tab stacks column, bar and area charts, or stacks them to 100%.
 
 ### Changed
 
