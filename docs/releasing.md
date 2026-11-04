@@ -40,11 +40,16 @@ the release at "Cut the release".
 
 A UI error report names minified bundle positions such as `index-abc123.js:1:48213`. The app does not contain source maps;
 each release has them in `kustodian-x.y.z-sourcemaps.zip` (built with `build.sourcemap: 'hidden'`). Unzip the one for the
-report's version and look the position up in the map named after the bundle (`index-abc123.js.map`), for example:
+report's version and look the position up in the map named after the bundle (`index-abc123.js.map`). A one-off with the
+`source-map` package, outside the repo (frames are 1-based lines and 0-based columns, as in the report):
 
 ```sh
-npx --yes source-map-cli resolve index-abc123.js.map 1 48213
+mkdir /tmp/decode && cd /tmp/decode && npm init -y && npm i source-map@0.7.4
+node -e "const {SourceMapConsumer}=require('source-map');SourceMapConsumer.with(JSON.parse(require('fs').readFileSync('index-abc123.js.map','utf8')),null,c=>console.log(c.originalPositionFor({line:1,column:48213})))"
 ```
+
+The maps come from the Linux build. The bundle's file name carries a content hash, so a report that names a bundle with no
+matching map in that version's zip comes from a platform whose bundle differed from Linux's, and can't be decoded with it.
 
 ## winget
 

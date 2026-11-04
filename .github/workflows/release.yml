@@ -379,9 +379,9 @@ jobs:
           if-no-files-found: error
 
       # The maps are made by the Packages step's web build and are not in the app (build.sourcemap 'hidden'). They come from
-      # this job only: the bundle is the same in every platform job (same sources, same Node), and a UI error report names
-      # a bundle file, which the owner decodes with these maps (docs/releasing.md). Named apart from packages-* so the release
-      # job's package download leaves them out.
+      # this job only. The bundle is assumed identical in every platform job (same lockfile, same Node major, LF checkout via
+      # .gitattributes); nothing checks it. A UI error report names a bundle file, which the owner decodes with these maps
+      # (docs/releasing.md). Named apart from packages-* so the release job's package download leaves them out.
       - uses: actions/upload-artifact@v7
         with:
           name: sourcemaps
