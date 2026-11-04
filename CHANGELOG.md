@@ -34,6 +34,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- On Windows, a query still running when Kustodian closed could end with an unexpected COM error instead of stopping
+  cleanly.
 - Graph queries that read `roleManagement_directory_roleDefinitions` (for example to name the roles in PIM activations) no
   longer fail with "This resource requires a minimum page size of 20". Kustodian now reads the table 500 rows at a time,
   the only page size Graph accepts for it.

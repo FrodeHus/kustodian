@@ -341,9 +341,11 @@ public sealed class GraphEnginePool : IAsyncDisposable
         {
             await exchange;
         }
-        catch (Exception e) when (e is IOException or InvalidDataException or OperationCanceledException or ObjectDisposedException)
+        catch (Exception)
         {
-            // The worker is gone; its half-finished exchange has nothing more to say.
+            // The worker is gone and the failure is decided (an exchange that failed first is in `reason`); its half-finished
+            // exchange has nothing more to say, whatever it threw. On Windows a pipe closed mid-read can surface as a
+            // COMException rather than an IOException.
         }
 
         ct.ThrowIfCancellationRequested();
