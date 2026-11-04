@@ -1,9 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { TitleBar } from './title-bar';
 
 describe('TitleBar', () => {
-  it('title_bar_pill_shows_tenant_and_user_and_its_menu_opens_accounts', () => {
+  it('title_bar_pill_shows_the_tenant_and_its_menu_shows_the_user_and_opens_accounts', () => {
     const onAccount = vi.fn();
     render(
       <TitleBar
@@ -23,9 +23,11 @@ describe('TitleBar', () => {
       />,
     );
 
-    const pill = screen.getByRole('button', { name: 'Contoso Ltd · kari@contoso.com' });
-    expect(pill.textContent).toBe('Contoso Ltd · kari@contoso.com');
+    const pill = screen.getByRole('button', { name: 'Contoso Ltd' });
+    expect(pill.textContent).toBe('Contoso Ltd');
     fireEvent.click(pill);
+    expect(within(screen.getByRole('menu')).getByText('kari@contoso.com')).toBeTruthy();
+    expect(within(screen.getByRole('menu')).getByText('Signed in')).toBeTruthy();
     fireEvent.click(screen.getByRole('menuitem', { name: 'Accounts and sign-in' }));
     expect(onAccount).toHaveBeenCalledOnce();
     expect(screen.queryByRole('menu')).toBeNull();

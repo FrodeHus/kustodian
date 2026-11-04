@@ -4,8 +4,8 @@ import { MOD } from './keys';
 import logo from './logo.png';
 
 /**
- * The window's top bar: the app's name, the open tabs (`children`), and the account button (tenant and user), whose menu opens
- * accounts and sign-in, and settings. The OS draws the window's own controls, so the mockup's dots are left out.
+ * The window's top bar: the app's name, the open tabs (`children`), and the account button (the tenant), whose menu shows the
+ * account and opens accounts and sign-in, and settings. The OS draws the window's own controls, so the mockup's dots are left out.
  */
 export function TitleBar({
   account,
@@ -63,7 +63,7 @@ export function TitleBar({
           {account ? (
             <>
               <span className={account.expired ? 'dot-off' : 'dot-ok'} aria-hidden="true" />
-              <b>{account.tenantName}</b> · {account.username}
+              <b>{account.tenantName}</b>
             </>
           ) : (
             'Not signed in'
@@ -73,7 +73,24 @@ export function TitleBar({
           </svg>
         </button>
         {open && (
-          <div className="menu" role="menu" aria-label="Account and settings" style={{ right: 0, top: 30, width: 260 }} onMouseDown={(e) => e.preventDefault()}>
+          <div className="menu" role="menu" aria-label="Account and settings" style={{ right: 0, top: 30, width: 280 }} onMouseDown={(e) => e.preventDefault()}>
+            {account && (
+              <div className="flex items-center gap-3 border-b border-line px-2.5 pt-1.5 pb-2.5 mb-1">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent-soft font-semibold text-accent" aria-hidden="true">
+                  {account.username.charAt(0).toUpperCase()}
+                </span>
+                <span className="flex min-w-0 flex-col text-[12px]">
+                  <b className="truncate text-[13px] text-text" title={account.username}>
+                    {account.username}
+                  </b>
+                  <span className="muted truncate">{account.tenantName}</span>
+                  <span className="flex items-center gap-1.5 text-faint">
+                    <span className={account.expired ? 'dot-off' : 'dot-ok'} aria-hidden="true" />
+                    {account.expired ? 'Sign-in expired' : 'Signed in'}
+                  </span>
+                </span>
+              </div>
+            )}
             <button type="button" role="menuitem" onClick={() => choose(onAccount)}>
               {account ? 'Accounts and sign-in' : 'Sign in'}
             </button>
