@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using Kustodian.Graph.Engine;
 
 namespace Kustodian.Telemetry;
 
@@ -41,6 +42,12 @@ public static partial class ErrorScrubber
         }
         return result;
     }
+
+    /// <summary>An engine worker's crash frame, by the same rules: type names and known frames, at most 10 exceptions. The
+    /// messages are dropped.</summary>
+    public static IReadOnlyList<ScrubbedException> Of(EngineCrash crash) =>
+        [.. crash.Exceptions.Take(MaxExceptions)
+            .Select(e => new ScrubbedException(e.TypeName, Collapse(e.Frames.Select(f => Frame(f.Method, f.Assembly)))))];
 
     /// <summary>A script error from the web UI: its name (an identifier, else <c>Error</c>) and the frames of its stack that
     /// point into the app's own bundle. The message is never read.</summary>

@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using Kustodian.Graph.Engine;
 using Kustodian.Telemetry;
 
 namespace Kustodian.Tests.Telemetry;
@@ -65,6 +66,33 @@ public sealed class ErrorScrubberTests
         var aggregate = new AggregateException(Enumerable.Range(0, 15).Select(_ => new Exception(LeakyText)));
 
         Assert.Equal(10, ErrorScrubber.Of(aggregate).Count);
+    }
+
+    [Fact]
+    public void Of_engine_crash_drops_messages()
+    {
+        var crash = new EngineCrash(
+        [
+            new EngineCrashException("System.InvalidOperationException", LeakyText,
+            [
+                new EngineStackFrame("Kustodian.Engine.EngineHandler.Handle", "Kustodian.Engine"),
+                new EngineStackFrame(Leaky[0], "Some.Plugin"),
+                new EngineStackFrame(Leaky[5], "Other.Plugin"),
+                new EngineStackFrame("KustoLoco.Core.Run", "KustoLoco.Core"),
+            ]),
+            new EngineCrashException("System.ArgumentException", LeakyText, []),
+        ]);
+
+        var result = ErrorScrubber.Of(crash);
+
+        AssertClean(result);
+        Assert.Equal(["System.InvalidOperationException", "System.ArgumentException"], result.Select(r => r.TypeName));
+        Assert.Equal(
+            [
+                new ErrorFrame("Kustodian.Engine.EngineHandler.Handle", "Kustodian.Engine"), new ErrorFrame("<external>", ""),
+                new ErrorFrame("KustoLoco.Core.Run", "KustoLoco.Core"),
+            ],
+            result[0].Frames);
     }
 
     [Fact]
