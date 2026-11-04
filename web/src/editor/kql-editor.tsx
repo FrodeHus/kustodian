@@ -7,7 +7,8 @@ import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker.js?worker';
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { call } from '../bridge';
 import { schemaSourceOf } from '../schema/schema-store';
-import { useTheme } from '../shell/theme';
+import { PALETTES, isPalette, type Palette } from '../shell/palettes';
+import { useTheme, type Theme } from '../shell/theme';
 import { useTabs, type RunMode } from '../tabs/tab-store';
 import type { CompletionItem, SchemaView, Source } from '../wire';
 import { createDotProvider } from './dot-completion';
@@ -142,8 +143,52 @@ monaco.editor.defineTheme('kustodian-glass', {
   },
 });
 
-const monacoTheme = ({ resolved, glass }: { resolved: 'dark' | 'light'; glass: boolean }) =>
-  glass ? 'kustodian-glass' : resolved === 'light' ? 'kustodian-light' : 'kustodian-dark';
+/** A palette theme's Monaco theme: its colours in the roles the dark theme gives the studio's tokens. */
+function paletteTheme(p: Palette): monaco.editor.IStandaloneThemeData {
+  const hex = (colour: string) => colour.slice(1).toUpperCase();
+  const roles: [string, string][] = [
+    [p.text, 'plainText variable identifier signatureParameter option'],
+    [p.muted, 'punctuation mathOperator'],
+    [p.kw, 'directive queryOperator command keyword'],
+    [p.num, 'literal parameter clientParameter queryParameter scalarParameter'],
+    [p.str, 'stringLiteral'],
+    [p.fn, 'type function'],
+    [p.col, 'column schemaMember'],
+    [p.tbl, 'table database materializedView'],
+  ];
+  return {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [
+      { token: '', foreground: hex(p.text) },
+      { token: 'comment', foreground: hex(p.cm), fontStyle: 'italic' },
+      ...roles.flatMap(([colour, tokens]) => tokens.split(' ').map((token) => ({ token, foreground: hex(colour) }))),
+    ],
+    colors: {
+      'editor.background': p.bg,
+      'editor.foreground': p.text,
+      'editorLineNumber.foreground': p.faint,
+      'editorLineNumber.activeForeground': p.muted,
+      'editor.lineHighlightBackground': `${p.raise}80`,
+      'editor.selectionBackground': `${p.accent}40`,
+      'editorCursor.foreground': p.accent,
+      'editorSuggestWidget.background': p.panel,
+      'editorSuggestWidget.border': p.line,
+      'editorSuggestWidget.selectedBackground': p.raise,
+      'editorHoverWidget.background': p.panel,
+      'editorHoverWidget.border': p.line,
+      'editorWidget.background': p.panel,
+      'editorWidget.border': p.line,
+    },
+  };
+}
+
+for (const [id, palette] of Object.entries(PALETTES)) {
+  monaco.editor.defineTheme(`kustodian-${id}`, paletteTheme(palette));
+}
+
+const monacoTheme = ({ theme, resolved, glass }: { theme: Theme; resolved: 'dark' | 'light'; glass: boolean }) =>
+  isPalette(theme) ? `kustodian-${theme}` : glass ? 'kustodian-glass' : resolved === 'light' ? 'kustodian-light' : 'kustodian-dark';
 
 /** The `majorVersion` each schema view goes to the language service with: a new view (or an empty database) always gets a higher
  * one than any before it, so monaco-kusto's cache, which keeps a database until its version grows, takes it. The same view

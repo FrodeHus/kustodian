@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Kustodian.Settings;
 
 /// <summary>The app's settings (spec 6.11 and 9), as <c>settings.json</c> holds them and the UI edits them.
-/// <see cref="Theme"/> is <c>dark</c>, <c>light</c>, <c>system</c>, <c>glass</c> or <c>liquid-glass</c>; <see cref="RawDefaultVersion"/> is the Graph version the
+/// <see cref="Theme"/> is one of <see cref="Themes"/>; <see cref="RawDefaultVersion"/> is the Graph version the
 /// raw request tab starts with, <c>beta</c> or <c>v1.0</c>. <see cref="Telemetry"/> is whether the user shares Graph compatibility
 /// findings (<c>Kustodian.Telemetry.SharedProbeCache</c> and <c>SharedRunFindings</c>); null until they have been asked, and
 /// nothing is shared then. <see cref="TelemetryConsent"/> is the version of what was shared when they answered: a yes to an
@@ -29,6 +29,13 @@ public sealed record AppSettings(int Version, string Theme, string RawDefaultVer
 
     /// <summary>The version of what an automatic error report holds.</summary>
     public const int CurrentErrorReportsConsent = 1;
+
+    /// <summary>The themes the UI offers (<c>web/src/shell/theme.ts</c>, <c>THEMES</c>); keep the two lists in step.</summary>
+    public static IReadOnlyList<string> Themes { get; } =
+    [
+        "dark", "light", "system", "glass", "liquid-glass", "github-dark", "one-dark", "dracula", "material", "monokai",
+        "ayu-dark", "night-owl", "tokyo-night", "catppuccin-mocha", "gruvbox-dark",
+    ];
 
     public static AppSettings Default { get; } = new(CurrentVersion, "dark", "beta", new SignInDefaults(null, null), LimitSettings.Default);
 }
@@ -61,7 +68,6 @@ public sealed class SettingsService(JsonFileStore store, ILogger<SettingsService
 {
     public const string FileName = "settings.json";
 
-    private static readonly string[] Themes = ["dark", "light", "system", "glass", "liquid-glass"];
     private static readonly string[] RawVersions = ["beta", "v1.0"];
     private const long BytesPerMegabyte = 1L << 20;
 
@@ -177,9 +183,9 @@ public sealed class SettingsService(JsonFileStore store, ILogger<SettingsService
             return "The settings are of an unknown version.";
         }
 
-        if (!Themes.Contains(settings.Theme, StringComparer.Ordinal))
+        if (!AppSettings.Themes.Contains(settings.Theme, StringComparer.Ordinal))
         {
-            return "Theme must be dark, light, system, glass or liquid-glass.";
+            return $"Theme must be one of {string.Join(", ", AppSettings.Themes)}.";
         }
 
         if (!RawVersions.Contains(settings.RawDefaultVersion, StringComparer.Ordinal))
