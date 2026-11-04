@@ -1,37 +1,90 @@
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { AccountInfo } from '../wire';
 import { MOD } from './keys';
 import logo from './logo.png';
 
 /**
- * The window's top bar: the app's name, the source, the settings button, and the account pill (tenant and user), which opens
- * sign-in and accounts. The OS draws the window's own controls, so the mockup's dots are left out.
+ * The window's top bar: the app's name, the open tabs (`children`), and the account button (tenant and user), whose menu opens
+ * accounts and sign-in, and settings. The OS draws the window's own controls, so the mockup's dots are left out.
  */
-export function TitleBar({ account, onAccount, onSettings }: { account: AccountInfo | undefined; onAccount: () => void; onSettings: () => void }) {
+export function TitleBar({
+  account,
+  onAccount,
+  onSettings,
+  children,
+}: {
+  account: AccountInfo | undefined;
+  onAccount: () => void;
+  onSettings: () => void;
+  children?: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Closes on a click outside it or Esc, as the tab strip's menus do.
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+    const onDown = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const choose = (run: () => void) => {
+    setOpen(false);
+    run();
+  };
+
   return (
     <header className="titlebar">
       <span className="brand">
         <img src={logo} width={16} height={16} alt="" />
         Kustodian
       </span>
-      <span className="faint text-[12px]">Microsoft Graph beta</span>
-      <div className="grow" />
-      <button type="button" className="btn ghost" aria-label="Settings" title={`Settings (${MOD} ,)`} onClick={onSettings}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-        </svg>
-      </button>
-      {/* Named by its visible text (WCAG 2.5.3); the title says what it does. */}
-      <button type="button" className="pill" onClick={onAccount} title={account ? 'Accounts and sign-in' : 'Sign in'}>
-        {account ? (
-          <>
-            <span className={account.expired ? 'dot-off' : 'dot-ok'} aria-hidden="true" />
-            <b>{account.tenantName}</b> · {account.username}
-          </>
-        ) : (
-          'Not signed in'
+      <div className="flex min-w-0 grow self-stretch">{children}</div>
+      <div className="relative" ref={menuRef}>
+        {/* Named by its visible text (WCAG 2.5.3); the title says what it does. */}
+        <button type="button" className="pill" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)} title="Account and settings">
+          {account ? (
+            <>
+              <span className={account.expired ? 'dot-off' : 'dot-ok'} aria-hidden="true" />
+              <b>{account.tenantName}</b> · {account.username}
+            </>
+          ) : (
+            'Not signed in'
+          )}
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+        {open && (
+          <div className="menu" role="menu" aria-label="Account and settings" style={{ right: 0, top: 30, width: 260 }} onMouseDown={(e) => e.preventDefault()}>
+            <button type="button" role="menuitem" onClick={() => choose(onAccount)}>
+              {account ? 'Accounts and sign-in' : 'Sign in'}
+            </button>
+            <button type="button" role="menuitem" onClick={() => choose(onSettings)}>
+              Settings
+              <span className="grow" />
+              <span className="kbd">{MOD} ,</span>
+            </button>
+          </div>
         )}
-      </button>
+      </div>
     </header>
   );
 }
