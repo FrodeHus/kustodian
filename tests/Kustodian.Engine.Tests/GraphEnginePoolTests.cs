@@ -161,7 +161,7 @@ public sealed class GraphEnginePoolTests
             await Task.Delay(20, ct);
         Assert.True(IsGone(worker), "The worker is still running after the pool was disposed.");
         var e = await Record.ExceptionAsync(() => running.WaitAsync(TimeSpan.FromSeconds(5), ct));
-        Assert.True(e is OperationCanceledException or GraphEngineException, $"RunAsync ended with {e?.GetType().Name ?? "an answer"}.");
+        Assert.True(e is OperationCanceledException or GraphEngineException, $"RunAsync ended with {e?.ToString() ?? "an answer"}.");
     }
 
     [Fact]
