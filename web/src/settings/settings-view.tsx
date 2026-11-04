@@ -35,6 +35,8 @@ const THEMES: { value: Theme; name: string }[] = [
   { value: 'dark', name: 'Dark' },
   { value: 'light', name: 'Light' },
   { value: 'system', name: 'Follow the system' },
+  { value: 'glass', name: 'Glass' },
+  { value: 'liquid-glass', name: 'Liquid glass' },
 ];
 
 const count = (n: number) => n.toLocaleString('en-US');

@@ -44,7 +44,7 @@ describe('theme', () => {
     applyTheme('system');
     expect(os.matchMedia).toHaveBeenCalledWith('(prefers-color-scheme: light)');
     expect(isLight()).toBe(false);
-    expect(useTheme.getState()).toEqual({ theme: 'system', resolved: 'dark' });
+    expect(useTheme.getState()).toEqual({ theme: 'system', resolved: 'dark', glass: false });
 
     os.change(true);
     expect(isLight()).toBe(true);
@@ -61,12 +61,28 @@ describe('theme', () => {
     expect(initialTheme('?theme=light')).toBe('light');
     expect(initialTheme('?theme=system')).toBe('system');
     expect(initialTheme('?theme=dark')).toBe('dark');
+    expect(initialTheme('?theme=glass')).toBe('glass');
+    expect(initialTheme('?theme=liquid-glass')).toBe('liquid-glass');
     expect(initialTheme('?theme=neon')).toBe('dark');
     expect(initialTheme('')).toBe('dark');
 
     applyTheme(initialTheme('?theme=light'));
     expect(isLight()).toBe(true);
-    expect(useTheme.getState()).toEqual({ theme: 'light', resolved: 'light' });
+    expect(useTheme.getState()).toEqual({ theme: 'light', resolved: 'light', glass: false });
+  });
+
+  it('glass_themes_are_dark_with_their_own_classes', () => {
+    const root = document.documentElement.classList;
+
+    applyTheme('liquid-glass');
+    expect([root.contains('theme-glass'), root.contains('theme-liquid-glass'), isLight()]).toEqual([true, true, false]);
+    expect(useTheme.getState()).toEqual({ theme: 'liquid-glass', resolved: 'dark', glass: true });
+
+    applyTheme('glass');
+    expect([root.contains('theme-glass'), root.contains('theme-liquid-glass')]).toEqual([true, false]);
+
+    applyTheme('light');
+    expect([root.contains('theme-glass'), root.contains('theme-liquid-glass'), isLight()]).toEqual([false, false, true]);
   });
 
   it('choosing_a_theme_applies_it_and_keeps_the_other_settings', async () => {

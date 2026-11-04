@@ -13,12 +13,12 @@ namespace Kustodian.App;
 /// raise <c>WebResourceRequested</c>, so on Windows the handler is registered for <c>https</c> and the UI is served from a
 /// host under the reserved <c>.invalid</c> TLD: it never resolves, so nothing is ever fetched from a network or a local
 /// port, and <c>https</c> keeps the page a secure context.</para>
-/// <para>The start URL carries the theme (<c>?theme=dark|light|system</c>) so the page can apply it before its first
+/// <para>The start URL carries the theme (<c>?theme=dark|light|system|glass|liquid-glass</c>) so the page can apply it before its first
 /// paint.</para>
 /// </remarks>
 public sealed record AppOrigin(string Scheme, Uri StartUrl)
 {
-    private static readonly string[] Themes = ["dark", "light", "system"];
+    private static readonly string[] Themes = ["dark", "light", "system", "glass", "liquid-glass"];
     private const string DefaultTheme = "dark";
 
     /// <summary>The origin for the platform this process runs on.</summary>

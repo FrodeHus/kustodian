@@ -393,7 +393,7 @@ export interface ArmResourceTypesAnswer {
   types: string[];
 }
 
-export type Theme = 'dark' | 'light' | 'system';
+export type Theme = 'dark' | 'light' | 'system' | 'glass' | 'liquid-glass';
 
 export interface AppSettings {
   version: number;

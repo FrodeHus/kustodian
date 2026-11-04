@@ -7,6 +7,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Two new themes, **Glass** and **Liquid glass**: frosted panels over a colourful backdrop. Liquid glass adds rounder,
+  pill-shaped controls. Pick one in Settings or the command palette.
 - A **Run tool** menu on the Rows tab runs your own commands, set up in `tools.json`, on the selected rows: once per row
   with `{column}` values as arguments, or once with the rows as JSON on stdin. See [docs/external-tools.md](docs/external-tools.md).
 - Error reports, off until you opt in: when Kustodian fails in a way it shouldn't, it sends the error's types, where in
