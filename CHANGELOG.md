@@ -9,6 +9,9 @@ follow [Semantic Versioning](https://semver.org/).
 
 - A **Run tool** menu on the Rows tab runs your own commands, set up in `tools.json`, on the selected rows: once per row
   with `{column}` values as arguments, or once with the rows as JSON on stdin. See [docs/external-tools.md](docs/external-tools.md).
+- A query refused for permission offers **Refresh access**, which gets a new access token so a role you activated since
+  (through PIM, say) counts, then runs the query again. When the token can't be refreshed silently, the browser opens to
+  sign in.
 
 ### Changed
 
