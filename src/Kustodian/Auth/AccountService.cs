@@ -235,6 +235,70 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
             throw new ArgumentException("Graph consent needs one read-only permission to ask for.", nameof(scope));
         }
 
+        var graph = audience == Audience.Graph;
+        var client = await AskUserAsync(accountKey, audience, graph ? GraphScopeBase + scope!.Trim() : audience.ScopeFor(),
+            forceConsent: graph, showCode, ct);
+
+        if (graph)
+        {
+            try
+            {
+                await RefreshGraphAsync(accountKey, client, scope!.Trim(), ct);
+            }
+            finally
+            {
+                if (onGranted is not null)
+                {
+                    await onGranted();
+                }
+            }
+        }
+    }
+
+    /// <summary>Gets a new <paramref name="audience"/> token for the account <paramref name="accountKey"/>, skipping the cached
+    /// one: a role activated since (PIM, say) is only in a new token. When that needs the user, the browser opens at the account
+    /// (a device code goes to <paramref name="showCode"/> when no browser opens), as in <see cref="ConsentAsync"/> but without
+    /// the consent prompt. A Graph token's scopes are stored for the account.</summary>
+    /// <exception cref="SignInRequiredException">That account is not signed in.</exception>
+    /// <exception cref="InvalidOperationException">The user signed in as another account.</exception>
+    public async Task RefreshAsync(string accountKey, Audience audience, CancellationToken ct, Action<string>? showCode = null)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            var state = await LoadAsync(ct);
+            var stored = state.Accounts.FirstOrDefault(a => a.Info.Key == accountKey)
+                ?? throw new SignInRequiredException("That account is not signed in.");
+            var token = await ClientFor(ConfigFor(stored, audience)).AcquireSilentAsync(stored.HomeAccountId, audience.ScopeFor(), ct,
+                forceRefresh: true);
+            if (audience == Audience.Graph)
+            {
+                _expired.Remove(accountKey);
+                await StoreScopesAsync(state, stored, token, ct);
+            }
+
+            return;
+        }
+        catch (MsalUiRequiredException)
+        {
+            // The refresh token can't get one on its own: the user signs in below, outside the gate.
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        await AskUserAsync(accountKey, audience, audience.ScopeFor(), forceConsent: false, showCode, ct);
+        // The new token is in MSAL's cache now; this marks the sign-in good again and stores a Graph token's scopes.
+        await GetTokenAsync(accountKey, audience, ct);
+    }
+
+    /// <summary>Opens the browser at the account <paramref name="accountKey"/> for <paramref name="requested"/> (a device code when
+    /// no browser opens and <paramref name="showCode"/> is given), and returns the client that asked. A token for another account
+    /// is refused (see <see cref="ConsentAsync"/>).</summary>
+    private async Task<IMsalClient> AskUserAsync(string accountKey, Audience audience, string requested, bool forceConsent,
+        Action<string>? showCode, CancellationToken ct)
+    {
         IMsalClient client;
         StoredAccount stored;
         HashSet<string> listed;
@@ -244,7 +308,7 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
             var state = await LoadAsync(ct);
             stored = state.Accounts.FirstOrDefault(a => a.Info.Key == accountKey)
                 ?? throw new SignInRequiredException("That account is not signed in.");
-            if (audience == Audience.Graph && stored.Info.ClientKind == ClientKind.AzureCli)
+            if (forceConsent && stored.Info.ClientKind == ClientKind.AzureCli)
             {
                 throw new InvalidOperationException("The Azure CLI client's Graph permissions are fixed; there is nothing to grant.");
             }
@@ -262,12 +326,10 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
         known.UnionWith(listed);
 
         // As with sign-in, the browser or device-code wait happens outside the gate.
-        var graph = audience == Audience.Graph;
-        var requested = graph ? GraphScopeBase + scope!.Trim() : audience.ScopeFor();
         MsalSignIn granted;
         try
         {
-            granted = await client.AcquireInteractiveAsync(requested, stored.Info.Username, ct, forceConsent: graph);
+            granted = await client.AcquireInteractiveAsync(requested, stored.Info.Username, ct, forceConsent);
         }
         catch (Exception ex) when (showCode is not null && NoBrowser(ex))
         {
@@ -287,20 +349,7 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
                 $"You granted access as {granted.Account.Username}; sign in as {stored.Info.Username}.");
         }
 
-        if (graph)
-        {
-            try
-            {
-                await RefreshGraphAsync(accountKey, client, scope!.Trim(), ct);
-            }
-            finally
-            {
-                if (onGranted is not null)
-                {
-                    await onGranted();
-                }
-            }
-        }
+        return client;
     }
 
     /// <summary>After Graph consent: the cached <c>.default</c> token keeps its old <c>scp</c> until it expires, so a new one is

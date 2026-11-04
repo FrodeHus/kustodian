@@ -265,6 +265,19 @@ describe('RunStatus', () => {
     expect(screen.queryByRole('button', { name: 'Create Entra ID application…' })).toBeNull();
   });
 
+  it.each([
+    ['graph', 'graph'],
+    ['arg', 'arm'],
+  ] as const)('no_permission_%s_refreshes_the_token_and_runs_again', async (source, audience) => {
+    call.mockResolvedValueOnce({});
+    const onGranted = vi.fn();
+    const run = { ...done(result({ outcome: 'noPermission', message: 'No permission.' })), source };
+    render(<RunStatus run={run} accountKey="k1" onGranted={onGranted} onSignIn={() => undefined} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh access' }));
+    await waitFor(() => expect(onGranted).toHaveBeenCalledTimes(1));
+    expect(call).toHaveBeenCalledWith('account.refresh', { key: 'k1', audience });
+  });
+
   describe('grant permission', () => {
     const account = (clientKind: AccountInfo['clientKind'], scopes: string[] = []): AccountInfo => ({
       key: 'k1',
