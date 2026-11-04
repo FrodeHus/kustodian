@@ -18,7 +18,7 @@ import {
 } from 'recharts';
 import type { ResultColumn } from '../wire';
 import type { Row } from './export';
-import { CHART_TYPES, NO_SHAPE, RENDER_HINTS, chartData, chartShape, isCategory, isNumeric, renderHint, splitColumn, type ChartPoint, type ChartType } from './chart-shape';
+import { CHART_TYPES, NO_SHAPE, RENDER_HINTS, chartData, chartShape, isCategory, isNumeric, renderHint, renderOptions, splitColumn, type ChartPoint, type ChartType, type Stack } from './chart-shape';
 
 /** Series colours, from the theme's tokens, so they follow light and dark. */
 const COLOURS = ['var(--accent)', 'var(--warn)', 'var(--ok)', 'var(--bad)', 'var(--kw)', 'var(--fn)', 'var(--num)', 'var(--str)', 'var(--col)'];
@@ -58,17 +58,27 @@ interface Picked {
   x?: string | null;
   series?: string[];
   split?: string | null;
+  stack?: Stack;
 }
+
+const STACKS: { stack: Stack; name: string }[] = [
+  { stack: 'none', name: 'None' },
+  { stack: 'stacked', name: 'Stacked' },
+  { stack: 'stacked100', name: 'Stacked 100%' },
+];
+
+const percent = (share: number) => `${Math.round(share * 100)}%`;
 
 const RENDER_WORDS = Object.fromEntries(Object.entries(RENDER_HINTS).map(([word, type]) => [type, word])) as Record<ChartType, string>;
 
 /**
- * The Chart tab (spec 6.5): the result drawn as the chart its shape (or the query's `| render`) picks, with pickers for the
- * type, the x axis and the number columns that override it. Loaded on demand, so Recharts is a chunk of its own.
+ * The Chart tab (spec 6.5): the result drawn as the chart its shape (or the query's `| render` and its `with (...)` properties)
+ * picks, with pickers for the type, the x axis, the number columns, the split and the stacking that override it. Loaded on demand, so Recharts is a chunk of its own.
  */
 export default function ChartView({ columns, rows, kql }: { columns: ResultColumn[]; rows: Row[]; kql: string }) {
   const hint = renderHint(kql);
-  const shape = chartShape(columns, rows, hint);
+  const options = renderOptions(kql);
+  const shape = chartShape(columns, rows, hint, options);
   const [picked, setPicked] = useState<Picked>({});
 
   if (!shape) {
@@ -80,7 +90,7 @@ export default function ChartView({ columns, rows, kql }: { columns: ResultColum
   }
 
   const type = picked.type ?? shape.type;
-  const auto = picked.type ? (chartShape(columns, rows, picked.type) ?? { ...shape, type }) : shape;
+  const auto = picked.type ? (chartShape(columns, rows, picked.type, options) ?? { ...shape, type }) : shape;
   // A pick that the current result has no column for (after a new run) falls back to the shape's.
   const names = new Set(columns.map((c) => c.name));
   const x = picked.x === undefined || (picked.x !== null && !names.has(picked.x)) || (picked.x === null && rows.length !== 1) ? auto.x : picked.x;
@@ -90,6 +100,12 @@ export default function ChartView({ columns, rows, kql }: { columns: ResultColum
   const split = picked.split === undefined || (picked.split !== null && !splits.includes(picked.split)) ? auto.split : picked.split;
   const spec = { type, x, series: type === 'pie' ? chosen.slice(0, 1) : chosen, split };
   const { series, data } = chartData(columns, rows, spec);
+  // Only bars and areas stack; stacked to 100%, the value axis reads as shares.
+  const stackable = type === 'column' || type === 'bar' || type === 'area';
+  const stack = stackable ? (picked.stack ?? options.stack ?? 'none') : 'none';
+  const stackId = stack === 'none' ? undefined : 'stack';
+  const stackOffset = stack === 'stacked100' ? 'expand' : undefined;
+  const valueTick = stackOffset ? percent : undefined;
   // A pie draws one series, so ticking one replaces the other.
   const toggle = (name: string, on: boolean) =>
     setPicked({ ...picked, series: type === 'pie' ? [name] : on ? numbers.filter((s) => s === name || spec.series.includes(s)) : spec.series.filter((s) => s !== name) });
@@ -108,36 +124,45 @@ export default function ChartView({ columns, rows, kql }: { columns: ResultColum
   switch (type) {
     case 'column':
       chart = (
-        <BarChart data={data}>
+        <BarChart data={data} stackOffset={stackOffset}>
           {common}
           {xAxis}
-          <YAxis {...AXIS} />
+          <YAxis {...AXIS} tickFormatter={valueTick} />
           {series.map((s, i) => (
-            <Bar key={s} name={s} dataKey={valueOf(s)} fill={colour(i)} isAnimationActive={false} />
+            <Bar key={s} name={s} dataKey={valueOf(s)} fill={colour(i)} stackId={stackId} isAnimationActive={false} />
           ))}
         </BarChart>
       );
       break;
     case 'bar':
       chart = (
-        <BarChart data={data} layout="vertical">
+        <BarChart data={data} layout="vertical" stackOffset={stackOffset}>
           {common}
-          <XAxis type="number" {...AXIS} />
+          <XAxis type="number" {...AXIS} tickFormatter={valueTick} />
           <YAxis type="category" dataKey="x" width={140} {...AXIS} tickFormatter={time ? dateTick : undefined} />
           {series.map((s, i) => (
-            <Bar key={s} name={s} dataKey={valueOf(s)} fill={colour(i)} isAnimationActive={false} />
+            <Bar key={s} name={s} dataKey={valueOf(s)} fill={colour(i)} stackId={stackId} isAnimationActive={false} />
           ))}
         </BarChart>
       );
       break;
     case 'area':
       chart = (
-        <AreaChart data={data}>
+        <AreaChart data={data} stackOffset={stackOffset}>
           {common}
           {xAxis}
-          <YAxis {...AXIS} />
+          <YAxis {...AXIS} tickFormatter={valueTick} />
           {series.map((s, i) => (
-            <Area key={s} name={s} dataKey={valueOf(s)} stroke={colour(i)} fill={colour(i)} fillOpacity={0.2} isAnimationActive={false} />
+            <Area
+              key={s}
+              name={s}
+              dataKey={valueOf(s)}
+              stroke={colour(i)}
+              fill={colour(i)}
+              fillOpacity={0.2}
+              stackId={stackId}
+              isAnimationActive={false}
+            />
           ))}
         </AreaChart>
       );
@@ -171,7 +196,9 @@ export default function ChartView({ columns, rows, kql }: { columns: ResultColum
   return (
     <section className="card m-4 flex min-h-0 flex-1 flex-col gap-3 p-4" aria-label="Chart">
       <div className="flex items-center gap-2.5">
-        <b className="text-[14px]">{type === 'timechart' ? 'Time chart' : `${CHART_TYPES.find((t) => t.type === type)?.name ?? ''} chart`}</b>
+        <b className="text-[14px]">
+          {options.title ?? (type === 'timechart' ? 'Time chart' : `${CHART_TYPES.find((t) => t.type === type)?.name ?? ''} chart`)}
+        </b>
         {hint && type === hint && <span className="muted text-[12px]">From render {RENDER_WORDS[hint]}</span>}
         <div className="grow" />
         <select
@@ -220,6 +247,24 @@ export default function ChartView({ columns, rows, kql }: { columns: ResultColum
               {splits.map((name) => (
                 <option key={name} value={name}>
                   {name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {stackable && (
+          <label className="flex items-center gap-2">
+            <span className="muted">Stacking</span>
+            <select
+              className="textbox"
+              style={{ height: 28 }}
+              aria-label="Stacking"
+              value={stack}
+              onChange={(e) => setPicked({ ...picked, stack: STACKS.find((t) => t.stack === e.target.value)?.stack })}
+            >
+              {STACKS.map((t) => (
+                <option key={t.stack} value={t.stack}>
+                  {t.name}
                 </option>
               ))}
             </select>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NO_SHAPE, VALUE_SERIES, chartData, chartShape, renderHint } from './chart-shape';
+import { NO_SHAPE, VALUE_SERIES, chartData, chartShape, renderHint, renderOptions } from './chart-shape';
 
 const col = (name: string, type: string) => ({ name, type });
 
@@ -180,5 +180,40 @@ describe('chartShape', () => {
       data: [{ x: 'Teams', values: { 'iOS · n': 1, 'iOS · m': 2 } }],
     });
   });
-});
 
+  it('render_options_reads_the_with_properties', () => {
+    expect(renderOptions('t | render columnchart')).toEqual({});
+    expect(
+      renderOptions(
+        "t\n| render columnchart with (kind=Stacked100, xcolumn=app, ycolumns=n, ['Count A'], series=os, title='Sign-ins, by (app)') // done",
+      ),
+    ).toEqual({ xcolumn: 'app', ycolumns: ['n', 'Count A'], series: ['os'], title: 'Sign-ins, by (app)', stack: 'stacked100' });
+    // Over several lines, the last render wins, and an unknown kind is no stacking.
+    expect(renderOptions('t | render piechart with (title="a")\n| render areachart with (\n  kind=unstacked,\n  title="b"\n)')).toEqual({
+      xcolumn: undefined,
+      ycolumns: undefined,
+      series: undefined,
+      title: 'b',
+      stack: undefined,
+    });
+    expect(renderHint('t | render barchart with (kind=stacked)')).toBe('bar');
+  });
+
+  it('chart_shape_follows_render_options_where_the_result_has_the_columns', () => {
+    const columns = [col('app', 'string'), col('os', 'string'), col('n', 'long'), col('m', 'long'), col('day', 'datetime')];
+    const rows = [
+      ['Teams', 'iOS', 1, 2, '2026-10-20T00:00:00Z'],
+      ['Teams', 'Windows', 3, 4, '2026-10-21T00:00:00Z'],
+    ];
+    expect(chartShape(columns, rows, 'column', { xcolumn: 'app', ycolumns: ['m', 'missing'], series: ['nope', 'os'] })).toEqual({
+      type: 'column',
+      x: 'app',
+      series: ['m'],
+      split: 'os',
+    });
+    // Names the result doesn't have change nothing.
+    expect(chartShape(columns, rows, 'column', { xcolumn: 'missing', ycolumns: ['missing'] })).toEqual(chartShape(columns, rows, 'column'));
+    // A number column can be the x axis; it leaves the series.
+    expect(chartShape(columns, rows, 'line', { xcolumn: 'n' })).toEqual({ type: 'line', x: 'n', series: ['m'] });
+  });
+});
