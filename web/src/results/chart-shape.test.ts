@@ -75,7 +75,6 @@ describe('chartShape', () => {
 
   it('chart_shape_null_explains', () => {
     expect(chartShape([col('name', 'string'), col('tags', 'dynamic')], [['a', []]])).toBeNull();
-    expect(chartShape([col('a', 'string'), col('b', 'string'), col('n', 'long')], [['a', 'b', 1]])).toBeNull();
     expect(chartShape([col('n', 'long')], [[1]], 'column')).toBeNull();
     expect(NO_SHAPE).toBe('This result has no shape to chart: it needs a text, true/false or date column and a number column.');
   });
@@ -151,4 +150,35 @@ describe('chartShape', () => {
       ],
     });
   });
+
+  it('chart_shape_two_text_columns_split_by_the_second', () => {
+    const columns = [col('Value', 'long'), col('CompanyName', 'string'), col('Department', 'string')];
+    const rows = [
+      [10, 'Acme', 'HR'],
+      [20, 'Acme', 'Finance'],
+      [5, 'Globex', 'HR'],
+    ];
+    const spec = chartShape(columns, rows);
+    expect(spec).toEqual({ type: 'column', x: 'CompanyName', series: ['Value'], split: 'Department' });
+    expect(chartData(columns, rows, spec!)).toEqual({
+      series: ['HR', 'Finance'],
+      data: [
+        { x: 'Acme', values: { HR: 10, Finance: 20 } },
+        { x: 'Globex', values: { HR: 5 } },
+      ],
+    });
+    // Swapped, or turned off.
+    expect(chartData(columns, rows, { ...spec!, x: 'Department', split: 'CompanyName' }).series).toEqual(['Acme', 'Globex']);
+    expect(chartData(columns, rows, { ...spec!, split: null }).series).toEqual(['Value']);
+  });
+
+  it('chart_data_names_split_series_by_value_and_series_when_there_are_several', () => {
+    const columns = [col('app', 'string'), col('os', 'string'), col('n', 'long'), col('m', 'long')];
+    const rows = [['Teams', 'iOS', 1, 2]];
+    expect(chartData(columns, rows, { type: 'column', x: 'app', series: ['n', 'm'], split: 'os' })).toEqual({
+      series: ['iOS · n', 'iOS · m'],
+      data: [{ x: 'Teams', values: { 'iOS · n': 1, 'iOS · m': 2 } }],
+    });
+  });
 });
+
