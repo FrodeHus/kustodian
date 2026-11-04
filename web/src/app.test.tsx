@@ -992,6 +992,22 @@ describe('App', () => {
     expect(bridge.call).not.toHaveBeenCalledWith('settings.set', expect.anything());
   });
 
+  it('app_asks_about_error_reports_only_after_the_findings_dialog_is_closed', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    answers['settings.get'] = () => ({ ...settings, settings: { ...settings.settings, telemetry: null, errorReports: null } });
+    render(<App />);
+    const findings = await screen.findByRole('dialog', { name: /Graph support/ });
+    expect(screen.queryByRole('dialog', { name: 'Send error reports?' })).toBeNull();
+    fireEvent.keyDown(findings, { key: 'Escape' });
+    const dialog = await screen.findByRole('dialog', { name: 'Send error reports?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Yes' }));
+    await waitFor(() =>
+      expect(bridge.call).toHaveBeenCalledWith('settings.set', {
+        settings: expect.objectContaining({ errorReports: true }),
+      }),
+    );
+  });
+
   it('app_palette_command_is_disabled_while_the_palette_is_open', async () => {
     host({ accounts: [kari], cache: 'persistent' });
     render(<App />);

@@ -47,14 +47,16 @@ internal static class SourceFailure
     public static bool Handles(Exception ex, CancellationToken ct) =>
         !(ex is OperationCanceledException && ct.IsCancellationRequested) && ConsentRequiredException.FindIn(ex) is null;
 
-    public static (RunOutcome Outcome, string Message) Of(Exception ex, ILogger log, string source)
+    /// <summary>The outcome and message of <paramref name="ex"/>, and its <c>Cause</c> (<see cref="RunResult.Cause"/>) when it
+    /// is unexpected.</summary>
+    public static (RunOutcome Outcome, string Message, Exception? Cause) Of(Exception ex, ILogger log, string source)
     {
         if (SignInRequiredException.IsIn(ex))
         {
-            return (RunOutcome.SignInNeeded, GraphRunner.SignInMessage);
+            return (RunOutcome.SignInNeeded, GraphRunner.SignInMessage, null);
         }
 
         log.LogError(ex, "A {Source} query failed unexpectedly", source);
-        return (RunOutcome.Failed, GraphRunner.Unexpected);
+        return (RunOutcome.Failed, GraphRunner.Unexpected, ex);
     }
 }

@@ -5,6 +5,7 @@ using Kustodian.Graph.Run;
 using Kustodian.Graph.Schema;
 using Kustodian.Sources.Arg;
 using Kustodian.Sources.Hunting;
+using Kustodian.Telemetry;
 using Microsoft.Identity.Client;
 
 namespace Kustodian.Messaging.Handlers;
@@ -18,9 +19,10 @@ namespace Kustodian.Messaging.Handlers;
 /// scope}</c> does the same for one read-only Graph permission (not for an Azure CLI account, whose permissions are fixed) and,
 /// once granted, drops the account's cached Graph objects, probe findings, licenses and advanced hunting schema, which the new
 /// permission may change. <c>account.refresh {key, audience}</c> gets the account a new token for that audience, past the cached one
-/// (a role activated since, through PIM, say), signing in through the browser when it has to, and answers <c>{}</c>.</summary>
+/// (a role activated since, through PIM, say), signing in through the browser when it has to, and answers <c>{}</c>. The
+/// <paramref name="trail"/> hears <c>account.signIn</c> and <c>account.consent(&lt;audience&gt;)</c>.</summary>
 public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cache, IGraphObjectCache objects, IGraphProbeCache probes,
-    HuntingSchemaSource? huntingSchema = null, ArmDirectory? armDirectory = null, ITenantLicenses? licenses = null)
+    HuntingSchemaSource? huntingSchema = null, ArmDirectory? armDirectory = null, ITenantLicenses? licenses = null, ErrorTrail? trail = null)
 {
     public void Register(Bridge bridge)
     {
@@ -52,6 +54,7 @@ public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cac
                     BridgeErrorCodes.BadRequest, "Consent is only asked for Azure or Graph (audience arm or graph)."),
             };
             var scope = audience == Audience.Graph ? await RequireGraphConsentAsync(key, request.Scope) : null;
+            trail?.Add($"account.consent({request.Audience})");
 
             try
             {
@@ -132,6 +135,7 @@ public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cac
 
     private async Task<AccountInfo> SignInAsync(Bridge bridge, SignInParams p, CancellationToken ct)
     {
+        trail?.Add("account.signIn");
         var config = new ClientConfig(
             string.IsNullOrWhiteSpace(p.ClientId) ? ClientConfig.AzureCliClientId : p.ClientId.Trim(),
             string.IsNullOrWhiteSpace(p.Tenant) ? ClientConfig.AzureCli.Tenant : p.Tenant.Trim());

@@ -1,6 +1,7 @@
 import { call } from '../bridge';
 import { sendableHeaders } from '../raw/raw-request';
 import { errorText } from '../shell/errors';
+import { reportIdOf } from '../shell/report-id';
 import { useTabs } from '../tabs/tab-store';
 import type { Session, SessionAnswer } from '../wire';
 
@@ -50,7 +51,7 @@ function snapshot(): Session {
  * - One `session.save` is in flight at a time; changes while it is out are written by one save after it answers.
  * - A save that fails is tried again after {@link RETRY_MS}, without waiting for another change.
  */
-export function startSessionSync(notify?: (message: string) => void, sticky?: (message: string) => void): () => void {
+export function startSessionSync(notify?: (message: string, reportId?: string) => void, sticky?: (message: string) => void): () => void {
   let stopped = false;
   let syncing = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -91,7 +92,7 @@ export function startSessionSync(notify?: (message: string) => void, sticky?: (m
         },
         (e: unknown) => {
           if (!failing) {
-            notify?.(`The open tabs couldn’t be saved: ${errorText(e)}`);
+            notify?.(`The open tabs couldn’t be saved: ${errorText(e)}`, reportIdOf(e));
           }
           failing = true;
           if (!stopped && !again) {

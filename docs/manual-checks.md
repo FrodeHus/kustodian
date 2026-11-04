@@ -315,6 +315,20 @@ The first signed release is the one after 0.94.0; these rows are for it.
 | The installer's prompt names the publisher instead of "Unknown Publisher" | owner | owner |
 | The portable zip's `Kustodian.exe` is unsigned, as the install guide says | owner | owner |
 
+## Error reports (2026-11-04)
+
+Needs an official-style build with an Application Insights connection string and access to that resource.
+
+| Check | macOS | Windows | Linux |
+| --- | --- | --- | --- |
+| With **Settings → Error reports** on, kill the `--engine` worker during a run: the run shows "The query engine stopped unexpectedly" with a report ID, and exactly one exception appears in Application Insights → Failures with that `reportId`, its `message` the failure kind (`engine.crash`), no message text, no path and no query | owner | owner | owner |
+| That exception's `trail` lists the steps before the crash (`run.start(graph)`, `engine.exit(...)`) and nothing but codes | owner | owner | owner |
+| Killing the worker again the same way sends no second report (once per problem) | owner | owner | owner |
+| With error reports off, the same crash sends nothing, and still shows the report ID | owner | owner | owner |
+| **Send details** on that error shows every section; untick one, click **Send**: the `Kustodian.FullErrorReport` event has the same `reportId` and exactly the ticked sections | owner | owner | owner |
+| A deliberately thrown UI error's reported frame (bundle, line, column) decodes to the right source line with that build's source map, following [releasing.md](releasing.md#decoding-a-ui-error-report) | owner | owner | owner |
+| Cancel in the **Send details** window sends nothing; a build without a connection string shows no **Send details** | owner | owner | owner |
+
 ## Notes
 
 - macOS launch check: the window title was "Kustodian". It showed a signed-in account because of an earlier owner sign-in cached

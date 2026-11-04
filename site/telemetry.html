@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kustodian telemetry</title>
-<meta name="description" content="What Kustodian shares when you opt in to Graph compatibility findings, why, and how to turn it off.">
+<meta name="description" content="What Kustodian shares when you opt in to Graph compatibility findings and error reports, what a full report holds when you send one, and how to turn it off.">
 <meta name="theme-color" content="#0F1115">
 <link rel="icon" href="favicon.png" type="image/png" sizes="32x32">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -23,6 +23,7 @@ body{margin:0;background:#0F1115}
 .k-label{font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin:72px 0 16px}
 h1{font-size:44px;line-height:1.1;letter-spacing:-.03em;margin:0 0 20px}
 h2{font-size:24px;letter-spacing:-.01em;margin:56px 0 12px}
+h3{font-size:18px;margin:32px 0 8px}
 .k-lead{font-size:20px;color:var(--muted);margin:0}
 p,li{color:var(--muted)}
 li{margin:6px 0}
@@ -63,15 +64,16 @@ td{color:var(--muted)}
 
 <main class="k-wrap">
 <p class="k-label">Telemetry</p>
-<h1>Graph compatibility findings</h1>
-<p class="k-lead">Kustodian can share how Microsoft Graph and Kustodian behave on your queries, and only if you say yes: which Graph tables refuse which query options, and where Kustodian falls short of reading them well. Nothing about your tenant or your data is collected, and it is off until you opt in.</p>
+<h1>What Kustodian shares</h1>
+<p class="k-lead">Kustodian can share two kinds of data, each only if you say yes: Graph compatibility findings, and error reports when Kustodian fails in a way it shouldn’t. Both are off until you opt in, and neither holds your tenant or your data. Separately, you can choose to send a full report for a single error, after you have seen all of it.</p>
+<p>This page covers all three: <a href="#findings">Graph compatibility findings</a>, <a href="#errors">error reports</a> and <a href="#full">full reports</a>. They go to the same place, described <a href="#where">below</a>.</p>
 
-<h2>Why it helps</h2>
+<h2 id="findings">Graph compatibility findings: why it helps</h2>
 <p>Graph doesn’t support every query option on every collection. Some refuse <code>$top=999</code>, some refuse <code>$count</code>, <code>$orderby</code> or <code>$select</code>, some refuse a filter on a nested or multi-valued column, and some won’t list certain columns at all. Kustodian finds out by probing: it sends the request, reads the refusal and tries again without the option. It remembers what it learnt for 7 days, on your machine.</p>
 <p>Probing costs time and requests, and some collections, such as sign-in logs, throttle hard. When findings are shared, the ones that hold across tenants can be built into Kustodian, so every user’s queries on those tables skip the probing from the first run.</p>
 <p>Kustodian also shares where it falls short: a refusal from Graph it couldn’t work around, a filter it couldn’t send to Graph and ran locally instead, a permission Graph didn’t accept although the schema lists it, and a limit a query hit. Those show which tables, filters and limits to fix first.</p>
 
-<h2>What is sent</h2>
+<h2>Graph compatibility findings: what is sent</h2>
 <p>One event each time probing finds something new about a table, or a run finds one of the things below. The event is exactly this:</p>
 <pre><code>{
   "name": "Microsoft.ApplicationInsights.Event",
@@ -122,7 +124,7 @@ td{color:var(--muted)}
 <li>Columns refused for permission, or left out for a license your tenant lacks (they describe your account, not Graph)</li>
 <li>Graph’s error messages, which can quote your values</li>
 <li>Machine name, OS user, device or install ID</li>
-<li>Usage, clicks or crash reports</li>
+<li>Usage or clicks</li>
 </ul>
 </div>
 <div class="k-panel ok">
@@ -136,14 +138,114 @@ td{color:var(--muted)}
 </div>
 </div>
 
-<h2>Where it goes and how long it is kept</h2>
-<p>Events go to an Azure Application Insights resource in Azure’s North Europe region (Ireland), owned by the Kustodian maintainer. Microsoft processes them as Azure’s data processor. Application Insights stores the client IP as <code>0.0.0.0</code>, and Kustodian sends <code>0.0.0.0</code> as the location IP too, so no address or location is kept. Events are kept for 90 days, then deleted. They are used only to decide which tables get built-in query settings and what to improve in Kustodian, and are not sold or shared with anyone.</p>
+<h2 id="errors">Error reports</h2>
+<p>When Kustodian fails in a way it shouldn’t, it can send one short report so the bug can be found and fixed. That means a bug in Kustodian, not a mistake in your query or a permission you haven’t been given. These send a report:</p>
+<ul>
+<li>the query engine process crashed or sent an answer Kustodian couldn’t read (not running out of memory, timing out or being cancelled, which are the query’s doing)</li>
+<li>a run failed unexpectedly, or an action in the app threw an error Kustodian doesn’t expect</li>
+<li>an unhandled error in the app’s host process or in its web interface</li>
+</ul>
+<p>Expected errors, such as a missing permission, a sign-in or consent prompt, a typo in a query or Graph throttling, send nothing. A report is sent at most once for the same problem and at most 20 times each time Kustodian starts.</p>
+
+<h3>What an error report is</h3>
+<p>One event, built by Kustodian itself, of the type Application Insights uses for exceptions. It has the same <code>ai.application.ver</code> and <code>ai.location.ip</code> tags as the events above. This is what it holds:</p>
+<pre><code>{
+  "name": "Microsoft.ApplicationInsights.Exception",
+  "data": {
+    "baseType": "ExceptionData",
+    "baseData": {
+      "ver": 2,
+      "exceptions": [{
+        "typeName": "System.IO.EndOfStreamException",
+        "message": "engine.crash",
+        "parsedStack": [
+          { "level": 0, "method": "Kustodian.Graph.Engine.GraphEnginePool.RunAsync", "assembly": "Kustodian.Graph" },
+          { "level": 1, "method": "&lt;external&gt;", "assembly": "" }
+        ]
+      }],
+      "properties": {
+        "reportId": "K7Q2M9XD",
+        "kind": "engine.crash",
+        "os": "Darwin 25.6.0",
+        "arch": "Arm64",
+        "runtime": "10.0.0",
+        "exitCode": "134",
+        "source": "graph",
+        "trail": "run.start(graph) +0s; engine.exit(134) +4s"
+      }
+    }
+  }
+}</code></pre>
+<table>
+<thead><tr><th>Field</th><th>What it holds</th></tr></thead>
+<tbody>
+<tr><td><code>typeName</code></td><td>The type of the error, and of each error inside it, such as <code>System.IO.EndOfStreamException</code>. For an error in the web interface, its name, such as <code>TypeError</code>.</td></tr>
+<tr><td><code>message</code></td><td>The kind of failure, such as <code>engine.crash</code> or <code>bridge.failed</code>. Never the error’s own text.</td></tr>
+<tr><td><code>parsedStack</code></td><td>For each step of the stack, the method name and the assembly it is in, only for Kustodian, its query engine libraries (KustoLoco and Kusto.Language) and any assembly whose name starts with <code>System</code> or <code>Microsoft</code> (.NET itself and Microsoft’s libraries). Only method names are kept. Any other step is replaced by <code>&lt;external&gt;</code>. The web interface is minified, so there a step is the function’s short name and the bundle’s file name with line and column, such as <code>index-abc123.js:1:48210</code>. No file paths.</td></tr>
+<tr><td><code>reportId</code></td><td>Eight random characters, new for each error. The app shows it as <code>K7Q2-M9XD</code>, so you can quote it.</td></tr>
+<tr><td><code>kind</code></td><td>The kind of failure again, as a property.</td></tr>
+<tr><td><code>os</code>, <code>arch</code>, <code>runtime</code></td><td>The OS name and version, the processor architecture and the .NET version.</td></tr>
+<tr><td><code>exitCode</code>, <code>peakMemoryMb</code>, <code>workerUptimeS</code></td><td>Only for an engine failure: the exit code of the engine process, its peak memory, and how long it had run.</td></tr>
+<tr><td><code>source</code></td><td>Where the error happened: <code>graph</code>, <code>hunting</code> or <code>arg</code> for a run, or <code>host</code> or <code>ui</code>.</td></tr>
+<tr><td><code>trail</code></td><td>The last 20 steps before the error, as codes with the seconds between them, such as <code>run.start(graph) +0s; account.consent(graph) +31s</code>. The codes come from a fixed list: a run started or ended (with its source and outcome), an error code Kustodian explained to you, sign-in, consent, a token fetched (Graph or Azure), the engine process started, killed or exited (with its exit code), a setting changed (its name only), and an error in the web interface. Never a value. It is kept in memory and never written to disk.</td></tr>
+</tbody>
+</table>
+
+<div class="k-cols">
+<div class="k-panel no">
+<h3>Never sent in an error report</h3>
+<ul>
+<li>Error messages, or the text of any exception</li>
+<li>Query text, filter values or parameters</li>
+<li>Results, rows, Graph requests or Graph’s answers</li>
+<li>Object IDs, your tenant, account, user name or client ID</li>
+<li>File paths, machine name or OS user name</li>
+<li>Your IP address: <code>ai.location.ip</code> is always <code>0.0.0.0</code></li>
+</ul>
+</div>
+<div class="k-panel ok">
+<h3>How it is kept small</h3>
+<ul>
+<li>Kustodian builds the event itself; no SDK, so nothing is collected on the side</li>
+<li>Only type names, method names and codes pass the filter that builds it, never free text</li>
+<li>A send that fails is dropped, never retried or queued, and never slows what you are doing</li>
+<li>Builds from source and forks send nothing: the destination is only built into official releases</li>
+</ul>
+</div>
+</div>
+
+<h2 id="full">Full reports</h2>
+<p>Next to every error Kustodian shows, you see a report ID and, in official releases, a <b>Send details</b> link. It opens a window with the whole report as text, so the developer can reproduce the problem. <b>A full report may contain data from your tenant</b>: it can hold your query, values in it, Graph’s error text, user names and IDs. That is why it works differently:</p>
+<ul>
+<li>You see all of it first. The text shown is exactly what is sent.</li>
+<li>Every section has a checkbox, so you can leave it out, and the query is editable, so you can blank out values.</li>
+<li>It is sent only when you click <b>Send</b>. Closing the window sends nothing.</li>
+<li>It does not depend on the error reports setting: each click is your own choice for that one report.</li>
+</ul>
+<p>The sections, where the error has them:</p>
+<table>
+<thead><tr><th>Section</th><th>What it holds</th></tr></thead>
+<tbody>
+<tr><td>Query, Parameters</td><td>The query text, and the names, types and values of its parameters.</td></tr>
+<tr><td>Message</td><td>The error’s message, as shown to you.</td></tr>
+<tr><td>Exception</td><td>The error’s full text and stack, including file paths and, for an engine crash, what the engine process reported as it failed.</td></tr>
+<tr><td>Bridge method</td><td>Which internal action of the app failed.</td></tr>
+<tr><td>Graph error</td><td>The Graph requests of the failing table and Graph’s error answer, which can quote values from your query.</td></tr>
+<tr><td>Engine output</td><td>The last 50 lines the engine process wrote to its error output, each cut to 500 characters.</td></tr>
+<tr><td>Stack</td><td>For an error in the web interface, its stack.</td></tr>
+<tr><td>Automatic report, Recent events</td><td>The error report above, as text, and its trail.</td></tr>
+</tbody>
+</table>
+<p>It is sent as one event named <code>Kustodian.FullErrorReport</code>, with the same report ID, the error’s <code>kind</code> (when the details are still kept) and one property per section you left ticked. Application Insights allows 8,192 characters per property, so a longer section is cut there and ends in <code>… (cut)</code>. Kustodian keeps what a full report needs in memory only: the last 10 unexpected and 20 expected errors, each for 30 minutes. If the details are gone by the time you click, the window says so and offers what the page still has. Nothing is written to disk.</p>
+
+<h2 id="where">Where it goes and how long it is kept</h2>
+<p>Everything on this page goes to an Azure Application Insights resource in Azure’s North Europe region (Ireland), owned by the Kustodian maintainer. Microsoft processes it as Azure’s data processor. Application Insights stores the client IP as <code>0.0.0.0</code>, and Kustodian sends <code>0.0.0.0</code> as the location IP too, so no address or location is kept. Events and reports are kept for 90 days, then deleted. They are used only to decide which tables get built-in query settings and to find and fix bugs in Kustodian, and are not sold or shared with anyone.</p>
 
 <h2>Opting in and out</h2>
-<p>The first time you start a version of Kustodian that has this, it asks once. If you said yes before Kustodian shared run findings, it asks again and shares nothing until you answer. Nothing is shared before you answer, and closing the question without answering shares nothing (it asks again at the next start). To change your answer, open <b>Settings → Graph compatibility findings</b> and tick or untick <b>Share Graph compatibility findings</b>. It applies at once. The choice is stored as <code>"telemetry"</code> in <code>settings.json</code> in Kustodian’s data folder.</p>
+<p>The first time you start a version of Kustodian that has these, it asks once about each. If you said yes before Kustodian shared run findings, it asks again and shares nothing until you answer. If you said yes to Graph findings, it still asks about error reports, because that is a different thing. Nothing is shared before you answer, and closing a question without answering shares nothing (it asks again at the next start). To change an answer, open <b>Settings</b> and tick or untick <b>Share Graph compatibility findings</b> or <b>Send error reports</b>. It applies at once. The choices are stored as <code>"telemetry"</code> and <code>"errorReports"</code> in <code>settings.json</code> in Kustodian’s data folder. Full reports have no setting: you choose each one.</p>
 
 <h2>Check it yourself</h2>
-<p>Kustodian is open source. The code that builds and sends the event is <a href="https://github.com/FrodeHus/kustodian/blob/main/src/Kustodian/Telemetry/AppInsightsTelemetry.cs">AppInsightsTelemetry.cs</a>, and what triggers it is <a href="https://github.com/FrodeHus/kustodian/blob/main/src/Kustodian/Telemetry/SharedProbeCache.cs">SharedProbeCache.cs</a> and <a href="https://github.com/FrodeHus/kustodian/blob/main/src/Kustodian/Telemetry/SharedRunFindings.cs">SharedRunFindings.cs</a>. Questions or concerns: <a href="https://github.com/FrodeHus/kustodian/issues">open an issue</a>.</p>
+<p>Kustodian is open source. The code that builds and sends the event is <a href="https://github.com/FrodeHus/kustodian/blob/main/src/Kustodian/Telemetry/AppInsightsTelemetry.cs">AppInsightsTelemetry.cs</a>, and what triggers it is <a href="https://github.com/FrodeHus/kustodian/blob/main/src/Kustodian/Telemetry/SharedProbeCache.cs">SharedProbeCache.cs</a> and <a href="https://github.com/FrodeHus/kustodian/blob/main/src/Kustodian/Telemetry/SharedRunFindings.cs">SharedRunFindings.cs</a>. For error reports, <a href="https://github.com/FrodeHus/kustodian/blob/main/src/Kustodian/Telemetry/ErrorScrubber.cs">ErrorScrubber.cs</a> is the filter that decides what may pass, <a href="https://github.com/FrodeHus/kustodian/blob/main/src/Kustodian/Telemetry/ErrorTrail.cs">ErrorTrail.cs</a> keeps the trail and <a href="https://github.com/FrodeHus/kustodian/blob/main/src/Kustodian/Telemetry/ErrorReporter.cs">ErrorReporter.cs</a> builds and sends the reports. Questions or concerns: <a href="https://github.com/FrodeHus/kustodian/issues">open an issue</a>.</p>
 </main>
 
 <footer class="k-foot">

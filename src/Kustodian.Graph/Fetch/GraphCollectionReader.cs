@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Kustodian.Graph.Run;
@@ -842,7 +843,13 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
             _ when status >= 500 => new(GraphReadFailure.Failed, "Graph didn't answer (" + status + ")"),
             _ => new(GraphReadFailure.Failed, message ?? "Graph didn't answer (" + status + ")"),
         };
-        return new(failure.Failure, failure.Message, failure.RetryAfterSeconds) { Status = status, Code = GraphErrorText.Code(body) };
+        var text = Encoding.UTF8.GetString(body, 0, Math.Min(body.Length, GraphReadException.MaxBody * 4));
+        return new(failure.Failure, failure.Message, failure.RetryAfterSeconds)
+        {
+            Status = status,
+            Code = GraphErrorText.Code(body),
+            Body = text.Length > GraphReadException.MaxBody ? text[..GraphReadException.MaxBody] : text,
+        };
     }
 
     /// <summary>What to change after Graph refused the first page. <see cref="Original"/> set: probe the selected columns, and

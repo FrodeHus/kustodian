@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { BridgeError, call } from '../bridge';
 import { scopeText } from '../results/source-wording';
+import { ErrorReportActions } from '../shell/error-report';
+import { reportIdOf } from '../shell/report-id';
 import { errorText } from '../shell/errors';
 import { ConsentButton } from '../signin/consent-button';
 import type { ArgScope, ArmManagementGroupsAnswer, ArmSubscription, ArmSubscriptionsAnswer } from '../wire';
@@ -22,11 +24,13 @@ const shortId = (id: string) => (id.length > 12 ? `${id.slice(0, 4)}…${id.slic
 /** Why a list couldn't be read, and what helps: granting Azure access, signing in again, or nothing the picker can offer. */
 interface Problem {
   text: string;
+  reportId?: string;
   fix: 'consent' | 'signIn' | null;
 }
 
 const problemOf = (e: unknown): Problem => ({
   text: errorText(e),
+  reportId: reportIdOf(e),
   fix: e instanceof BridgeError && e.code === 'consentNeeded' ? 'consent' : e instanceof BridgeError && e.code === 'signInNeeded' ? 'signIn' : null,
 });
 
@@ -190,6 +194,7 @@ function ScopeDialog({ scope, onChange, accountKey, onSignIn }: ScopeDialogProps
           <span role="alert" className="min-w-0 text-bad">
             {problem.text}
           </span>
+          <ErrorReportActions reportId={problem.reportId} uiSections={{ message: problem.text }} />
           {problem.fix === 'signIn' && (
             <button type="button" className="btn primary shrink-0" onClick={onSignIn}>
               Sign in

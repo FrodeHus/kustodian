@@ -17,14 +17,25 @@ public sealed record EngineRequest(string Kql, DateTimeOffset Now, IReadOnlyList
 
 /// <summary>The engine's answer: the result's columns and rows (cut to <c>MaxRows</c>; <paramref name="Total"/> counts them
 /// all), the number of fetched values that didn't convert to their column's type, or an error, or a refusal (the query
-/// reaches outside the tables it was sent).</summary>
+/// reaches outside the tables it was sent), or, as the worker's last frame before it exits, the crash that ended it.</summary>
 public sealed record EngineResponse(
     IReadOnlyList<EngineColumn>? Columns,
     IReadOnlyList<JsonElement[]>? Rows,
     int Total,
     int DroppedValues,
     string? Error,
-    string? Refusal);
+    string? Refusal,
+    EngineCrash? Crash = null);
+
+/// <summary>One stack frame of a worker crash: the method's full name and its assembly's name.</summary>
+public sealed record EngineStackFrame(string Method, string Assembly);
+
+/// <summary>One exception of a worker crash. <paramref name="Message"/> may hold the query's or the tenant's data: it goes
+/// into a full report only, never an automatic one.</summary>
+public sealed record EngineCrashException(string TypeName, string Message, IReadOnlyList<EngineStackFrame> Frames);
+
+/// <summary>What ended a worker: the exception, then its inner exceptions.</summary>
+public sealed record EngineCrash(IReadOnlyList<EngineCrashException> Exceptions);
 
 /// <summary>A frame longer than the reader's limit: well formed, just too large (unlike a malformed frame's
 /// <see cref="InvalidDataException"/>).</summary>
@@ -35,6 +46,9 @@ public static class EngineExitCodes
 {
     /// <summary>The query ran its GC heap past <c>DOTNET_GCHeapHardLimit</c>: the query's doing, not a crash.</summary>
     public const int OutOfMemory = 3;
+
+    /// <summary>An exception nothing caught; the worker wrote a crash frame first if it could.</summary>
+    public const int Crashed = 4;
 }
 
 /// <summary>The worker's wire format: each message is a 4-byte big-endian length, then that many bytes of UTF-8 JSON

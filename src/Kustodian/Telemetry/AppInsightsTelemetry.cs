@@ -30,38 +30,55 @@ public sealed class AppInsightsTelemetry(HttpClient http, string connectionStrin
     public bool Configured => _target is not null;
 
     /// <summary>Sends one event. Never throws: a failure is logged and the event dropped.</summary>
-    public async Task TrackEventAsync(string name, IReadOnlyDictionary<string, string> properties, CancellationToken ct = default)
+    public Task TrackEventAsync(string name, IReadOnlyDictionary<string, string> properties, CancellationToken ct = default) =>
+        PostAsync("Event", "EventData", name, new JsonObject { ["ver"] = 2, ["name"] = name }, properties, ct);
+
+    /// <summary>Sends one exception report: the type names and frames of an exception chain, outermost first, each exception
+    /// carrying <paramref name="kind"/> as its message, never its own. Never throws: a failure is logged and the report
+    /// dropped.</summary>
+    public Task TrackExceptionAsync(string kind, IReadOnlyList<ScrubbedException> exceptions,
+        IReadOnlyDictionary<string, string> properties, CancellationToken ct = default) =>
+        PostAsync("Exception", "ExceptionData", kind, new JsonObject
+        {
+            ["ver"] = 2,
+            ["exceptions"] = new JsonArray(exceptions.Select((e, i) => (JsonNode)new JsonObject
+            {
+                ["id"] = i + 1,
+                ["outerId"] = i,
+                ["typeName"] = e.TypeName,
+                ["message"] = kind,
+                ["hasFullStack"] = true,
+                ["parsedStack"] = new JsonArray(e.Frames.Select((f, level) =>
+                    (JsonNode)new JsonObject { ["level"] = level, ["method"] = f.Method, ["assembly"] = f.Assembly }).ToArray()),
+            }).ToArray()),
+        }, properties, ct);
+
+    /// <summary>Posts one envelope; <paramref name="baseData"/> gets <paramref name="properties"/> added.</summary>
+    private async Task PostAsync(string envelopeName, string baseType, string label, JsonObject baseData,
+        IReadOnlyDictionary<string, string> properties, CancellationToken ct)
     {
         if (_target is not { } target)
             return;
 
+        baseData["properties"] = new JsonObject(properties.Select(p => KeyValuePair.Create(p.Key, (JsonNode?)p.Value)));
         var envelope = new JsonObject
         {
-            ["name"] = "Microsoft.ApplicationInsights.Event",
+            ["name"] = "Microsoft.ApplicationInsights." + envelopeName,
             ["time"] = time.GetUtcNow().ToString("O"),
             ["iKey"] = target.Key,
             ["tags"] = new JsonObject { ["ai.application.ver"] = AppVersion.Text, ["ai.location.ip"] = "0.0.0.0" },
-            ["data"] = new JsonObject
-            {
-                ["baseType"] = "EventData",
-                ["baseData"] = new JsonObject
-                {
-                    ["ver"] = 2,
-                    ["name"] = name,
-                    ["properties"] = new JsonObject(properties.Select(p => KeyValuePair.Create(p.Key, (JsonNode?)p.Value))),
-                },
-            },
+            ["data"] = new JsonObject { ["baseType"] = baseType, ["baseData"] = baseData },
         };
 
         try
         {
             using var response = await http.PostAsJsonAsync(new Uri(target.Endpoint, "v2/track"), new JsonArray(envelope), ct);
             if (!response.IsSuccessStatusCode)
-                _log.LogDebug("Telemetry event {Name} was refused ({Status})", name, (int)response.StatusCode);
+                _log.LogDebug("Telemetry {Name} was refused ({Status})", label, (int)response.StatusCode);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
-            _log.LogDebug("Telemetry event {Name} was not sent ({Error})", name, ex.GetType().Name);
+            _log.LogDebug("Telemetry {Name} was not sent ({Error})", label, ex.GetType().Name);
         }
     }
 

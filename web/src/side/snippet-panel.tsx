@@ -4,6 +4,8 @@ import { insertSnippet, openSnippetInNewTab } from '../library/open-library';
 import { useRevisions } from '../library/saving';
 import { findParams, mergeParameters } from '../params/find-params';
 import { errorText } from '../shell/errors';
+import { ErrorReportActions, type Shown } from '../shell/error-report';
+import { reportIdOf } from '../shell/report-id';
 import { SourceBadge } from '../tabs/source-badge';
 import { useTabs } from '../tabs/tab-store';
 import type { Snippet, Source } from '../wire';
@@ -29,7 +31,7 @@ function grouped(snippets: Snippet[]): { title: string; snippets: Snippet[] }[] 
 export function SnippetPanel({ onInsert, source = 'graph' }: { onInsert: (text: string) => boolean; source?: Source }) {
   const revision = useRevisions((s) => s.snippets);
   const [snippets, setSnippets] = useState<Snippet[] | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<Shown | null>(null);
   const [search, setSearch] = useState('');
   const [deleting, setDeleting] = useState<string | null>(null);
   const [naming, setNaming] = useState<{ text: string } | null>(null);
@@ -41,7 +43,7 @@ export function SnippetPanel({ onInsert, source = 'graph' }: { onInsert: (text: 
     let live = true;
     call<{ snippets: Snippet[] }>('snippets.list').then(
       (r) => live && setSnippets(r.snippets),
-      (e: unknown) => live && setProblem(`The snippets couldn’t be read: ${errorText(e)}`),
+      (e: unknown) => live && setProblem({ text: `The snippets couldn’t be read: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
     return () => {
       live = false;
@@ -57,7 +59,7 @@ export function SnippetPanel({ onInsert, source = 'graph' }: { onInsert: (text: 
         setProblem(null);
         changed();
       },
-      (e: unknown) => setProblem(`It couldn’t be deleted: ${errorText(e)}`),
+      (e: unknown) => setProblem({ text: `It couldn’t be deleted: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
   };
 
@@ -82,7 +84,7 @@ export function SnippetPanel({ onInsert, source = 'graph' }: { onInsert: (text: 
         setProblem(null);
         changed();
       },
-      (e: unknown) => setProblem(`The snippet couldn’t be saved: ${errorText(e)}`),
+      (e: unknown) => setProblem({ text: `The snippet couldn’t be saved: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
   };
 
@@ -108,7 +110,7 @@ export function SnippetPanel({ onInsert, source = 'graph' }: { onInsert: (text: 
           className="side-open"
           aria-label={s.name}
           title={s.description ? `${s.description}\n\n${s.text}` : s.text}
-          onClick={() => setProblem(insertSnippet(s, onInsert) ? null : 'The editor isn’t ready yet. Try again in a moment.')}
+          onClick={() => setProblem(insertSnippet(s, onInsert) ? null : { text: 'The editor isn’t ready yet. Try again in a moment.' })}
         >
           {all && <SourceBadge source={s.source} titled />}
           <span className="truncate">{s.name}</span>
@@ -136,7 +138,8 @@ export function SnippetPanel({ onInsert, source = 'graph' }: { onInsert: (text: 
       <div className="min-h-0 flex-1 overflow-y-auto pb-3">
         {problem && (
           <p role="alert" className="m-0 px-[14px] pb-2 text-[12px] text-bad">
-            {problem}
+            {problem.text}
+            <ErrorReportActions reportId={problem.reportId} uiSections={{ message: problem.text }} />
           </p>
         )}
         {grouped(shown).map((g) => (

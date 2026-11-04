@@ -378,6 +378,16 @@ jobs:
             artifacts/Kustodian-*.AppImage
           if-no-files-found: error
 
+      # The maps are made by the Packages step's web build and are not in the app (build.sourcemap 'hidden'). They come from
+      # this job only. The bundle is assumed identical in every platform job (same lockfile, same Node major, LF checkout via
+      # .gitattributes); nothing checks it. A UI error report names a bundle file, which the owner decodes with these maps
+      # (docs/releasing.md). Named apart from packages-* so the release job's package download leaves them out.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sourcemaps
+          path: web/dist/**/*.map
+          if-no-files-found: error
+
   release:
     name: Publish the release
     needs: [version, windows, macos, linux]
@@ -396,6 +406,15 @@ jobs:
           pattern: packages-*
           path: artifacts
           merge-multiple: true
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: sourcemaps
+          path: sourcemaps
+
+      # A .zip in artifacts/, so checksums.sh covers it and `gh release create` gets it by name below.
+      - name: Source maps
+        run: (cd sourcemaps && zip -r "../artifacts/kustodian-$VERSION-sourcemaps.zip" .)
 
       - name: Checksums
         run: |
@@ -450,6 +469,7 @@ jobs:
         run: >
           gh release create "v$VERSION"
           artifacts/Kustodian-*
+          "artifacts/kustodian-$VERSION-sourcemaps.zip"
           artifacts/SHA256SUMS.txt
           --verify-tag
           --title "Kustodian $VERSION"

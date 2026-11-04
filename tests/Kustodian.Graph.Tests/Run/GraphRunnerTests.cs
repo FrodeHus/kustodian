@@ -644,7 +644,7 @@ public sealed class GraphRunnerTests
         var r = await h.RunAsync("applications | project id", ct: Ct);
 
         Assert.Equal(RunOutcome.Failed, r.Outcome);
-        Assert.Equal(new RunReadFailure("applications", GraphReadFailure.Failed, 400, "Request_BadRequest"), r.ReadFailure);
+        Assert.Equal(new RunReadFailure("applications", GraphReadFailure.Failed, 400, "Request_BadRequest"), r.ReadFailure! with { Body = null });
     }
 
     [Fact]
@@ -712,5 +712,89 @@ public sealed class GraphRunnerTests
         await h.RunAsync("applications | project displayName, onPremisesPublishing", events, Ct);
 
         Assert.Equal(["planning", "fetching", "probing", "engine"], events.All.Select(e => e.Stage));
+    }
+
+    private sealed class BrokenLicenses : ITenantLicenses
+    {
+        public ValueTask<TenantLicenses> GetAsync(string accountKey, bool refresh, CancellationToken ct) =>
+            throw new InvalidOperationException("licenses broke");
+
+        public void RemoveAccount(string accountKey)
+        {
+        }
+    }
+
+    [Fact]
+    public async Task Unexpected_failure_sets_cause()
+    {
+        // The catch-all: something broke outside the read and the engine.
+        var graph = new FakeGraph();
+        var budget = new GraphFetchBudget(GraphFetchBudget.DefaultMaxBytes);
+        await using (var pool = new GraphEnginePool(new GraphEngineOptions { Workers = 1, WorkerPath = WorkerDll, WorkerArgs = [] },
+            NullLogger<GraphEnginePool>.Instance, TimeProvider.System))
+        {
+            var broken = await new GraphRunner(GraphSchemaCatalog.Beta, graph.Reader(budget), budget, pool, GraphLimits.Default,
+                TimeProvider.System, licenses: new BrokenLicenses()).RunAsync(Account, Kql, refresh: false, null, Ct);
+
+            Assert.Equal((RunOutcome.Failed, GraphRunner.Unexpected), (broken.Outcome, broken.Message));
+            Assert.Equal("licenses broke", Assert.IsType<InvalidOperationException>(broken.Cause).Message);
+
+            // A reader bug: the read failed with something other than Graph's answer.
+            graph.Answer = (_, _) => throw new InvalidOperationException("reader broke");
+            var reader = await new GraphRunner(GraphSchemaCatalog.Beta, graph.Reader(budget), budget, pool, GraphLimits.Default,
+                TimeProvider.System).RunAsync(Account, Kql, refresh: false, null, Ct);
+
+            Assert.Equal((RunOutcome.Failed, GraphRunner.Unexpected), (reader.Outcome, reader.Message));
+            Assert.Equal("reader broke", Assert.IsType<InvalidOperationException>(reader.Cause).Message);
+        }
+
+        // A worker that answers garbage crashes; with no crashes allowed the pool pauses, so the next run is Busy.
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "The stand-in worker is a shell script.");
+        var directory = Directory.CreateTempSubdirectory("kustodian-runner-test-");
+        try
+        {
+            var garbage = Path.Combine(directory.FullName, "garbage-worker.sh");
+            await File.WriteAllTextAsync(garbage, "#!/bin/sh\nprintf '\\000\\000\\000\\007garbage'\n/bin/cat > /dev/null\n", Ct);
+            if (!OperatingSystem.IsWindows())
+                File.SetUnixFileMode(garbage, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            await using var h = NewHost(o =>
+            {
+                o.WorkerPath = garbage;
+                o.CrashLimitPerMinute = 0;
+            });
+            h.Graph.Answer = (_, _) => Task.FromResult(FakeGraph.Collection([App("Payroll")]));
+
+            var crashed = await h.RunAsync(ct: Ct);
+            var busy = await h.RunAsync(ct: Ct);
+
+            Assert.Equal(RunOutcome.Failed, crashed.Outcome);
+            Assert.Equal(GraphEngineFailure.Crashed, Assert.IsType<GraphEngineException>(crashed.Cause).Failure);
+            Assert.Equal(RunOutcome.Failed, busy.Outcome);
+            Assert.Null(busy.Cause);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Expected_failures_leave_cause_null()
+    {
+        await using var h = NewHost(o => o.Timeout = TimeSpan.FromSeconds(1));
+        var timedOut = await h.RunAsync(SlowQuery, ct: Ct);
+        h.Graph.Answer = (_, _) => Task.FromResult(FakeGraph.Error(HttpStatusCode.Forbidden, "Authorization_RequestDenied", "Denied."));
+        var denied = await h.RunAsync("groups | project id", ct: Ct);
+        h.Graph.Answer = (_, _) => Task.FromResult(FakeGraph.Error(HttpStatusCode.BadRequest, "Request_BadRequest", "Off."));
+        var refused = await h.RunAsync(ct: Ct);
+        h.Graph.Answer = (_, _) => throw new SignInRequiredException("No token");
+        var signIn = await h.RunAsync(ct: Ct);
+
+        Assert.Equal(
+            [RunOutcome.EngineTimeout, RunOutcome.NoPermission, RunOutcome.Failed, RunOutcome.SignInNeeded],
+            new[] { timedOut, denied, refused, signIn }.Select(r => r.Outcome));
+        Assert.All(new[] { timedOut, denied, refused, signIn }, r => Assert.Null(r.Cause));
+        // Graph's answer is kept for a full report.
+        Assert.Contains("Off.", refused.ReadFailure?.Body, StringComparison.Ordinal);
     }
 }

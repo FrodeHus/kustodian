@@ -2,6 +2,7 @@ using System.Drawing;
 using Kustodian.Files;
 using Kustodian.Messaging;
 using Kustodian.Storage;
+using Kustodian.Telemetry;
 using Microsoft.Extensions.Logging;
 using Photino.NET;
 
@@ -15,9 +16,10 @@ public static class AppWindow
 
     /// <summary>Opens the window on the calling thread (the process's main thread) and returns when it closes.
     /// <paramref name="register"/> adds the bridge's handlers before the UI can send anything;
-    /// the window is put in <paramref name="holder"/> as soon as it exists, for the handlers that need it.</summary>
+    /// the window is put in <paramref name="holder"/> as soon as it exists, for the handlers that need it. The bridge reports its
+    /// errors through <paramref name="reporter"/> and <paramref name="trail"/>.</summary>
     public static void Run(EmbeddedAssets assets, Action<Bridge> register, WindowHolder holder,
-        ILogger<Bridge> logger)
+        ILogger<Bridge> logger, ErrorReporter? reporter = null, ErrorTrail? trail = null)
     {
         var closed = 0;
         // Verbosity 0 from construction, so nothing is logged: Photino logs every call, and every message it sends, at
@@ -59,7 +61,7 @@ public static class AppWindow
             }
         }
 
-        var bridge = new Bridge(Send, logger);
+        var bridge = new Bridge(Send, logger, reporter, trail);
         register(bridge);
 
         async Task ReplyAsync(string message)

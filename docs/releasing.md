@@ -30,10 +30,28 @@ the release at "Cut the release".
    - commits that to `main` as "chore: version x.y.z" and pushes the annotated tag `vx.y.z`.
 3. The tag push starts a second release run, which builds the packages, publishes the release and then submits it to
    winget (see [winget](#winget)). Watch it under Actions → release.
-4. Look over the published release on the [releases page](https://github.com/FrodeHus/kustodian/releases): the assets, the
-   notes (the changelog section, install instructions and the signing note) and the checksums.
+4. Look over the published release on the [releases page](https://github.com/FrodeHus/kustodian/releases): the assets
+   (the packages and `kustodian-x.y.z-sourcemaps.zip`), the notes (the changelog section, install instructions and the
+   signing note) and the checksums.
 5. Check one package per platform, as in [manual-checks.md](manual-checks.md), and that `Kustodian --version` prints the
    version.
+
+## Decoding a UI error report
+
+A UI error report names minified bundle positions such as `index-abc123.js:1:48213`. The app does not contain source maps;
+each release has them in `kustodian-x.y.z-sourcemaps.zip` (built with `build.sourcemap: 'hidden'`). Unzip the one for the
+report's version and look the position up in the map named after the bundle (`index-abc123.js.map`). A one-off with the
+`source-map` package, outside the repo (the report's line and column are both 1-based, as JavaScript stacks give them; `source-map` wants a 1-based line and a
+0-based column, so the snippet subtracts 1 from the column). Unzip the version's maps into the directory the snippet `cd`s into
+first, as it reads the map by relative path:
+
+```sh
+mkdir /tmp/decode && cd /tmp/decode && npm init -y && npm i source-map@0.7.4
+node -e "const {SourceMapConsumer}=require('source-map');SourceMapConsumer.with(JSON.parse(require('fs').readFileSync('index-abc123.js.map','utf8')),null,c=>console.log(c.originalPositionFor({line:1,column:48213-1})))"
+```
+
+The maps come from the Linux build. The bundle's file name carries a content hash, so a report that names a bundle with no
+matching map in that version's zip comes from a platform whose bundle differed from Linux's, and can't be decoded with it.
 
 ## winget
 

@@ -438,6 +438,76 @@ public sealed class GraphEnginePoolTests
     }
 
     [Fact]
+    public async Task Crash_frame_reaches_the_exception()
+    {
+        using var crashing = StandInWorker.Create(StandInWorker.CrashAnswer);
+        var trail = new List<string>();
+        await using var pool = new GraphEnginePool(
+            new GraphEngineOptions { Workers = 1, WorkerPath = crashing.Path, WorkerArgs = [] },
+            NullLogger<GraphEnginePool>.Instance, TimeProvider.System, trail.Add);
+
+        var e = await Assert.ThrowsAsync<GraphEngineException>(
+            () => pool.RunAsync(Query("print 1"), "run-crash", TestContext.Current.CancellationToken));
+
+        Assert.Equal(GraphEngineFailure.Crashed, e.Failure);
+        var crash = Assert.Single(Assert.IsType<EngineCrash>(e.Crash).Exceptions);
+        Assert.Equal(StandInWorker.Crash.Exceptions[0].TypeName, crash.TypeName);
+        Assert.Equal(StandInWorker.Crash.Exceptions[0].Message, crash.Message);
+        Assert.Equal(StandInWorker.Crash.Exceptions[0].Frames, crash.Frames);
+        Assert.Equal(EngineExitCodes.Crashed, e.ExitCode);
+        Assert.NotNull(e.PeakBytes);
+        Assert.NotNull(e.WorkerUptime);
+        Assert.Equal(1, pool.Snapshot().CrashesLastMinute);
+        Assert.Equal(["engine.start", "engine.kill(crash)", "engine.exit(4)"], trail);
+    }
+
+    [Fact]
+    public async Task Stderr_tail_keeps_the_last_fifty_lines_whatever_the_log_level()
+    {
+        // 60 lines of 600 characters, each starting with its number, then an exit without an answer.
+        using var noisy = StandInWorker.Create(
+            $"i=1\nwhile [ $i -le 60 ]; do echo \"$i-{new string('e', 600)}\" >&2; i=$((i+1)); done");
+        await using var pool = Pool(o => o.WorkerPath = noisy.Path);
+
+        var e = await Assert.ThrowsAsync<GraphEngineException>(
+            () => pool.RunAsync(Query("print 1"), "run-noisy", TestContext.Current.CancellationToken));
+
+        Assert.Equal(GraphEngineFailure.Crashed, e.Failure);
+        Assert.Equal(50, e.StderrTail.Count);
+        Assert.StartsWith("11-", e.StderrTail[0], StringComparison.Ordinal);
+        Assert.StartsWith("60-", e.StderrTail[^1], StringComparison.Ordinal);
+        Assert.All(e.StderrTail, line => Assert.Equal(500, line.Length));
+        Assert.Equal(0, e.ExitCode);
+    }
+
+    [Fact]
+    public async Task Crash_without_a_frame_has_the_exit_code()
+    {
+        using var garbage = StandInWorker.Create(StandInWorker.GarbageAnswer);
+        await using var pool = Pool(o => o.WorkerPath = garbage.Path);
+
+        var e = await Assert.ThrowsAsync<GraphEngineException>(
+            () => pool.RunAsync(Query("print 1"), "run-garbage", TestContext.Current.CancellationToken));
+
+        Assert.Equal(GraphEngineFailure.Crashed, e.Failure);
+        Assert.Null(e.Crash);
+        Assert.NotNull(e.ExitCode);
+        Assert.NotNull(e.WorkerUptime);
+    }
+
+    [Fact]
+    public async Task A_trail_that_throws_changes_nothing()
+    {
+        await using var pool = new GraphEnginePool(
+            new GraphEngineOptions { Workers = 1, WorkerPath = WorkerDll, WorkerArgs = [] },
+            NullLogger<GraphEnginePool>.Instance, TimeProvider.System, _ => throw new InvalidOperationException("trail"));
+
+        var answer = await pool.RunAsync(Query("print 1"), "run-1", TestContext.Current.CancellationToken);
+
+        Assert.Null(answer.Error);
+    }
+
+    [Fact]
     public async Task Worker_starts_with_an_empty_environment()
     {
         string[] planted = ["ConnectionStrings__db", "DOTNET_ConnectionStrings__db", "DOTNET_SECRET", "DOTNET_gcServer"];
@@ -536,6 +606,24 @@ internal sealed class StandInWorker : IDisposable
 
     /// <summary>Answers with a malformed frame (a 7-byte frame that isn't JSON), then hangs.</summary>
     public const string GarbageAnswer = "printf '\\000\\000\\000\\007garbage'\n/bin/cat > /dev/null";
+
+    /// <summary>The crash frame <see cref="CrashAnswer"/> writes.</summary>
+    public static readonly EngineCrash Crash = new(
+        [new EngineCrashException("System.InvalidOperationException", "boom", [new EngineStackFrame("Kustodian.Engine.EngineHandler.Handle", "Kustodian.Engine")])]);
+
+    /// <summary>Answers with <see cref="Crash"/>, then exits with <see cref="EngineExitCodes.Crashed"/> a second later, as the
+    /// worker does after a crash (the second leaves the pool time to sample its memory).</summary>
+    public static readonly string CrashAnswer = Answer(new EngineResponse(null, null, 0, 0, null, null, Crash))
+        + $"\nsleep 1\nexit {EngineExitCodes.Crashed}";
+
+    /// <summary>Script lines that write <paramref name="response"/> as one frame; its JSON must hold no single quote.</summary>
+    private static string Answer(EngineResponse response)
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(response, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        var length = System.Text.Encoding.UTF8.GetByteCount(json);
+        var header = string.Concat(new[] { length >> 24, length >> 16, length >> 8, length }.Select(b => "\\" + Convert.ToString(b & 0xFF, 8).PadLeft(3, '0')));
+        return $"printf '{header}'\nprintf '%s' '{json}'";
+    }
 
     public static StandInWorker Create(string body)
     {

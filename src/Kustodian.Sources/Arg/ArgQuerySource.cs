@@ -58,8 +58,8 @@ public sealed class ArgQuerySource(ArgClient client, int rowsPerRun, TimeProvide
         }
         catch (Exception ex) when (SourceFailure.Handles(ex, ct))
         {
-            var (outcome, message) = SourceFailure.Of(ex, _log, "Resource Graph");
-            return End(outcome, message);
+            var (outcome, message, cause) = SourceFailure.Of(ex, _log, "Resource Graph");
+            return End(outcome, message) with { Cause = cause };
         }
     }
 }

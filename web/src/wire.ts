@@ -163,6 +163,8 @@ export interface RunResult {
   diagnostics: DiagnosticEntry[];
   /** The Graph permissions a refused run needs (outcome `noPermission`); empty otherwise. */
   permissions: string[];
+  /** The plain 8-character ID of the error report a failed run made, if it made one. */
+  reportId?: string;
 }
 
 /** One line of a run's diagnostics log. A request's `detail` is its method and URL relative to the Graph version. */
@@ -401,6 +403,8 @@ export interface AppSettings {
   limits: Record<string, number>;
   /** Whether Graph compatibility findings are shared; null until the user has been asked. */
   telemetry?: boolean | null;
+  /** Whether automatic error reports are sent; null until the user has been asked. */
+  errorReports?: boolean | null;
   /** The release "Skip" on the update dialog passed over. */
   skippedVersion?: string | null;
 }
@@ -588,4 +592,25 @@ export type EntraAppStep = 'lookUp' | 'createApp' | 'addOwner' | 'createServiceP
 export interface EntraAppConsentStatus {
   granted: string[];
   missing: string[];
+}
+
+/** One part of a full error report. `editable` ones can be changed before sending. */
+export interface ReportSection {
+  key: string;
+  title: string;
+  text: string;
+  editable: boolean;
+}
+
+/** A full error report, as `errors.details` answers it. */
+export interface FullReport {
+  reportId: string;
+  kind: string;
+  sections: ReportSection[];
+}
+
+/** `errors.details {reportId}`: the report (null when it is unknown or no longer kept) and whether this build can send reports. */
+export interface ErrorDetails {
+  report: FullReport | null;
+  canSend: boolean;
 }

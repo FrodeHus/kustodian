@@ -1,5 +1,8 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { call } from '../bridge';
+import { ErrorReportActions, type Shown } from './error-report';
+import { reportIdOf } from './report-id';
+import { inSendDetails } from './send-details-marker';
 import { insertSnippet, openSaved, openSnippetInNewTab } from '../library/open-library';
 import { SourceBadge } from '../tabs/source-badge';
 import type { LibraryList, SavedQuery, Snippet, Source } from '../wire';
@@ -66,7 +69,7 @@ export function Palette({ onClose, onInsert, onProblem = () => undefined }: Pale
   const [selected, setSelected] = useState(0);
   const [saved, setSaved] = useState<SavedQuery[]>([]);
   const [snippets, setSnippets] = useState<Snippet[]>([]);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<Shown | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -80,7 +83,7 @@ export function Palette({ onClose, onInsert, onProblem = () => undefined }: Pale
 
   useEffect(() => {
     let live = true;
-    const failed = () => live && setProblem('Saved queries or snippets couldn’t be loaded.');
+    const failed = (e: unknown) => live && setProblem({ text: 'Saved queries or snippets couldn’t be loaded.', reportId: reportIdOf(e) });
     call<LibraryList>('library.list').then((l) => live && setSaved(l.queries), failed);
     call<{ snippets: Snippet[] }>('snippets.list').then((s) => live && setSnippets(s.snippets), failed);
     return () => {
@@ -91,7 +94,7 @@ export function Palette({ onClose, onInsert, onProblem = () => undefined }: Pale
   // A modal: focus that lands outside the palette goes back to its input.
   useEffect(() => {
     const onFocusIn = (e: FocusEvent) => {
-      if (!closing.current && (!(e.target instanceof Node) || !dialogRef.current?.contains(e.target))) {
+      if (!closing.current && !inSendDetails(e.target) && (!(e.target instanceof Node) || !dialogRef.current?.contains(e.target))) {
         inputRef.current?.focus();
       }
     };
@@ -226,7 +229,12 @@ export function Palette({ onClose, onInsert, onProblem = () => undefined }: Pale
           <span>Enter to run</span>
           <span>Shift Enter opens a snippet in a new tab</span>
           <span>Esc to close</span>
-          {problem && <span className="ml-auto text-warn">{problem}</span>}
+          {problem && (
+            <span className="ml-auto text-warn">
+              {problem.text}
+              <ErrorReportActions reportId={problem.reportId} uiSections={{ message: problem.text }} />
+            </span>
+          )}
         </div>
       </div>
     </div>

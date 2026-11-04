@@ -1,6 +1,8 @@
+using System.Collections.Concurrent;
 using System.Net.Http.Headers;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Run;
+using Kustodian.Telemetry;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -11,8 +13,12 @@ namespace Kustodian.Auth;
 /// keeps its account to the end. Any other host gets no credentials. The token is never logged. Throws
 /// <see cref="SignInRequiredException"/> when a Graph request names no account, or (from the token source) when that account has
 /// no usable sign-in.</summary>
-public sealed class GraphAuthHandler(ITokenSource tokens, ILogger<GraphAuthHandler>? logger = null) : DelegatingHandler
+public sealed class GraphAuthHandler(ITokenSource tokens, ILogger<GraphAuthHandler>? logger = null, ErrorTrail? trail = null)
+    : DelegatingHandler
 {
+    // Each account's last token, by hash, so a new one is noticed for the trail; the token itself isn't kept.
+    private readonly ConcurrentDictionary<string, int> _seen = new(StringComparer.Ordinal);
+
     private const string GraphHost = "graph.microsoft.com";
 
     private readonly ILogger<GraphAuthHandler> _log = logger ?? NullLogger<GraphAuthHandler>.Instance;
@@ -27,6 +33,14 @@ public sealed class GraphAuthHandler(ITokenSource tokens, ILogger<GraphAuthHandl
                 ?? throw new SignInRequiredException("The Graph request names no account.");
             var token = await tokens.GetTokenAsync(account, Audience.Graph, cancellationToken);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            // shortcut: a token not seen before stands for one fetched rather than cached (the first after start counts too);
+            // ask the token source when the trail needs it exact.
+            var hash = token.GetHashCode(StringComparison.Ordinal);
+            if (trail is not null && (!_seen.TryGetValue(account, out var last) || last != hash))
+            {
+                _seen[account] = hash;
+                trail.Add("token.acquire(graph)");
+            }
             _log.LogDebug("Attached a Graph token to a request for {Host}", uri.Host);
         }
         else

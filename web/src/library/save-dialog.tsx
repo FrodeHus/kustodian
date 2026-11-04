@@ -1,6 +1,9 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { call } from '../bridge';
 import { errorText } from '../shell/errors';
+import { ErrorReportActions, type Shown } from '../shell/error-report';
+import { reportIdOf } from '../shell/report-id';
+import { inSendDetails } from '../shell/send-details-marker';
 import type { Tab } from '../tabs/tab-store';
 import type { LibraryList } from '../wire';
 import { MAX_FOLDER_LENGTH, MAX_NAME_LENGTH, saveToFile, saveToLibrary } from './saving';
@@ -15,7 +18,7 @@ export function SaveDialog({ tab, onClose }: { tab: Tab; onClose: () => void }) 
   const [folder, setFolder] = useState('');
   const [folders, setFolders] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Shown | null>(null);
   const id = useId();
   const dialogRef = useRef<HTMLFormElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -29,7 +32,7 @@ export function SaveDialog({ tab, onClose }: { tab: Tab; onClose: () => void }) 
   // A modal, as the palette is: focus that lands outside the dialog goes back to its name field.
   useEffect(() => {
     const onFocusIn = (e: FocusEvent) => {
-      if (!closing.current && (!(e.target instanceof Node) || !dialogRef.current?.contains(e.target))) {
+      if (!closing.current && !inSendDetails(e.target) && (!(e.target instanceof Node) || !dialogRef.current?.contains(e.target))) {
         nameRef.current?.focus();
       }
     };
@@ -70,7 +73,7 @@ export function SaveDialog({ tab, onClose }: { tab: Tab; onClose: () => void }) 
       },
       (e: unknown) => {
         setBusy(false);
-        setError(errorText(e));
+        setError({ text: errorText(e), reportId: reportIdOf(e) });
       },
     );
   };
@@ -131,7 +134,8 @@ export function SaveDialog({ tab, onClose }: { tab: Tab; onClose: () => void }) 
         </div>
         {error && (
           <span role="alert" className="text-[12px] text-bad">
-            {error}
+            {error.text}
+            <ErrorReportActions reportId={error.reportId} uiSections={{ message: error.text }} />
           </span>
         )}
         <div className="flex justify-end gap-2">

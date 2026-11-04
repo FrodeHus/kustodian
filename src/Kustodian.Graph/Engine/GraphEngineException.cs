@@ -29,6 +29,22 @@ public sealed class GraphEngineException(GraphEngineFailure failure, TimeSpan? t
 {
     public GraphEngineFailure Failure { get; } = failure;
 
+    /// <summary>The crash frame the worker wrote before it exited, if it wrote one.</summary>
+    public EngineCrash? Crash { get; init; }
+
+    /// <summary>The worker's exit code, once it had exited (after the pool's kill, if it killed it).</summary>
+    public int? ExitCode { get; init; }
+
+    /// <summary>The worker's last stderr lines, oldest first, each cut to 500 characters. For a full report only: they may
+    /// hold the query's or the tenant's data.</summary>
+    public IReadOnlyList<string> StderrTail { get; init; } = [];
+
+    /// <summary>The highest working set seen during the run.</summary>
+    public long? PeakBytes { get; init; }
+
+    /// <summary>How long the worker had been running.</summary>
+    public TimeSpan? WorkerUptime { get; init; }
+
     private static string MessageFor(GraphEngineFailure failure, TimeSpan timeout) => failure switch
     {
         GraphEngineFailure.Busy => "Another query is using the engine. Try again when it finishes.",

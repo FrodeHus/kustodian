@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { inSendDetails } from '../shell/send-details-marker';
 import { openRaw } from '../raw/raw-request';
 import { registerCommands, type Command } from '../shell/commands';
 import { MOD, SHIFT } from '../shell/keys';
@@ -281,7 +282,7 @@ function ConfirmClose({ tab, onKeep, onClose }: { tab: Tab; onKeep: () => void; 
   useEffect(() => {
     keep.current?.focus();
     const onFocusIn = (e: FocusEvent) => {
-      if (!(e.target instanceof Node) || !dialog.current?.contains(e.target)) {
+      if (!inSendDetails(e.target) && (!(e.target instanceof Node) || !dialog.current?.contains(e.target))) {
         keep.current?.focus();
       }
     };

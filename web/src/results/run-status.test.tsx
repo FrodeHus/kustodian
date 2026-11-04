@@ -87,6 +87,21 @@ describe('RunStatus', () => {
     expect(screen.getByText(message)).toBeTruthy();
   });
 
+  it('a_failed_run_with_a_report_id_shows_the_report_actions', () => {
+    call.mockResolvedValue({ report: null, canSend: true });
+    const failed = result({ outcome: 'failed', message: 'A Graph query failed unexpectedly.', rows: [], total: 0, tables: [], reportId: 'K7Q2M9XD' });
+    render(<RunStatus run={done(failed)} onSignIn={() => undefined} />);
+
+    expect(screen.getByText('Report ID: K7Q2-M9XD')).toBeTruthy();
+    expect(call).toHaveBeenCalledWith('errors.details', { reportId: 'K7Q2M9XD' });
+  });
+
+  it('a_failed_run_without_a_report_id_shows_no_report_actions', () => {
+    render(<RunStatus run={done(result({ outcome: 'failed', message: 'It failed.', rows: [], total: 0, tables: [] }))} onSignIn={() => undefined} />);
+
+    expect(screen.queryByText(/Report ID/)).toBeNull();
+  });
+
   it('status_line_shows_total_requests_and_cache', () => {
     const rows = Array.from({ length: 50000 }, (_, i) => [`app ${i}`]);
     const tables = [

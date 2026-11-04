@@ -5,6 +5,7 @@ using Kustodian.Messaging;
 using Kustodian.Messaging.Handlers;
 using Kustodian.Settings;
 using Kustodian.Storage;
+using Kustodian.Telemetry;
 
 namespace Kustodian.Tests.Settings;
 
@@ -51,6 +52,20 @@ public sealed class SettingsServiceTests : IDisposable
         Assert.Equal("bad_request", reply.GetProperty("error").GetProperty("code").GetString());
         Assert.Equal("Engine workers must be between 1 and 8.", reply.GetProperty("error").GetProperty("message").GetString());
         Assert.False(File.Exists(SettingsPath));
+    }
+
+    [Fact]
+    public async Task A_settings_change_adds_the_names_of_what_changed_to_the_trail()
+    {
+        var trail = new ErrorTrail(TimeProvider.System);
+        var bridge = new Messaging.Bridge(_ => { });
+        new SettingsHandler(NewService(), LimitSettings.Default, trail).Register(bridge);
+
+        await bridge.HandleAsync(Set("s", AppSettings.Default with { Theme = "light", ErrorReports = true }));
+
+        // Turning error reports on also records the consent version.
+        Assert.Equal(["settings.change(theme)", "settings.change(errorReports)", "settings.change(errorReportsConsent)"],
+            trail.Render().Split("; ").Select(e => e.Split(' ')[0]));
     }
 
     [Theory]
@@ -253,6 +268,35 @@ public sealed class SettingsServiceTests : IDisposable
         Assert.Null((await service.GetAsync(Ct)).Telemetry);
         await service.SetAsync(AppSettings.Default with { Telemetry = true }, Ct);
         Assert.True((await NewService().GetAsync(Ct)).Telemetry);
+    }
+
+    [Fact]
+    public async Task Error_reports_yes_to_an_older_consent_reads_as_unasked()
+    {
+        Directory.CreateDirectory(_dir);
+        const string Head = "{\"version\":1,\"theme\":\"dark\",\"rawDefaultVersion\":\"beta\",\"signIn\":{},\"limits\":{},\"telemetry\":true,\"telemetryConsent\":2,";
+        await File.WriteAllTextAsync(SettingsPath, Head + "\"errorReports\":true}", Ct);
+        var older = await NewService().GetAsync(Ct);
+        await File.WriteAllTextAsync(SettingsPath, Head + "\"errorReports\":true,\"errorReportsConsent\":1}", Ct);
+        var current = await NewService().GetAsync(Ct);
+
+        Assert.Null(older.ErrorReports);
+        Assert.True(older.Telemetry);
+        Assert.True(current.ErrorReports);
+    }
+
+    [Fact]
+    public async Task Error_reports_answer_is_stamped_with_the_current_consent()
+    {
+        var service = NewService();
+
+        var answered = await service.SetAsync(AppSettings.Default with { ErrorReports = true }, Ct);
+        var unanswered = await NewService().SetAsync(AppSettings.Default, Ct);
+
+        Assert.Equal(AppSettings.CurrentErrorReportsConsent, answered.ErrorReportsConsent);
+        Assert.Null(answered.Telemetry);
+        Assert.Equal(0, unanswered.ErrorReportsConsent);
+        Assert.Null(unanswered.ErrorReports);
     }
 
     [Fact]

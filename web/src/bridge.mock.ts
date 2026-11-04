@@ -132,6 +132,7 @@ const defaultSettings = {
     argRowsPerRun: 50000,
   },
   telemetry: null,
+  errorReports: null,
 };
 
 /** `arm.subscriptions`', `arm.managementGroups`' and `arm.resourceTypes`' answers, as `ArmHandler` writes them. */
@@ -375,6 +376,7 @@ interface MockRequest {
   params?: {
     tabId?: string;
     runId?: string;
+    reportId?: string;
     adminScopes?: string[];
     settings?: typeof defaultSettings;
     query?: SavedQueryInput;
@@ -819,6 +821,25 @@ export function createMockTransport(): Transport {
           break;
         }
         reply(id, rawResponse(params.nextLink, params.accountKey));
+        break;
+      case 'errors.details':
+        reply(id, {
+          report: {
+            reportId: (params?.reportId ?? '').replace('-', ''),
+            kind: 'bridge.failed',
+            sections: [
+              { key: 'message', title: 'Message', text: 'The mock host made this up.', editable: false },
+              { key: 'query', title: 'Query', text: 'applications | take 10', editable: true },
+            ],
+          },
+          canSend: true,
+        });
+        break;
+      case 'errors.send':
+        reply(id, { sent: true });
+        break;
+      case 'errors.report':
+        reply(id, { reportId: 'K7Q2M9XD' });
         break;
       default:
         fail(id, 'unknown_method', `Unknown method ${method ?? ''}.`);

@@ -3,6 +3,8 @@ import { BridgeError, call } from '../bridge';
 import { copyFailed, copyText } from '../results/copy';
 import { NoticeLine, type Notice } from '../results/result-grid';
 import { errorText } from '../shell/errors';
+import { ErrorReportActions } from '../shell/error-report';
+import { reportIdOf } from '../shell/report-id';
 import { registerCommands } from '../shell/commands';
 import { MOD } from '../shell/keys';
 import { useTabs, type Tab } from '../tabs/tab-store';
@@ -38,7 +40,7 @@ function size(bytes: number): string {
 
 /** An error of a raw request, and the control it is about. */
 function failure(e: unknown, about: NonNullable<RawState['error']>['about']): RawState['error'] {
-  return { code: e instanceof BridgeError ? e.code : 'failed', message: errorText(e), about };
+  return { code: e instanceof BridgeError ? e.code : 'failed', message: errorText(e), about, reportId: reportIdOf(e) };
 }
 
 /** The path as the host takes it: relative to the version, so a leading slash is dropped. */
@@ -288,6 +290,7 @@ export function RawTab({ tab, schema, defaultVersion, accountKey, onSignIn }: Ra
           {error && error.code !== 'signInNeeded' && error.code !== 'bad_request' && (
             <div className="border-t border-line bg-bad-soft px-3 py-1.5 text-[12px] text-bad" role="alert">
               {error.message}
+              <ErrorReportActions reportId={error.reportId} uiSections={{ message: error.message }} />
             </div>
           )}
           {notice && <NoticeLine notice={notice} onDismiss={() => setNotice(null)} />}

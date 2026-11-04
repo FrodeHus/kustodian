@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Kustodian.Graph.Engine;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Query;
@@ -62,7 +63,13 @@ public sealed record TableFetch(string Table, IReadOnlyList<string> Requests, bo
 
 /// <summary>How the read of <paramref name="Table"/> failed: the <paramref name="Failure"/>, and Graph's HTTP
 /// <paramref name="Status"/> and <c>error.code</c> (<paramref name="Code"/>) when the failure was Graph's answer.</summary>
-public sealed record RunReadFailure(string Table, GraphReadFailure Failure, int? Status, string? Code);
+public sealed record RunReadFailure(string Table, GraphReadFailure Failure, int? Status, string? Code)
+{
+    /// <summary>Graph's answer's body (<see cref="GraphReadException.Body"/>). For a full error report only: it never goes out
+    /// with the result.</summary>
+    [JsonIgnore]
+    public string? Body { get; init; }
+}
 
 /// <summary>A run's answer. <see cref="Message"/> is the text to show when the outcome isn't <see cref="RunOutcome.Ok"/>;
 /// <see cref="Error"/> carries the position of a <see cref="RunOutcome.QueryError"/>. <see cref="RunId"/> names the run (its
@@ -80,4 +87,13 @@ public sealed record RunResult(RunOutcome Outcome, string? Message, GraphQueryEr
     /// <summary>The delegated permissions a <see cref="RunOutcome.NoPermission"/> run needs, any one of which will do, the
     /// least to ask for first. Empty for every other outcome.</summary>
     public IReadOnlyList<string> Permissions { get; init; } = [];
+
+    /// <summary>The ID of the error report the host captured for this run (every outcome but <see cref="RunOutcome.Ok"/>); null
+    /// until then.</summary>
+    public string? ReportId { get; init; }
+
+    /// <summary>What failed, when the run failed unexpectedly (a bug, not the query's or Graph's doing): it is reported. For a full
+    /// report only: it never goes out with the result.</summary>
+    [JsonIgnore]
+    public Exception? Cause { get; init; }
 }

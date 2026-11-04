@@ -24,6 +24,7 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { ErrorReportActions } from '../shell/error-report';
 import type { ExternalTool, ResultColumn } from '../wire';
 import { COPY_FORMATS, copyFailed, copyText, formatRows, type CopyFormat } from './copy';
 import { cellText, type Row } from './export';
@@ -104,6 +105,8 @@ interface Opened {
 export interface Notice {
   tone: 'ok' | 'bad';
   text: string;
+  /** The report ID the host gave the error, if it did. */
+  reportId?: string;
 }
 
 /** A notice line: success as a status, failure as an alert. */
@@ -114,6 +117,7 @@ export function NoticeLine({ notice, onDismiss }: { notice: Notice; onDismiss: (
       className={`flex items-center gap-3 border-t border-line px-3 py-1.5 text-[12px] ${notice.tone === 'bad' ? 'bg-bad-soft text-bad' : 'text-muted'}`}
     >
       <span className="min-w-0">{notice.text}</span>
+      {notice.tone === 'bad' && <ErrorReportActions reportId={notice.reportId} uiSections={{ message: notice.text }} />}
       <div className="grow" />
       <button type="button" className="btn ghost" onClick={onDismiss}>
         Dismiss
@@ -501,7 +505,7 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
       <MenuButton label="Run tool">
         <>
           <span className="faint px-2.5 py-1 text-[11.5px]">{chosenLabel}</span>
-          <ToolItems columns={columns} onChoose={setTool} onError={(text) => setNotice({ tone: 'bad', text })} />
+          <ToolItems columns={columns} onChoose={setTool} onError={(text, reportId) => setNotice({ tone: 'bad', text, reportId })} />
         </>
       </MenuButton>
     </>

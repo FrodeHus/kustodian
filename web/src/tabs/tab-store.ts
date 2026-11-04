@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { BridgeError, call, on } from '../bridge';
 import { blockAt } from '../editor/block-at';
 import { findParams, mergeParameters } from '../params/find-params';
+import { reportIdOf } from '../shell/report-id';
 import { newId } from '../shell/ids';
 import type { ParameterDef, ParameterValue, QueryOptions, QueryRunParams, RawTabRequest, RunProgress, RunResult, Session, Source } from '../wire';
 
@@ -170,8 +171,8 @@ interface TabsState {
 const controllers = new Map<string, AbortController>();
 let unsubscribeProgress: (() => void) | undefined;
 
-function failed(message: string, runId: string): RunResult {
-  return { outcome: 'failed', message, error: null, columns: [], rows: [], total: 0, tables: [], durationMs: 0, droppedValues: 0, runId, diagnostics: [], permissions: [] };
+function failed(message: string, runId: string, reportId?: string): RunResult {
+  return { outcome: 'failed', message, reportId, error: null, columns: [], rows: [], total: 0, tables: [], durationMs: 0, droppedValues: 0, runId, diagnostics: [], permissions: [] };
 }
 
 export const useTabs = create<TabsState>()((set, get) => {
@@ -217,7 +218,7 @@ export const useTabs = create<TabsState>()((set, get) => {
       run =
         error instanceof BridgeError && error.code === 'cancelled'
           ? { state: 'done', source, runId, cancelled: true, startedAt, origin, kql, options }
-          : { state: 'done', source, runId, result: failed(error instanceof Error ? error.message : String(error), runId), startedAt, origin, kql, options };
+          : { state: 'done', source, runId, result: failed(error instanceof Error ? error.message : String(error), runId, reportIdOf(error)), startedAt, origin, kql, options };
     }
 
     // A newer run on the tab owns it now; this one's answer is stale.

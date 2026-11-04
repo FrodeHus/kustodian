@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { BridgeError, call } from '../bridge';
 import { errorText } from '../shell/errors';
+import { ErrorReportActions, type Shown } from '../shell/error-report';
+import { reportIdOf } from '../shell/report-id';
 
 /** Whether a failed consent means the permission wasn't granted: the user cancelled (or closed the browser), or Microsoft refused
  * it, which MSAL reports with an `AADSTS` code or `access_denied`. Anything else (another account picked, a bad request, the
@@ -15,7 +17,7 @@ const notGranted = (e: unknown) =>
  */
 export function GrantPermissionButton({ accountKey, scope, onGranted }: { accountKey: string | undefined; scope: string; onGranted?: () => void }) {
   const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<Shown | null>(null);
 
   const grant = () => {
     if (!accountKey) {
@@ -30,7 +32,7 @@ export function GrantPermissionButton({ accountKey, scope, onGranted }: { accoun
       },
       (e: unknown) => {
         setBusy(false);
-        setProblem(notGranted(e) ? `Not granted. An administrator has to grant ${scope}.` : errorText(e));
+        setProblem(notGranted(e) ? { text: `Not granted. An administrator has to grant ${scope}.` } : { text: errorText(e), reportId: reportIdOf(e) });
       },
     );
   };
@@ -42,7 +44,8 @@ export function GrantPermissionButton({ accountKey, scope, onGranted }: { accoun
       </button>
       {problem && (
         <span role="alert" className="min-w-0 text-[12px] text-bad">
-          {problem}
+          {problem.text}
+          <ErrorReportActions reportId={problem.reportId} uiSections={{ message: problem.text }} />
         </span>
       )}
     </>

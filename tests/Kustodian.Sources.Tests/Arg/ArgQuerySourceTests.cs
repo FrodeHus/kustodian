@@ -456,6 +456,19 @@ public class ArgQuerySourceTests
         Assert.All(events, e => Assert.Equal(RunId, e.RunId));
     }
 
+    [Fact]
+    public async Task Unexpected_failure_sets_cause()
+    {
+        var broken = await Source(new StubGraph(_ => throw new InvalidOperationException("broke"))).RunAsync(Request("Resources"), null, Ct);
+        var signIn = await Source(new StubGraph(_ => throw new SignInRequiredException("no token"))).RunAsync(Request("Resources"), null, Ct);
+        var transport = await Source(new StubGraph(_ => throw new HttpRequestException("reset"))).RunAsync(Request("Resources"), null, Ct);
+
+        Assert.Equal((RunOutcome.Failed, GraphRunner.Unexpected), (broken.Outcome, broken.Message));
+        Assert.Equal("broke", Assert.IsType<InvalidOperationException>(broken.Cause).Message);
+        Assert.Null(signIn.Cause);
+        Assert.Null(transport.Cause);
+    }
+
     private sealed class SyncProgress(Action<RunEvent> report) : IProgress<RunEvent>
     {
         public void Report(RunEvent value) => report(value);

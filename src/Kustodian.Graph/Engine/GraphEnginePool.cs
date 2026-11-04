@@ -33,10 +33,12 @@ public sealed class GraphEnginePool : IAsyncDisposable
     private static readonly TimeSpan Minute = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan ExitWait = TimeSpan.FromSeconds(5);
     private const int MaxStderrLine = 500;
+    private const int StderrTailLines = 50;
 
     private readonly GraphEngineOptions _options;
     private readonly ILogger<GraphEnginePool> _logger;
     private readonly TimeProvider _time;
+    private readonly Action<string>? _trail;
     private readonly Lock _gate = new();
     // Every worker alive, and those of them waiting for a run. A run holds one of the slots from before it takes a worker
     // until it gives the worker back or kills it, so no more than Workers exist at once.
@@ -50,11 +52,15 @@ public sealed class GraphEnginePool : IAsyncDisposable
     private DateTimeOffset? _pausedUntil;
     private bool _disposed;
 
-    public GraphEnginePool(GraphEngineOptions options, ILogger<GraphEnginePool> logger, TimeProvider time)
+    /// <summary>A pool; <paramref name="trail"/>, if given, hears each worker event as a code (<c>engine.start</c>,
+    /// <c>engine.kill(&lt;kind&gt;)</c>, <c>engine.exit(&lt;code&gt;)</c>), and whatever it throws is logged and goes no
+    /// further.</summary>
+    public GraphEnginePool(GraphEngineOptions options, ILogger<GraphEnginePool> logger, TimeProvider time, Action<string>? trail = null)
     {
         _options = options;
         _logger = logger;
         _time = time;
+        _trail = trail;
         _slots = new SemaphoreSlim(Math.Max(1, _options.Workers));
     }
 
@@ -107,12 +113,7 @@ public sealed class GraphEnginePool : IAsyncDisposable
             foreach (var worker in alive)
                 _idle.Push(worker);
         }
-        foreach (var worker in exited)
-        {
-            _logger.LogWarning("Graph engine worker {WorkerId} exited while idle (exit code {ExitCode})",
-                worker.Id, worker.Process.ExitCode);
-            worker.Process.Dispose();
-        }
+        LogExited(exited);
     }
 
     /// <summary>The worker's start: an empty environment apart from an allow list of the runtime's own settings (see
@@ -249,6 +250,7 @@ public sealed class GraphEnginePool : IAsyncDisposable
         foreach (var worker in exited)
         {
             _logger.LogWarning("Graph engine worker {WorkerId} exited while idle (exit code {ExitCode})", worker.Id, worker.Process.ExitCode);
+            Trail(string.Create(CultureInfo.InvariantCulture, $"engine.exit({worker.Process.ExitCode})"));
             worker.Process.Dispose();
         }
     }
@@ -274,7 +276,7 @@ public sealed class GraphEnginePool : IAsyncDisposable
         var exchange = ExchangeAsync(worker, request, stop.Token);
         var first = await Task.WhenAny(exchange, memory, timeout);
 
-        if (first == exchange && exchange.IsCompletedSuccessfully && exchange.Result is { } response && !ct.IsCancellationRequested)
+        if (first == exchange && exchange.IsCompletedSuccessfully && exchange.Result is { Crash: null } response && !ct.IsCancellationRequested)
         {
             await stop.CancelAsync();
             peak.Sample(worker);
@@ -289,6 +291,8 @@ public sealed class GraphEnginePool : IAsyncDisposable
             return response;
         }
 
+        peak.Sample(worker);
+        var crash = exchange.IsCompletedSuccessfully ? exchange.Result?.Crash : null;
         GraphEngineFailure? failure;
         string reason;
         string kind;
@@ -304,6 +308,12 @@ public sealed class GraphEnginePool : IAsyncDisposable
         else if (first == memory)
             // The watcher itself failed: nothing says the query was at fault.
             (failure, reason, kind) = (GraphEngineFailure.Crashed, $"the memory watch failed: {memory.Exception?.GetBaseException().Message}", "crash");
+        else if (first == exchange && crash is not null)
+        {
+            // It exits after its crash frame; waiting for that keeps its own exit code rather than the kill's.
+            await ExitCodeAsync(worker);
+            (failure, reason, kind) = (GraphEngineFailure.Crashed, $"it crashed with {crash.Exceptions.FirstOrDefault()?.TypeName}", "crash");
+        }
         else if (first == exchange && exchange.IsCompletedSuccessfully && await RanOutOfHeapAsync(worker))
             (failure, reason, kind) = (GraphEngineFailure.OutOfMemory, $"its GC heap went over {_options.MemoryLimitBytes} bytes", "memory");
         else
@@ -319,7 +329,10 @@ public sealed class GraphEnginePool : IAsyncDisposable
         if (retired)
         {
             _logger.LogWarning("Killed graph engine worker {WorkerId} for run {RunTag}: {Reason}", worker.Id, runTag, reason);
+            Trail($"engine.kill({kind})");
             await KillAsync(worker);
+            if (worker.ExitCode is { } code)
+                Trail(string.Create(CultureInfo.InvariantCulture, $"engine.exit({code})"));
         }
         // The next run that finds no idle worker starts one.
         ReleaseSlot();
@@ -334,7 +347,28 @@ public sealed class GraphEnginePool : IAsyncDisposable
         }
 
         ct.ThrowIfCancellationRequested();
-        throw new GraphEngineException(failure ?? GraphEngineFailure.Crashed, limit);
+        throw new GraphEngineException(failure ?? GraphEngineFailure.Crashed, limit)
+        {
+            Crash = crash,
+            ExitCode = worker.ExitCode,
+            StderrTail = worker.StderrTail(),
+            PeakBytes = peak.Bytes,
+            WorkerUptime = _time.GetUtcNow() - worker.Started,
+        };
+    }
+
+    /// <summary>Tells the trail about a worker event. Like <see cref="Report"/>, whatever it throws is logged and goes no
+    /// further.</summary>
+    private void Trail(string code)
+    {
+        try
+        {
+            _trail?.Invoke(code);
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning(e, "Adding {Code} to the trail failed", code);
+        }
     }
 
     /// <summary>Tells <paramref name="progress"/> about a worker event. It only observes the run: whatever it throws is logged
@@ -356,16 +390,20 @@ public sealed class GraphEnginePool : IAsyncDisposable
     /// <summary>Whether the worker exited because its GC heap hit <c>DOTNET_GCHeapHardLimit</c>: it says so with
     /// <see cref="EngineExitCodes.OutOfMemory"/>. Asked only when its output closed without an answer; waits briefly for the
     /// exit, since the output closes first.</summary>
-    private async Task<bool> RanOutOfHeapAsync(Worker worker)
+    private static async Task<bool> RanOutOfHeapAsync(Worker worker)
+        => await ExitCodeAsync(worker) == EngineExitCodes.OutOfMemory;
+
+    /// <summary>Waits briefly for the worker to exit and returns its exit code; null if it didn't exit, or was disposed.</summary>
+    private static async Task<int?> ExitCodeAsync(Worker worker)
     {
         try
         {
             await worker.Process.WaitForExitAsync().WaitAsync(ExitWait);
-            return worker.Process.ExitCode == EngineExitCodes.OutOfMemory;
+            return worker.Process.ExitCode;
         }
         catch (Exception e) when (e is TimeoutException or InvalidOperationException)
         {
-            return false;
+            return null;
         }
     }
 
@@ -450,6 +488,8 @@ public sealed class GraphEnginePool : IAsyncDisposable
         {
             _logger.LogError("Graph engine worker {WorkerId} didn't exit within {ExitWait} of being killed", worker.Id, ExitWait);
         }
+        if (worker.Process.HasExited)
+            worker.ExitCode = worker.Process.ExitCode;
         worker.Process.Dispose();
     }
 
@@ -473,15 +513,21 @@ public sealed class GraphEnginePool : IAsyncDisposable
             return null;
         }
         var id = process.Id;
-        // The worker's diagnostics (KustoLoco may print query details): at Debug, each line cut to MaxStderrLine characters.
+        var worker = new Worker(process, id, _time.GetUtcNow());
+        // The worker's diagnostics (KustoLoco may print query details), each line cut to MaxStderrLine characters: logged at
+        // Debug, and the last lines kept whatever the level, for a full error report.
         process.ErrorDataReceived += (_, line) =>
         {
-            if (line.Data is { } text && _logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("Graph engine worker {WorkerId}: {Line}", id,
-                    text.Length > MaxStderrLine ? text[..MaxStderrLine] : text);
+            if (line.Data is not { } text)
+                return;
+            text = text.Length > MaxStderrLine ? text[..MaxStderrLine] : text;
+            worker.AddStderr(text);
+            if (_logger.IsEnabled(LogLevel.Debug))
+                _logger.LogDebug("Graph engine worker {WorkerId}: {Line}", id, text);
         };
         process.BeginErrorReadLine();
-        return new Worker(process, id);
+        Trail("engine.start");
+        return worker;
     }
 
     private bool IsPaused()
@@ -553,13 +599,36 @@ public sealed class GraphEnginePool : IAsyncDisposable
         }
     }
 
-    private sealed class Worker(Process process, int id)
+    private sealed class Worker(Process process, int id, DateTimeOffset started)
     {
+        private readonly Queue<string> _stderr = new();
+
         public Process Process { get; } = process;
         public int Id { get; } = id;
+        public DateTimeOffset Started { get; } = started;
         public Stream Input { get; } = process.StandardInput.BaseStream;
         public Stream Output { get; } = process.StandardOutput.BaseStream;
         public bool Busy { get; set; }
         public bool Retired { get; set; }
+
+        /// <summary>The exit code, once the pool killed it and saw it exit.</summary>
+        public int? ExitCode { get; set; }
+
+        /// <summary>Keeps <paramref name="line"/> among the last <see cref="StderrTailLines"/>.</summary>
+        public void AddStderr(string line)
+        {
+            lock (_stderr)
+            {
+                if (_stderr.Count == StderrTailLines)
+                    _stderr.Dequeue();
+                _stderr.Enqueue(line);
+            }
+        }
+
+        public IReadOnlyList<string> StderrTail()
+        {
+            lock (_stderr)
+                return [.. _stderr];
+        }
     }
 }
