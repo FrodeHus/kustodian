@@ -1,4 +1,5 @@
 using Kustodian.Auth;
+using Kustodian.Telemetry;
 using Microsoft.Extensions.Logging;
 
 namespace Kustodian.App;
@@ -10,12 +11,12 @@ public static class ArmHttp
 {
     public static readonly Uri BaseAddress = new("https://management.azure.com/");
 
-    public static HttpMessageHandler CreateHandler(ITokenSource tokens, ILogger<ArmAuthHandler>? logger = null) =>
-        new ArmAuthHandler(tokens, logger)
+    public static HttpMessageHandler CreateHandler(ITokenSource tokens, ILogger<ArmAuthHandler>? logger = null, ErrorTrail? trail = null) =>
+        new ArmAuthHandler(tokens, logger, trail)
         {
             InnerHandler = new DiagnosticsHandler { InnerHandler = new SocketsHttpHandler { AllowAutoRedirect = false } },
         };
 
-    public static HttpClient CreateClient(ITokenSource tokens, ILogger<ArmAuthHandler>? logger = null) =>
-        new(CreateHandler(tokens, logger)) { BaseAddress = BaseAddress };
+    public static HttpClient CreateClient(ITokenSource tokens, ILogger<ArmAuthHandler>? logger = null, ErrorTrail? trail = null) =>
+        new(CreateHandler(tokens, logger, trail)) { BaseAddress = BaseAddress };
 }

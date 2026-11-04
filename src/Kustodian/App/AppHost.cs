@@ -6,8 +6,8 @@ using Microsoft.Extensions.Logging;
 
 namespace Kustodian.App;
 
-/// <summary>Reads the settings once, builds the host's services from them (<see cref="AppServices"/>), opens the window and
-/// tears the services down when it closes.</summary>
+/// <summary>Reads the settings once, builds the host's services from them (<see cref="AppServices"/>), reports what nothing else
+/// catches from then on (<see cref="HostErrors"/>), opens the window and tears the services down when it closes.</summary>
 public static class AppHost
 {
     public static int Run()
@@ -30,10 +30,11 @@ public static class AppHost
         var engineCommand = EngineCommand.Resolve(Environment.ProcessPath,
             Path.Combine(AppContext.BaseDirectory, typeof(AppHost).Assembly.GetName().Name + ".dll"));
         var services = AppServices.Build(startup, settings, accounts, cache, engineCommand, store, TimeProvider.System);
+        new HostErrors(services.Reporter).Register();
         try
         {
             AppWindow.Run(new EmbeddedAssets(typeof(AppHost).Assembly, AppOrigin.Current(startup.Theme)), services.Register, services.Window,
-                new StderrLogger<Bridge>());
+                new StderrLogger<Bridge>(), services.Reporter, services.Trail);
         }
         finally
         {

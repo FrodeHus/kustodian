@@ -161,6 +161,7 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
                     $"The query took longer than {(long)Math.Ceiling(engine.Options.Timeout.TotalSeconds)} s and was stopped.")),
                 GraphEngineFailure.OutOfMemory => End(RunOutcome.EngineMemory, string.Create(CultureInfo.InvariantCulture,
                     $"The query used more than {engine.Options.MemoryLimitBytes / BytesPerMegabyte} MB and was stopped.")),
+                GraphEngineFailure.Crashed => End(RunOutcome.Failed, ex.Message) with { Cause = ex },
                 _ => End(RunOutcome.Failed, ex.Message),
             };
         }
@@ -170,7 +171,7 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
                 return End(RunOutcome.SignInNeeded, SignInMessage);
             // The reason is logged, not shown.
             _log.LogError(ex, "A Graph query failed unexpectedly");
-            return End(RunOutcome.Failed, Unexpected);
+            return End(RunOutcome.Failed, Unexpected) with { Cause = ex };
         }
     }
 

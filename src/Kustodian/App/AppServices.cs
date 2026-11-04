@@ -67,21 +67,23 @@ public sealed class AppServices : IAsyncDisposable
         _tools = new ExternalToolService(store.Root);
         _allowedFiles = new AllowedFilePaths(_session, new StderrLogger<AllowedFilePaths>());
         Limits = SettingsService.ToGraphLimits(startup.Limits);
+        Trail = new ErrorTrail(time);
+        var telemetry = new AppInsightsTelemetry(_telemetry, AppInsightsTelemetry.ConnectionString, time, new StderrLogger<AppInsightsTelemetry>());
+        Reporter = new ErrorReporter(telemetry, async ct => (await settings.GetAsync(ct)).ErrorReports == true, Trail, time);
 
         var options = new GraphEngineOptions { WorkerPath = engine.WorkerPath, WorkerArgs = engine.WorkerArgs };
         SettingsService.Apply(startup.Limits, options);
-        Pool = new GraphEnginePool(options, new StderrLogger<GraphEnginePool>(), time);
-        _http = GraphHttp.CreateClient(accounts, new StderrLogger<GraphAuthHandler>());
-        _arm = ArmHttp.CreateClient(accounts, new StderrLogger<ArmAuthHandler>());
+        Pool = new GraphEnginePool(options, new StderrLogger<GraphEnginePool>(), time, Trail.Add);
+        _http = GraphHttp.CreateClient(accounts, new StderrLogger<GraphAuthHandler>(), trail: Trail);
+        _arm = ArmHttp.CreateClient(accounts, new StderrLogger<ArmAuthHandler>(), Trail);
         // Graph's chain, with a timeout past advanced hunting's own 3 minutes.
-        _hunting = GraphHttp.CreateClient(accounts, new StderrLogger<GraphAuthHandler>(), HuntingClient.Timeout);
+        _hunting = GraphHttp.CreateClient(accounts, new StderrLogger<GraphAuthHandler>(), HuntingClient.Timeout, Trail);
         _huntingSchema = new HuntingSchemaSource(_http, time);
         _arg = new ArgClient(_arm, time);
         _armDirectory = new ArmDirectory(_arm, time);
         Budget = new GraphFetchBudget(Limits.FetchBudgetBytes);
         Objects = new MemoryGraphObjectCache(time, Limits);
         Func<CancellationToken, Task<bool>> sharing = async ct => (await settings.GetAsync(ct)).Telemetry == true;
-        var telemetry = new AppInsightsTelemetry(_telemetry, AppInsightsTelemetry.ConnectionString, time, new StderrLogger<AppInsightsTelemetry>());
         Probes = new SharedProbeCache(new FileGraphProbeCache(store, time, Limits), sharing, telemetry);
         _findings = new SharedRunFindings(_schema, Limits, options, sharing, telemetry,
             async (key, _) => (await accounts.ListAccountsAsync()).FirstOrDefault(a => a.Key == key)?.Scopes ?? []);
@@ -108,6 +110,13 @@ public sealed class AppServices : IAsyncDisposable
 
     public GraphRunner Runner { get; }
 
+    /// <summary>The recent event codes every error report carries.</summary>
+    public ErrorTrail Trail { get; }
+
+    /// <summary>Gives every error a report ID and sends the reports: automatic ones when the user opted in (the
+    /// <c>ErrorReports</c> setting, read at each report), full ones when asked.</summary>
+    public ErrorReporter Reporter { get; }
+
     /// <summary>Builds the services from <paramref name="startup"/>, the settings as read once when the app starts.</summary>
     public static AppServices Build(AppSettings startup, SettingsService settings, AccountService accounts, TokenCacheStatus tokenCache,
         EngineCommand engine, JsonFileStore store, TimeProvider time) =>
@@ -117,16 +126,17 @@ public sealed class AppServices : IAsyncDisposable
     public void Register(Bridge bridge)
     {
         new AppHandler(Objects, Probes, new UpdateCheck(_github, AppVersion.Text)).Register(bridge);
-        new SettingsHandler(_settings, _startup.Limits).Register(bridge);
+        new SettingsHandler(_settings, _startup.Limits, Trail).Register(bridge);
+        new ErrorHandler(Reporter, Trail).Register(bridge);
         new SchemaHandler(_schema, _huntingSchema, ActiveAccountAsync, Probes, _licenses).Register(bridge);
-        new QueryHandler(_schema, ActiveAccountAsync, Sources(), _recent, _time, new StderrLogger<QueryHandler>(), Limits, _licenses)
-            .Register(bridge);
+        new QueryHandler(_schema, ActiveAccountAsync, Sources(), _recent, _time, new StderrLogger<QueryHandler>(), Limits, _licenses,
+            Reporter, Trail).Register(bridge);
         new LibraryHandler(_library, _recent).Register(bridge);
         new SessionHandler(_session, _allowedFiles).Register(bridge);
         new SnippetHandler(_snippets).Register(bridge);
         new ExternalToolHandler(_tools).Register(bridge);
         new FileHandler(new PhotinoFileDialogs(Window), _allowedFiles).Register(bridge);
-        new AccountHandler(_accounts, _tokenCache, Objects, Probes, _huntingSchema, _armDirectory, _licenses).Register(bridge);
+        new AccountHandler(_accounts, _tokenCache, Objects, Probes, _huntingSchema, _armDirectory, _licenses, Trail).Register(bridge);
         new RawHandler(new RawRequestService(_http, _time), ActiveAccountAsync).Register(bridge);
         new ArmHandler(_armDirectory, ActiveAccountAsync).Register(bridge);
         new EntraAppHandler(new EntraAppClient(_http, _time), ActiveAccountInfoAsync, new SystemBrowser()).Register(bridge);

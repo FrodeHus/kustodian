@@ -51,6 +51,9 @@ public sealed class ErrorReporter(AppInsightsTelemetry telemetry, Func<Cancellat
 
     private sealed record Entry(string Id, string Kind, DateTimeOffset At, IReadOnlyList<FullReportSection> Sections);
 
+    /// <summary>Whether a report can be sent at all: false in a build without an Application Insights connection string.</summary>
+    public bool CanSend => telemetry.Configured;
+
     /// <summary>Keeps <paramref name="capture"/>'s material, starts its automatic report if it has one, and returns its new ID.</summary>
     public string Capture(ErrorCapture capture)
     {

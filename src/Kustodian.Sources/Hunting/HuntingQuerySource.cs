@@ -59,8 +59,8 @@ public sealed class HuntingQuerySource(HuntingClient client, TimeProvider time, 
         }
         catch (Exception ex) when (SourceFailure.Handles(ex, ct))
         {
-            var (outcome, message) = SourceFailure.Of(ex, _log, "hunting");
-            return End(outcome, message);
+            var (outcome, message, cause) = SourceFailure.Of(ex, _log, "hunting");
+            return End(outcome, message) with { Cause = cause };
         }
     }
 }

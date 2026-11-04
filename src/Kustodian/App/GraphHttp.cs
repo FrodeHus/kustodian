@@ -1,4 +1,5 @@
 using Kustodian.Auth;
+using Kustodian.Telemetry;
 using Microsoft.Extensions.Logging;
 
 namespace Kustodian.App;
@@ -10,15 +11,16 @@ public static class GraphHttp
 {
     public static readonly Uri BaseAddress = new("https://graph.microsoft.com/beta/");
 
-    public static HttpMessageHandler CreateHandler(ITokenSource tokens, ILogger<GraphAuthHandler>? logger = null) =>
-        new GraphAuthHandler(tokens, logger)
+    public static HttpMessageHandler CreateHandler(ITokenSource tokens, ILogger<GraphAuthHandler>? logger = null, ErrorTrail? trail = null) =>
+        new GraphAuthHandler(tokens, logger, trail)
         {
             InnerHandler = new DiagnosticsHandler { InnerHandler = new SocketsHttpHandler { AllowAutoRedirect = false } },
         };
 
-    public static HttpClient CreateClient(ITokenSource tokens, ILogger<GraphAuthHandler>? logger = null, TimeSpan? timeout = null)
+    public static HttpClient CreateClient(ITokenSource tokens, ILogger<GraphAuthHandler>? logger = null, TimeSpan? timeout = null,
+        ErrorTrail? trail = null)
     {
-        var client = new HttpClient(CreateHandler(tokens, logger)) { BaseAddress = BaseAddress };
+        var client = new HttpClient(CreateHandler(tokens, logger, trail)) { BaseAddress = BaseAddress };
         if (timeout is { } wait)
         {
             client.Timeout = wait;

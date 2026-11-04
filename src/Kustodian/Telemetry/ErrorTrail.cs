@@ -13,7 +13,7 @@ public sealed partial class ErrorTrail(TimeProvider time)
     private readonly Lock _gate = new();
     private readonly Queue<(string Code, DateTimeOffset At)> _events = new();
 
-    [GeneratedRegex(@"^[a-z]+(\.[a-zA-Z]+)+(\([a-zA-Z0-9=.,-]{1,40}\))?$")]
+    [GeneratedRegex(@"^[a-z]+(\.[a-zA-Z]+)+(\([a-zA-Z0-9_=.,-]{1,40}\))?$")]
     private static partial Regex CodePattern();
 
     /// <summary>Records <paramref name="code"/>. A string that is not a code is dropped without a trace (no <c>Debug.Fail</c>, which would

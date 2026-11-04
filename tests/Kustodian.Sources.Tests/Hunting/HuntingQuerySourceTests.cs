@@ -288,6 +288,20 @@ public class HuntingQuerySourceTests
     }
 
     [Fact]
+    public async Task Unexpected_failure_sets_cause()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var broken = await Source(new StubGraph(_ => throw new InvalidOperationException("broke"))).RunAsync(Request("T"), null, ct);
+        var signIn = await Source(new StubGraph(_ => throw new SignInRequiredException("no token"))).RunAsync(Request("T"), null, ct);
+        var transport = await Source(new StubGraph(_ => throw new HttpRequestException("reset"))).RunAsync(Request("T"), null, ct);
+
+        Assert.Equal((RunOutcome.Failed, GraphRunner.Unexpected), (broken.Outcome, broken.Message));
+        Assert.Equal("broke", Assert.IsType<InvalidOperationException>(broken.Cause).Message);
+        Assert.Null(signIn.Cause);
+        Assert.Null(transport.Cause);
+    }
+
+    [Fact]
     public async Task Hunting_cancel_throws()
     {
         using var cts = new CancellationTokenSource();

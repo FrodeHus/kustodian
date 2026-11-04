@@ -1,5 +1,8 @@
+using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Kustodian.Graph.Engine;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Query;
 using Kustodian.Graph.Run;
@@ -7,6 +10,7 @@ using Kustodian.Graph.Schema;
 using Kustodian.Library;
 using Kustodian.Sources;
 using Kustodian.Storage;
+using Kustodian.Telemetry;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -24,14 +28,18 @@ namespace Kustodian.Messaging.Handlers;
 /// (<see cref="GraphExplain"/>): it sends nothing but, with the active account's tenant licenses (<paramref name="licenses"/>,
     /// read once per account), leaves out what they lack, as a run does. Explain and completion are Graph's only: for another
 /// source they are a <c>bad_request</c>. A run whose source meets a <see cref="ConsentRequiredException"/> (an ARM token that needs
-/// the user) answers <see cref="RunOutcome.ConsentNeeded"/> with its message; the account stays signed in.</summary>
+/// the user) answers <see cref="RunOutcome.ConsentNeeded"/> with its message; the account stays signed in. With a
+/// <paramref name="reporter"/>, every run that doesn't end <see cref="RunOutcome.Ok"/> (nor cancelled) gets a report ID; it is
+/// reported when the run failed unexpectedly (<see cref="RunResult.Cause"/>). The <paramref name="trail"/> hears
+/// <c>run.start(&lt;source&gt;)</c> and <c>run.end(&lt;outcome&gt;)</c>.</summary>
 public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeAccount, IReadOnlyDictionary<string, IQuerySource> sources,
     RecentService? recent = null, TimeProvider? time = null, ILogger<QueryHandler>? logger = null, GraphLimits? limits = null,
-    ITenantLicenses? licenses = null)
+    ITenantLicenses? licenses = null, ErrorReporter? reporter = null, ErrorTrail? trail = null)
 {
     private const string GraphSource = "graph";
     private const string ExplainRefused = "Explain is only available for Microsoft Graph.";
     private const string CompletionRefused = "Completion comes from the editor for this source.";
+    private const long BytesPerMegabyte = 1L << 20;
     private static readonly ParameterValue DefaultParameter = new("", "text", "", false);
 
     private readonly TimeProvider _time = time ?? TimeProvider.System;
@@ -128,13 +136,14 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
             if (await activeAccount() is not { } account)
             {
                 // No run starts, but the answer still names one, as every run's does.
-                return new RunResult(RunOutcome.SignInNeeded, GraphRunner.SignInMessage, null, [], [], 0, [], TimeSpan.Zero)
+                return Reported(p, new RunResult(RunOutcome.SignInNeeded, GraphRunner.SignInMessage, null, [], [], 0, [], TimeSpan.Zero)
                 {
                     RunId = new RunDiagnostics(_time, p.RunId).RunId,
-                };
+                });
             }
 
             cts.Token.ThrowIfCancellationRequested();
+            trail?.Add($"run.start({p.Source})");
             var progress = new TabProgress(bridge, tabId);
             var started = _time.GetUtcNow();
             var request = new QueryRunRequest(account, p.Kql, p.Parameters ?? [], p.Refresh, p.RunId, p.Options);
@@ -152,8 +161,9 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
                 };
             }
 
+            trail?.Add($"run.end({JsonNamingPolicy.CamelCase.ConvertName(result.Outcome.ToString())})");
             await RecordAsync(p, started, result);
-            return result;
+            return Reported(p, result);
         }
         finally
         {
@@ -189,6 +199,85 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
         {
             _log.LogWarning(ex, "The run could not be added to Recent");
         }
+    }
+
+    /// <summary><paramref name="result"/> with its report ID, when it isn't <see cref="RunOutcome.Ok"/> and there is a reporter.
+    /// The query, its parameters, the exception, Graph's answer and the engine's stderr go into the full report only; the
+    /// automatic report gets the scrubbed exception (the worker's own, when it wrote a crash frame) and the engine's numbers.</summary>
+    private RunResult Reported(RunParams p, RunResult result)
+    {
+        if (reporter is null || result.Outcome == RunOutcome.Ok)
+        {
+            return result;
+        }
+
+        var engine = result.Cause as GraphEngineException;
+        List<FullReportSection> details = [new("query", "Query", p.Kql ?? "", true)];
+        if (p.Parameters is { Count: > 0 } parameters)
+        {
+            details.Add(new FullReportSection("parameters", "Parameters",
+                string.Join('\n', parameters.Select(v => $"{v.Name} ({v.Type}) = {v.Value}")), false));
+        }
+
+        if (result.Message is { } message)
+        {
+            details.Add(new FullReportSection("message", "Message", message, false));
+        }
+
+        if (result.Cause is { } cause)
+        {
+            details.Add(new FullReportSection("exception", "Exception", cause.ToString() + CrashText(engine?.Crash), false));
+        }
+
+        if (result.ReadFailure is { } read)
+        {
+            var text = new StringBuilder().AppendLine(CultureInfo.InvariantCulture,
+                $"{read.Table}: {read.Failure}, status {read.Status?.ToString(CultureInfo.InvariantCulture) ?? "none"}, code {read.Code ?? "none"}");
+            foreach (var request in result.Tables.Where(t => t.Table == read.Table).SelectMany(t => t.Requests))
+            {
+                text.AppendLine(request);
+            }
+
+            details.Add(new FullReportSection("graphError", "Graph error", text.ToString().TrimEnd(), false));
+        }
+
+        if (engine is { StderrTail.Count: > 0 })
+        {
+            details.Add(new FullReportSection("engineStderr", "Engine output", string.Join('\n', engine.StderrTail), false));
+        }
+
+        var unexpected = result.Cause is not null;
+        var kind = engine is { Failure: GraphEngineFailure.Crashed } ? "engine.crash"
+            : unexpected ? "run.failed"
+            : $"run.{JsonNamingPolicy.CamelCase.ConvertName(result.Outcome.ToString())}";
+        var exceptions = engine?.Crash is { } crash ? ErrorScrubber.Of(crash)
+            : result.Cause is { } thrown ? ErrorScrubber.Of(thrown)
+            : [];
+        var facts = new ErrorFacts(Source: p.Source, ExitCode: engine?.ExitCode,
+            PeakMemoryMb: engine?.PeakBytes is { } peak ? (int)(peak / BytesPerMegabyte) : null,
+            WorkerUptimeS: engine?.WorkerUptime is { } uptime ? (int)uptime.TotalSeconds : null);
+        return result with { ReportId = reporter.Capture(new ErrorCapture(kind, unexpected, exceptions, facts, details)) };
+    }
+
+    /// <summary>The worker's crash frame as text, after the host's own exception: each exception's type, message and frames.</summary>
+    private static string CrashText(EngineCrash? crash)
+    {
+        if (crash is null)
+        {
+            return "";
+        }
+
+        var text = new StringBuilder().AppendLine().AppendLine().AppendLine("The engine worker's crash:");
+        foreach (var e in crash.Exceptions)
+        {
+            text.AppendLine(CultureInfo.InvariantCulture, $"{e.TypeName}: {e.Message}");
+            foreach (var f in e.Frames)
+            {
+                text.AppendLine(CultureInfo.InvariantCulture, $"  at {f.Method} ({f.Assembly})");
+            }
+        }
+
+        return text.ToString().TrimEnd();
     }
 
     /// <summary>A <c>query.run</c>'s or <c>query.explain</c>'s params, each parameter's missing fields taken from

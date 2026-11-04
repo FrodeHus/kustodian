@@ -5,6 +5,7 @@ using Kustodian.Auth;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Run;
 using Kustodian.Storage;
+using Kustodian.Telemetry;
 using Microsoft.Extensions.Logging;
 
 namespace Kustodian.Tests.Auth;
@@ -127,6 +128,20 @@ public class AuthTests : IDisposable
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url).ForAccount(account);
         using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task Handler_adds_a_new_token_to_the_trail_once()
+    {
+        var trail = new ErrorTrail(TimeProvider.System);
+        var tokens = new FixedTokens("tok-1");
+        using var client = new HttpClient(new GraphAuthHandler(tokens, trail: trail) { InnerHandler = new RecordingHandler() });
+
+        await SendForAccountAsync(client, "https://graph.microsoft.com/beta/users");
+        await SendForAccountAsync(client, "https://graph.microsoft.com/beta/groups");
+        await SendForAccountAsync(client, "https://graph.microsoft.com/beta/users", account: "other");
+
+        Assert.Equal(["token.acquire(graph)", "token.acquire(graph)"], trail.Render().Split("; ").Select(e => e.Split(' ')[0]));
     }
 
     [Fact]

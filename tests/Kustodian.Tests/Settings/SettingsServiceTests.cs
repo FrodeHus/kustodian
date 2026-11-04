@@ -5,6 +5,7 @@ using Kustodian.Messaging;
 using Kustodian.Messaging.Handlers;
 using Kustodian.Settings;
 using Kustodian.Storage;
+using Kustodian.Telemetry;
 
 namespace Kustodian.Tests.Settings;
 
@@ -51,6 +52,20 @@ public sealed class SettingsServiceTests : IDisposable
         Assert.Equal("bad_request", reply.GetProperty("error").GetProperty("code").GetString());
         Assert.Equal("Engine workers must be between 1 and 8.", reply.GetProperty("error").GetProperty("message").GetString());
         Assert.False(File.Exists(SettingsPath));
+    }
+
+    [Fact]
+    public async Task A_settings_change_adds_the_names_of_what_changed_to_the_trail()
+    {
+        var trail = new ErrorTrail(TimeProvider.System);
+        var bridge = new Messaging.Bridge(_ => { });
+        new SettingsHandler(NewService(), LimitSettings.Default, trail).Register(bridge);
+
+        await bridge.HandleAsync(Set("s", AppSettings.Default with { Theme = "light", ErrorReports = true }));
+
+        // Turning error reports on also records the consent version.
+        Assert.Equal(["settings.change(theme)", "settings.change(errorReports)", "settings.change(errorReportsConsent)"],
+            trail.Render().Split("; ").Select(e => e.Split(' ')[0]));
     }
 
     [Theory]
