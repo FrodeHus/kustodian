@@ -12,6 +12,7 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- The Graph schema is regenerated from the latest beta metadata (msgraph-metadata@690154d).
 - The status bar says "Built-in Graph schema" and its date instead of the schema's full source, which no longer squeezes
   the rest of the bar. Hover it for the source.
 - The Graph schema is regenerated from the latest beta metadata: the Copilot cost management tables
