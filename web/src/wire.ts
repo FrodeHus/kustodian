@@ -393,7 +393,20 @@ export interface ArmResourceTypesAnswer {
   types: string[];
 }
 
-export type Theme = 'dark' | 'light' | 'system' | 'glass' | 'liquid-glass';
+/** The themes made from a popular editor theme's palette (`shell/palettes.ts`). */
+export type PaletteTheme =
+  | 'github-dark'
+  | 'one-dark'
+  | 'dracula'
+  | 'material'
+  | 'monokai'
+  | 'ayu-dark'
+  | 'night-owl'
+  | 'tokyo-night'
+  | 'catppuccin-mocha'
+  | 'gruvbox-dark';
+
+export type Theme = 'dark' | 'light' | 'system' | 'glass' | 'liquid-glass' | PaletteTheme;
 
 export interface AppSettings {
   version: number;

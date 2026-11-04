@@ -246,7 +246,7 @@ describe('KqlEditor', () => {
 
   it('editor_follows_the_theme', () => {
     render(<KqlEditor schemas={{}} onRun={() => undefined} />);
-    expect(fake.themes.defined).toEqual(expect.arrayContaining(['kustodian-dark', 'kustodian-light']));
+    expect(fake.themes.defined).toEqual(expect.arrayContaining(['kustodian-dark', 'kustodian-light', 'kustodian-glass', 'kustodian-dracula']));
 
     act(() => applyTheme('light'));
     expect(fake.themes.set.at(-1)).toBe('kustodian-light');

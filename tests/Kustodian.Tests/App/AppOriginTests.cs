@@ -29,6 +29,7 @@ public sealed class AppOriginTests
     [InlineData(false, "light", "app://localhost/index.html?theme=light")]
     [InlineData(false, "liquid-glass", "app://localhost/index.html?theme=liquid-glass")]
     [InlineData(true, "glass", "https://kustodian.invalid/index.html?theme=glass")]
+    [InlineData(false, "catppuccin-mocha", "app://localhost/index.html?theme=catppuccin-mocha")]
     [InlineData(false, "<script>", "app://localhost/index.html?theme=dark")]
     public void Start_url_carries_theme(bool windows, string theme, string expected)
     {

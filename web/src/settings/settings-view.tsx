@@ -4,7 +4,7 @@ import { RAW_VERSIONS } from '../raw/raw-request';
 import { errorText } from '../shell/errors';
 import { ErrorReportActions, type Shown } from '../shell/error-report';
 import { reportIdOf } from '../shell/report-id';
-import { chooseTheme } from '../shell/theme';
+import { THEMES, chooseTheme, themeName } from '../shell/theme';
 import { runCommand } from '../shell/commands';
 import { CreateAppDialog } from '../signin/create-app-dialog';
 import type { CreatedApp } from '../signin/created-view';
@@ -31,13 +31,7 @@ const LIMITS: { key: string; name: string; min: number; max: number }[] = [
   { key: 'argRowsPerRun', name: 'ARG rows per run', min: 1_000, max: 1_000_000 },
 ];
 
-const THEMES: { value: Theme; name: string }[] = [
-  { value: 'dark', name: 'Dark' },
-  { value: 'light', name: 'Light' },
-  { value: 'system', name: 'Follow the system' },
-  { value: 'glass', name: 'Glass' },
-  { value: 'liquid-glass', name: 'Liquid glass' },
-];
+const THEME_OPTIONS = THEMES.map((value) => ({ value, name: value === 'system' ? 'Follow the system' : themeName(value) }));
 
 const count = (n: number) => n.toLocaleString('en-US');
 
@@ -270,7 +264,7 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
             <Card title="Appearance">
               <SettingField id="setting-theme" label="Theme" error={errors.theme} hint="Applies at once.">
                 <select id="setting-theme" {...invalid('setting-theme', errors.theme)} className="textbox w-[220px]" value={theme} onChange={(e) => pickTheme(e.target.value as Theme)}>
-                  {THEMES.map((t) => (
+                  {THEME_OPTIONS.map((t) => (
                     <option key={t.value} value={t.value}>
                       {t.name}
                     </option>
