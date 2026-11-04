@@ -256,6 +256,35 @@ public sealed class SettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Error_reports_yes_to_an_older_consent_reads_as_unasked()
+    {
+        Directory.CreateDirectory(_dir);
+        const string Head = "{\"version\":1,\"theme\":\"dark\",\"rawDefaultVersion\":\"beta\",\"signIn\":{},\"limits\":{},\"telemetry\":true,\"telemetryConsent\":2,";
+        await File.WriteAllTextAsync(SettingsPath, Head + "\"errorReports\":true}", Ct);
+        var older = await NewService().GetAsync(Ct);
+        await File.WriteAllTextAsync(SettingsPath, Head + "\"errorReports\":true,\"errorReportsConsent\":1}", Ct);
+        var current = await NewService().GetAsync(Ct);
+
+        Assert.Null(older.ErrorReports);
+        Assert.True(older.Telemetry);
+        Assert.True(current.ErrorReports);
+    }
+
+    [Fact]
+    public async Task Error_reports_answer_is_stamped_with_the_current_consent()
+    {
+        var service = NewService();
+
+        var answered = await service.SetAsync(AppSettings.Default with { ErrorReports = true }, Ct);
+        var unanswered = await NewService().SetAsync(AppSettings.Default, Ct);
+
+        Assert.Equal(AppSettings.CurrentErrorReportsConsent, answered.ErrorReportsConsent);
+        Assert.Null(answered.Telemetry);
+        Assert.Equal(0, unanswered.ErrorReportsConsent);
+        Assert.Null(unanswered.ErrorReports);
+    }
+
+    [Fact]
     public async Task Settings_file_missing_fields_loads_them_with_defaults()
     {
         Directory.CreateDirectory(_dir);

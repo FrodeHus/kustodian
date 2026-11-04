@@ -21,5 +21,8 @@ export function writeSettings(change: (current: AppSettings) => AppSettings): Pr
 /** Turns sharing Graph compatibility findings on or off. */
 export const setTelemetry = (on: boolean): Promise<SettingsAnswer> => writeSettings((current) => ({ ...current, telemetry: on }));
 
+/** Turns sending automatic error reports on or off. */
+export const setErrorReports = (on: boolean): Promise<SettingsAnswer> => writeSettings((current) => ({ ...current, errorReports: on }));
+
 /** Opens the site's page on what is shared, in the user's browser. */
 export const openTelemetryDocs = () => void call('app.openTelemetryDocs').catch(() => undefined);

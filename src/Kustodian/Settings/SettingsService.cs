@@ -13,15 +13,22 @@ namespace Kustodian.Settings;
 /// findings (<c>Kustodian.Telemetry.SharedProbeCache</c> and <c>SharedRunFindings</c>); null until they have been asked, and
 /// nothing is shared then. <see cref="TelemetryConsent"/> is the version of what was shared when they answered: a yes to an
 /// older one reads as null, so they are asked again. <see cref="SkippedVersion"/> is the release "Skip" on the update dialog
-/// passed over: the dialog doesn't show for it again at startup.</summary>
+/// passed over: the dialog doesn't show for it again at startup. <see cref="ErrorReports"/> is whether the user lets Kustodian
+/// send a scrubbed report when it fails unexpectedly; null until they have been asked, and nothing is sent then.
+/// <see cref="ErrorReportsConsent"/> is the version of what was sent when they answered, read like <see cref="TelemetryConsent"/>.
+/// The two settings are separate.</summary>
 public sealed record AppSettings(int Version, string Theme, string RawDefaultVersion, SignInDefaults SignIn, LimitSettings Limits,
-    bool? Telemetry = null, string? SkippedVersion = null, int TelemetryConsent = 0)
+    bool? Telemetry = null, string? SkippedVersion = null, int TelemetryConsent = 0,
+    bool? ErrorReports = null, int ErrorReportsConsent = 0)
 {
     public const int CurrentVersion = 1;
 
     /// <summary>The version of what is shared: 1, probe findings only; 2, run findings too (refusals, filters kept local,
     /// permission mismatches, limits hit).</summary>
     public const int CurrentTelemetryConsent = 2;
+
+    /// <summary>The version of what an automatic error report holds.</summary>
+    public const int CurrentErrorReportsConsent = 1;
 
     public static AppSettings Default { get; } = new(CurrentVersion, "dark", "beta", new SignInDefaults(null, null), LimitSettings.Default);
 }
@@ -107,13 +114,20 @@ public sealed class SettingsService(JsonFileStore store, ILogger<SettingsService
         }
 
         // A yes given to sharing less than is shared now isn't a yes to this: ask again.
-        return read.Value is { Telemetry: true, TelemetryConsent: < AppSettings.CurrentTelemetryConsent }
-            ? read.Value with { Telemetry = null }
-            : read.Value;
+        var settings = read.Value;
+        if (settings is { Telemetry: true, TelemetryConsent: < AppSettings.CurrentTelemetryConsent })
+        {
+            settings = settings with { Telemetry = null };
+        }
+
+        return settings is { ErrorReports: true, ErrorReportsConsent: < AppSettings.CurrentErrorReportsConsent }
+            ? settings with { ErrorReports = null }
+            : settings;
     }
 
     /// <summary>Checks <paramref name="value"/>, writes it as version 1 and returns what was stored. An answer on sharing is
-    /// stored as given to what is shared now (<see cref="AppSettings.CurrentTelemetryConsent"/>). Throws
+    /// stored as given to what is shared now (<see cref="AppSettings.CurrentTelemetryConsent"/>), and one on error reports likewise
+    /// (<see cref="AppSettings.CurrentErrorReportsConsent"/>). Throws
     /// <see cref="SettingsRejectedException"/> for a value out of range, and writes nothing then.</summary>
     public async Task<AppSettings> SetAsync(AppSettings value, CancellationToken ct = default)
     {
@@ -121,6 +135,7 @@ public sealed class SettingsService(JsonFileStore store, ILogger<SettingsService
         {
             Version = AppSettings.CurrentVersion,
             TelemetryConsent = value.Telemetry is null ? value.TelemetryConsent : AppSettings.CurrentTelemetryConsent,
+            ErrorReportsConsent = value.ErrorReports is null ? value.ErrorReportsConsent : AppSettings.CurrentErrorReportsConsent,
         };
         if (Problem(stored) is { } problem)
         {

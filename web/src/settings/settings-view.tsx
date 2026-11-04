@@ -8,7 +8,8 @@ import { CreateAppDialog } from '../signin/create-app-dialog';
 import type { CreatedApp } from '../signin/created-view';
 import { CANNOT_CREATE_REASON, canCreateApp } from '../signin/permission-plan';
 import type { AccountInfo, AppInfo, AppSettings, SettingsAnswer, Theme, UpdateInfo } from '../wire';
-import { setTelemetry, writeSettings } from './settings-writes';
+import { setErrorReports, setTelemetry, writeSettings } from './settings-writes';
+import { ErrorReportsExplainer } from './error-reports';
 import { TelemetryExplainer } from './telemetry';
 import { UpdateDialog } from './update-dialog';
 
@@ -188,6 +189,15 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
       (e: unknown) => setStatus({ tone: 'bad', text: `The choice couldn’t be saved: ${errorText(e)}` }),
     );
 
+  const sendErrorReports = (on: boolean) =>
+    setErrorReports(on).then(
+      (answer) => {
+        setStored((s) => s && { ...s, settings: { ...s.settings, errorReports: answer.settings.errorReports } });
+        onChange(answer);
+      },
+      (e: unknown) => setStatus({ tone: 'bad', text: `The choice couldn’t be saved: ${errorText(e)}` }),
+    );
+
   const clearCache = () =>
     call('cache.clear').then(
       () => setStatus({ tone: 'ok', text: 'Cached Graph objects cleared.' }),
@@ -354,6 +364,14 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
               <label className="flex items-center gap-2 text-[12.5px]">
                 <input type="checkbox" checked={stored.settings.telemetry === true} onChange={(e) => shareFindings(e.target.checked)} />
                 Share Graph compatibility findings
+              </label>
+              <span className="faint text-[12px]">Applies at once.</span>
+            </Card>
+            <Card title="Error reports">
+              <ErrorReportsExplainer />
+              <label className="flex items-center gap-2 text-[12.5px]">
+                <input type="checkbox" checked={stored.settings.errorReports === true} onChange={(e) => sendErrorReports(e.target.checked)} />
+                Send error reports
               </label>
               <span className="faint text-[12px]">Applies at once.</span>
             </Card>

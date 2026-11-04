@@ -401,6 +401,8 @@ export interface AppSettings {
   limits: Record<string, number>;
   /** Whether Graph compatibility findings are shared; null until the user has been asked. */
   telemetry?: boolean | null;
+  /** Whether automatic error reports are sent; null until the user has been asked. */
+  errorReports?: boolean | null;
   /** The release "Skip" on the update dialog passed over. */
   skippedVersion?: string | null;
 }

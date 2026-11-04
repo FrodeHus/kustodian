@@ -132,6 +132,7 @@ const defaultSettings = {
     argRowsPerRun: 50000,
   },
   telemetry: null,
+  errorReports: null,
 };
 
 /** `arm.subscriptions`', `arm.managementGroups`' and `arm.resourceTypes`' answers, as `ArmHandler` writes them. */
