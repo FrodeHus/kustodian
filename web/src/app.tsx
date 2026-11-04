@@ -512,7 +512,12 @@ export function App() {
           setAccountsOpen(true);
         }}
         onSettings={() => setSettingsOpen(true)}
-      />
+      >
+        {/* Hidden rather than unmounted, like the workspace below, so a close confirmation keeps its state. */}
+        <div className="flex min-w-0 grow" hidden={signingIn || settingsOpen}>
+          <TabStrip onDialog={setConfirming} />
+        </div>
+      </TitleBar>
       {lasting && (
         <div className="border-b border-line bg-bad-soft px-3 py-1.5 text-[12px] text-bad" role="alert">
           {lasting}
@@ -528,7 +533,7 @@ export function App() {
           </button>
         </div>
       )}
-      {/* Settings can be opened from sign-in too (the title bar's button): they cover it until they close. */}
+      {/* Settings can be opened from sign-in too (the title bar's account menu): they cover it until they close. */}
       {signingIn && !settingsOpen && (
         <SignIn
           list={accounts}
@@ -580,7 +585,6 @@ export function App() {
       )}
       {/* Hidden rather than unmounted while signing in, so the editor keeps each tab's undo history. */}
       <div className="flex min-h-0 flex-1 flex-col" hidden={signingIn || settingsOpen}>
-        <TabStrip onDialog={setConfirming} />
         <div className="panes">
           <Rail panel={panel} onChoose={setPanel} />
           <SidePanel

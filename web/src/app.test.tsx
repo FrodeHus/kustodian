@@ -22,6 +22,11 @@ vi.mock('./bridge', async (importOriginal) => ({
 }));
 
 /** Sends a host event to the page, as the bridge does. */
+/** Opens the title bar's account menu and chooses `item`. */
+const openFromAccountMenu = (item: string | RegExp) => {
+  fireEvent.click(screen.getByTitle('Account and settings'));
+  fireEvent.click(screen.getByRole('menuitem', { name: item }));
+};
 const emit = (event: string, data: unknown) => act(() => bridge.handlers.get(event)?.forEach((h) => h(data)));
 
 // Monaco doesn't run in jsdom: a text area stands in for the editor, wired to the store the same way.
@@ -789,7 +794,7 @@ describe('App', () => {
     expect(schemaGets('graph')).toBe(1);
 
     // Switching account through the accounts screen.
-    fireEvent.click(screen.getByRole('button', { name: /kari@contoso.com/ }));
+    openFromAccountMenu('Accounts and sign-in');
     fireEvent.click(await screen.findByRole('button', { name: 'Use ola@contoso.com' }));
 
     await waitFor(() => expect(schemaGets('hunting')).toBe(2));
@@ -814,7 +819,7 @@ describe('App', () => {
 
     // Signing in again with the same account reads the tenant's schema again.
     origin = 'tenant';
-    fireEvent.click(screen.getByRole('button', { name: /kari@contoso.com/ }));
+    openFromAccountMenu('Accounts and sign-in');
     fireEvent.click(await screen.findByRole('button', { name: 'Sign in with your browser' }));
     await waitFor(() => expect(footer()).toContain('Schema from your tenant (getHuntingSchema)'));
     expect(bridge.call).toHaveBeenCalledWith('schema.get', { source: 'hunting', refresh: true });
@@ -860,7 +865,7 @@ describe('App', () => {
     expect(footer()).not.toContain('The schema read earlier is shown');
 
     reason = null;
-    fireEvent.click(screen.getByRole('button', { name: /kari@contoso.com/ }));
+    openFromAccountMenu('Accounts and sign-in');
     fireEvent.click(await screen.findByRole('button', { name: 'Sign in with your browser' }));
     await waitFor(() => expect(footer()).not.toContain('Sign in again'));
     expect(bridge.call).toHaveBeenCalledWith('schema.get', { source: 'hunting', refresh: true });
@@ -871,7 +876,7 @@ describe('App', () => {
     render(<App />);
     await screen.findByRole('tab', { name: /Query 1/ });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    openFromAccountMenu(/^Settings/);
     expect(await screen.findByRole('heading', { name: 'Settings' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '← Back to queries' }));
     expect(screen.queryByRole('heading', { name: 'Settings' })).toBeNull();
@@ -906,8 +911,8 @@ describe('App', () => {
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'Sign in to Microsoft Graph' })).toBeTruthy();
 
-    // The title bar's Settings button works on the sign-in screen, and settings cover it.
-    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    // The account menu's Settings works on the sign-in screen, and settings cover it.
+    openFromAccountMenu(/^Settings/);
     expect(await screen.findByRole('heading', { name: 'Settings' })).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Sign in to Microsoft Graph' })).toBeNull();
     fireEvent.change(await screen.findByLabelText('Default client ID'), { target: { value: 'c-2' } });
@@ -921,10 +926,10 @@ describe('App', () => {
     expect(screen.getByLabelText('Client ID')).toHaveProperty('value', 'c-2');
     expect(screen.getByLabelText('Tenant')).toHaveProperty('value', 't-2');
 
-    // The account pill closes settings.
-    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    // The account menu's Sign in closes settings.
+    openFromAccountMenu(/^Settings/);
     expect(await screen.findByRole('heading', { name: 'Settings' })).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Not signed in' }));
+    openFromAccountMenu('Sign in');
     expect(screen.queryByRole('heading', { name: 'Settings' })).toBeNull();
     expect(screen.getByRole('heading', { name: 'Sign in to Microsoft Graph' })).toBeTruthy();
   });

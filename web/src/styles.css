@@ -141,7 +141,8 @@ body {
   .muted { color: var(--muted); }
   .faint { color: var(--faint); }
 
-  .titlebar { height: 38px; display: flex; align-items: center; gap: 12px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  /* Raised so its menus open over the panes, also when glass gives it its own stacking context. */
+  .titlebar { position: relative; z-index: 4; height: 38px; display: flex; align-items: center; gap: 12px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
   .brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; letter-spacing: 0.01em; }
   .pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--line); color: var(--muted); font-size: 12px; }
   .pill b { color: var(--text); font-weight: 600; }
@@ -151,6 +152,8 @@ body {
   .dot-off { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); display: inline-block; flex-shrink: 0; }
 
   .tabs { display: flex; align-items: flex-end; gap: 2px; height: 36px; padding: 0 8px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  /* The tab strip sits in the title bar: the bar's own background and bottom edge are its. */
+  .titlebar .tabs, .theme-glass .titlebar .tabs { flex: 1; min-width: 0; height: 100%; padding: 0; margin: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none; backdrop-filter: none; }
   .tab { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px 0 12px; border: 1px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0; color: var(--muted); background: transparent; }
   .tab.on { background: var(--bg); color: var(--text); border-color: var(--line); }
   .tab > button[role='tab'] { display: flex; align-items: center; gap: 8px; height: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
