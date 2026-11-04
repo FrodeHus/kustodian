@@ -175,7 +175,7 @@ public sealed class GraphEnginePool : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        List<Worker> workers;
+        List<Worker> idle, busy;
         lock (_gate)
         {
             if (_disposed)
@@ -183,11 +183,16 @@ public sealed class GraphEnginePool : IAsyncDisposable
             _disposed = true;
             _disposing.Cancel();
             _idle.Clear();
-            workers = [.. _workers];
-            foreach (var worker in workers)
+            idle = _workers.Where(w => !w.Busy).ToList();
+            busy = _workers.Where(w => w.Busy).ToList();
+            foreach (var worker in _workers.ToList())
                 Retire(worker, Death.None);
         }
-        await Task.WhenAll(workers.Select(KillAsync));
+        // A busy worker is only killed: its run is still reading the process, so the run waits for the exit and disposes it
+        // (disposing it under the run surfaced on Windows as a COMException out of RunAsync).
+        foreach (var worker in busy)
+            Kill(worker);
+        await Task.WhenAll(idle.Select(KillAsync));
     }
 
     /// <summary>A slot, and a worker for it: an idle one if there is one, else a newly started one. Waits up to
@@ -280,12 +285,17 @@ public sealed class GraphEnginePool : IAsyncDisposable
         {
             await stop.CancelAsync();
             peak.Sample(worker);
+            bool orphaned;
             lock (_gate)
             {
                 worker.Busy = false;
-                if (!worker.Retired)
+                orphaned = worker.Retired;
+                if (!orphaned)
                     _idle.Push(worker);
             }
+            // The pool was disposed during the run and left the worker to it.
+            if (orphaned)
+                await KillAsync(worker);
             ReleaseSlot();
             Report(progress, new EngineRunInfo("done", worker.Id, peak.Bytes, null), runTag);
             return response;
@@ -330,10 +340,11 @@ public sealed class GraphEnginePool : IAsyncDisposable
         {
             _logger.LogWarning("Killed graph engine worker {WorkerId} for run {RunTag}: {Reason}", worker.Id, runTag, reason);
             Trail($"engine.kill({kind})");
-            await KillAsync(worker);
-            if (worker.ExitCode is { } code)
-                Trail(string.Create(CultureInfo.InvariantCulture, $"engine.exit({code})"));
         }
+        // Not retired here means the pool's disposal retired it and left it to this run to finish off.
+        await KillAsync(worker);
+        if (retired && worker.ExitCode is { } code)
+            Trail(string.Create(CultureInfo.InvariantCulture, $"engine.exit({code})"));
         // The next run that finds no idle worker starts one.
         ReleaseSlot();
         Report(progress, new EngineRunInfo("killed", worker.Id, peak.Bytes, kind), runTag);
@@ -468,7 +479,7 @@ public sealed class GraphEnginePool : IAsyncDisposable
         return true;
     }
 
-    private async Task KillAsync(Worker worker)
+    private void Kill(Worker worker)
     {
         try
         {
@@ -476,12 +487,19 @@ public sealed class GraphEnginePool : IAsyncDisposable
         }
         catch (InvalidOperationException)
         {
-            // It had exited already.
+            // It had exited already, or its run has disposed it.
         }
         catch (Win32Exception e)
         {
             _logger.LogError(e, "Couldn't kill graph engine worker {WorkerId}", worker.Id);
         }
+    }
+
+    /// <summary>Kills the worker, waits briefly for its exit code and disposes its process. Only whoever holds the worker calls
+    /// it: the pool for an idle one, its run for a busy one.</summary>
+    private async Task KillAsync(Worker worker)
+    {
+        Kill(worker);
         // On macOS a killed worker can read as exited before its exit code can be read; ExitCodeAsync answers null then.
         worker.ExitCode = await ExitCodeAsync(worker);
         if (!worker.Process.HasExited)
