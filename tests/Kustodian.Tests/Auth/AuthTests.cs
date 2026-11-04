@@ -195,6 +195,34 @@ public class AuthTests : IDisposable
     }
 
     [Fact]
+    public async Task Refresh_skips_the_cached_token_without_a_browser()
+    {
+        var msal = new FakeMsal();
+        var service = NewService(msal);
+        var account = await service.SignInInteractiveAsync(ClientConfig.AzureCli, TestContext.Current.CancellationToken);
+
+        await service.RefreshAsync(account.Key, Audience.Graph, TestContext.Current.CancellationToken);
+
+        Assert.Equal(("https://graph.microsoft.com/.default", true), msal.Silent.Single());
+        Assert.Single(msal.Interactive);
+    }
+
+    [Fact]
+    public async Task Refresh_opens_the_browser_at_the_account_when_silent_needs_ui()
+    {
+        var msal = new FakeMsal();
+        var service = NewService(msal);
+        var account = await service.SignInInteractiveAsync(ClientConfig.AzureCli, TestContext.Current.CancellationToken);
+        await msal.RemoveAsync("home-1");
+        await Assert.ThrowsAsync<SignInRequiredException>(() => service.GetTokenAsync(account.Key, Audience.Graph, TestContext.Current.CancellationToken));
+
+        await service.RefreshAsync(account.Key, Audience.Graph, TestContext.Current.CancellationToken);
+
+        Assert.Equal(("https://graph.microsoft.com/.default", "ada@contoso.com", false), msal.Interactive[^1]);
+        Assert.False((await service.ListAccountsAsync()).Single().Expired);
+    }
+
+    [Fact]
     public async Task Sign_in_stores_metadata_scopes_and_active_key_but_never_tokens()
     {
         var msal = new FakeMsal();

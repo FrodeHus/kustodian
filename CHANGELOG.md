@@ -5,12 +5,31 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- A **Run tool** menu on the Rows tab runs your own commands, set up in `tools.json`, on the selected rows: once per row
+  with `{column}` values as arguments, or once with the rows as JSON on stdin. See [docs/external-tools.md](docs/external-tools.md).
+- A query refused for permission offers **Refresh access**, which gets a new access token so a role you activated since
+  (through PIM, say) counts, then runs the query again. When the token can't be refreshed silently, the browser opens to
+  sign in.
+
 ### Changed
 
+- The Graph schema is regenerated from the latest beta metadata (msgraph-metadata@690154d).
 - The status bar says "Built-in Graph schema" and its date instead of the schema's full source, which no longer squeezes
   the rest of the bar. Hover it for the source.
 - The Graph schema is regenerated from the latest beta metadata: the Copilot cost management tables
   `copilot_costManagement_spendingPolicies` and `copilot_costManagement_userBalances` now list their read permissions.
+- Sharing Graph compatibility findings now covers where Kustodian falls short too: Graph refusals it can't work around,
+  `where` conditions it can't send to Graph, permissions Graph didn't accept although the schema lists them, and limits a
+  query hit. Each event holds only the table's schema path and short codes, never your tenant, queries, values or Graph's
+  error messages. If you said yes before, Kustodian asks again and shares nothing until you answer.
+
+### Fixed
+
+- Graph queries that read `roleManagement_directory_roleDefinitions` (for example to name the roles in PIM activations) no
+  longer fail with "This resource requires a minimum page size of 20". Kustodian now reads the table 500 rows at a time,
+  the only page size Graph accepts for it.
 
 ## [1.0.0] - 2026-11-03
 

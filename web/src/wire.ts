@@ -337,6 +337,30 @@ export interface Snippet {
   parameters: ParameterDef[];
 }
 
+/** A command from the user's `tools.json`: `each` runs it per row with `{column}` in `args` filled in, `batch` once with the
+ * rows on stdin as JSON. */
+export interface ExternalTool {
+  name: string;
+  command: string;
+  args: string[];
+  mode: 'each' | 'batch';
+}
+
+/** `tools.list`: the tools, or none and what is wrong with `tools.json`. */
+export interface ToolList {
+  tools: ExternalTool[];
+  problem: string | null;
+  path: string;
+}
+
+/** One run of a tool's command: the arguments it got, its exit code and what it wrote. */
+export interface ToolOutcome {
+  args: string[];
+  exitCode: number;
+  output: string;
+  error: string;
+}
+
 /** A subscription the account can see, as `arm.subscriptions` lists it: `id` is the subscription GUID a scope names. */
 export interface ArmSubscription {
   id: string;

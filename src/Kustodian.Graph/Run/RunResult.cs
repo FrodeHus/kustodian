@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Kustodian.Graph.Engine;
+using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Query;
 
 namespace Kustodian.Graph.Run;
@@ -54,7 +55,14 @@ public sealed record TableFetch(string Table, IReadOnlyList<string> Requests, bo
     /// <summary>The columns the query touches that weren't read because the tenant is known to lack their license (their values
     /// are empty).</summary>
     public IReadOnlyList<LicenseLeftOut> LicenseLeftOut { get; init; } = [];
+
+    /// <summary>The query's <c>where</c> conditions on the table that ran locally, each with why it wasn't sent to Graph.</summary>
+    public IReadOnlyList<LocalCondition> Local { get; init; } = [];
 }
+
+/// <summary>How the read of <paramref name="Table"/> failed: the <paramref name="Failure"/>, and Graph's HTTP
+/// <paramref name="Status"/> and <c>error.code</c> (<paramref name="Code"/>) when the failure was Graph's answer.</summary>
+public sealed record RunReadFailure(string Table, GraphReadFailure Failure, int? Status, string? Code);
 
 /// <summary>A run's answer. <see cref="Message"/> is the text to show when the outcome isn't <see cref="RunOutcome.Ok"/>;
 /// <see cref="Error"/> carries the position of a <see cref="RunOutcome.QueryError"/>. <see cref="RunId"/> names the run (its
@@ -65,6 +73,9 @@ public sealed record RunResult(RunOutcome Outcome, string? Message, GraphQueryEr
     public string RunId { get; init; } = "";
 
     public IReadOnlyList<DiagnosticEntry> Diagnostics { get; init; } = [];
+
+    /// <summary>How the table read that ended the run failed; null when no read did.</summary>
+    public RunReadFailure? ReadFailure { get; init; }
 
     /// <summary>The delegated permissions a <see cref="RunOutcome.NoPermission"/> run needs, any one of which will do, the
     /// least to ask for first. Empty for every other outcome.</summary>

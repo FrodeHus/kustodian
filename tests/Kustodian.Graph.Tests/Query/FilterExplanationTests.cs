@@ -145,4 +145,25 @@ public sealed class FilterExplanationTests
         Assert.All(explanation.Local, l => Assert.False(string.IsNullOrEmpty(l.Reason)));
         Assert.Equal(explanation.Filter is null, explanation.Pushed.Count == 0);
     }
+
+    // Each reason has its own stable code, and the ones that name a column give it back.
+    [Fact]
+    public void Each_pushdown_reason_has_a_code()
+    {
+        string[] fixedReasons =
+        [
+            PushdownReasons.CaseInsensitive, PushdownReasons.AdvancedQuery, PushdownReasons.CaseFolded, PushdownReasons.EmptyString,
+            PushdownReasons.IsNotNullOnText, PushdownReasons.Not, PushdownReasons.OrSide, PushdownReasons.NotLeading,
+            PushdownReasons.FixedValue, PushdownReasons.Inexact, PushdownReasons.WordsInArray, PushdownReasons.Folded,
+            PushdownReasons.DirectoryOnly,
+        ];
+        var codes = fixedReasons.Select(r => PushdownReasons.Code(r)).ToList();
+
+        Assert.All(codes, c => Assert.Null(Assert.NotNull(c).Column));
+        Assert.Equal(fixedReasons.Length, codes.Select(c => c!.Value.Code).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(("operator", "mail"), PushdownReasons.Code(PushdownReasons.Operator("mail")));
+        Assert.Equal(("unlicensed", "riskLevel"), PushdownReasons.Code(PushdownReasons.Unlicensed("riskLevel", "Entra ID P2")));
+        Assert.Equal(("alone", "signInActivity"), PushdownReasons.Code(PushdownReasons.Alone("signInActivity")));
+        Assert.Null(PushdownReasons.Code("something else"));
+    }
 }

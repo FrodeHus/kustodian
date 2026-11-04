@@ -24,9 +24,10 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import type { ResultColumn } from '../wire';
+import type { ExternalTool, ResultColumn } from '../wire';
 import { COPY_FORMATS, copyFailed, copyText, formatRows, type CopyFormat } from './copy';
 import { cellText, type Row } from './export';
+import { RunToolDialog, ToolItems } from './run-tool';
 
 const ROW_HEIGHT = 29;
 const NUMERIC = new Set(['int', 'long', 'real', 'decimal', 'double']);
@@ -276,6 +277,7 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [anchor, setAnchor] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [tool, setTool] = useState<ExternalTool | null>(null);
   // A new result's rows start with nothing selected.
   const [rowsSeen, setRowsSeen] = useState(rows);
   if (rowsSeen !== rows) {
@@ -398,9 +400,10 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
   // hides are neither counted nor copied; with none selected, every row shown is.
   const filteredLeaves = leaves(table.getSortedRowModel().rows);
   const selectedShown = filteredLeaves.filter((r) => selected.has(r.id));
+  const chosen = selectedShown.length > 0 ? selectedShown : filteredLeaves;
+  const chosenLabel = selectedShown.length > 0 ? `${rowCount(selectedShown.length)} selected` : `All ${rowCount(filteredLeaves.length)}`;
 
   const copy = (format: CopyFormat, header: boolean) => {
-    const chosen = selectedShown.length > 0 ? selectedShown : filteredLeaves;
     const shownColumns = visibleColumns.map((c) => meta.get(c.id)).filter((c): c is ResultColumn => !!c);
     const at = shownColumns.map((c) => columns.indexOf(c));
     const values = chosen.map((r) => at.map((i) => r.original[i]));
@@ -479,7 +482,7 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
       </MenuButton>
       <MenuButton label="Copy as" primary>
         <>
-          <span className="faint px-2.5 py-1 text-[11.5px]">{selectedShown.length > 0 ? `${rowCount(selectedShown.length)} selected` : `All ${rowCount(filteredLeaves.length)}`}</span>
+          <span className="faint px-2.5 py-1 text-[11.5px]">{chosenLabel}</span>
           {[true, false].flatMap((header) =>
             COPY_FORMATS.map(({ format, name }) => (
               <button
@@ -493,6 +496,12 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
               </button>
             )),
           )}
+        </>
+      </MenuButton>
+      <MenuButton label="Run tool">
+        <>
+          <span className="faint px-2.5 py-1 text-[11.5px]">{chosenLabel}</span>
+          <ToolItems columns={columns} onChoose={setTool} onError={(text) => setNotice({ tone: 'bad', text })} />
         </>
       </MenuButton>
     </>
@@ -634,6 +643,7 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
         {rows.length === 0 && <p className="faint m-0 p-4 text-[12px]">The query returned no rows.</p>}
       </div>
       {notice && <NoticeLine notice={notice} onDismiss={() => setNotice(null)} />}
+      {tool && <RunToolDialog tool={tool} columns={columns} rows={chosen.map((r) => r.original)} onClose={() => setTool(null)} />}
       {opened && <JsonPanel opened={opened} onClose={() => setOpened(null)} />}
     </div>
   );

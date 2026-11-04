@@ -636,6 +636,31 @@ public sealed class GraphRunnerTests
     }
 
     [Fact]
+    public async Task A_refused_read_carries_the_table_graphs_status_and_its_error_code()
+    {
+        await using var h = NewHost();
+        h.Graph.Answer = (_, _) => Task.FromResult(FakeGraph.Error(HttpStatusCode.BadRequest, "Request_BadRequest", "Something is off."));
+
+        var r = await h.RunAsync("applications | project id", ct: Ct);
+
+        Assert.Equal(RunOutcome.Failed, r.Outcome);
+        Assert.Equal(new RunReadFailure("applications", GraphReadFailure.Failed, 400, "Request_BadRequest"), r.ReadFailure);
+    }
+
+    [Fact]
+    public async Task The_conditions_that_ran_locally_are_on_the_table_with_their_reasons()
+    {
+        await using var h = NewHost();
+        h.Graph.Answer = (_, _) => Task.FromResult(FakeGraph.Collection([App("a"), App("b")]));
+
+        var r = await h.RunAsync("applications | where not(displayName == 'a') | project displayName", ct: Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        Assert.Null(r.ReadFailure);
+        Assert.Equal(PushdownReasons.Not, Assert.Single(Assert.Single(r.Tables).Local).Reason);
+    }
+
+    [Fact]
     public async Task Throttled_by_graph_is_throttled()
     {
         await using var h = NewHost();

@@ -389,6 +389,10 @@ interface MockRequest {
     source?: string;
     kql?: string;
     parameters?: unknown[];
+    name?: string;
+    columns?: string[];
+    rows?: unknown[][];
+    mapping?: Record<string, string>;
   };
 }
 
@@ -518,6 +522,9 @@ const entraAppCreated = {
   adminScopes: ['Directory.Read.All', 'User.Read.All', 'Group.Read.All', 'ThreatHunting.Read.All'],
 };
 
+/** The mock's one external tool. */
+const mockTool = { name: 'Echo the name', command: '/bin/echo', args: ['name={displayName}'], mode: 'each' };
+
 export function createMockTransport(): Transport {
   let receive: (message: string) => void = () => undefined;
   const runs = new Map<string, { id: string; timer: ReturnType<typeof setTimeout> }>();
@@ -633,6 +640,24 @@ export function createMockTransport(): Transport {
         userSnippets.delete(params?.id ?? '');
         reply(id, null);
         break;
+      case 'tools.list':
+        reply(id, { tools: [mockTool], problem: null, path: '/mock/tools.json' });
+        break;
+      case 'tools.edit':
+      case 'tools.cancel':
+        reply(id, null);
+        break;
+      case 'tools.run': {
+        // As `/bin/echo name={displayName}` would answer, row by row.
+        const at = params?.columns?.indexOf(params.mapping?.displayName || 'displayName') ?? -1;
+        const outcomes = (params?.rows ?? []).map((row) => {
+          const value = row[at];
+          const args = [`name=${value === null || value === undefined ? '' : typeof value === 'string' ? value : JSON.stringify(value)}`];
+          return { args, exitCode: 0, output: `${args[0]}\n`, error: '' };
+        });
+        reply(id, { outcomes });
+        break;
+      }
       case 'file.open':
       case 'file.saveAs':
         // The mock has no native dialog: it answers as if the user cancelled.
@@ -691,6 +716,7 @@ export function createMockTransport(): Transport {
         reply(id, null);
         break;
       case 'account.consent':
+      case 'account.refresh':
         reply(id, {});
         break;
       case 'entraApp.plan':

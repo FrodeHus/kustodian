@@ -10,13 +10,18 @@ namespace Kustodian.Settings;
 /// <summary>The app's settings (spec 6.11 and 9), as <c>settings.json</c> holds them and the UI edits them.
 /// <see cref="Theme"/> is <c>dark</c>, <c>light</c> or <c>system</c>; <see cref="RawDefaultVersion"/> is the Graph version the
 /// raw request tab starts with, <c>beta</c> or <c>v1.0</c>. <see cref="Telemetry"/> is whether the user shares Graph compatibility
-/// findings (<c>Kustodian.Telemetry.SharedProbeCache</c>); null until they have been asked, and nothing is shared then.
-/// <see cref="SkippedVersion"/> is the release "Skip" on the update dialog passed over: the dialog doesn't show for it again at
-/// startup.</summary>
+/// findings (<c>Kustodian.Telemetry.SharedProbeCache</c> and <c>SharedRunFindings</c>); null until they have been asked, and
+/// nothing is shared then. <see cref="TelemetryConsent"/> is the version of what was shared when they answered: a yes to an
+/// older one reads as null, so they are asked again. <see cref="SkippedVersion"/> is the release "Skip" on the update dialog
+/// passed over: the dialog doesn't show for it again at startup.</summary>
 public sealed record AppSettings(int Version, string Theme, string RawDefaultVersion, SignInDefaults SignIn, LimitSettings Limits,
-    bool? Telemetry = null, string? SkippedVersion = null)
+    bool? Telemetry = null, string? SkippedVersion = null, int TelemetryConsent = 0)
 {
     public const int CurrentVersion = 1;
+
+    /// <summary>The version of what is shared: 1, probe findings only; 2, run findings too (refusals, filters kept local,
+    /// permission mismatches, limits hit).</summary>
+    public const int CurrentTelemetryConsent = 2;
 
     public static AppSettings Default { get; } = new(CurrentVersion, "dark", "beta", new SignInDefaults(null, null), LimitSettings.Default);
 }
@@ -101,14 +106,22 @@ public sealed class SettingsService(JsonFileStore store, ILogger<SettingsService
             _log.LogWarning("{File} could not be read; it was moved aside and the default settings are used", FileName);
         }
 
-        return read.Value;
+        // A yes given to sharing less than is shared now isn't a yes to this: ask again.
+        return read.Value is { Telemetry: true, TelemetryConsent: < AppSettings.CurrentTelemetryConsent }
+            ? read.Value with { Telemetry = null }
+            : read.Value;
     }
 
-    /// <summary>Checks <paramref name="value"/>, writes it as version 1 and returns what was stored. Throws
+    /// <summary>Checks <paramref name="value"/>, writes it as version 1 and returns what was stored. An answer on sharing is
+    /// stored as given to what is shared now (<see cref="AppSettings.CurrentTelemetryConsent"/>). Throws
     /// <see cref="SettingsRejectedException"/> for a value out of range, and writes nothing then.</summary>
     public async Task<AppSettings> SetAsync(AppSettings value, CancellationToken ct = default)
     {
-        var stored = value with { Version = AppSettings.CurrentVersion };
+        var stored = value with
+        {
+            Version = AppSettings.CurrentVersion,
+            TelemetryConsent = value.Telemetry is null ? value.TelemetryConsent : AppSettings.CurrentTelemetryConsent,
+        };
         if (Problem(stored) is { } problem)
         {
             throw new SettingsRejectedException(problem);
