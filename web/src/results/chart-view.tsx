@@ -18,7 +18,7 @@ import {
 } from 'recharts';
 import type { ResultColumn } from '../wire';
 import type { Row } from './export';
-import { CHART_TYPES, NO_SHAPE, RENDER_HINTS, chartData, chartShape, renderHint, type ChartPoint, type ChartType } from './chart-shape';
+import { CHART_TYPES, NO_SHAPE, RENDER_HINTS, chartData, chartShape, isNumeric, renderHint, type ChartPoint, type ChartType } from './chart-shape';
 
 /** Series colours, from the theme's tokens, so they follow light and dark. */
 const COLOURS = ['var(--accent)', 'var(--warn)', 'var(--ok)', 'var(--bad)', 'var(--kw)', 'var(--fn)', 'var(--num)', 'var(--str)', 'var(--col)'];
@@ -42,16 +42,23 @@ function dateTick(value: string): string {
 
 const valueOf = (series: string) => (p: ChartPoint) => p.values[series];
 
+/** What the Chart tab's pickers override: the type, the x axis (null for the series' names) and the series. */
+interface Picked {
+  type?: ChartType;
+  x?: string | null;
+  series?: string[];
+}
+
 const RENDER_WORDS = Object.fromEntries(Object.entries(RENDER_HINTS).map(([word, type]) => [type, word])) as Record<ChartType, string>;
 
 /**
- * The Chart tab (spec 6.5): the result drawn as the chart its shape (or the query's `| render`) picks, with a type picker that
- * overrides it. Loaded on demand, so Recharts is a chunk of its own.
+ * The Chart tab (spec 6.5): the result drawn as the chart its shape (or the query's `| render`) picks, with pickers for the
+ * type, the x axis and the number columns that override it. Loaded on demand, so Recharts is a chunk of its own.
  */
 export default function ChartView({ columns, rows, kql }: { columns: ResultColumn[]; rows: Row[]; kql: string }) {
   const hint = renderHint(kql);
   const shape = chartShape(columns, rows, hint);
-  const [picked, setPicked] = useState<ChartType | null>(null);
+  const [picked, setPicked] = useState<Picked>({});
 
   if (!shape) {
     return (
@@ -61,9 +68,18 @@ export default function ChartView({ columns, rows, kql }: { columns: ResultColum
     );
   }
 
-  const type = picked ?? shape.type;
-  const spec = picked ? (chartShape(columns, rows, picked) ?? { ...shape, type: picked }) : shape;
+  const type = picked.type ?? shape.type;
+  const auto = picked.type ? (chartShape(columns, rows, picked.type) ?? { ...shape, type }) : shape;
+  // A pick that the current result has no column for (after a new run) falls back to the shape's.
+  const names = new Set(columns.map((c) => c.name));
+  const x = picked.x === undefined || (picked.x !== null && !names.has(picked.x)) || (picked.x === null && rows.length !== 1) ? auto.x : picked.x;
+  const numbers = columns.filter((c) => c.name !== x && isNumeric(c)).map((c) => c.name);
+  const chosen = (picked.series ?? auto.series).filter((s) => numbers.includes(s));
+  const spec = { type, x, series: type === 'pie' ? chosen.slice(0, 1) : chosen };
   const { series, data } = chartData(columns, rows, spec);
+  // A pie draws one series, so ticking one replaces the other.
+  const toggle = (name: string, on: boolean) =>
+    setPicked({ ...picked, series: type === 'pie' ? [name] : on ? numbers.filter((s) => s === name || spec.series.includes(s)) : spec.series.filter((s) => s !== name) });
   // Dates along the axis read as dates, whatever the chart type.
   const time = type === 'timechart' || columns.find((c) => c.name === spec.x)?.type === 'datetime';
   const xAxis = <XAxis dataKey="x" {...AXIS} tickFormatter={time ? dateTick : undefined} />;
@@ -150,7 +166,7 @@ export default function ChartView({ columns, rows, kql }: { columns: ResultColum
           style={{ height: 28 }}
           aria-label="Chart type"
           value={type}
-          onChange={(e) => setPicked(CHART_TYPES.find((t) => t.type === e.target.value)?.type ?? null)}
+          onChange={(e) => setPicked({ ...picked, type: CHART_TYPES.find((t) => t.type === e.target.value)?.type })}
         >
           {CHART_TYPES.map((t) => (
             <option key={t.type} value={t.type}>
@@ -159,10 +175,42 @@ export default function ChartView({ columns, rows, kql }: { columns: ResultColum
           ))}
         </select>
       </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12.5px]">
+        <label className="flex items-center gap-2">
+          <span className="muted">{type === 'pie' ? 'Slices' : 'X axis'}</span>
+          <select
+            className="textbox"
+            style={{ height: 28 }}
+            aria-label="X axis"
+            value={x ?? ''}
+            onChange={(e) => setPicked({ ...picked, x: e.target.value === '' ? null : e.target.value })}
+          >
+            {rows.length === 1 && <option value="">Column names</option>}
+            {columns.map((c) => (
+              <option key={c.name} value={c.name}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className="muted">Values</span>
+        {numbers.map((name) => (
+          <label key={name} className="flex items-center gap-1.5">
+            <input type="checkbox" aria-label={name} checked={spec.series.includes(name)} onChange={(e) => toggle(name, e.target.checked)} />
+            {name}
+          </label>
+        ))}
+      </div>
       <div className="min-h-0 flex-1">
-        <ResponsiveContainer width="100%" height="100%">
-          {chart}
-        </ResponsiveContainer>
+        {spec.series.length > 0 ? (
+          <ResponsiveContainer width="100%" height="100%">
+            {chart}
+          </ResponsiveContainer>
+        ) : (
+          <div className="flex h-full items-center justify-center">
+            <span className="faint text-[12px]">{numbers.length > 0 ? 'Tick a value to chart.' : 'No number columns to chart along this axis.'}</span>
+          </div>
+        )}
       </div>
     </section>
   );

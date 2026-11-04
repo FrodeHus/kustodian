@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NO_SHAPE, chartData, chartShape, renderHint } from './chart-shape';
+import { NO_SHAPE, VALUE_SERIES, chartData, chartShape, renderHint } from './chart-shape';
 
 const col = (name: string, type: string) => ({ name, type });
 
@@ -29,7 +29,11 @@ describe('chartShape', () => {
 
   it('chart_shape_timechart_for_datetime_and_number', () => {
     const columns = [col('day', 'datetime'), col('app', 'string'), col('signIns', 'long'), col('failures', 'int')];
-    expect(chartShape(columns, [['2026-10-20T00:00:00Z', 'Teams', 3, 0]])).toEqual({
+    const rows = [
+      ['2026-10-20T00:00:00Z', 'Teams', 3, 0],
+      ['2026-10-21T00:00:00Z', 'Teams', 4, 1],
+    ];
+    expect(chartShape(columns, rows)).toEqual({
       type: 'timechart',
       x: 'day',
       series: ['signIns', 'failures'],
@@ -129,6 +133,21 @@ describe('chartShape', () => {
       data: [
         { x: 'Teams', values: { n: 1, m: 2.5 } },
         { x: 'Exchange', values: { n: null, m: 4 } },
+      ],
+    });
+  });
+
+  it('chart_shape_single_row_charts_its_number_columns_side_by_side', () => {
+    const columns = [col('Count A', 'long'), col('Count B', 'long'), col('Count C', 'int')];
+    const rows = [[10, 4, 3]];
+    const spec = chartShape(columns, rows);
+    expect(spec).toEqual({ type: 'column', x: null, series: ['Count A', 'Count B', 'Count C'] });
+    expect(chartShape(columns, rows, 'pie')?.type).toBe('pie');
+    expect(chartData(columns, rows, { type: 'bar', x: null, series: ['Count A', 'Count C'] })).toEqual({
+      series: [VALUE_SERIES],
+      data: [
+        { x: 'Count A', values: { [VALUE_SERIES]: 10 } },
+        { x: 'Count C', values: { [VALUE_SERIES]: 3 } },
       ],
     });
   });
