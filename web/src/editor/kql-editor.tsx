@@ -1,7 +1,7 @@
 // Monaco first, with all its editor features: the Kusto contribution below must find them registered when it loads.
 import 'monaco-editor/esm/vs/editor/edcore.main.js';
 // The package's ESM entry by its path: it names it only as `module`, which the test runner doesn't read.
-import { getKustoWorker } from '@kusto/monaco-kusto/release/esm/monaco.contribution.js';
+import { getKustoWorker, kustoDefaults } from '@kusto/monaco-kusto/release/esm/monaco.contribution.js';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api.js';
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker.js?worker';
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
@@ -19,6 +19,13 @@ import { bindCommandKeys, bindRunKeys } from './run-keys';
 globalThis.MonacoEnvironment = {
   getWorker: (_id: string, label: string) => (label === 'kusto' ? new KustoWorker() : new EditorWorker()),
 };
+
+// `{name}` placeholders are Kustodian's own parameters (params/find-params.ts), filled in before a run, so the
+// language service's "client parameters are not supported" (KS213) doesn't apply.
+kustoDefaults.setLanguageSettings({
+  ...kustoDefaults.languageSettings,
+  disabledDiagnosticCodes: [...(kustoDefaults.languageSettings.disabledDiagnosticCodes ?? []), 'KS213'],
+});
 
 // The studio's dark tokens (styles.css); Monaco takes colours as hex, not CSS variables.
 const DARK: monaco.editor.IStandaloneThemeData = {

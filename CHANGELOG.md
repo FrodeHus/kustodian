@@ -41,6 +41,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Query parameters such as `{companyName}` are no longer underlined as errors ("Client parameters are not supported or
+  enabled").
 - On Windows, a query still running when Kustodian closed could end with an unexpected COM error instead of stopping
   cleanly.
 - Graph queries that read `roleManagement_directory_roleDefinitions` (for example to name the roles in PIM activations) no
