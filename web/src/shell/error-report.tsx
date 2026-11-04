@@ -65,7 +65,7 @@ export function ErrorReportActions({ reportId, uiSections }: { reportId?: string
           Send details
         </button>
       )}
-      {open && <SendDetailsDialog reportId={reportId} uiSections={uiSections} onClose={() => setOpen(false)} />}
+      {open && <SendDetailsDialog key={reportId} reportId={reportId} uiSections={uiSections} onClose={() => setOpen(false)} />}
     </span>
   );
 }

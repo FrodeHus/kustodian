@@ -43,6 +43,17 @@ public sealed class ErrorReporterTests : IDisposable
     private static Task Settle(ErrorReporter reporter) => reporter.FlushAsync(TimeSpan.FromSeconds(5));
 
     [Fact]
+    public void Capture_returns_an_id_even_when_keeping_the_material_throws()
+    {
+        var reporter = Reporter();
+        var broken = Capture(details: [new FullReportSection("bad", "Bad", null!, false)]);
+
+        var id = reporter.Capture(broken);
+
+        Assert.Equal(8, id.Length);
+    }
+
+    [Fact]
     public void Capture_returns_a_new_id_each_time()
     {
         var reporter = Reporter();

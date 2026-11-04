@@ -131,6 +131,16 @@ describe('Send details dialog, opened', () => {
     expect(asked).toBe(2);
   });
 
+  it('resets_the_dialog_when_a_new_error_replaces_the_old_one', async () => {
+    answer({ report, canSend: true });
+    const { rerender } = render(<ErrorReportActions reportId="K7Q2M9XD" uiSections={ui} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Send details' }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Message' }));
+    expect((screen.getByRole('checkbox', { name: 'Message' }) as HTMLInputElement).checked).toBe(false);
+    rerender(<ErrorReportActions reportId="ABCD2345" uiSections={ui} />);
+    await waitFor(() => expect((screen.getByRole('checkbox', { name: 'Message' }) as HTMLInputElement).checked).toBe(true));
+  });
+
   it('escape_closes_only_the_dialog_not_its_opener', async () => {
     answer({ report, canSend: true });
     const outer = vi.fn();

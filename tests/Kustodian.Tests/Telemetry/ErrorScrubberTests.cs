@@ -55,7 +55,7 @@ public sealed class ErrorScrubberTests
         Assert.Equal(new ErrorFrame("<external>", ""), ErrorScrubber.Frame(null, null));
         Assert.Equal(new ErrorFrame("A.B", "KustoLoco.Core"), ErrorScrubber.Frame("A.B", "KustoLoco.Core"));
 
-        // Consecutive external frames collapse into one (xunit's frames sit between a test and the runner).
+        // Consecutive external JS frames collapse into one, as .NET ones do (xunit's frames sit between a test and the runner).
         var frames = ErrorScrubber.OfJs("E", "at https://a.invalid/x.js:1:1\nat https://b.invalid/y.js:2:2")[0].Frames;
         Assert.Equal([new ErrorFrame("<external>", "")], frames);
     }
@@ -119,5 +119,42 @@ public sealed class ErrorScrubberTests
         AssertClean(result);
         Assert.Equal("Error", result.TypeName);
         Assert.Equal([new ErrorFrame("<external>", "")], result.Frames);
+    }
+
+    [Fact]
+    public void OfJs_reads_webkit_stacks()
+    {
+        const string stack = "Qe@app://localhost/assets/index-abc123.js:1:48213\n@app://localhost/assets/index-abc123.js:2:10\n"
+                             + "a.b@app://localhost/assets/index-abc123.js:3:4\nfoo@https://x.invalid/other.js:5:6\n"
+                             + "@https://x.invalid/other.js:7:8\nglobal code@[native code]";
+
+        var result = Assert.Single(ErrorScrubber.OfJs("TypeError", stack));
+
+        Assert.Equal(
+            [new ErrorFrame("Qe", "index-abc123.js:1:48213"), new ErrorFrame("<anonymous>", "index-abc123.js:2:10"),
+             new ErrorFrame("<anonymous>", "index-abc123.js:3:4"), new ErrorFrame("<external>", "")],
+            result.Frames);
+    }
+
+    [Fact]
+    public void OfJs_reads_async_and_new_frames()
+    {
+        const string stack = "    at async Qe (app://localhost/assets/index-abc123.js:1:2)\n    at new Foo (app://localhost/assets/index-abc123.js:3:4)";
+
+        var result = Assert.Single(ErrorScrubber.OfJs("Error", stack));
+
+        Assert.Equal([new ErrorFrame("Qe", "index-abc123.js:1:2"), new ErrorFrame("Foo", "index-abc123.js:3:4")], result.Frames);
+    }
+
+    [Fact]
+    public void OfJs_drops_anything_but_bundle_positions_in_webkit_lines()
+    {
+        var stack = $"{Leaky[0]}@https://x.invalid/{Leaky[4]}/a.js:1:2\n{LeakyText}@app://localhost/other/a.js:3:4\n"
+                    + $"@app://localhost/{Leaky[5]}/assets/x.js?{Leaky[1]}:5:6\n{Leaky[0]}@app://localhost/assets/index-abc123.js:7:8";
+
+        var result = Assert.Single(ErrorScrubber.OfJs("Error", stack));
+
+        AssertClean(result);
+        Assert.Equal([new ErrorFrame("<external>", ""), new ErrorFrame("<anonymous>", "index-abc123.js:7:8")], result.Frames);
     }
 }

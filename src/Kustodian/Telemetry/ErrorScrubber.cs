@@ -18,7 +18,8 @@ public static partial class ErrorScrubber
     [GeneratedRegex(@"^[A-Za-z_$][\w$]{0,63}$")]
     private static partial Regex JsName();
 
-    [GeneratedRegex(@"^\s*at\s+(?:(?<fn>[^\s(]+)\s+\((?<url>.+):(?<line>\d+):(?<col>\d+)\)|(?<url>.+):(?<line>\d+):(?<col>\d+))\s*$")]
+    // V8 (`at fn (url:l:c)`, `at url:l:c`) and WebKit/JavaScriptCore (`fn@url:l:c`, `@url:l:c`): WebView2, WKWebView, WebKitGTK.
+    [GeneratedRegex(@"^\s*(?:at\s+(?:(?:async\s+|new\s+)?(?<fn>[^\s(]+)\s+\((?<url>.+):(?<line>\d+):(?<col>\d+)\)|(?<url>.+):(?<line>\d+):(?<col>\d+))|(?<fn>[^@\s]*)@(?<url>.+):(?<line>\d+):(?<col>\d+))\s*$")]
     private static partial Regex JsFrame();
 
     [GeneratedRegex(@"/assets/(?<file>[^/?#]+\.js)$")]

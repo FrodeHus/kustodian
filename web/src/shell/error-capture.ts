@@ -1,4 +1,4 @@
-import { call } from '../bridge';
+import { BridgeError, call } from '../bridge';
 
 type Source = 'boundary' | 'error' | 'rejection';
 
@@ -20,7 +20,13 @@ export function reportUiError(e: unknown, source: Source): Promise<string | unde
 /** Reports the page's uncaught errors and unhandled rejections; returns the function that stops. */
 export function installErrorCapture(): () => void {
   const onError = (event: ErrorEvent) => void reportUiError(event.error ?? event.message, 'error');
-  const onRejection = (event: PromiseRejectionEvent) => void reportUiError(event.reason, 'rejection');
+  // A bridge error already went through the host, which captured it; a reason with a report ID has one.
+  const onRejection = (event: PromiseRejectionEvent) => {
+    if (event.reason instanceof BridgeError || (event.reason as { reportId?: unknown } | null)?.reportId) {
+      return;
+    }
+    void reportUiError(event.reason, 'rejection');
+  };
   window.addEventListener('error', onError);
   window.addEventListener('unhandledrejection', onRejection);
   return () => {

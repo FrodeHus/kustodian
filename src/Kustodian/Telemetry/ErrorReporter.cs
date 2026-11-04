@@ -54,10 +54,24 @@ public sealed class ErrorReporter(AppInsightsTelemetry telemetry, Func<Cancellat
     /// <summary>Whether a report can be sent at all: false in a build without an Application Insights connection string.</summary>
     public bool CanSend => telemetry.Configured;
 
-    /// <summary>Keeps <paramref name="capture"/>'s material, starts its automatic report if it has one, and returns its new ID.</summary>
+    /// <summary>Keeps <paramref name="capture"/>'s material, starts its automatic report if it has one, and returns its new ID.
+    /// It never throws: if keeping the material fails, the ID is still returned (and the full report is simply unavailable).</summary>
     public string Capture(ErrorCapture capture)
     {
         var id = RandomNumberGenerator.GetString(Alphabet, 8);
+        try
+        {
+            Keep(id, capture);
+        }
+        catch (Exception)
+        {
+            // Reporting an error must never become a second error in the caller's catch block.
+        }
+        return id;
+    }
+
+    private void Keep(string id, ErrorCapture capture)
+    {
         var trailText = trail.Render();
         var properties = Properties(id, capture, trailText);
         var report = new StringBuilder();
@@ -98,7 +112,6 @@ public sealed class ErrorReporter(AppInsightsTelemetry telemetry, Func<Cancellat
                 }
                 await telemetry.TrackExceptionAsync(capture.Kind, capture.Exceptions, properties, CancellationToken.None);
             });
-        return id;
     }
 
     /// <summary>The full report of <paramref name="reportId"/>, or null when it is unknown or older than 30 minutes.</summary>
