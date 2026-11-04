@@ -482,16 +482,10 @@ public sealed class GraphEnginePool : IAsyncDisposable
         {
             _logger.LogError(e, "Couldn't kill graph engine worker {WorkerId}", worker.Id);
         }
-        try
-        {
-            await worker.Process.WaitForExitAsync().WaitAsync(ExitWait);
-        }
-        catch (TimeoutException)
-        {
+        // On macOS a killed worker can read as exited before its exit code can be read; ExitCodeAsync answers null then.
+        worker.ExitCode = await ExitCodeAsync(worker);
+        if (!worker.Process.HasExited)
             _logger.LogError("Graph engine worker {WorkerId} didn't exit within {ExitWait} of being killed", worker.Id, ExitWait);
-        }
-        if (worker.Process.HasExited)
-            worker.ExitCode = worker.Process.ExitCode;
         worker.Process.Dispose();
     }
 
