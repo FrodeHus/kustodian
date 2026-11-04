@@ -45,6 +45,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- In the glass themes, the chart's hover tooltip was see-through and hard to read. It now has the same frosted dark
+  background as menus, and the band behind the hovered bar no longer glares light grey.
 - On macOS, ⌘ Enter runs the block at the cursor, as the shortcut hints say. Before, only Ctrl Enter did, and the
   editor's other ⌘ shortcuts answered to Ctrl too.
 - Query parameters such as `{companyName}` are no longer underlined as errors ("Client parameters are not supported or
