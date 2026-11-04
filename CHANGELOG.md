@@ -23,6 +23,8 @@ follow [Semantic Versioning](https://semver.org/).
   sign in.
 - The Chart tab lets you pick the x axis from the result's columns and tick which number columns to draw, for every chart
   type. A result of one row with several number columns charts those columns side by side, one bar each.
+- A **Split by** picker on the Chart tab draws a value once per value of another column, as grouped bars or one line
+  each. A result with two text columns and a number now charts this way on its own: along the first, split by the second.
 
 ### Changed
 

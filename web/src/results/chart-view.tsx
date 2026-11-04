@@ -18,7 +18,7 @@ import {
 } from 'recharts';
 import type { ResultColumn } from '../wire';
 import type { Row } from './export';
-import { CHART_TYPES, NO_SHAPE, RENDER_HINTS, chartData, chartShape, isNumeric, renderHint, type ChartPoint, type ChartType } from './chart-shape';
+import { CHART_TYPES, NO_SHAPE, RENDER_HINTS, chartData, chartShape, isCategory, isNumeric, renderHint, splitColumn, type ChartPoint, type ChartType } from './chart-shape';
 
 /** Series colours, from the theme's tokens, so they follow light and dark. */
 const COLOURS = ['var(--accent)', 'var(--warn)', 'var(--ok)', 'var(--bad)', 'var(--kw)', 'var(--fn)', 'var(--num)', 'var(--str)', 'var(--col)'];
@@ -47,6 +47,7 @@ interface Picked {
   type?: ChartType;
   x?: string | null;
   series?: string[];
+  split?: string | null;
 }
 
 const RENDER_WORDS = Object.fromEntries(Object.entries(RENDER_HINTS).map(([word, type]) => [type, word])) as Record<ChartType, string>;
@@ -75,7 +76,9 @@ export default function ChartView({ columns, rows, kql }: { columns: ResultColum
   const x = picked.x === undefined || (picked.x !== null && !names.has(picked.x)) || (picked.x === null && rows.length !== 1) ? auto.x : picked.x;
   const numbers = columns.filter((c) => c.name !== x && isNumeric(c)).map((c) => c.name);
   const chosen = (picked.series ?? auto.series).filter((s) => numbers.includes(s));
-  const spec = { type, x, series: type === 'pie' ? chosen.slice(0, 1) : chosen };
+  const splits = columns.filter((c) => c.name !== x && isCategory(c)).map((c) => c.name);
+  const split = picked.split === undefined || (picked.split !== null && !splits.includes(picked.split)) ? auto.split : picked.split;
+  const spec = { type, x, series: type === 'pie' ? chosen.slice(0, 1) : chosen, split };
   const { series, data } = chartData(columns, rows, spec);
   // A pie draws one series, so ticking one replaces the other.
   const toggle = (name: string, on: boolean) =>
@@ -193,6 +196,25 @@ export default function ChartView({ columns, rows, kql }: { columns: ResultColum
             ))}
           </select>
         </label>
+        {type !== 'pie' && x !== null && (
+          <label className="flex items-center gap-2">
+            <span className="muted">Split by</span>
+            <select
+              className="textbox"
+              style={{ height: 28 }}
+              aria-label="Split by"
+              value={splitColumn(columns, spec)?.name ?? ''}
+              onChange={(e) => setPicked({ ...picked, split: e.target.value === '' ? null : e.target.value })}
+            >
+              <option value="">None</option>
+              {splits.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <span className="muted">Values</span>
         {numbers.map((name) => (
           <label key={name} className="flex items-center gap-1.5">

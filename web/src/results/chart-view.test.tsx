@@ -106,4 +106,27 @@ describe('ChartView', () => {
     expect(screen.getByRole('option', { name: 'Column names' })).toBeTruthy();
     expect(container.querySelectorAll('[data-mark="bar"]')).toHaveLength(1);
   });
+
+  it('chart_view_split_by_is_pickable', () => {
+    const cols = [
+      { name: 'Value', type: 'long' },
+      { name: 'CompanyName', type: 'string' },
+      { name: 'Department', type: 'string' },
+    ];
+    const data = [
+      [10, 'Acme', 'HR'],
+      [20, 'Acme', 'Finance'],
+    ];
+    const { container } = render(<ChartView columns={cols} rows={data} kql="t" />);
+    const names = () => [...container.querySelectorAll('[data-mark="bar"]')].map((m) => m.getAttribute('data-name'));
+    const split = screen.getByRole('combobox', { name: 'Split by' });
+    expect(split).toHaveProperty('value', 'Department');
+    expect(names()).toEqual(['HR', 'Finance']);
+
+    fireEvent.change(split, { target: { value: '' } });
+    expect(names()).toEqual(['Value']);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Chart type' }), { target: { value: 'pie' } });
+    expect(screen.queryByRole('combobox', { name: 'Split by' })).toBeNull();
+  });
 });
+

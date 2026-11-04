@@ -4,11 +4,13 @@ import { cellText, type Row } from './export';
 export type ChartType = 'column' | 'bar' | 'line' | 'area' | 'pie' | 'timechart';
 
 /** What to chart: its type, the column along the x axis (or the pie's slices), and the number columns to plot. An `x` of null
- * puts the series' names along the axis instead, each drawn with its value from the result's first row. */
+ * puts the series' names along the axis instead, each drawn with its value from the result's first row. `split` names the
+ * category column whose values become series (see {@link splitColumn}): null for none, left out to let the result decide. */
 export interface ChartSpec {
   type: ChartType;
   x: string | null;
   series: string[];
+  split?: string | null;
 }
 
 /** The one series of a chart whose x axis is the series' names ({@link ChartSpec} `x` of null). */
@@ -77,15 +79,16 @@ const isText = (c: ResultColumn) => c.type === 'string';
 /** A column whose values name groups: text first, then the other single values (true/false, GUIDs, durations). Not `dynamic`,
  * whose arrays and objects make poor labels. */
 const CATEGORY = ['string', 'bool', 'guid', 'timespan'];
-const isCategory = (c: ResultColumn) => CATEGORY.includes(c.type);
+export const isCategory = (c: ResultColumn) => CATEGORY.includes(c.type);
 const byCategory = (a: ResultColumn, b: ResultColumn) => CATEGORY.indexOf(a.type) - CATEGORY.indexOf(b.type);
 
 /**
  * How to chart a result. A single row with two or more number columns charts those columns side by side (`x` of null), as a
  * column chart unless a `renderHint` picks another type. Otherwise a `renderHint` picks the type: the x axis is the first date column (the first category column for a
  * pie), else the first category column (text before true/false, GUID and duration), else the first column that isn't a number;
- * the series are the number columns. With no hint, a date column and number columns make a time chart, and one category column
- * and one number column make a column chart (20 rows or fewer) or a bar chart. Anything else is null: see {@link NO_SHAPE}.
+ * the series are the number columns. With no hint, a date column and number columns make a time chart, one category column
+ * and one number column make a column chart (20 rows or fewer) or a bar chart, and two or more category columns with number
+ * columns make the same, along the first and split by the second. Anything else is null: see {@link NO_SHAPE}.
  */
 export function chartShape(columns: ResultColumn[], rows: Row[], renderHint?: ChartType): ChartSpec | null {
   const numbers = columns.filter(isNumeric);
@@ -111,6 +114,10 @@ export function chartShape(columns: ResultColumn[], rows: Row[], renderHint?: Ch
   if (categories.length === 1 && numbers.length === 1 && category && number) {
     return { type: rows.length <= 20 ? 'column' : 'bar', x: category.name, series: [number.name] };
   }
+  const split = categories[1];
+  if (category && split && numbers.length > 0) {
+    return { type: rows.length <= 20 ? 'column' : 'bar', x: category.name, series: numbers.map((c) => c.name), split: split.name };
+  }
   return null;
 }
 
@@ -130,10 +137,28 @@ export interface ChartPoint {
 }
 
 /**
- * The points to draw, one per x value in the order they first appear. A single series is split into one series per value of
- * the result's one other text column, when it has one (as `summarize count() by app, bin(day)` charts a series per app), or
- * else its one other category column (as `by enabled, bin(day)` charts a series for true and one for false); otherwise each
- * row is a point and the series are the spec's.
+ * The category column whose values become series: the spec's `split` when it names a category column other than `x`, none
+ * when it is null or the chart is a pie or has the series' names along its axis. Left out, a single series is split by the
+ * result's one other text column, when it has one (as `summarize count() by app, bin(day)` charts a series per app), or else
+ * its one other category column (as `by enabled, bin(day)` charts a series for true and one for false).
+ */
+export function splitColumn(columns: ResultColumn[], spec: ChartSpec): ResultColumn | undefined {
+  if (spec.split === null || spec.type === 'pie' || spec.x === null) {
+    return undefined;
+  }
+  const others = columns.filter((c) => isCategory(c) && c.name !== spec.x);
+  if (spec.split !== undefined) {
+    return others.find((c) => c.name === spec.split);
+  }
+  const texts = others.filter(isText);
+  const splits = texts.length > 0 ? texts : others;
+  return spec.series.length === 1 && splits.length === 1 ? splits[0] : undefined;
+}
+
+/**
+ * The points to draw, one per x value in the order they first appear. With a {@link splitColumn}, each series is drawn once per
+ * value of that column (named by the value, and by the series too when there are several); otherwise each row is a point and
+ * the series are the spec's.
  */
 export function chartData(columns: ResultColumn[], unsorted: Row[], spec: ChartSpec): { series: string[]; data: ChartPoint[] } {
   const index = (name: string) => columns.findIndex((c) => c.name === name);
@@ -146,10 +171,7 @@ export function chartData(columns: ResultColumn[], unsorted: Row[], spec: ChartS
   // Along a date or number axis the points go in order of x, however the rows came.
   const order = xColumn && isDate(xColumn) ? (v: unknown) => Date.parse(String(v)) : xColumn && isNumeric(xColumn) ? Number : undefined;
   const rows = order ? sortBy(unsorted, (row) => (row[xAt] === null || row[xAt] === undefined ? NaN : order(row[xAt]))) : unsorted;
-  const others = columns.filter((c) => isCategory(c) && c.name !== spec.x);
-  const texts = others.filter(isText);
-  const splits = texts.length > 0 ? texts : others;
-  const split = spec.series.length === 1 && spec.type !== 'pie' && splits.length === 1 ? splits[0] : undefined;
+  const split = splitColumn(columns, spec);
 
   if (!split) {
     const at = spec.series.map(index);
@@ -159,16 +181,17 @@ export function chartData(columns: ResultColumn[], unsorted: Row[], spec: ChartS
     };
   }
 
-  const valueAt = index(spec.series[0] ?? '');
   const splitAt = index(split.name);
   const series = new Set<string>();
   const points = new Map<string, ChartPoint>();
   for (const row of rows) {
     const x = cellText(row[xAt]);
-    const name = cellText(row[splitAt]);
-    series.add(name);
     const point = points.get(x) ?? { x, values: {} };
-    point.values[name] = row[valueAt] ?? null;
+    for (const s of spec.series) {
+      const name = spec.series.length > 1 ? `${cellText(row[splitAt])} · ${s}` : cellText(row[splitAt]);
+      series.add(name);
+      point.values[name] = row[index(s)] ?? null;
+    }
     points.set(x, point);
   }
   return { series: [...series], data: [...points.values()] };
