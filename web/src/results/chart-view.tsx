@@ -25,9 +25,19 @@ const COLOURS = ['var(--accent)', 'var(--warn)', 'var(--ok)', 'var(--bad)', 'var
 const colour = (i: number) => COLOURS[i % COLOURS.length];
 
 const AXIS = { stroke: 'var(--line)', tick: { fill: 'var(--muted)', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' } };
+// The glass themes' --panel is near see-through, so over the chart the tooltip takes their menu background, as menus do.
 const TOOLTIP = {
-  contentStyle: { background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 8, color: 'var(--text)', fontSize: 12 },
+  contentStyle: {
+    background: 'var(--glass-menu, var(--panel))',
+    backdropFilter: 'var(--glass-blur)',
+    border: '1px solid var(--line)',
+    borderRadius: 8,
+    color: 'var(--text)',
+    fontSize: 12,
+  },
   labelStyle: { color: 'var(--muted)' },
+  // Recharts' own hover band is light grey, glaring on dark themes.
+  cursor: { fill: 'var(--raise)', stroke: 'var(--line)' },
 };
 
 /** A date along a time chart's axis: day and month, and the time when it isn't midnight. */
