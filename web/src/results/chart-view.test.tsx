@@ -70,4 +70,40 @@ describe('ChartView', () => {
     expect(screen.getByText('This result has no shape to chart: it needs a text, true/false or date column and a number column.')).toBeTruthy();
     expect(screen.queryByRole('combobox', { name: 'Chart type' })).toBeNull();
   });
+
+  it('chart_view_axis_and_values_are_pickable', () => {
+    const cols = [
+      { name: 'app', type: 'string' },
+      { name: 'os', type: 'string' },
+      { name: 'n', type: 'long' },
+      { name: 'm', type: 'long' },
+    ];
+    const data = [
+      ['Teams', 'iOS', 3, 1],
+      ['Exchange', 'Windows', 5, 2],
+    ];
+    const { container } = render(<ChartView columns={cols} rows={data} kql="t | render columnchart" />);
+    const names = () => [...container.querySelectorAll('[data-mark="bar"]')].map((m) => m.getAttribute('data-name'));
+    expect(screen.getByRole('combobox', { name: 'X axis' })).toHaveProperty('value', 'app');
+    expect(names()).toEqual(['n', 'm']);
+
+    // One value left is split by the other text column.
+    fireEvent.click(screen.getByRole('checkbox', { name: 'm' }));
+    expect(names()).toEqual(['iOS', 'Windows']);
+    fireEvent.change(screen.getByRole('combobox', { name: 'X axis' }), { target: { value: 'os' } });
+    expect(screen.getByRole('combobox', { name: 'X axis' })).toHaveProperty('value', 'os');
+    fireEvent.click(screen.getByRole('checkbox', { name: 'n' }));
+    expect(screen.getByText('Tick a value to chart.')).toBeTruthy();
+  });
+
+  it('chart_view_single_row_offers_column_names', () => {
+    const cols = [
+      { name: 'Count A', type: 'long' },
+      { name: 'Count B', type: 'long' },
+    ];
+    const { container } = render(<ChartView columns={cols} rows={[[10, 4]]} kql="t" />);
+    expect(screen.getByRole('combobox', { name: 'X axis' })).toHaveProperty('value', '');
+    expect(screen.getByRole('option', { name: 'Column names' })).toBeTruthy();
+    expect(container.querySelectorAll('[data-mark="bar"]')).toHaveLength(1);
+  });
 });
