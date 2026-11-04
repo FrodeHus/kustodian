@@ -7,6 +7,6 @@ export default defineConfig({
   // Assets resolve relative to index.html, so they load from the app origin (app:// or, on Windows, https://kustodian.invalid).
   base: './',
   plugins: [react(), tailwindcss()],
-  build: { outDir: 'dist' },
+  build: { outDir: 'dist', sourcemap: 'hidden' },
   test: { environment: 'jsdom', setupFiles: ['./src/test/setup.ts'], css: { include: [/\.css\?raw$/] } },
 });

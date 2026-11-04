@@ -86,7 +86,8 @@
           BeforeTargets="AssignTargetPaths">
     <ItemGroup>
       <!-- Items made inside a target can't read their own %(RecursiveDir): list the files first, then batch over that list. -->
-      <KustodianWebFile Include="$(KustodianWebDist)**\*" />
+      <!-- The hidden source maps stay out of the app; the release attaches them (docs/releasing.md). -->
+      <KustodianWebFile Include="$(KustodianWebDist)**\*" Exclude="$(KustodianWebDist)**\*.map" />
       <EmbeddedResource Include="@(KustodianWebFile)" LogicalName="wwwroot/$([System.String]::Copy('%(KustodianWebFile.RecursiveDir)').Replace('\', '/'))%(KustodianWebFile.Filename)%(KustodianWebFile.Extension)" />
     </ItemGroup>
   </Target>
