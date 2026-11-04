@@ -3,12 +3,16 @@ import { cellText, type Row } from './export';
 
 export type ChartType = 'column' | 'bar' | 'line' | 'area' | 'pie' | 'timechart';
 
-/** What to chart: its type, the column along the x axis (or the pie's slices), and the number columns to plot. */
+/** What to chart: its type, the column along the x axis (or the pie's slices), and the number columns to plot. An `x` of null
+ * puts the series' names along the axis instead, each drawn with its value from the result's first row. */
 export interface ChartSpec {
   type: ChartType;
-  x: string;
+  x: string | null;
   series: string[];
 }
+
+/** The one series of a chart whose x axis is the series' names ({@link ChartSpec} `x` of null). */
+export const VALUE_SERIES = 'Value';
 
 export const CHART_TYPES: { type: ChartType; name: string }[] = [
   { type: 'column', name: 'Column' },
@@ -67,7 +71,7 @@ export function renderHint(kql: string): ChartType | undefined {
 }
 
 const NUMERIC = new Set(['int', 'long', 'real', 'decimal', 'double']);
-const isNumeric = (c: ResultColumn) => NUMERIC.has(c.type);
+export const isNumeric = (c: ResultColumn) => NUMERIC.has(c.type);
 const isDate = (c: ResultColumn) => c.type === 'datetime';
 const isText = (c: ResultColumn) => c.type === 'string';
 /** A column whose values name groups: text first, then the other single values (true/false, GUIDs, durations). Not `dynamic`,
@@ -77,7 +81,8 @@ const isCategory = (c: ResultColumn) => CATEGORY.includes(c.type);
 const byCategory = (a: ResultColumn, b: ResultColumn) => CATEGORY.indexOf(a.type) - CATEGORY.indexOf(b.type);
 
 /**
- * How to chart a result. A `renderHint` picks the type: the x axis is the first date column (the first category column for a
+ * How to chart a result. A single row with two or more number columns charts those columns side by side (`x` of null), as a
+ * column chart unless a `renderHint` picks another type. Otherwise a `renderHint` picks the type: the x axis is the first date column (the first category column for a
  * pie), else the first category column (text before true/false, GUID and duration), else the first column that isn't a number;
  * the series are the number columns. With no hint, a date column and number columns make a time chart, and one category column
  * and one number column make a column chart (20 rows or fewer) or a bar chart. Anything else is null: see {@link NO_SHAPE}.
@@ -86,6 +91,9 @@ export function chartShape(columns: ResultColumn[], rows: Row[], renderHint?: Ch
   const numbers = columns.filter(isNumeric);
   const dates = columns.filter(isDate);
   const categories = columns.filter(isCategory).sort(byCategory);
+  if (rows.length === 1 && numbers.length > 1) {
+    return { type: renderHint ?? 'column', x: null, series: numbers.map((c) => c.name) };
+  }
   if (renderHint) {
     const x =
       renderHint === 'pie'
@@ -129,6 +137,10 @@ export interface ChartPoint {
  */
 export function chartData(columns: ResultColumn[], unsorted: Row[], spec: ChartSpec): { series: string[]; data: ChartPoint[] } {
   const index = (name: string) => columns.findIndex((c) => c.name === name);
+  if (spec.x === null) {
+    const row = unsorted[0] ?? [];
+    return { series: [VALUE_SERIES], data: spec.series.map((s) => ({ x: s, values: { [VALUE_SERIES]: row[index(s)] ?? null } })) };
+  }
   const xAt = index(spec.x);
   const xColumn = columns[xAt];
   // Along a date or number axis the points go in order of x, however the rows came.

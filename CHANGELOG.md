@@ -19,6 +19,8 @@ follow [Semantic Versioning](https://semver.org/).
 - A query refused for permission offers **Refresh access**, which gets a new access token so a role you activated since
   (through PIM, say) counts, then runs the query again. When the token can't be refreshed silently, the browser opens to
   sign in.
+- The Chart tab lets you pick the x axis from the result's columns and tick which number columns to draw, for every chart
+  type. A result of one row with several number columns charts those columns side by side, one bar each.
 
 ### Changed
 
