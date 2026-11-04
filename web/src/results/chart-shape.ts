@@ -38,7 +38,7 @@ export const RENDER_HINTS: Record<string, ChartType> = {
   timechart: 'timechart',
 };
 
-const RENDER = /\|\s*render\s+(\w+)/i;
+const RENDER = /\|\s*render\s+(\w+)/gi;
 
 /** A line without its trailing `//` comment. A `//` inside a quoted string (such as a URL) is not a comment. */
 function withoutComment(line: string): string {
@@ -60,16 +60,96 @@ function withoutComment(line: string): string {
   return line;
 }
 
-/** The chart a query's `| render` asks for: from the last line that has one, leaving out comments. Undefined when there is
- * none, or it names a visualization Kustodian doesn't draw. */
+/** A query's last `| render`, leaving out comments: its visualization, and the text after it. */
+function lastRender(kql: string): { word: string; rest: string } | undefined {
+  const text = kql.split(/\r\n|\r|\n/).map(withoutComment).join('\n');
+  const match = [...text.matchAll(RENDER)].at(-1);
+  return match?.[1] ? { word: match[1].toLowerCase(), rest: text.slice(match.index + match[0].length) } : undefined;
+}
+
+/** The chart a query's `| render` asks for: from the last one, leaving out comments. Undefined when there is none, or it names
+ * a visualization Kustodian doesn't draw. */
 export function renderHint(kql: string): ChartType | undefined {
-  const line = kql
-    .split(/\r\n|\r|\n/)
-    .map(withoutComment)
-    .filter((l) => RENDER.test(l))
-    .at(-1);
-  const word = line?.match(RENDER)?.[1]?.toLowerCase();
+  const word = lastRender(kql)?.word;
   return word ? RENDER_HINTS[word] : undefined;
+}
+
+/** How bars and areas share the value axis: side by side (or overlapping), stacked, or stacked to 100%. */
+export type Stack = 'none' | 'stacked' | 'stacked100';
+
+/** The `with (...)` properties of a query's `| render` that the Chart tab follows. Column names are as written; ones the
+ * result doesn't have are ignored where they're used. */
+export interface RenderOptions {
+  xcolumn?: string;
+  ycolumns?: string[];
+  series?: string[];
+  title?: string;
+  stack?: Stack;
+}
+
+/** A property value without its quotes, or a `['name']` column name without its brackets. */
+function unquote(value: string): string {
+  const quoted = /^\[?\s*(["'])([\s\S]*)\1\s*\]?$/.exec(value);
+  return quoted?.[2] !== undefined ? quoted[2].replace(/\\(.)/g, '$1') : value;
+}
+
+/**
+ * The properties of the last `| render ... with (name=value, ...)`. A comma separates properties and also the names in a list
+ * (`ycolumns=a, b`): a part with no `name=` of its own belongs to the property before it. Commas and parentheses inside quotes
+ * are text. `kind` gives the stacking: `stacked`, `stacked100`, otherwise none.
+ */
+export function renderOptions(kql: string): RenderOptions {
+  const rest = lastRender(kql)?.rest ?? '';
+  const open = /^\s*with\s*\(/i.exec(rest);
+  if (!open) {
+    return {};
+  }
+  const props = new Map<string, string[]>();
+  let last: string[] | undefined;
+  let part = '';
+  const flush = () => {
+    const text = part.trim();
+    part = '';
+    const named = /^(\w+)\s*=\s*([\s\S]*)$/.exec(text);
+    if (named?.[1] && named[2] !== undefined) {
+      last = [unquote(named[2].trim())];
+      props.set(named[1].toLowerCase(), last);
+    } else if (text) {
+      last?.push(unquote(text));
+    }
+  };
+  let quote: string | null = null;
+  for (let i = open[0].length; i < rest.length; i++) {
+    const ch = rest[i] ?? '';
+    if (quote) {
+      if (ch === '\\') {
+        part += ch + (rest[++i] ?? '');
+        continue;
+      }
+      if (ch === quote) {
+        quote = null;
+      }
+      part += ch;
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+      part += ch;
+    } else if (ch === ',' || ch === ')') {
+      flush();
+      if (ch === ')') {
+        break;
+      }
+    } else {
+      part += ch;
+    }
+  }
+  const kind = props.get('kind')?.[0]?.toLowerCase();
+  return {
+    xcolumn: props.get('xcolumn')?.[0],
+    ycolumns: props.get('ycolumns'),
+    series: props.get('series'),
+    title: props.get('title')?.[0],
+    stack: kind === 'stacked' || kind === 'stacked100' ? kind : undefined,
+  };
 }
 
 const NUMERIC = new Set(['int', 'long', 'real', 'decimal', 'double']);
@@ -89,8 +169,29 @@ const byCategory = (a: ResultColumn, b: ResultColumn) => CATEGORY.indexOf(a.type
  * the series are the number columns. With no hint, a date column and number columns make a time chart, one category column
  * and one number column make a column chart (20 rows or fewer) or a bar chart, and two or more category columns with number
  * columns make the same, along the first and split by the second. Anything else is null: see {@link NO_SHAPE}.
+ *
+ * A `render`'s `options` then name the x axis (`xcolumn`), the number columns (`ycolumns`) and the split (the first `series`
+ * column that is a category column), where the result has those columns.
  */
-export function chartShape(columns: ResultColumn[], rows: Row[], renderHint?: ChartType): ChartSpec | null {
+export function chartShape(columns: ResultColumn[], rows: Row[], renderHint?: ChartType, options: RenderOptions = {}): ChartSpec | null {
+  const named = (name?: string) => columns.find((c) => c.name === name);
+  const xcolumn = named(options.xcolumn);
+  const spec = baseShape(columns, rows, renderHint, xcolumn);
+  if (!spec) {
+    return null;
+  }
+  const x = xcolumn?.name ?? spec.x;
+  const ycolumns = (options.ycolumns ?? []).filter((n) => {
+    const c = named(n);
+    return c !== undefined && c.name !== x && isNumeric(c);
+  });
+  const series = ycolumns.length > 0 ? ycolumns : spec.series.filter((s) => s !== x);
+  const split = options.series?.map(named).find((c) => c && isCategory(c) && c.name !== x)?.name;
+  return series.length > 0 ? { ...spec, x, series: spec.type === 'pie' ? series.slice(0, 1) : series, ...(split ? { split } : {}) } : null;
+}
+
+/** {@link chartShape} before a `render`'s options, but for an `xcolumn` the hint's x axis is that column. */
+function baseShape(columns: ResultColumn[], rows: Row[], renderHint: ChartType | undefined, xcolumn: ResultColumn | undefined): ChartSpec | null {
   const numbers = columns.filter(isNumeric);
   const dates = columns.filter(isDate);
   const categories = columns.filter(isCategory).sort(byCategory);
@@ -99,9 +200,10 @@ export function chartShape(columns: ResultColumn[], rows: Row[], renderHint?: Ch
   }
   if (renderHint) {
     const x =
-      renderHint === 'pie'
+      xcolumn ??
+      (renderHint === 'pie'
         ? (categories[0] ?? dates[0] ?? columns.find((c) => !isNumeric(c)))
-        : (dates[0] ?? categories[0] ?? columns.find((c) => !isNumeric(c)));
+        : (dates[0] ?? categories[0] ?? columns.find((c) => !isNumeric(c))));
     const series = numbers.filter((c) => c !== x).map((c) => c.name);
     return x && series.length > 0 ? { type: renderHint, x: x.name, series: renderHint === 'pie' ? series.slice(0, 1) : series } : null;
   }

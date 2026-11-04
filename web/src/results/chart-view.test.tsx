@@ -6,12 +6,16 @@ import ChartView from './chart-view';
 // jsdom has no layout for Recharts to measure: each chart stands in as an element naming its kind and series.
 vi.mock('recharts', () => {
   const chart = (kind: string) =>
-    function Chart({ children }: { children?: ReactNode }) {
-      return <div data-chart={kind}>{children}</div>;
+    function Chart({ children, stackOffset }: { children?: ReactNode; stackOffset?: string }) {
+      return (
+        <div data-chart={kind} data-offset={stackOffset}>
+          {children}
+        </div>
+      );
     };
   const mark = (kind: string) =>
-    function Mark({ name, fill, stroke }: { name?: string; fill?: string; stroke?: string }) {
-      return <span data-mark={kind} data-name={name} data-colour={fill ?? stroke} />;
+    function Mark({ name, fill, stroke, stackId }: { name?: string; fill?: string; stroke?: string; stackId?: string }) {
+      return <span data-mark={kind} data-name={name} data-colour={fill ?? stroke} data-stack={stackId} />;
     };
   const none = () => null;
   return {
@@ -128,5 +132,33 @@ describe('ChartView', () => {
     fireEvent.change(screen.getByRole('combobox', { name: 'Chart type' }), { target: { value: 'pie' } });
     expect(screen.queryByRole('combobox', { name: 'Split by' })).toBeNull();
   });
-});
 
+  it('chart_view_follows_render_properties_and_stacking_is_pickable', () => {
+    const cols = [
+      { name: 'Value', type: 'long' },
+      { name: 'Other', type: 'long' },
+      { name: 'CompanyName', type: 'string' },
+      { name: 'Department', type: 'string' },
+    ];
+    const data = [
+      [10, 1, 'Acme', 'HR'],
+      [20, 2, 'Acme', 'Finance'],
+    ];
+    const kql = 't\n| render columnchart with (kind=stacked, xcolumn=Department, ycolumns=Value, series=CompanyName, title="Headcount")';
+    const { container } = render(<ChartView columns={cols} rows={data} kql={kql} />);
+    const marks = () => [...container.querySelectorAll('[data-mark="bar"]')];
+    expect(screen.getByText('Headcount')).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: 'X axis' })).toHaveProperty('value', 'Department');
+    expect(screen.getByRole('combobox', { name: 'Split by' })).toHaveProperty('value', 'CompanyName');
+    expect(screen.getByRole('checkbox', { name: 'Other' })).toHaveProperty('checked', false);
+    expect(screen.getByRole('combobox', { name: 'Stacking' })).toHaveProperty('value', 'stacked');
+    expect(marks().map((m) => m.getAttribute('data-stack'))).toEqual(['stack']);
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Stacking' }), { target: { value: 'stacked100' } });
+    expect(container.querySelector('[data-chart="bar"]')?.getAttribute('data-offset')).toBe('expand');
+    fireEvent.change(screen.getByRole('combobox', { name: 'Stacking' }), { target: { value: 'none' } });
+    expect(marks()[0]?.getAttribute('data-stack')).toBeNull();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Chart type' }), { target: { value: 'line' } });
+    expect(screen.queryByRole('combobox', { name: 'Stacking' })).toBeNull();
+  });
+});
