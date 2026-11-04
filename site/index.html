@@ -334,11 +334,11 @@ GitHub
 <div>
 <p class="k-label">Privacy &amp; security</p>
 <h2 class="k-h2" id="privacy-h">Your tenant.<br>Your machine.</h2>
-<p class="k-lead">Kustodian is a desktop app that signs in as you. There is no Kustodian service in the middle, and nothing leaves your machine except calls to Microsoft, and Graph compatibility findings if you choose to share them.</p>
+<p class="k-lead">Kustodian is a desktop app that signs in as you. There is no Kustodian service in the middle, and nothing leaves your machine except calls to Microsoft, and, if you choose, Graph compatibility findings and error reports. A full report for a single error is sent only when you look at it and click Send.</p>
 </div>
 <dl class="k-facts">
 <div class="k-fact"><dt>Network</dt><dd>Talks only to Microsoft’s APIs.</dd></div>
-<div class="k-fact"><dt>Telemetry</dt><dd>Off unless you opt in. Then only which Graph tables refuse which query options is shared, never your tenant, queries or data. <a href="telemetry.html">What is shared</a>.</dd></div>
+<div class="k-fact"><dt>Telemetry</dt><dd>Off unless you opt in. Then only which Graph tables refuse which query options, and short error reports with no messages or values, are shared, with no tenant, queries or data in them. A full report, which may hold tenant data, is sent only after you have seen it and clicked Send. <a href="telemetry.html">What is shared</a>.</dd></div>
 <div class="k-fact"><dt>Tokens</dt><dd>Cached in the OS keychain (DPAPI, Keychain or libsecret), never written in plain text.</dd></div>
 <div class="k-fact"><dt>Your data</dt><dd>Settings, saved queries, snippets, history and tabs are local JSON files.</dd></div>
 <div class="k-fact"><dt>Sign-in</dt><dd>Delegated, with your work account. Use the Azure CLI’s public client, your own app registration, or let Kustodian create one. <a href="#permissions">How permissions work</a>.</dd></div>

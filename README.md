@@ -73,6 +73,11 @@ Kustodian talks only to Microsoft's APIs. Tokens are cached in the OS keychain (
 written in plain text. Settings, saved queries, snippets, history and open tabs are local JSON files in `%APPDATA%\Kustodian`,
 `~/Library/Application Support/Kustodian` or `~/.config/kustodian`.
 
+Sharing is off unless you opt in. With error reports on, a bug in Kustodian (such as the query engine crashing) sends one short
+report: error types, method names, the app version and OS, and the last few steps as codes. It never holds error messages, queries,
+values, results, IDs, file paths or your tenant. Every error also has a report ID and a **Send details** link that shows the whole
+report, which may contain tenant data, and sends it only when you click Send. See [what is shared](https://frodehus.github.io/kustodian/telemetry.html).
+
 Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
 
 ## Building from source
