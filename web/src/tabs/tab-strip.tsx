@@ -52,7 +52,13 @@ export function TabStrip({ onDialog }: { onDialog?: (open: boolean) => void } = 
   const [picking, setPicking] = useState<{ id: string; left: number; top: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const pickRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const confirming = closing !== null;
+
+  // The strip scrolls sideways when the tabs don't fit: the active one is kept in view.
+  useEffect(() => {
+    listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [activeId, tabs.length]);
 
   useEffect(() => {
     onDialog?.(confirming);
@@ -153,7 +159,7 @@ export function TabStrip({ onDialog }: { onDialog?: (open: boolean) => void } = 
 
   return (
     <div className="tabs">
-      <div role="tablist" aria-label="Open queries" className="flex items-end gap-0.5 overflow-x-auto">
+      <div ref={listRef} role="tablist" aria-label="Open queries" className="flex items-end gap-0.5 overflow-x-auto">
         {tabs.map((tab) => (
           <div key={tab.id} className={`tab${tab.id === activeId ? ' on' : ''}`}>
             {tab.source !== 'raw' && (

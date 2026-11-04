@@ -26,6 +26,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 - The title bar and the tab strip are one bar, so queries get more room. Settings and accounts moved into a menu on the
   account button.
+- With many tabs open, the tabs scroll sideways without a scrollbar and the active one stays in view; the account button
+  no longer wraps onto two lines.
 - The Graph schema is regenerated from the latest beta metadata (msgraph-metadata@690154d).
 - The status bar says "Built-in Graph schema" and its date instead of the schema's full source, which no longer squeezes
   the rest of the bar. Hover it for the source.
