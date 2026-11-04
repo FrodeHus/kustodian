@@ -1,6 +1,6 @@
 {
-  "source": "msgraph-metadata@4c15d2c64f66348a6a2ff7227655c64a14ad39b7; permissions https://raw.githubusercontent.com/microsoftgraph/microsoft-graph-devx-content/master/permissions/new/permissions.json",
-  "generatedAt": "2026-11-03T06:30:03.44533+00:00",
+  "source": "msgraph-metadata@690154db7b24571a66b5494ab14a14a96182ebbf; permissions https://raw.githubusercontent.com/microsoftgraph/microsoft-graph-devx-content/master/permissions/new/permissions.json",
+  "generatedAt": "2026-11-04T05:19:55.2130236+00:00",
   "tables": [
     {
       "name": "accessReviewDecisions",
@@ -6148,6 +6148,13 @@
           "type": "string",
           "description": "",
           "selectOnly": false
+        },
+        {
+          "name": "valueObject",
+          "type": "dynamic",
+          "description": "The native JSON representation of a complex setting, or null for scalar settings.",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.copilotPolicySettingValueObject"
         }
       ]
     },
@@ -23533,13 +23540,13 @@
         {
           "name": "adDomainPassword",
           "type": "string",
-          "description": "The password associated with adDomainUsername.",
+          "description": "The password associated with adDomainUsername. This deprecated property is retained for backward compatibility and will be removed on December 31, 2026. Going forward use the domainJoinCredential property instead. If both properties are provided, domainJoinCredential takes precedence.",
           "selectOnly": false
         },
         {
           "name": "adDomainUsername",
           "type": "string",
-          "description": "The username of an Active Directory account (user or service account) that has permissions to create computer objects in Active Directory. Required format: admin@contoso.com. Optional.",
+          "description": "The username of an Active Directory account that has permissions to create computer objects in Active Directory. This deprecated property is retained for backward compatibility and will be removed on December 31, 2026. Going forward use the domainJoinCredential/domainUserPrincipalName property instead.",
           "selectOnly": false
         },
         {
@@ -23559,6 +23566,13 @@
           "type": "string",
           "description": "The display name for the Azure network connection.",
           "selectOnly": false
+        },
+        {
+          "name": "domainJoinCredential",
+          "type": "dynamic",
+          "description": "The Active Directory credential that Windows 365 uses to join Cloud PCs to the on-premises domain. Set @odata.type to #microsoft.graph.cloudPcPlainTextDomainJoinCredential to supply the username and password directly, or to #microsoft.graph.cloudPcKeyVaultDomainJoinCredential to retrieve the password from a customer-owned Azure Key Vault. Takes precedence over the deprecated adDomainPassword property when both are supplied.",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.cloudPcDomainJoinCredential"
         },
         {
           "name": "healthCheckPaused",
@@ -23582,7 +23596,7 @@
         {
           "name": "healthCheckStatusDetails",
           "type": "dynamic",
-          "description": "The details of the connection's health checks and the corresponding results. Returned only on $select. For an example that shows how to get the inUse property, see Example 2: Get the selected properties of an Azure network connection, including healthCheckStatusDetails. Read-only.",
+          "description": "Indicates the health checks for the connection and their respective results. Returned only on $select. For an example that shows how to get the inUse property, see Example 2: Get the selected properties of an Azure network connection, including healthCheckStatusDetails. Read-only. The healthCheckStatusDetails property is deprecated and stopped returning data on January 31, 2024. Going forward, use the healthCheckStatusDetail property.",
           "selectOnly": true,
           "complexType": "microsoft.graph.cloudPcOnPremisesConnectionStatusDetails"
         },
@@ -31430,6 +31444,12 @@
           "selectOnly": false
         },
         {
+          "name": "mailboxId",
+          "type": "string",
+          "description": "The identifier of the Exchange mailbox associated with a Microsoft 365 group. Treat this value as an opaque identifier and don't parse or validate its format. If the group mailbox isn't provisioned, this property returns 00000000-0000-0000-0000-000000000000. Requires $select to retrieve. Read-only.",
+          "selectOnly": true
+        },
+        {
           "name": "mailEnabled",
           "type": "bool",
           "description": "Specifies whether the group is mail-enabled. Required. Returned by default. Supports $filter (eq, ne, not, and eq on null values).",
@@ -34076,6 +34096,85 @@
           "description": "Ticketing-related metadata that you can use to correlate to the request.",
           "selectOnly": false,
           "complexType": "microsoft.graph.ticketInfo"
+        }
+      ]
+    },
+    {
+      "name": "identityGovernance_privilegedAccess_customExtensions",
+      "path": "identityGovernance/privilegedAccess/customExtensions",
+      "entityType": "microsoft.graph.roleManagementCustomCalloutExtension",
+      "description": "",
+      "docsUrl": "https://learn.microsoft.com/graph/api/resources/rolemanagementcustomcalloutextension?view=graph-rest-beta",
+      "permissions": [
+        "PrivilegedAccess-CustomExt.Read.All"
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "type": "string",
+          "description": "The unique identifier for an entity. Read-only.",
+          "selectOnly": false
+        },
+        {
+          "name": "authenticationConfiguration",
+          "type": "dynamic",
+          "description": "Configuration for securing the API call to the logic app. For example, using OAuth client credentials flow.",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.customExtensionAuthenticationConfiguration"
+        },
+        {
+          "name": "clientConfiguration",
+          "type": "dynamic",
+          "description": "HTTP connection settings that define how long Microsoft Entra ID can wait for a connection to a logic app, how many times you can retry a timed-out connection and the exception scenarios when retries are allowed.",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.customExtensionClientConfiguration"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "description": "Description for the customCalloutExtension object.",
+          "selectOnly": false
+        },
+        {
+          "name": "displayName",
+          "type": "string",
+          "description": "Display name for the customCalloutExtension object.",
+          "selectOnly": false
+        },
+        {
+          "name": "endpointConfiguration",
+          "type": "dynamic",
+          "description": "The type and details for configuring the endpoint to call the logic app's workflow.",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.customExtensionEndpointConfiguration"
+        },
+        {
+          "name": "customAttributes",
+          "type": "dynamic",
+          "description": "The custom attribute names to include in the callout payload.",
+          "selectOnly": false,
+          "collection": true
+        },
+        {
+          "name": "isEnabled",
+          "type": "bool",
+          "description": "Indicates whether the custom extension is enabled.",
+          "selectOnly": false
+        },
+        {
+          "name": "resourceType",
+          "type": "string",
+          "description": "The PIM provider to which the extension applies. The possible values are: entraRoles, azureResources, entraGroups, unknownFutureValue, applicationAuthorization, appRoles. Use the Prefer: include-unknown-enum-members request header to get the following values in this evolvable enumeration: applicationAuthorization, appRoles. Supports $filter (eq).",
+          "filter": [
+            "eq"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "type",
+          "type": "string",
+          "description": "The role assignment lifecycle stage at which PIM invokes the extension. The possible values are: preApproval, postApproval, grant, revoke, unknownFutureValue.",
+          "selectOnly": false
         }
       ]
     },
@@ -44362,6 +44461,12 @@
           "selectOnly": false
         },
         {
+          "name": "deletedDateTime",
+          "type": "datetime",
+          "description": "The date and time when the custom role definition was deleted. The value is null for active and restored role definitions. Read-only.",
+          "selectOnly": false
+        },
+        {
           "name": "description",
           "type": "string",
           "description": "The description for the unifiedRoleDefinition. Read-only when isBuiltIn is true.",
@@ -44580,6 +44685,12 @@
           "selectOnly": false
         },
         {
+          "name": "deletedDateTime",
+          "type": "datetime",
+          "description": "The date and time when the custom role definition was deleted. The value is null for active and restored role definitions. Read-only.",
+          "selectOnly": false
+        },
+        {
           "name": "description",
           "type": "string",
           "description": "The description for the unifiedRoleDefinition. Read-only when isBuiltIn is true.",
@@ -44758,6 +44869,12 @@
           "filter": [
             "eq"
           ],
+          "selectOnly": false
+        },
+        {
+          "name": "deletedDateTime",
+          "type": "datetime",
+          "description": "The date and time when the custom role definition was deleted. The value is null for active and restored role definitions. Read-only.",
           "selectOnly": false
         },
         {
@@ -45286,6 +45403,12 @@
           "filter": [
             "eq"
           ],
+          "selectOnly": false
+        },
+        {
+          "name": "deletedDateTime",
+          "type": "datetime",
+          "description": "The date and time when the custom role definition was deleted. The value is null for active and restored role definitions. Read-only.",
           "selectOnly": false
         },
         {
@@ -46181,6 +46304,12 @@
           "selectOnly": false
         },
         {
+          "name": "deletedDateTime",
+          "type": "datetime",
+          "description": "The date and time when the custom role definition was deleted. The value is null for active and restored role definitions. Read-only.",
+          "selectOnly": false
+        },
+        {
           "name": "description",
           "type": "string",
           "description": "The description for the unifiedRoleDefinition. Read-only when isBuiltIn is true.",
@@ -46758,6 +46887,12 @@
           "filter": [
             "eq"
           ],
+          "selectOnly": false
+        },
+        {
+          "name": "deletedDateTime",
+          "type": "datetime",
+          "description": "The date and time when the custom role definition was deleted. The value is null for active and restored role definitions. Read-only.",
           "selectOnly": false
         },
         {
@@ -48903,7 +49038,7 @@
         {
           "name": "slaPolicies",
           "type": "dynamic",
-          "description": "A denormalized, read-only collection of SLA (service level agreement) policy status entries for the case. Each entry represents one SLA policy applied to the case, including its current status and breach target time. Computed by the service; any value supplied in a create or update request is silently ignored. Supports $filter using the any() lambda operator only, for example, $filter=slaPolicies/any(p: p/status eq 'breached'). The all() lambda operator and other collection functions aren't supported. Doesn't support $orderby.",
+          "description": "A read-only collection of SLA (service level agreement) policy status entries for the case. Each entry contains the policy's current status and breach target time. Computed by the service. Supports $filter using the any() lambda operator only, for example, $filter=slaPolicies/any(p: p/status eq 'breached'). The all() lambda operator and other collection functions aren't supported. Doesn't support $orderby.",
           "selectOnly": false,
           "collection": true,
           "complexType": "microsoft.graph.security.caseManagement.caseSlaPolicyEntry"
@@ -55466,7 +55601,7 @@
         {
           "name": "policyId",
           "type": "string",
-          "description": "The identifier of the protection policy that scopes the restore session. When supplied during create or update, the service validates that the referenced protection units belong to the specified policy.",
+          "description": "The identifier of the protection policy that scopes the restore session. When supplied during creation or update, the service validates that the referenced protection units belong to the specified policy.",
           "selectOnly": false
         },
         {
@@ -56104,7 +56239,7 @@
         {
           "name": "policyId",
           "type": "string",
-          "description": "The identifier of the protection policy that scopes the restore session. When supplied during create or update, the service validates that the referenced protection units belong to the specified policy.",
+          "description": "The identifier of the protection policy that scopes the restore session. When supplied during creation or update, the service validates that the referenced protection units belong to the specified policy.",
           "selectOnly": false
         },
         {
@@ -56314,7 +56449,7 @@
         {
           "name": "policyId",
           "type": "string",
-          "description": "The identifier of the protection policy that scopes the restore session. When supplied during create or update, the service validates that the referenced protection units belong to the specified policy.",
+          "description": "The identifier of the protection policy that scopes the restore session. When supplied during creation or update, the service validates that the referenced protection units belong to the specified policy.",
           "selectOnly": false
         },
         {
@@ -56605,7 +56740,7 @@
         {
           "name": "policyId",
           "type": "string",
-          "description": "The identifier of the protection policy that scopes the restore session. When supplied during create or update, the service validates that the referenced protection units belong to the specified policy.",
+          "description": "The identifier of the protection policy that scopes the restore session. When supplied during creation or update, the service validates that the referenced protection units belong to the specified policy.",
           "selectOnly": false
         },
         {
@@ -57298,19 +57433,19 @@
         {
           "name": "sourceTenantId",
           "type": "string",
-          "description": "ID (GUID) of the tenant that content is migrated from.",
+          "description": "ID (GUID) of the source tenant for the content migration.",
           "selectOnly": false
         },
         {
           "name": "status",
           "type": "string",
-          "description": "Most recent status of the migration job. Read-only. The possible values are: submitted, approved, processing, cuttingOver, inProgress, completed, completedWithErrors, failed, cancelled, pendingCancel, adminActionRequired, validateSubmitted, validateProcessing, validateInProgress, validatePassed, validateFailed, pendingDelete, and deleted.",
+          "description": "Most recent status of the migration job. Read-only. The possible values are: submitted, approved, processing, cuttingOver, inProgress, completed, completedWithErrors, failed, cancelled, pendingCancel, adminActionRequired, validateSubmitted, validateProcessing, validateInProgress, validatePassed, validateFailed, pendingDelete, deleted, unknownFutureValue.",
           "selectOnly": false
         },
         {
           "name": "targetTenantId",
           "type": "string",
-          "description": "ID of the tenant that content is migrated to. Read-only.",
+          "description": "ID of the target tenant for the content migration. Read-only.",
           "selectOnly": false
         },
         {
@@ -58572,7 +58707,13 @@
         {
           "name": "contentBytes",
           "type": "string",
-          "description": "The base64-encoded image content of the emoji. Supported formats include PNG and GIF.",
+          "description": "Write only. Bytes for the hosted content (such as images).",
+          "selectOnly": false
+        },
+        {
+          "name": "contentType",
+          "type": "string",
+          "description": "Write only. Content type, such as image/png, image/jpg.",
           "selectOnly": false
         },
         {
@@ -58591,7 +58732,7 @@
         {
           "name": "displayName",
           "type": "string",
-          "description": "The unique display name of the custom emoji. Key. Must be unique and must not conflict with existing emoji names.",
+          "description": "The unique display name of the custom emoji. This property is an alternate key and must not conflict with existing emoji names.",
           "selectOnly": false
         }
       ]
@@ -62849,7 +62990,7 @@
         {
           "name": "identityGovernance",
           "type": "dynamic",
-          "description": "The identity governance settings for the user, including the approver delegate configuration. Nullable. Returned only on $select. Supports $expand.",
+          "description": "The identity governance settings for the user. You can get or update the user's approver delegate through the approverDelegate property. Nullable. Returned only on $select. Supports $expand.",
           "selectOnly": true,
           "complexType": "microsoft.graph.identityGovernanceUserSettings"
         },
@@ -65420,7 +65561,7 @@
         "name": "eventType",
         "type": "string",
         "collection": false,
-        "description": "The type of authentication event that triggered the custom authentication extension request. The possible values are: tokenIssuanceStart, pageRenderStart, unknownFutureValue, attributeCollectionStart, attributeCollectionSubmit, emailOtpSend, passwordSubmit. Use the Prefer: include-unknown-enum-members request header to get the following values in this evolvable enum: attributeCollectionStart, attributeCollectionSubmit, emailOtpSend, passwordSubmit."
+        "description": "The type of authentication event that triggered the custom authentication extension request. The possible values are: tokenIssuanceStart, pageRenderStart, unknownFutureValue, attributeCollectionStart, attributeCollectionSubmit, emailOtpSend, passwordSubmit, passwordUpdate. Use the Prefer: include-unknown-enum-members request header to get the following values in this evolvable enum: attributeCollectionStart, attributeCollectionSubmit, emailOtpSend, passwordSubmit, passwordUpdate."
       },
       {
         "name": "executedListenerId",
@@ -65630,14 +65771,14 @@
         "type": "dynamic",
         "collection": false,
         "complexType": "microsoft.graph.userSet",
-        "description": "The identity that receives the approval delegation. Only singleUser and groupMembers are currently supported."
+        "description": "The user or group that receives the approval delegation. Only the singleUser and groupMembers subtypes are supported."
       },
       {
         "name": "schedule",
         "type": "dynamic",
         "collection": false,
         "complexType": "microsoft.graph.requestSchedule",
-        "description": "The schedule for the delegation, including start date and expiration pattern (duration, end date, or no expiration)."
+        "description": "The period during which the delegation is in effect, expressed as a start date and an expiration pattern. If you don't specify a schedule, the delegation starts immediately and doesn't expire."
       }
     ],
     "microsoft.graph.assignedLabel": [
@@ -65853,7 +65994,7 @@
         "name": "state",
         "type": "string",
         "collection": false,
-        "description": "String value that indicates if the restriction is evaluated. The possible values are: enabled, disabled, and unknownFutureValue. If enabled, the restriction is evaluated. If disabled, the restriction isn't evaluated or enforced."
+        "description": "String value that indicates if the restriction is evaluated. The possible values are: enabled, disabled, audit, and unknownFutureValue. If enabled, the restriction is evaluated and enforced. If disabled, the restriction isn't evaluated or enforced. If audit, the restriction is evaluated but not enforced."
       }
     ],
     "microsoft.graph.audiencesConfiguration": [
@@ -66493,7 +66634,7 @@
         "name": "state",
         "type": "string",
         "collection": false,
-        "description": "String value that indicates if the restriction is evaluated. The possible values are: enabled, disabled, and unknownFutureValue. If enabled, the restriction is evaluated. If disabled, the restriction isn't evaluated or enforced."
+        "description": "String value that indicates if the restriction is evaluated. The possible values are: enabled, disabled, audit, and unknownFutureValue. If enabled, the restriction is evaluated and enforced. If disabled, the restriction isn't evaluated or enforced. If audit, the restriction is evaluated but not enforced."
       }
     ],
     "microsoft.graph.baselineParameter": [
@@ -67735,6 +67876,7 @@
         "description": "Specifies the method by which the provisioned Cloud PC joins Microsoft Entra ID. If you choose the hybridAzureADJoin type, only provide a value for the onPremisesConnectionId property and leave regionName as empty. If you choose the azureADJoin type, provide a value for either onPremisesConnectionId or regionName. The possible values are: azureADJoin, hybridAzureADJoin, unknownFutureValue. The type property is deprecated and will stop returning data on January 31, 2024. Going forward, use the domainJoinType property."
       }
     ],
+    "microsoft.graph.cloudPcDomainJoinCredential": [],
     "microsoft.graph.cloudPcEntraGroupDetail": [
       {
         "name": "groupDisplayName",
@@ -69180,6 +69322,7 @@
         "description": "Tenant achieved score for the control (it varies day by day depending on tenant operations on the control)."
       }
     ],
+    "microsoft.graph.copilotPolicySettingValueObject": [],
     "microsoft.graph.correlationError": [
       {
         "name": "code",
@@ -69558,13 +69701,13 @@
         "name": "maximumRetries",
         "type": "int",
         "collection": false,
-        "description": "The max number of retries that Microsoft Entra ID makes to the external API. Values of 0 or 1 are supported. If null, the default for the service applies."
+        "description": "The maximum number of retries that Microsoft Entra ID makes to the external API. For a roleManagementCustomCalloutExtension, the valid range is from 0 through 5. For other custom extensions, values of 0 or 1 are supported. If null, the default for the service applies."
       },
       {
         "name": "timeoutInMilliseconds",
         "type": "int",
         "collection": false,
-        "description": "The max duration in milliseconds that Microsoft Entra ID waits for a response from the external app before it shuts down the connection. The valid range is between 200 and 2000 milliseconds. If null, the default for the service applies."
+        "description": "The maximum duration in milliseconds that Microsoft Entra ID waits for a response from the external app before it closes the connection. For a roleManagementCustomCalloutExtension, the valid range is from 1000 through 60000 milliseconds. For other custom extensions, the valid range is from 200 through 2000 milliseconds. If null, the default for the service applies."
       }
     ],
     "microsoft.graph.customExtensionEndpointConfiguration": [],
@@ -71327,13 +71470,13 @@
         "name": "sourceEndpoint",
         "type": "string",
         "collection": false,
-        "description": "Name of the Migration Endpoint in the source tenant"
+        "description": "Name of the migration endpoint in the source tenant."
       },
       {
         "name": "targetDeliveryDomain",
         "type": "string",
         "collection": false,
-        "description": "Delivery domain on the target tenant"
+        "description": "Delivery domain on the target tenant."
       }
     ],
     "microsoft.graph.excludeTarget": [
@@ -72498,7 +72641,7 @@
         "name": "state",
         "type": "string",
         "collection": false,
-        "description": "Indicates if the restriction is evaluated. The possible values are: enabled, disabled, and unknownFutureValue. If enabled, the restriction is evaluated. If disabled, the restriction isn't evaluated or enforced."
+        "description": "Indicates if the restriction is evaluated. The possible values are: enabled, disabled, audit, and unknownFutureValue. If enabled, the restriction is evaluated and enforced. If disabled, the restriction isn't evaluated or enforced. If audit, the restriction is evaluated but not enforced."
       }
     ],
     "microsoft.graph.identity": [
@@ -72602,7 +72745,7 @@
         "type": "dynamic",
         "collection": false,
         "complexType": "microsoft.graph.approverDelegate",
-        "description": "The approver delegate configuration for the user, including the delegate identity and delegation schedule. Nullable."
+        "description": "The user or group that approves Microsoft Entra entitlement management access package assignment requests and access reviews on behalf of the user, and the period during which the delegation is in effect. Nullable."
       }
     ],
     "microsoft.graph.identityInput": [
@@ -73317,7 +73460,7 @@
         "name": "state",
         "type": "string",
         "collection": false,
-        "description": "Indicates whether the restriction is evaluated. The possible values are: enabled, disabled, unknownFutureValue. If enabled, the restriction is evaluated. If disabled, the restriction isn't evaluated or enforced."
+        "description": "Indicates whether the restriction is evaluated. The possible values are: enabled, disabled, audit, unknownFutureValue. If enabled, the restriction is evaluated and enforced. If disabled, the restriction isn't evaluated or enforced. If audit, the restriction is evaluated but not enforced."
       }
     ],
     "microsoft.graph.keyValue": [
@@ -76293,7 +76436,7 @@
         "name": "state",
         "type": "string",
         "collection": false,
-        "description": "Indicates whether the restriction is evaluated. The possible values are: enabled, disabled, unknownFutureValue. If enabled, the restriction is evaluated. If disabled, the restriction isn't evaluated or enforced."
+        "description": "Indicates whether the restriction is evaluated. The possible values are: enabled, disabled, audit, unknownFutureValue. If enabled, the restriction is evaluated and enforced. If disabled, the restriction isn't evaluated or enforced. If audit, the restriction is evaluated but not enforced."
       }
     ],
     "microsoft.graph.passwordProfile": [
@@ -78340,7 +78483,7 @@
         "name": "state",
         "type": "string",
         "collection": false,
-        "description": "Indicates whether the restriction is enabled or disabled. The possible values are: enabled, disabled, unknownFutureValue."
+        "description": "Indicates whether the restriction is evaluated. The possible values are: enabled, disabled, audit, unknownFutureValue. If enabled, the restriction is evaluated and enforced. If disabled, the restriction isn't evaluated or enforced. If audit, the restriction is evaluated but not enforced."
       },
       {
         "name": "web",
@@ -78394,7 +78537,7 @@
         "name": "state",
         "type": "string",
         "collection": false,
-        "description": "Indicates whether the restriction is enabled or disabled. The possible values are: enabled, disabled, unknownFutureValue."
+        "description": "Indicates whether the restriction is evaluated. The possible values are: enabled, disabled, audit, unknownFutureValue. If enabled, the restriction is evaluated and enforced. If disabled, the restriction isn't evaluated or enforced. If audit, the restriction is evaluated but not enforced."
       },
       {
         "name": "web",
@@ -78448,7 +78591,7 @@
         "name": "state",
         "type": "string",
         "collection": false,
-        "description": "Indicates whether the restriction is enabled or disabled. The possible values are: enabled, disabled, unknownFutureValue."
+        "description": "Indicates whether the restriction is evaluated. The possible values are: enabled, disabled, audit, unknownFutureValue. If enabled, the restriction is evaluated and enforced. If disabled, the restriction isn't evaluated or enforced. If audit, the restriction is evaluated but not enforced."
       },
       {
         "name": "web",
@@ -78508,7 +78651,7 @@
         "name": "state",
         "type": "string",
         "collection": false,
-        "description": "Indicates whether the restriction is enabled or disabled. The possible values are: enabled, disabled, unknownFutureValue."
+        "description": "Indicates whether the restriction is evaluated. The possible values are: enabled, disabled, audit, unknownFutureValue. If enabled, the restriction is evaluated and enforced. If disabled, the restriction isn't evaluated or enforced. If audit, the restriction is evaluated but not enforced."
       },
       {
         "name": "web",
@@ -78638,7 +78781,7 @@
         "name": "state",
         "type": "string",
         "collection": false,
-        "description": "Indicates whether the restriction is enabled or disabled. The possible values are: enabled, disabled, unknownFutureValue."
+        "description": "Indicates whether the restriction is evaluated. The possible values are: enabled, disabled, audit, unknownFutureValue. If enabled, the restriction is evaluated and enforced. If disabled, the restriction isn't evaluated or enforced. If audit, the restriction is evaluated but not enforced."
       }
     ],
     "microsoft.graph.redirectUriWildcardExcludeFormats": [
@@ -79234,6 +79377,12 @@
         "type": "string",
         "collection": false,
         "description": ""
+      },
+      {
+        "name": "source",
+        "type": "string",
+        "collection": false,
+        "description": ""
       }
     ],
     "microsoft.graph.riskRecommendation": [
@@ -79639,6 +79788,12 @@
         "collection": false,
         "complexType": "microsoft.graph.security.entityMappingConfiguration",
         "description": "Defines how detection query columns map to the entities that are attached to the resulting alert."
+      },
+      {
+        "name": "eventGroupingKind",
+        "type": "string",
+        "collection": false,
+        "description": ""
       },
       {
         "name": "impactedAssets",
@@ -80997,6 +81152,12 @@
         "type": "timespan",
         "collection": false,
         "description": "The recurring time interval at which the rule runs (ISO 8601 duration, for example P1D for daily, PT1H for hourly)."
+      },
+      {
+        "name": "lookback",
+        "type": "timespan",
+        "collection": false,
+        "description": ""
       },
       {
         "name": "nextRunDateTime",
