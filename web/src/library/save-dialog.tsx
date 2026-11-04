@@ -3,6 +3,7 @@ import { call } from '../bridge';
 import { errorText } from '../shell/errors';
 import { ErrorReportActions, type Shown } from '../shell/error-report';
 import { reportIdOf } from '../shell/report-id';
+import { inSendDetails } from '../shell/send-details-marker';
 import type { Tab } from '../tabs/tab-store';
 import type { LibraryList } from '../wire';
 import { MAX_FOLDER_LENGTH, MAX_NAME_LENGTH, saveToFile, saveToLibrary } from './saving';
@@ -31,7 +32,7 @@ export function SaveDialog({ tab, onClose }: { tab: Tab; onClose: () => void }) 
   // A modal, as the palette is: focus that lands outside the dialog goes back to its name field.
   useEffect(() => {
     const onFocusIn = (e: FocusEvent) => {
-      if (!closing.current && (!(e.target instanceof Node) || !dialogRef.current?.contains(e.target))) {
+      if (!closing.current && !inSendDetails(e.target) && (!(e.target instanceof Node) || !dialogRef.current?.contains(e.target))) {
         nameRef.current?.focus();
       }
     };

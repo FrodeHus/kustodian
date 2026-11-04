@@ -1,8 +1,10 @@
+import { useEffect, useRef } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BridgeError } from '../bridge';
 import { ErrorBoundary, ErrorReportActions } from './error-report';
 import { formatReportId, reportIdOf } from './report-id';
+import { inSendDetails } from './send-details-marker';
 
 const call = vi.hoisted(() => vi.fn());
 vi.mock('../bridge', async (importOriginal) => ({ ...(await importOriginal<typeof import('../bridge')>()), call }));
@@ -145,6 +147,46 @@ describe('Send details dialog, opened', () => {
     expect(outer).not.toHaveBeenCalled();
     expect(doc).not.toHaveBeenCalled();
     document.removeEventListener('keydown', doc);
+  });
+});
+
+describe('Send details dialog inside a modal with a focus trap', () => {
+  beforeEach(() => call.mockReset());
+
+  function Parent({ onKey }: { onKey: () => void }) {
+    const input = useRef<HTMLInputElement>(null);
+    const box = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+      const onFocusIn = (e: FocusEvent) => {
+        if (!inSendDetails(e.target) && !(e.target instanceof Node && box.current?.contains(e.target))) {
+          input.current?.focus();
+        }
+      };
+      document.addEventListener('focusin', onFocusIn);
+      return () => document.removeEventListener('focusin', onFocusIn);
+    }, []);
+    return (
+      <div ref={box} onKeyDown={onKey}>
+        <input ref={input} aria-label="parent" />
+        <ErrorReportActions reportId="K7Q2M9XD" uiSections={ui} />
+      </div>
+    );
+  }
+
+  it('keeps_focus_in_the_dialog_and_hides_keys_from_the_parent', async () => {
+    answer({ report, canSend: true });
+    const onKey = vi.fn();
+    render(<Parent onKey={onKey} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Send details' }));
+    const query = (await screen.findByLabelText('Query text')) as HTMLTextAreaElement;
+    query.focus();
+    expect(document.activeElement).toBe(query);
+    fireEvent.keyDown(query, { key: 'Enter' });
+    fireEvent.keyDown(query, { key: 'Tab' });
+    expect(onKey).not.toHaveBeenCalled();
+    fireEvent.keyDown(query, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(onKey).not.toHaveBeenCalled();
   });
 });
 

@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 
 import { call } from '../bridge';
 import { ErrorReportActions, type Shown } from './error-report';
 import { reportIdOf } from './report-id';
+import { inSendDetails } from './send-details-marker';
 import { insertSnippet, openSaved, openSnippetInNewTab } from '../library/open-library';
 import { SourceBadge } from '../tabs/source-badge';
 import type { LibraryList, SavedQuery, Snippet, Source } from '../wire';
@@ -93,7 +94,7 @@ export function Palette({ onClose, onInsert, onProblem = () => undefined }: Pale
   // A modal: focus that lands outside the palette goes back to its input.
   useEffect(() => {
     const onFocusIn = (e: FocusEvent) => {
-      if (!closing.current && (!(e.target instanceof Node) || !dialogRef.current?.contains(e.target))) {
+      if (!closing.current && !inSendDetails(e.target) && (!(e.target instanceof Node) || !dialogRef.current?.contains(e.target))) {
         inputRef.current?.focus();
       }
     };

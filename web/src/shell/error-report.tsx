@@ -6,6 +6,7 @@ import type { ErrorDetails } from '../wire';
 import { reportUiError } from './error-capture';
 import { errorText } from './errors';
 import { formatReportId } from './report-id';
+import { SEND_DETAILS_ATTRIBUTE } from './send-details-marker';
 
 /** An error as a component keeps it to show: its text, and the report ID the host gave it, if any. */
 export interface Shown {
@@ -138,7 +139,13 @@ function DetailsDialog({
   // In the body, not in the card that opened it: a transformed card would make a fixed dialog relative to itself. Events are
   // stopped here so the opener's own Esc and outside-click handling don't see the dialog's.
   return createPortal(
-    <div className="fixed inset-0 z-40" onMouseDown={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-40"
+      {...{ [SEND_DETAILS_ATTRIBUTE]: '' }}
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
       <div className="scrim" onClick={onClose} />
       <div
         role="dialog"

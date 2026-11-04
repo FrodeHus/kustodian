@@ -3,6 +3,7 @@ import { BridgeError, call, on } from '../bridge';
 import { errorText } from '../shell/errors';
 import { ErrorReportActions, type Shown } from '../shell/error-report';
 import { reportIdOf } from '../shell/report-id';
+import { inSendDetails } from '../shell/send-details-marker';
 import type { EntraAppCreateResult, EntraAppPlan, EntraAppStep } from '../wire';
 import { CreatedView, type CreatedApp } from './created-view';
 import { PermissionList } from './permission-list';
@@ -93,7 +94,7 @@ export function CreateAppDialog({
 
   useEffect(() => {
     const onFocusIn = (e: FocusEvent) => {
-      if (e.target instanceof Node && !dialog.current?.contains(e.target)) {
+      if (e.target instanceof Node && !inSendDetails(e.target) && !dialog.current?.contains(e.target)) {
         dialog.current?.querySelector<HTMLElement>('[data-autofocus], button:not(:disabled), input:not(:disabled)')?.focus();
       }
     };
