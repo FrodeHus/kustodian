@@ -82,7 +82,10 @@ vi.mock('monaco-editor/esm/vs/editor/edcore.main.js', () => ({}));
 vi.mock('monaco-editor/esm/vs/editor/editor.api.js', () => fake.monaco);
 vi.mock('monaco-editor/esm/vs/editor/editor.worker.js?worker', () => ({ default: class {} }));
 vi.mock('./kusto.worker?worker', () => ({ default: class {} }));
-vi.mock('@kusto/monaco-kusto/release/esm/monaco.contribution.js', () => ({ getKustoWorker: () => fake.kustoWorker() }));
+vi.mock('@kusto/monaco-kusto/release/esm/monaco.contribution.js', () => ({
+  getKustoWorker: () => fake.kustoWorker(),
+  kustoDefaults: { languageSettings: {}, setLanguageSettings: () => undefined },
+}));
 const bridge = vi.hoisted(() => ({ call: vi.fn() }));
 vi.mock('../bridge', () => ({ call: bridge.call, on: () => () => undefined }));
 
@@ -246,7 +249,7 @@ describe('KqlEditor', () => {
 
   it('editor_follows_the_theme', () => {
     render(<KqlEditor schemas={{}} onRun={() => undefined} />);
-    expect(fake.themes.defined).toEqual(expect.arrayContaining(['kustodian-dark', 'kustodian-light']));
+    expect(fake.themes.defined).toEqual(expect.arrayContaining(['kustodian-dark', 'kustodian-light', 'kustodian-glass', 'kustodian-dracula']));
 
     act(() => applyTheme('light'));
     expect(fake.themes.set.at(-1)).toBe('kustodian-light');

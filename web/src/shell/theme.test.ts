@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { applyTheme, chooseTheme, initialTheme, useTheme } from './theme';
+import { THEMES, applyTheme, chooseTheme, initialTheme, themeName, useTheme } from './theme';
 
 const bridge = vi.hoisted(() => ({ call: vi.fn() }));
 vi.mock('../bridge', async (importOriginal) => ({
@@ -83,6 +83,30 @@ describe('theme', () => {
 
     applyTheme('light');
     expect([root.contains('theme-glass'), root.contains('theme-liquid-glass'), isLight()]).toEqual([false, false, true]);
+  });
+
+  it('palette_themes_set_the_tokens_and_other_themes_clear_them', () => {
+    const accent = () => document.documentElement.style.getPropertyValue('--accent');
+
+    applyTheme('dracula');
+    expect(accent()).toBe('#bd93f9');
+    expect(document.documentElement.style.getPropertyValue('--accent-soft')).toContain('#bd93f9');
+    expect(useTheme.getState()).toEqual({ theme: 'dracula', resolved: 'dark', glass: false });
+
+    applyTheme('gruvbox-dark');
+    expect(accent()).toBe('#fabd2f');
+
+    applyTheme('light');
+    expect(accent()).toBe('');
+    expect(isLight()).toBe(true);
+  });
+
+  it('every_theme_has_a_name_and_survives_the_start_url', () => {
+    expect(THEMES).toHaveLength(15);
+    for (const theme of THEMES) {
+      expect(themeName(theme)).toMatch(/^[A-Z]/);
+      expect(initialTheme(`?theme=${theme}`)).toBe(theme);
+    }
   });
 
   it('choosing_a_theme_applies_it_and_keeps_the_other_settings', async () => {

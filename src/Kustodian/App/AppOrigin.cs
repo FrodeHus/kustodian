@@ -1,3 +1,5 @@
+using Kustodian.Settings;
+
 namespace Kustodian.App;
 
 /// <summary>The origin the embedded UI is served from: the scheme Photino hands to the asset handler and the URL the window
@@ -13,22 +15,21 @@ namespace Kustodian.App;
 /// raise <c>WebResourceRequested</c>, so on Windows the handler is registered for <c>https</c> and the UI is served from a
 /// host under the reserved <c>.invalid</c> TLD: it never resolves, so nothing is ever fetched from a network or a local
 /// port, and <c>https</c> keeps the page a secure context.</para>
-/// <para>The start URL carries the theme (<c>?theme=dark|light|system|glass|liquid-glass</c>) so the page can apply it before its first
-/// paint.</para>
+/// <para>The start URL carries the theme (<c>?theme=</c> one of <see cref="AppSettings.Themes"/>) so the page can apply it
+/// before its first paint.</para>
 /// </remarks>
 public sealed record AppOrigin(string Scheme, Uri StartUrl)
 {
-    private static readonly string[] Themes = ["dark", "light", "system", "glass", "liquid-glass"];
     private const string DefaultTheme = "dark";
 
     /// <summary>The origin for the platform this process runs on.</summary>
     public static AppOrigin Current(string theme) => For(OperatingSystem.IsWindows(), theme);
 
-    /// <summary>The origin for a platform, with <paramref name="theme"/> in the start URL; anything but <c>dark</c>,
-    /// <c>light</c> or <c>system</c> is <c>dark</c>.</summary>
+    /// <summary>The origin for a platform, with <paramref name="theme"/> in the start URL; a theme not in
+    /// <see cref="AppSettings.Themes"/> is <c>dark</c>.</summary>
     public static AppOrigin For(bool windows, string theme)
     {
-        var query = "?theme=" + (Themes.Contains(theme, StringComparer.Ordinal) ? theme : DefaultTheme);
+        var query = "?theme=" + (AppSettings.Themes.Contains(theme, StringComparer.Ordinal) ? theme : DefaultTheme);
         return windows
             ? new("https", new Uri("https://kustodian.invalid/index.html" + query))
             : new("app", new Uri("app://localhost/index.html" + query));

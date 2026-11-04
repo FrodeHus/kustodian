@@ -27,7 +27,7 @@ import { reportIdOf } from './shell/report-id';
 import { MOD, SHIFT } from './shell/keys';
 import { Palette } from './shell/palette';
 import { canCreateApp } from './signin/permission-plan';
-import { chooseTheme, useTheme, type Theme } from './shell/theme';
+import { THEMES, chooseTheme, themeName, useTheme, type Theme } from './shell/theme';
 import { TitleBar } from './shell/title-bar';
 import { SignIn } from './signin/sign-in';
 import { PANELS, type PanelName } from './side/panels';
@@ -136,7 +136,6 @@ function cycleTab(step: number) {
   }
 }
 
-const THEME_NAMES: Record<Theme, string> = { dark: 'Dark', light: 'Light', system: 'System', glass: 'Glass', 'liquid-glass': 'Liquid glass' };
 
 /** What the window says at startup when the settings file couldn't be used, or null when it could. */
 function settingsNotice(answer: SettingsAnswer): string | null {
@@ -275,7 +274,7 @@ export function App() {
     }));
     const themeCommand = (t: Theme): Command => ({
       id: `theme.${t}`,
-      title: `Theme: ${THEME_NAMES[t].toLowerCase()}`,
+      title: `Theme: ${themeName(t)}`,
       group: 'Theme',
       run: () => void chooseTheme(t).catch(fail('The theme couldn’t be kept for the next start')),
     });
@@ -391,11 +390,7 @@ export function App() {
         enabled: () => activeTab()?.pinned !== undefined,
       },
       ...panelCommands,
-      themeCommand('dark'),
-      themeCommand('light'),
-      themeCommand('system'),
-      themeCommand('glass'),
-      themeCommand('liquid-glass'),
+      ...THEMES.map(themeCommand),
       {
         id: 'cache.clear',
         title: 'Clear the cache',
@@ -689,7 +684,7 @@ export function App() {
           <span>{LANGUAGE[active?.source ?? 'graph']}</span>
           {footer && <span title={footerSource === 'graph' ? schemas.graph?.source : undefined}>{footer}</span>}
           <div className="grow" />
-          <span title="Theme">{theme.theme === 'system' ? `System (${THEME_NAMES[theme.resolved]})` : THEME_NAMES[theme.theme]}</span>
+          <span title="Theme">{theme.theme === 'system' ? `System (${themeName(theme.resolved)})` : themeName(theme.theme)}</span>
         </footer>
       </div>
       {savingTab && (

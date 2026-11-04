@@ -9,6 +9,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 - Two new themes, **Glass** and **Liquid glass**: frosted panels over a colourful backdrop. Liquid glass adds rounder,
   pill-shaped controls. Pick one in Settings or the command palette.
+- Ten themes from the most used editor themes: GitHub Dark, One Dark, Dracula, Material, Monokai, Ayu Dark, Night Owl,
+  Tokyo Night, Catppuccin Mocha and Gruvbox Dark. Each colours the window and the KQL editor.
 - A **Run tool** menu on the Rows tab runs your own commands, set up in `tools.json`, on the selected rows: once per row
   with `{column}` values as arguments, or once with the rows as JSON on stdin. See [docs/external-tools.md](docs/external-tools.md).
 - Error reports, off until you opt in: when Kustodian fails in a way it shouldn't, it sends the error's types, where in
@@ -41,6 +43,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Query parameters such as `{companyName}` are no longer underlined as errors ("Client parameters are not supported or
+  enabled").
 - On Windows, a query still running when Kustodian closed could end with an unexpected COM error instead of stopping
   cleanly.
 - Graph queries that read `roleManagement_directory_roleDefinitions` (for example to name the roles in PIM activations) no
