@@ -1,4 +1,5 @@
 import { Component, useEffect, useId, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { call } from '../bridge';
 import { copyText } from '../results/copy';
 import type { ErrorDetails } from '../wire';
@@ -63,13 +64,29 @@ export function ErrorReportActions({ reportId, uiSections }: { reportId?: string
           Send details
         </button>
       )}
-      {open && details && <SendDetailsDialog reportId={reportId} details={details} uiSections={uiSections} onClose={() => setOpen(false)} />}
+      {open && <SendDetailsDialog reportId={reportId} uiSections={uiSections} onClose={() => setOpen(false)} />}
     </span>
   );
 }
 
+/** Asks the host for the report again as it opens (it may have dropped it since the ID was shown), then shows it. */
+export function SendDetailsDialog({ reportId, uiSections, onClose }: { reportId: string; uiSections: UiSections; onClose: () => void }) {
+  const [details, setDetails] = useState<ErrorDetails | null>(null);
+  useEffect(() => {
+    let live = true;
+    call<ErrorDetails>('errors.details', { reportId }).then(
+      (answer) => live && setDetails(answer),
+      () => live && setDetails({ report: null, canSend: true }),
+    );
+    return () => {
+      live = false;
+    };
+  }, [reportId]);
+  return details && <DetailsDialog reportId={reportId} details={details} uiSections={uiSections} onClose={onClose} />;
+}
+
 /** Shows what a full report holds, each section with a checkbox and the query editable, and sends what is left checked. */
-export function SendDetailsDialog({
+function DetailsDialog({
   reportId,
   details,
   uiSections,
@@ -118,8 +135,10 @@ export function SendDetailsDialog({
     );
   };
 
-  return (
-    <div className="fixed inset-0 z-30">
+  // In the body, not in the card that opened it: a transformed card would make a fixed dialog relative to itself. Events are
+  // stopped here so the opener's own Esc and outside-click handling don't see the dialog's.
+  return createPortal(
+    <div className="fixed inset-0 z-40" onMouseDown={(e) => e.stopPropagation()}>
       <div className="scrim" onClick={onClose} />
       <div
         role="dialog"
@@ -129,6 +148,7 @@ export function SendDetailsDialog({
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
             e.preventDefault();
+            e.stopPropagation();
             onClose();
           }
         }}
@@ -184,7 +204,8 @@ export function SendDetailsDialog({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

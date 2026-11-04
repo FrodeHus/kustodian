@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { BridgeError, call } from '../bridge';
 import { errorText } from '../shell/errors';
+import { reportIdOf } from '../shell/report-id';
 import { useTabs } from '../tabs/tab-store';
 import type { ArmResourceTypesAnswer, ListedByDefault, SchemaLicenses, SchemaView, Source } from '../wire';
 
@@ -15,12 +16,16 @@ interface SchemasState {
   byKey: Record<Source, SchemaView | undefined>;
   /** Why a source's schema couldn't be read; it isn't read again until "Refresh schema" or another account. */
   errors: Partial<Record<SchemaSource, string>>;
+  /** The report ID the host gave each of those errors, if it did. */
+  errorReportIds: Partial<Record<SchemaSource, string>>;
   /** The sources being read now. */
   loading: Partial<Record<SchemaSource, boolean>>;
   /** The account's Resource Graph resource types (`arm.resourceTypes`), read with the Resource Graph schema. */
   resourceTypes: string[] | undefined;
   /** Why the resource types couldn't be read (an Azure consent, for one). */
   resourceTypesError: string | null;
+  /** The report ID the host gave that error, if it did. */
+  resourceTypesReportId: string | undefined;
   /** What helps when they couldn't be read: granting Azure access, signing in again, or nothing the panel can offer. */
   resourceTypesFix: ResourceTypesFix;
   /** For the active account, the columns Graph lists by default for each Graph table read so far, by table name
@@ -46,13 +51,15 @@ export type ResourceTypesFix = 'consent' | 'signIn' | null;
 
 const empty = (): Pick<
   SchemasState,
-  'byKey' | 'errors' | 'loading' | 'resourceTypes' | 'resourceTypesError' | 'resourceTypesFix' | 'listedByDefault' | 'licenses'
+  'byKey' | 'errors' | 'errorReportIds' | 'loading' | 'resourceTypes' | 'resourceTypesError' | 'resourceTypesReportId' | 'resourceTypesFix' | 'listedByDefault' | 'licenses'
 > => ({
   byKey: { graph: undefined, hunting: undefined, arg: undefined, raw: undefined },
   errors: {},
+  errorReportIds: {},
   loading: {},
   resourceTypes: undefined,
   resourceTypesError: null,
+  resourceTypesReportId: undefined,
   resourceTypesFix: null,
   listedByDefault: {},
   licenses: null,
@@ -139,7 +146,7 @@ export const useSchemas = create<SchemasState>()((set) => ({
       }
     } catch (e) {
       if (latest()) {
-        set((s) => ({ errors: { ...s.errors, [source]: errorText(e) } }));
+        set((s) => ({ errors: { ...s.errors, [source]: errorText(e) }, errorReportIds: { ...s.errorReportIds, [source]: reportIdOf(e) } }));
       }
     } finally {
       if (latest()) {
@@ -167,7 +174,7 @@ async function readTypes() {
     }
   } catch (e) {
     if (latest()) {
-      useSchemas.setState({ resourceTypesError: errorText(e), resourceTypesFix: fixOf(e) });
+      useSchemas.setState({ resourceTypesError: errorText(e), resourceTypesReportId: reportIdOf(e), resourceTypesFix: fixOf(e) });
     }
   }
 }

@@ -67,6 +67,7 @@ describe('ErrorReportActions', () => {
     answer({ report, canSend: true });
     render(<ErrorReportActions reportId="K7Q2M9XD" uiSections={ui} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Send details' }));
+    await screen.findByRole('dialog');
     expect((screen.getByRole('checkbox', { name: 'Message' }) as HTMLInputElement).checked).toBe(true);
     expect((screen.getByRole('checkbox', { name: 'Query' }) as HTMLInputElement).checked).toBe(true);
     expect(screen.getByText(/may contain data from your tenant/).textContent).toMatch(/Application Insights.*90 days/);
@@ -85,6 +86,7 @@ describe('ErrorReportActions', () => {
     answer({ report, canSend: true });
     render(<ErrorReportActions reportId="K7Q2M9XD" uiSections={ui} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Send details' }));
+    await screen.findByRole('dialog');
     fireEvent.click(screen.getByRole('checkbox', { name: 'Query' }));
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     await waitFor(() => expect(call).toHaveBeenCalledWith('errors.send', { reportId: 'K7Q2M9XD', sections: { message: 'It broke.' } }));
@@ -94,6 +96,7 @@ describe('ErrorReportActions', () => {
     answer({ report, canSend: true });
     render(<ErrorReportActions reportId="K7Q2M9XD" uiSections={ui} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Send details' }));
+    await screen.findByRole('dialog');
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(call).not.toHaveBeenCalledWith('errors.send', expect.anything());
@@ -103,11 +106,45 @@ describe('ErrorReportActions', () => {
     answer({ report: null, canSend: true });
     render(<ErrorReportActions reportId="K7Q2M9XD" uiSections={ui} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Send details' }));
+    await screen.findByRole('dialog');
     expect(screen.getByText(/no longer available/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     await waitFor(() =>
       expect(call).toHaveBeenCalledWith('errors.send', { reportId: 'K7Q2M9XD', sections: { query: 'users | take 5', message: 'It broke.' } }),
     );
+  });
+});
+
+describe('Send details dialog, opened', () => {
+  beforeEach(() => call.mockReset());
+
+  it('asks_again_on_open_and_offers_the_pages_sections_when_the_report_is_gone_by_then', async () => {
+    let asked = 0;
+    call.mockImplementation((method: string) =>
+      Promise.resolve(method === 'errors.details' ? { report: ++asked === 1 ? report : null, canSend: true } : { sent: true }),
+    );
+    render(<ErrorReportActions reportId="K7Q2M9XD" uiSections={ui} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Send details' }));
+    await screen.findByText(/no longer available/);
+    expect(asked).toBe(2);
+  });
+
+  it('escape_closes_only_the_dialog_not_its_opener', async () => {
+    answer({ report, canSend: true });
+    const outer = vi.fn();
+    const doc = vi.fn();
+    document.addEventListener('keydown', doc);
+    render(
+      <div onKeyDown={outer}>
+        <ErrorReportActions reportId="K7Q2M9XD" uiSections={ui} />
+      </div>,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Send details' }));
+    fireEvent.keyDown(await screen.findByRole('dialog'), { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(outer).not.toHaveBeenCalled();
+    expect(doc).not.toHaveBeenCalled();
+    document.removeEventListener('keydown', doc);
   });
 });
 

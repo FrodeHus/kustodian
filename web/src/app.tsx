@@ -22,7 +22,7 @@ import { ErrorReportsDialog } from './settings/error-reports';
 import { TelemetryDialog } from './settings/telemetry';
 import { bindGlobalKeys, registerCommands, runCommand, type Command } from './shell/commands';
 import { errorText } from './shell/errors';
-import { ErrorReportActions } from './shell/error-report';
+import { ErrorReportActions, type Shown } from './shell/error-report';
 import { reportIdOf } from './shell/report-id';
 import { MOD, SHIFT } from './shell/keys';
 import { Palette } from './shell/palette';
@@ -147,7 +147,7 @@ function settingsNotice(answer: SettingsAnswer): string | null {
 }
 
 /** Reads the accounts; resolves whether that worked. A failure is reported as the sign-in screen's error line. */
-function readAccounts(onList: (list: AccountList) => void, onError: (text: string | null) => void): Promise<boolean> {
+function readAccounts(onList: (list: AccountList) => void, onError: (error: Shown | null) => void): Promise<boolean> {
   return call<AccountList>('account.list').then(
     (list) => {
       onList(list);
@@ -155,7 +155,7 @@ function readAccounts(onList: (list: AccountList) => void, onError: (text: strin
       return true;
     },
     (e: unknown) => {
-      onError(`The accounts couldn’t be read: ${errorText(e)}`);
+      onError({ text: `The accounts couldn’t be read: ${errorText(e)}`, reportId: reportIdOf(e) });
       return false;
     },
   );
@@ -172,7 +172,7 @@ export function App() {
   /** "Create Entra ID application" is open over the sign-in screen. */
   const [createAppOpen, setCreateAppOpen] = useState(false);
   const createAppAllowed = useRef(false);
-  const [accountsError, setAccountsError] = useState<string | null>(null);
+  const [accountsError, setAccountsError] = useState<Shown | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [panel, setPanel] = useState<PanelName>('schema');
   const [paramsOpen, setParamsOpen] = useState(false);
@@ -244,7 +244,7 @@ export function App() {
     const stopLoading = startSchemaLoading();
     const stopWatching = useSchemas.subscribe((s, previous) => {
       if (s.errors.graph && s.errors.graph !== previous.errors.graph) {
-        setProblem(`The Graph schema couldn’t be loaded: ${s.errors.graph}`);
+        setProblem(`The Graph schema couldn’t be loaded: ${s.errors.graph}`, s.errorReportIds.graph);
       }
     });
     return () => {

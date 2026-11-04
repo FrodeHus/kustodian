@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { call, on } from '../bridge';
+import { ErrorReportActions, type Shown } from '../shell/error-report';
+import { reportIdOf } from '../shell/report-id';
 import { AZURE_CLI_CLIENT_ID, GRAPH_CLI_CLIENT_ID, type AccountInfo, type AccountList, type ClientKind } from '../wire';
 import { CreateAppDialog } from './create-app-dialog';
 import { CANNOT_CREATE_REASON, canCreateApp, canOfferCreateApp } from './permission-plan';
@@ -23,7 +25,7 @@ interface SignInProps {
   /** Back to the queries, when the screen was opened from the account pill. */
   onBack?: () => void;
   /** Why the accounts couldn't be read, if they couldn't. */
-  error?: string | null;
+  error?: Shown | null;
   /** The settings' default client ID and tenant: with a client ID, "My own app registration" (or Graph Command Line Tools, for its client ID) starts chosen and filled in. */
   defaults?: { clientId: string | null; tenant: string | null };
   /** "Create Entra ID application" is open (the palette command opens the screen with it open). Kept here when not given. */
@@ -69,7 +71,7 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
     setTouched(true);
   };
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Shown | null>(null);
   const [deviceCode, setDeviceCode] = useState<string | null>(null);
 
   useEffect(() => on('account.deviceCode', (data) => setDeviceCode((data as { message: string }).message)), []);
@@ -86,7 +88,7 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
       await work();
       onChanged(done);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError({ text: e instanceof Error ? e.message : String(e), reportId: reportIdOf(e) });
     } finally {
       setBusy(false);
       setDeviceCode(null);
@@ -137,7 +139,8 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
         )}
         {(error ?? listError) && (
           <span className="text-[12px] text-bad" role="alert">
-            {error ?? listError}
+            {(error ?? listError)?.text}
+            <ErrorReportActions reportId={(error ?? listError)?.reportId} uiSections={{ message: (error ?? listError)?.text ?? '' }} />
           </span>
         )}
         <div className="flex flex-col gap-1" role="radiogroup" aria-label="Signing in as">

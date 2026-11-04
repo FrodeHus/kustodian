@@ -1,4 +1,5 @@
 import { type ReactNode, useMemo, useState } from 'react';
+import { ErrorReportActions } from '../shell/error-report';
 import { ConsentButton } from '../signin/consent-button';
 import type { LicenseInfo, SchemaColumn, SchemaFunction, SchemaLicenses, SchemaTable, SchemaView, Source } from '../wire';
 import type { ResourceTypesFix } from './schema-store';
@@ -142,9 +143,12 @@ interface SchemaPanelProps {
   schema: SchemaView | null | undefined;
   /** Why the schema couldn't be read. */
   error?: string;
+  /** The report ID the host gave that error, if it did. */
+  errorReportId?: string;
   /** The account's Resource Graph resource types (`arm.resourceTypes`), why they couldn't be listed, and what helps. */
   resourceTypes?: string[];
   resourceTypesError?: string | null;
+  resourceTypesReportId?: string;
   resourceTypesFix?: ResourceTypesFix;
   /** The active account, which "Grant Azure access" asks consent for. */
   accountKey?: string;
@@ -166,8 +170,10 @@ export function SchemaPanel(props: SchemaPanelProps) {
     source = 'graph',
     schema,
     error,
+    errorReportId,
     resourceTypes,
     resourceTypesError,
+    resourceTypesReportId,
     resourceTypesFix,
     accountKey,
     onSignIn,
@@ -311,6 +317,7 @@ export function SchemaPanel(props: SchemaPanelProps) {
         {error && !schema && (
           <p role="alert" className="m-0 px-[14px] pb-2 text-[12px] text-bad">
             The schema couldn’t be loaded: {error}
+            <ErrorReportActions reportId={errorReportId} uiSections={{ message: error }} />
           </p>
         )}
         {found ? (
@@ -363,6 +370,7 @@ export function SchemaPanel(props: SchemaPanelProps) {
             {resourceTypesError && !resourceTypes ? (
               <div className="flex flex-wrap items-center gap-2 px-[14px] text-[12px]">
                 <p className="faint m-0 min-w-0">{resourceTypesError}</p>
+                <ErrorReportActions reportId={resourceTypesReportId} uiSections={{ message: resourceTypesError }} />
                 {resourceTypesFix === 'consent' && <ConsentButton accountKey={accountKey} />}
                 {resourceTypesFix === 'signIn' && onSignIn && (
                   <button type="button" className="btn primary shrink-0" onClick={onSignIn}>

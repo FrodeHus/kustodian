@@ -38,8 +38,10 @@ export function SidePanel({ panel, source: tabSource, text, onInsert, accountKey
   const source = schemaSourceOf(tabSource);
   const schema = useSchemas((s) => s.byKey[source]);
   const error = useSchemas((s) => s.errors[source]);
+  const errorReportId = useSchemas((s) => s.errorReportIds[source]);
   const resourceTypes = useSchemas((s) => s.resourceTypes);
   const resourceTypesError = useSchemas((s) => s.resourceTypesError);
+  const resourceTypesReportId = useSchemas((s) => s.resourceTypesReportId);
   const resourceTypesFix = useSchemas((s) => s.resourceTypesFix);
   const listedByDefault = useSchemas((s) => s.listedByDefault);
   const licenses = useSchemas((s) => s.licenses);
@@ -57,8 +59,10 @@ export function SidePanel({ panel, source: tabSource, text, onInsert, accountKey
           source={source}
           schema={schema}
           error={error}
+          errorReportId={errorReportId}
           resourceTypes={resourceTypes}
           resourceTypesError={resourceTypesError}
+          resourceTypesReportId={resourceTypesReportId}
           resourceTypesFix={resourceTypesFix}
           accountKey={accountKey}
           onSignIn={onSignIn}
