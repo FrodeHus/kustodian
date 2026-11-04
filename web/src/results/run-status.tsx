@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { ConsentButton } from '../signin/consent-button';
 import { grantOffer } from '../signin/grant-permission';
 import { GrantPermissionButton } from '../signin/grant-permission-button';
+import { RefreshTokenButton } from '../signin/refresh-token-button';
 import { runCommand } from '../shell/commands';
 import { ErrorReportActions } from '../shell/error-report';
 import { editorPosition, type TabRun } from '../tabs/tab-store';
@@ -158,7 +159,8 @@ interface RunStatusProps {
   accountKey?: string;
   /** Azure access was granted after a run answered `consentNeeded`: the run goes again. */
   onConsented?: () => void;
-  /** A Graph permission was granted after a refused run: the account's permissions are read again, then the run goes again. */
+  /** A Graph permission was granted, or the account's token refreshed, after a refused run: the account's permissions are read
+   * again, then the run goes again. */
   onGranted?: () => void;
   /** The active account is the Azure CLI client: a run without permission offers to create an Entra ID application. */
   createApp?: boolean;
@@ -229,6 +231,9 @@ export function RunStatus({ run, scope, onSignIn, accountKey, onConsented, onGra
         {offer && 'scope' in offer && <GrantPermissionButton accountKey={accountKey} scope={offer.scope} onGranted={() => onGranted?.()} />}
         {offer && 'held' in offer && (
           <span className="chip warn">{`You have ${offer.held}; your account may be missing a role that this data needs.`}</span>
+        )}
+        {result.outcome === 'noPermission' && (
+          <RefreshTokenButton accountKey={accountKey} audience={source === 'arg' ? 'arm' : 'graph'} onRefreshed={() => onGranted?.()} />
         )}
         {grants.map((s) => (
           <GrantPermissionButton key={s} accountKey={accountKey} scope={s} onGranted={() => onGranted?.()} />

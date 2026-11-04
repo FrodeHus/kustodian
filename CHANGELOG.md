@@ -14,9 +14,13 @@ follow [Semantic Versioning](https://semver.org/).
   account, queries, values, results or error messages. See [what is sent](https://frodehus.github.io/kustodian/telemetry.html).
 - Every error now shows a report ID and **Send details**, which shows the full report for that one error (query, messages,
   Graph's answer, engine output) and sends it only when you click **Send**, with any parts you untick left out.
+- A query refused for permission offers **Refresh access**, which gets a new access token so a role you activated since
+  (through PIM, say) counts, then runs the query again. When the token can't be refreshed silently, the browser opens to
+  sign in.
 
 ### Changed
 
+- The Graph schema is regenerated from the latest beta metadata (msgraph-metadata@690154d).
 - The status bar says "Built-in Graph schema" and its date instead of the schema's full source, which no longer squeezes
   the rest of the bar. Hover it for the source.
 - The Graph schema is regenerated from the latest beta metadata: the Copilot cost management tables

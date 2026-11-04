@@ -18,7 +18,9 @@ namespace Kustodian.Messaging.Handlers;
 /// same event) and answers <c>{}</c>; the user cancelling answers <c>cancelled</c>. <c>account.consent {key, audience: "graph",
 /// scope}</c> does the same for one read-only Graph permission (not for an Azure CLI account, whose permissions are fixed) and,
 /// once granted, drops the account's cached Graph objects, probe findings, licenses and advanced hunting schema, which the new
-/// permission may change. The <paramref name="trail"/> hears <c>account.signIn</c> and <c>account.consent(&lt;audience&gt;)</c>.</summary>
+/// permission may change. <c>account.refresh {key, audience}</c> gets the account a new token for that audience, past the cached one
+/// (a role activated since, through PIM, say), signing in through the browser when it has to, and answers <c>{}</c>. The
+/// <paramref name="trail"/> hears <c>account.signIn</c> and <c>account.consent(&lt;audience&gt;)</c>.</summary>
 public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cache, IGraphObjectCache objects, IGraphProbeCache probes,
     HuntingSchemaSource? huntingSchema = null, ArmDirectory? armDirectory = null, ITenantLicenses? licenses = null, ErrorTrail? trail = null)
 {
@@ -69,6 +71,32 @@ public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cac
             catch (MsalClientException ex) when (ex.ErrorCode == MsalError.AuthenticationCanceledError)
             {
                 // The user closed the browser or said no: the same answer as any other cancelled request.
+                throw new OperationCanceledException(ex.Message, ex);
+            }
+
+            return null;
+        });
+        bridge.Register("account.refresh", async (p, ct) =>
+        {
+            var request = BridgeJson.Params<ConsentParams>(p);
+            var key = RequireKey(new KeyParams(request.Key));
+            var audience = request.Audience switch
+            {
+                "arm" => Audience.Arm,
+                "graph" => Audience.Graph,
+                _ => throw new BridgeException(BridgeErrorCodes.BadRequest, "A token is refreshed for Azure or Graph (audience arm or graph)."),
+            };
+
+            try
+            {
+                await accounts.RefreshAsync(key, audience, ct, message => bridge.Emit("account.deviceCode", new DeviceCodeData(message)));
+            }
+            catch (SignInRequiredException ex)
+            {
+                throw new BridgeException(BridgeErrorCodes.SignInNeeded, ex.Message);
+            }
+            catch (MsalClientException ex) when (ex.ErrorCode == MsalError.AuthenticationCanceledError)
+            {
                 throw new OperationCanceledException(ex.Message, ex);
             }
 
