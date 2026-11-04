@@ -14,6 +14,11 @@ public static class AppWindow
 {
     public const string Title = "Kustodian";
 
+    /// <summary>The web view's user agent. Photino's default, "Photino WebView", names no OS, so Monaco (which reads the OS from
+    /// the user agent) took macOS for another platform and bound Ctrl/Cmd+Enter to Ctrl rather than Cmd.</summary>
+    public static string UserAgent { get; } =
+        $"Kustodian ({(OperatingSystem.IsMacOS() ? "Macintosh" : OperatingSystem.IsWindows() ? "Windows" : "X11; Linux")})";
+
     /// <summary>Opens the window on the calling thread (the process's main thread) and returns when it closes.
     /// <paramref name="register"/> adds the bridge's handlers before the UI can send anything;
     /// the window is put in <paramref name="holder"/> as soon as it exists, for the handlers that need it. The bridge reports its
@@ -26,6 +31,7 @@ public static class AppWindow
         // verbosity 1 and above, and messages carry query results. (Its SetLogVerbosity logs the call itself.)
         var window = new PhotinoWindow { LogVerbosity = 0 }
             .SetTitle(Title)
+            .SetUserAgent(UserAgent)
             // Without this Photino ignores the size and opens at the OS default.
             .SetUseOsDefaultSize(false)
             .SetSize(WindowSizing.Default.Width, WindowSizing.Default.Height)
