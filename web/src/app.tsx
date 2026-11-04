@@ -136,7 +136,7 @@ function cycleTab(step: number) {
   }
 }
 
-const THEME_NAMES: Record<Theme, string> = { dark: 'Dark', light: 'Light', system: 'System' };
+const THEME_NAMES: Record<Theme, string> = { dark: 'Dark', light: 'Light', system: 'System', glass: 'Glass', 'liquid-glass': 'Liquid glass' };
 
 /** What the window says at startup when the settings file couldn't be used, or null when it could. */
 function settingsNotice(answer: SettingsAnswer): string | null {
@@ -394,6 +394,8 @@ export function App() {
       themeCommand('dark'),
       themeCommand('light'),
       themeCommand('system'),
+      themeCommand('glass'),
+      themeCommand('liquid-glass'),
       {
         id: 'cache.clear',
         title: 'Clear the cache',

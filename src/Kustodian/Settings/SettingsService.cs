@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Kustodian.Settings;
 
 /// <summary>The app's settings (spec 6.11 and 9), as <c>settings.json</c> holds them and the UI edits them.
-/// <see cref="Theme"/> is <c>dark</c>, <c>light</c> or <c>system</c>; <see cref="RawDefaultVersion"/> is the Graph version the
+/// <see cref="Theme"/> is <c>dark</c>, <c>light</c>, <c>system</c>, <c>glass</c> or <c>liquid-glass</c>; <see cref="RawDefaultVersion"/> is the Graph version the
 /// raw request tab starts with, <c>beta</c> or <c>v1.0</c>. <see cref="Telemetry"/> is whether the user shares Graph compatibility
 /// findings (<c>Kustodian.Telemetry.SharedProbeCache</c> and <c>SharedRunFindings</c>); null until they have been asked, and
 /// nothing is shared then. <see cref="TelemetryConsent"/> is the version of what was shared when they answered: a yes to an
@@ -61,7 +61,7 @@ public sealed class SettingsService(JsonFileStore store, ILogger<SettingsService
 {
     public const string FileName = "settings.json";
 
-    private static readonly string[] Themes = ["dark", "light", "system"];
+    private static readonly string[] Themes = ["dark", "light", "system", "glass", "liquid-glass"];
     private static readonly string[] RawVersions = ["beta", "v1.0"];
     private const long BytesPerMegabyte = 1L << 20;
 
@@ -179,7 +179,7 @@ public sealed class SettingsService(JsonFileStore store, ILogger<SettingsService
 
         if (!Themes.Contains(settings.Theme, StringComparer.Ordinal))
         {
-            return "Theme must be dark, light or system.";
+            return "Theme must be dark, light, system, glass or liquid-glass.";
         }
 
         if (!RawVersions.Contains(settings.RawDefaultVersion, StringComparer.Ordinal))

@@ -110,7 +110,7 @@ public sealed class SettingsServiceTests : IDisposable
     }
 
     [Theory]
-    [InlineData("blue", "beta", "Theme must be dark, light or system.")]
+    [InlineData("blue", "beta", "Theme must be dark, light, system, glass or liquid-glass.")]
     [InlineData("light", "v2.0", "The raw request version must be beta or v1.0.")]
     public async Task Theme_and_raw_version_outside_their_choices_are_refused(string theme, string version, string message)
     {

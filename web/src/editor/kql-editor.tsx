@@ -21,7 +21,7 @@ globalThis.MonacoEnvironment = {
 };
 
 // The studio's dark tokens (styles.css); Monaco takes colours as hex, not CSS variables.
-monaco.editor.defineTheme('kustodian-dark', {
+const DARK: monaco.editor.IStandaloneThemeData = {
   base: 'vs-dark',
   inherit: true,
   rules: [
@@ -68,7 +68,8 @@ monaco.editor.defineTheme('kustodian-dark', {
     'editorWidget.background': '#161A20',
     'editorWidget.border': '#2A303A',
   },
-});
+};
+monaco.editor.defineTheme('kustodian-dark', DARK);
 
 // The light tokens (`.theme-light` in styles.css, from studio.css), as hex.
 monaco.editor.defineTheme('kustodian-light', {
@@ -120,7 +121,22 @@ monaco.editor.defineTheme('kustodian-light', {
   },
 });
 
-const monacoTheme = (resolved: 'dark' | 'light') => (resolved === 'light' ? 'kustodian-light' : 'kustodian-dark');
+// The glass themes: the dark theme with a clear background, so the frosted panel behind the editor shows through.
+monaco.editor.defineTheme('kustodian-glass', {
+  ...DARK,
+  colors: {
+    ...DARK.colors,
+    'editor.background': '#00000000',
+    'editorGutter.background': '#00000000',
+    'editor.lineHighlightBackground': '#5CC8FF1A',
+    'editorSuggestWidget.background': '#161A20E6',
+    'editorHoverWidget.background': '#161A20E6',
+    'editorWidget.background': '#161A20E6',
+  },
+});
+
+const monacoTheme = ({ resolved, glass }: { resolved: 'dark' | 'light'; glass: boolean }) =>
+  glass ? 'kustodian-glass' : resolved === 'light' ? 'kustodian-light' : 'kustodian-dark';
 
 /** The `majorVersion` each schema view goes to the language service with: a new view (or an empty database) always gets a higher
  * one than any before it, so monaco-kusto's cache, which keeps a database until its version grows, takes it. The same view
@@ -186,7 +202,7 @@ export default function KqlEditor({ schemas, onRun, ref }: KqlEditorProps) {
     const editor = monaco.editor.create(host.current!, {
       model: null,
       language: 'kusto',
-      theme: monacoTheme(useTheme.getState().resolved),
+      theme: monacoTheme(useTheme.getState()),
       ariaLabel: 'KQL query',
       automaticLayout: true,
       minimap: { enabled: false },
@@ -221,8 +237,8 @@ export default function KqlEditor({ schemas, onRun, ref }: KqlEditorProps) {
     const stopBinding = bindCommandKeys(editor, { KeyMod: monaco.KeyMod, KeyCode: monaco.KeyCode }, runKeys);
     // Monaco's theme is global: it follows the window's.
     const stopTheme = useTheme.subscribe((t, previous) => {
-      if (t.resolved !== previous.resolved) {
-        monaco.editor.setTheme(monacoTheme(t.resolved));
+      if (monacoTheme(t) !== monacoTheme(previous)) {
+        monaco.editor.setTheme(monacoTheme(t));
       }
     });
 
