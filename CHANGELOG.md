@@ -45,6 +45,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- On macOS, ⌘ Enter runs the block at the cursor, as the shortcut hints say. Before, only Ctrl Enter did, and the
+  editor's other ⌘ shortcuts answered to Ctrl too.
 - Query parameters such as `{companyName}` are no longer underlined as errors ("Client parameters are not supported or
   enabled"). Real errors elsewhere in the query are still marked.
 - On Windows, a query still running when Kustodian closed could end with an unexpected COM error instead of stopping
