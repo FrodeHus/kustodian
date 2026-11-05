@@ -28,9 +28,12 @@ import { ErrorReportActions } from '../shell/error-report';
 import type { ExternalTool, ResultColumn } from '../wire';
 import { COPY_FORMATS, copyFailed, copyText, formatRows, type CopyFormat } from './copy';
 import { cellText, type Row } from './export';
+import type { CellMatch } from './chart-shape';
 import { RunToolDialog, ToolItems } from './run-tool';
 
 const ROW_HEIGHT = 29;
+// One empty list, so a grid with no cell filters doesn't hand the table a new state each render.
+const NO_FILTERS: CellMatch[] = [];
 const NUMERIC = new Set(['int', 'long', 'real', 'decimal', 'double']);
 // Approximate pixels per character of the cell font (12px JetBrains Mono) and of the header, plus a cell's side padding.
 const CHAR_PX = 7.3;
@@ -91,6 +94,9 @@ const rowContains: FilterFn<Features, Row> = (row, _columnId, filter: string) =>
   const needle = filter.toLowerCase();
   return row.original.some((value) => cellText(value).toLowerCase().includes(needle));
 };
+
+/** A cell matches when its text is exactly the filter's: the rows behind a chart mark (see `markFilter`). */
+const cellIs: FilterFn<Features, Row> = (row, columnId, value: string) => cellText(row.getValue(columnId)) === value;
 
 /** The leaf rows under `rows` in the order shown, groups opened or not. */
 function leaves(rows: TableRow<Features, Row>[]): TableRow<Features, Row>[] {
@@ -255,6 +261,8 @@ interface GridProps {
    * leave them out (the Rows tab isn't showing), or undefined for a bar of their own above the grid.
    */
   toolbar?: Element | null;
+  /** Only the rows whose cells have these texts, by column: the rows behind a chart mark that was clicked. */
+  cellFilters?: CellMatch[];
 }
 
 /** A magnifier: the inspect button's icon. */
@@ -270,7 +278,7 @@ const inspectIcon = (
  * row selection (click, Shift-click a range, Ctrl/⌘-click to toggle), copy as CSV, Markdown or JSON, and dynamic cells opened
  * as formatted JSON. Each row starts with an inspect button that opens it in the row details sheet, or closes it there.
  */
-export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspectorId, toolbar }: GridProps) {
+export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspectorId, toolbar, cellFilters = NO_FILTERS }: GridProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [filter, setFilter] = useState('');
   const [opened, setOpened] = useState<Opened | null>(null);
@@ -302,6 +310,7 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
         sortFn: compareCells,
         sortUndefined: 'last',
         getGroupingValue: (row) => cellText(row[i]),
+        filterFn: cellIs,
       })),
     [columns],
   );
@@ -310,7 +319,7 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
     features,
     data: rows,
     columns: defs,
-    state: { sorting, globalFilter: filter, columnVisibility: visibility, columnOrder: order, grouping, expanded },
+    state: { sorting, globalFilter: filter, columnFilters: cellFilters, columnVisibility: visibility, columnOrder: order, grouping, expanded },
     onSortingChange: setSorting,
     onGlobalFilterChange: setFilter,
     onColumnVisibilityChange: setVisibility,

@@ -7,6 +7,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Click a column, bar, pie slice or point in the Chart tab to see the rows behind it on the Rows tab. It filters the
+  result you already have, without running the query again; a chip in the result bar shows the filter and clears it.
 - Two new themes, **Glass** and **Liquid glass**: frosted panels over a colourful backdrop. Liquid glass adds rounder,
   pill-shaped controls. Pick one in Settings or the command palette.
 - Ten themes from the most used editor themes: GitHub Dark, One Dark, Dracula, Material, Monokai, Ayu Dark, Night Owl,

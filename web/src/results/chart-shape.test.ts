@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NO_SHAPE, VALUE_SERIES, chartData, chartShape, renderHint, renderOptions } from './chart-shape';
+import { NO_SHAPE, VALUE_SERIES, chartData, chartShape, markFilter, renderHint, renderOptions } from './chart-shape';
 
 const col = (name: string, type: string) => ({ name, type });
 
@@ -179,6 +179,29 @@ describe('chartShape', () => {
       series: ['iOS · n', 'iOS · m'],
       data: [{ x: 'Teams', values: { 'iOS · n': 1, 'iOS · m': 2 } }],
     });
+  });
+
+  it('mark_filter_matches_the_x_value_and_the_split_series', () => {
+    const columns = [col('app', 'string'), col('os', 'string'), col('n', 'long'), col('m', 'long')];
+    const rows = [
+      ['Teams', 'iOS', 1, 2],
+      ['Teams', 'Android', 3, 4],
+    ];
+    const one = { type: 'column' as const, x: 'app', series: ['n'], split: 'os' };
+    expect(markFilter(columns, rows, one, 'Teams', 'Android')).toEqual([
+      { id: 'app', value: 'Teams' },
+      { id: 'os', value: 'Android' },
+    ]);
+    // With several number columns the series is named "value · column".
+    expect(markFilter(columns, rows, { ...one, series: ['n', 'm'] }, 'Teams', 'iOS · m')).toEqual([
+      { id: 'app', value: 'Teams' },
+      { id: 'os', value: 'iOS' },
+    ]);
+    // A line's click names no series, and with no split the x value is all there is.
+    expect(markFilter(columns, rows, one, 'Teams')).toEqual([{ id: 'app', value: 'Teams' }]);
+    expect(markFilter(columns, rows, { ...one, split: null }, 'Teams', 'n')).toEqual([{ id: 'app', value: 'Teams' }]);
+    // Series' names along the axis all come from one row.
+    expect(markFilter(columns, rows.slice(0, 1), { type: 'column', x: null, series: ['n', 'm'] }, 'n', VALUE_SERIES)).toBeNull();
   });
 
   it('render_options_reads_the_with_properties', () => {
