@@ -54,6 +54,7 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- The Chart tab keeps its type, X axis, split, stacking and values when you switch to another result tab and back.
 - On the glass themes, row details were see-through, so the rows behind showed through their text.
 - A chart with many series, such as bars split by a column with dozens of values, no longer draws its legend over the
   X axis, Split by and Stacking pickers. The legend now takes up to three lines and scrolls.
