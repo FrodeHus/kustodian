@@ -7,6 +7,7 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- A **Full screen** button on the Chart tab fills the app window with the chart; click it again or press Esc to go back.
 - Click a column, bar, pie slice or point in the Chart tab to see the rows behind it on the Rows tab. It filters the
   result you already have, without running the query again; a chip in the result bar shows the filter and clears it.
 - Two new themes, **Glass** and **Liquid glass**: frosted panels over a colourful backdrop. Liquid glass adds rounder,

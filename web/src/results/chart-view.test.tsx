@@ -89,6 +89,16 @@ describe('ChartView', () => {
     expect(onPick).toHaveBeenCalledWith([{ id: 'app', value: 'Exchange' }]);
   });
 
+  it('chart_view_full_screen_toggles_and_esc_leaves_it', () => {
+    render(<Chart columns={columns} rows={rows} kql="t" />);
+    const chart = screen.getByRole('region', { name: 'Chart' });
+    fireEvent.click(screen.getByRole('button', { name: 'Full screen' }));
+    expect(chart.className).toContain('fixed');
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(chart.className).not.toContain('fixed');
+    expect(screen.getByRole('button', { name: 'Full screen' }).getAttribute('aria-pressed')).toBe('false');
+  });
+
   it('chart_view_follows_the_render_hint', () => {
     render(<Chart columns={columns} rows={rows} kql={'t\n| summarize n = count() by app\n| render piechart'} />);
     expect(screen.getByRole('combobox', { name: 'Chart type' })).toHaveProperty('value', 'pie');

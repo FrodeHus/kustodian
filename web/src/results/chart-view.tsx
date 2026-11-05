@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -93,6 +94,21 @@ export default function ChartView({
   picked: Picked;
   setPicked: (picked: Picked) => void;
 }) {
+  const [full, setFull] = useState(false);
+  // Esc leaves full screen first, before anything else that listens for it.
+  useEffect(() => {
+    if (!full) {
+      return;
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !e.defaultPrevented) {
+        e.preventDefault();
+        setFull(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [full]);
   const hint = renderHint(kql);
   const options = renderOptions(kql);
   const shape = chartShape(columns, rows, hint, options);
@@ -227,7 +243,7 @@ export default function ChartView({
   }
 
   return (
-    <section className="card m-4 flex min-h-0 flex-1 flex-col gap-3 p-4" aria-label="Chart">
+    <section className={`card flex min-h-0 flex-1 flex-col gap-3 p-4 ${full ? 'fixed inset-0 z-20 rounded-none' : 'm-4'}`} aria-label="Chart">
       <div className="flex items-center gap-2.5">
         <b className="text-[14px]">
           {options.title ?? (type === 'timechart' ? 'Time chart' : `${CHART_TYPES.find((t) => t.type === type)?.name ?? ''} chart`)}
@@ -247,6 +263,9 @@ export default function ChartView({
             </option>
           ))}
         </select>
+        <button type="button" className="btn ghost" aria-pressed={full} onClick={() => setFull(!full)}>
+          {full ? 'Exit full screen' : 'Full screen'}
+        </button>
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12.5px]">
         <label className="flex items-center gap-2">
