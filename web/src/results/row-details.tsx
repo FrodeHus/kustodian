@@ -115,7 +115,7 @@ export function RowDetails({ columns, row, onClose, id }: { columns: ResultColum
       id={id}
       role="dialog"
       aria-label={`Row details: ${title}`}
-      className="absolute top-0 right-0 bottom-0 z-[4] flex w-[420px] max-w-full flex-col border-l border-line bg-panel shadow-[0_18px_40px_rgba(0,0,0,0.45)]"
+      className="sheet absolute top-0 right-0 bottom-0 z-[4] flex w-[420px] max-w-full flex-col border-l border-line shadow-[0_18px_40px_rgba(0,0,0,0.45)]"
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
           e.preventDefault();

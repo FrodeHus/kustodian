@@ -259,6 +259,7 @@ body {
   .datagrid td.inspect-col button:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
   .datagrid td.inspect-col button[aria-expanded='true'] { background: var(--accent-soft); color: var(--accent); }
   .datagrid tr.inspected td.inspect-col { box-shadow: inset 2px 0 var(--accent); }
+  .sheet { background: var(--panel); }
   .pgrid { font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 19px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
   .pgrid > :not(table) { display: block; padding: 6px 10px; }
   .pgrid table { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -293,6 +294,8 @@ body {
   .theme-glass .toolbar { background: transparent; }
   .theme-glass .menu, .theme-glass .card { background: var(--glass-menu); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-edge), 0 18px 40px rgba(0, 0, 0, 0.45); }
   .theme-glass .datagrid th, .theme-glass .datagrid th.inspect-col { background: var(--glass-menu); }
+  /* Side sheets (row details, a cell's JSON) sit over the grid: opaque, so the rows don't show through their text. */
+  .theme-glass .sheet { background: rgb(22, 27, 40); }
   .theme-glass .btn.primary { background: linear-gradient(180deg, #8ad9ff, #4cb8f5); border-color: rgba(255, 255, 255, 0.5); box-shadow: 0 4px 18px rgba(76, 194, 255, 0.45); }
 
   /* Liquid glass: rounder, pill-shaped controls; the selected ones raised like drops. */
