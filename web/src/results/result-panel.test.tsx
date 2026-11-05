@@ -115,7 +115,7 @@ describe('ResultPanel', () => {
 
     fireEvent.doubleClick(container.querySelector('tbody tr[data-index="0"]')!);
     const sheet = screen.getByRole('dialog', { name: 'Row details: Contoso' });
-    expect(within(sheet).getByRole('group', { name: 'tags' }).textContent).toContain('"kind": "secret"');
+    expect(within(sheet).getByRole('group', { name: 'tags' }).textContent).toContain('kindsecret');
 
     fireEvent.keyDown(sheet, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: /Row details/ })).toBeNull();

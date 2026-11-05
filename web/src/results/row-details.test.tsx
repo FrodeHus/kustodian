@@ -20,6 +20,12 @@ afterEach(() => {
   Reflect.deleteProperty(navigator, 'clipboard');
 });
 
+/** A property grid's shown rows, each as `key = value` (carets left out). */
+const gridRows = (grid: HTMLElement) =>
+  within(grid)
+    .getAllByRole('row')
+    .map((r) => `${r.querySelector('th')?.textContent?.replace(/[▾▸]/g, '')} = ${r.querySelector('td')?.textContent}`);
+
 describe('RowDetails', () => {
   it('row_details_expands_dynamic', async () => {
     render(<RowDetails columns={columns} row={row} onClose={() => undefined} />);
@@ -29,8 +35,7 @@ describe('RowDetails', () => {
     // The first level of the tree starts open.
     const tree = within(sheet).getByRole('group', { name: 'appRoles' });
     expect(within(tree).getByRole('button', { name: '0: {2 keys}' }).getAttribute('aria-expanded')).toBe('true');
-    expect(tree.textContent).toContain('"value": "Employees.Read.All"');
-    expect(tree.textContent).toContain('"isEnabled": true');
+    expect(gridRows(tree)).toEqual(['[0] = {2 keys}', 'value = Employees.Read.All', 'isEnabled = true']);
     expect(within(sheet).getByText('owner · string')).toBeTruthy();
     expect(within(sheet).getByText('null')).toBeTruthy();
 
@@ -77,18 +82,17 @@ describe('RowDetails', () => {
     const tree = screen.getByRole('group', { name: 'app' });
 
     // The value's own entries show, and the first level under them; deeper ones start closed and say how many they hold.
-    expect(tree.textContent).toContain('"id": 7');
-    expect(tree.textContent).toContain('"tags": []');
-    expect(tree.textContent).toContain('"note": null');
+    // A closed object is named by its name, so array items can be told apart.
+    expect(gridRows(tree)).toEqual(['id = 7', 'owners = [1 item]', '[0] = {2 keys} · Ada', 'tags = []', 'note = null']);
     const owners = within(tree).getByRole('button', { name: 'owners: [1 item]' });
     expect(owners.getAttribute('aria-expanded')).toBe('true');
     const first = within(tree).getByRole('button', { name: '0: {2 keys}' });
     expect(first.getAttribute('aria-expanded')).toBe('false');
-    expect(tree.textContent).not.toContain('Ada');
 
     fireEvent.click(first);
     expect(first.getAttribute('aria-expanded')).toBe('true');
-    expect(tree.textContent).toContain('"name": "Ada"');
+    expect(gridRows(tree)).toContain('name = Ada');
+    expect(gridRows(tree)).toContain('roles = [1 item]');
     fireEvent.click(owners);
     expect(owners.getAttribute('aria-expanded')).toBe('false');
     expect(tree.textContent).not.toContain('Ada');
@@ -96,10 +100,31 @@ describe('RowDetails', () => {
     // Expand all opens every level; Collapse goes back to the first.
     fireEvent.click(screen.getByRole('button', { name: 'Expand app' }));
     const all = screen.getByRole('group', { name: 'app' });
-    expect(all.textContent).toContain('"admin"');
+    expect(gridRows(all)).toContain('[0] = admin');
     expect(within(all).getAllByRole('button').every((b) => b.getAttribute('aria-expanded') === 'true')).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Collapse app' }));
-    expect(screen.getByRole('group', { name: 'app' }).textContent).not.toContain('Ada');
+    expect(gridRows(screen.getByRole('group', { name: 'app' }))).not.toContain('name = Ada');
+  });
+
+  it('row_details_parses_json_text_and_shows_it_raw_on_request', async () => {
+    const text = '{"deviceId":"d-1","isCompliant":true}';
+    render(<RowDetails columns={[{ name: 'deviceDetail', type: 'string' }, { name: 'note', type: 'string' }]} row={[text, '{not json']} onClose={() => undefined} />);
+
+    expect(screen.getByText('deviceDetail · string · JSON')).toBeTruthy();
+    expect(gridRows(screen.getByRole('group', { name: 'deviceDetail' }))).toEqual(['deviceId = d-1', 'isCompliant = true']);
+    // Text that isn't JSON stays text.
+    expect(screen.getByText('{not json')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Show note as raw JSON' })).toBeNull();
+
+    const rawButton = screen.getByRole('button', { name: 'Show deviceDetail as raw JSON' });
+    fireEvent.click(rawButton);
+    expect(rawButton.getAttribute('aria-pressed')).toBe('true');
+    expect(screen.queryByRole('group', { name: 'deviceDetail' })).toBeNull();
+    expect(document.querySelector('pre')?.textContent).toBe(JSON.stringify(JSON.parse(text), null, 2));
+
+    // Copy gives the value as it came.
+    fireEvent.click(screen.getByRole('button', { name: 'Copy deviceDetail' }));
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith(text));
   });
 
   it('row_details_shows_a_cut_dynamic_value_as_text', () => {
