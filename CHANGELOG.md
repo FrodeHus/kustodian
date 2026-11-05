@@ -50,6 +50,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 - A chart with many series, such as bars split by a column with dozens of values, no longer draws its legend over the
   X axis, Split by and Stacking pickers. The legend now takes up to three lines and scrolls.
+- A query error naming a long table, such as `reports_authenticationMethods_userRegistrationDetails`, no longer runs over
+  the error's report ID. The message wraps instead.
 - In the glass themes, the chart's hover tooltip was see-through and hard to read. It now has the same frosted dark
   background as menus, and the band behind the hovered bar no longer glares light grey.
 - On macOS, ⌘ Enter runs the block at the cursor, as the shortcut hints say. Before, only Ctrl Enter did, and the

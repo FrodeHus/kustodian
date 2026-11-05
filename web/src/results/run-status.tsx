@@ -208,7 +208,7 @@ export function RunStatus({ run, scope, onSignIn, accountKey, onConsented, onGra
       <>
         {result.outcome !== 'ok' && (
           <span className="flex min-w-0 items-center gap-2 text-bad" role="alert">
-            <span className="min-w-0">{result.message ?? 'The query failed.'}</span>
+            <span className="min-w-0 wrap-anywhere">{result.message ?? 'The query failed.'}</span>
             <ErrorReportActions reportId={result.reportId} uiSections={{ message: result.message ?? 'The query failed.', query: run.kql }} />
             {at && (
               <span className="mono faint shrink-0 text-[11.5px]">
