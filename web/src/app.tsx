@@ -494,6 +494,13 @@ export function App() {
   // Schema and snippet text goes into the editor, never into a raw tab's path.
   const insert = (text: string) => (raw ? false : (editor.current?.insert(text) ?? false));
   const savingTab = tabs.find((t) => t.id === saving);
+  const closeSettings = () => {
+    setCreateAppOpen(false);
+    setSettingsOpen(false);
+    if (!signingIn) {
+      editor.current?.focus();
+    }
+  };
   const footerSource = schemaSourceOf(active?.source ?? 'graph');
   const footer = schemaFooter(footerSource, schemas[footerSource], resourceTypes);
 
@@ -509,7 +516,7 @@ export function App() {
         onSettings={() => setSettingsOpen(true)}
       >
         {/* Hidden rather than unmounted, like the workspace below, so a close confirmation keeps its state. */}
-        <div className="flex min-w-0 grow" hidden={signingIn || settingsOpen}>
+        <div className="flex min-w-0 grow" hidden={signingIn} inert={settingsOpen}>
           <TabStrip onDialog={setConfirming} />
         </div>
       </TitleBar>
@@ -528,164 +535,170 @@ export function App() {
           </button>
         </div>
       )}
-      {/* Settings can be opened from sign-in too (the title bar's account menu): they cover it until they close. */}
-      {signingIn && !settingsOpen && (
-        <SignIn
-          list={accounts}
-          error={accountsError}
-          onChanged={(done) => {
-            let activeKey: string | undefined;
-            // The screen closes only once the accounts were read again.
-            void readAccounts((list) => {
-              activeKey = list.accounts.find((a) => a.active)?.key;
-              setAccounts(list);
-            }, setAccountsError).then((read) => {
-              if (done && read) {
-                setAccountsOpen(false);
-              }
-              // A built-in hunting schema, or a tenant's one that couldn't be refreshed, may have been shown for want of a
-              // sign-in: signed in again as the same account, the tenant's is read (past the host's cache of the fallback), and so
-              // are the Resource Graph resource types. Another account resets every schema anyway.
-              const sameAccount = activeKey !== undefined && activeKey === shownAccount.current;
-              const hunting = useSchemas.getState().byKey.hunting;
-              if (read && sameAccount && (hunting?.origin === 'builtIn' || hunting?.fallbackReason)) {
-                void useSchemas.getState().load('hunting', { refresh: true });
-              }
-              if (read && sameAccount) {
-                void useSchemas.getState().reloadResourceTypes();
-              }
-            });
-          }}
-          onBack={account && !accountsError ? () => setAccountsOpen(false) : undefined}
-          defaults={settings?.settings.signIn}
-          createAppOpen={createAppOpen}
-          onCreateAppOpen={setCreateAppOpen}
-        />
-      )}
-      {settingsOpen && (
-        <SettingsView
-          account={account}
-          createAppOpen={createAppOpen}
-          onCreateAppOpen={setCreateAppOpen}
-          onAccountSwitched={() => void readAccounts(setAccounts, setAccountsError)}
-          onClose={() => {
-            setCreateAppOpen(false);
-            setSettingsOpen(false);
-            if (!signingIn) {
-              editor.current?.focus();
-            }
-          }}
-          onChange={setSettings}
-        />
-      )}
-      {/* Hidden rather than unmounted while signing in, so the editor keeps each tab's undo history. */}
-      <div className="flex min-h-0 flex-1 flex-col" hidden={signingIn || settingsOpen}>
-        <div className="panes">
-          <Rail panel={panel} onChoose={setPanel} />
-          <SidePanel
-            panel={panel}
-            source={active?.source ?? 'graph'}
-            text={active?.text ?? ''}
-            onInsert={insert}
-            accountKey={accountKey}
-            onSignIn={() => setAccountsOpen(true)}
+      {/* Sign-in, settings and the workspace share this area: settings are a sheet over it, as wide as the window when it's narrow. */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        {/* Settings can be opened from sign-in too (the title bar's account menu): they cover it until they close. */}
+        {signingIn && !settingsOpen && (
+          <SignIn
+            list={accounts}
+            error={accountsError}
+            onChanged={(done) => {
+              let activeKey: string | undefined;
+              // The screen closes only once the accounts were read again.
+              void readAccounts((list) => {
+                activeKey = list.accounts.find((a) => a.active)?.key;
+                setAccounts(list);
+              }, setAccountsError).then((read) => {
+                if (done && read) {
+                  setAccountsOpen(false);
+                }
+                // A built-in hunting schema, or a tenant's one that couldn't be refreshed, may have been shown for want of a
+                // sign-in: signed in again as the same account, the tenant's is read (past the host's cache of the fallback), and so
+                // are the Resource Graph resource types. Another account resets every schema anyway.
+                const sameAccount = activeKey !== undefined && activeKey === shownAccount.current;
+                const hunting = useSchemas.getState().byKey.hunting;
+                if (read && sameAccount && (hunting?.origin === 'builtIn' || hunting?.fallbackReason)) {
+                  void useSchemas.getState().load('hunting', { refresh: true });
+                }
+                if (read && sameAccount) {
+                  void useSchemas.getState().reloadResourceTypes();
+                }
+              });
+            }}
+            onBack={account && !accountsError ? () => setAccountsOpen(false) : undefined}
+            defaults={settings?.settings.signIn}
+            createAppOpen={createAppOpen}
+            onCreateAppOpen={setCreateAppOpen}
           />
-          <main className="workspace">
-            {active ? (
-              <>
-                {!raw && (
-                  <Toolbar
-                    tab={active}
-                    onRun={(mode) => runActive(mode)}
-                    onFormat={() => editor.current?.format()}
-                    paramCount={paramCount}
-                    paramsOpen={showingParams}
-                    onParams={() => runCommand('params.toggle')}
-                    explaining={explaining !== null}
-                    onExplain={() => runCommand('explain')}
-                    onSave={() => runCommand('file.save')}
-                    onSaveAs={() => runCommand('file.saveAs')}
-                    picker={picker}
-                    onPicker={setPicker}
-                    accountKey={accountKey}
-                    onSignIn={() => setAccountsOpen(true)}
-                  />
-                )}
-                {/* A raw tab has no query: the editor stays mounted for the other tabs, hidden. The parameters view takes its
-                    place, at its size, so the results below keep theirs. */}
-                {showingParams && (
-                  <div className="min-h-[160px] shrink-0 basis-[38%] overflow-y-auto border-b border-line">
-                    <ParamsForm tab={active} query={runText(active, cursor)} onRun={() => runActive('block')} />
-                  </div>
-                )}
-                <div className="relative min-h-[160px] shrink-0 basis-[38%] border-b border-line" hidden={raw || showingParams}>
-                  <EditorFailed>
-                    <Suspense fallback={<p className="faint m-0 p-4 text-[12px]">Loading the editor…</p>}>
-                      <KqlEditor ref={editor} schemas={schemas} onRun={(mode) => void useTabs.getState().run(active.id, mode)} />
-                    </Suspense>
-                  </EditorFailed>
-                </div>
-                {raw ? (
-                  <RawTab
-                    key={active.id}
-                    tab={active}
-                    schema={graphSchema ?? null}
-                    defaultVersion={settings?.settings.rawDefaultVersion ?? 'beta'}
-                    accountKey={account?.key}
-                    onSignIn={() => setAccountsOpen(true)}
-                  />
-                ) : (
-                  <>
-                    <RunStatus
-                      run={active.run}
-                      scope={active.run?.options?.scope}
-                      onSignIn={() => setAccountsOpen(true)}
+        )}
+        {settingsOpen && (
+          <div className="absolute inset-0 z-10 flex justify-end">
+            {!signingIn && <button type="button" aria-label="Close settings" tabIndex={-1} className="absolute inset-0 cursor-default bg-black/40" onClick={closeSettings} />}
+            <div
+              role="dialog"
+              aria-label="Settings"
+              className={`sheet relative flex w-full flex-col shadow-[0_18px_40px_rgba(0,0,0,0.45)] ${signingIn ? '' : 'lg:w-[760px] lg:border-l lg:border-line'}`}
+            >
+              <SettingsView
+                account={account}
+                createAppOpen={createAppOpen}
+                onCreateAppOpen={setCreateAppOpen}
+                onAccountSwitched={() => void readAccounts(setAccounts, setAccountsError)}
+                onClose={closeSettings}
+                onChange={setSettings}
+              />
+            </div>
+          </div>
+        )}
+        {/* Hidden rather than unmounted while signing in, so the editor keeps each tab's undo history. */}
+        <div className="flex min-h-0 flex-1 flex-col" hidden={signingIn} inert={settingsOpen}>
+          <div className="panes">
+            <Rail panel={panel} onChoose={setPanel} />
+            <SidePanel
+              panel={panel}
+              source={active?.source ?? 'graph'}
+              text={active?.text ?? ''}
+              onInsert={insert}
+              accountKey={accountKey}
+              onSignIn={() => setAccountsOpen(true)}
+            />
+            <main className="workspace">
+              {active ? (
+                <>
+                  {!raw && (
+                    <Toolbar
+                      tab={active}
+                      onRun={(mode) => runActive(mode)}
+                      onFormat={() => editor.current?.format()}
+                      paramCount={paramCount}
+                      paramsOpen={showingParams}
+                      onParams={() => runCommand('params.toggle')}
+                      explaining={explaining !== null}
+                      onExplain={() => runCommand('explain')}
+                      onSave={() => runCommand('file.save')}
+                      onSaveAs={() => runCommand('file.saveAs')}
+                      picker={picker}
+                      onPicker={setPicker}
                       accountKey={accountKey}
-                      account={account}
-                      createApp={canCreateApp(account)}
-                      onConsented={() => void useTabs.getState().rerun(active.id)}
-                      onGranted={() => {
-                        const id = active.id;
-                        // The account's permissions are read again first, so a run still refused says what it lacks. A
-                        // built-in hunting schema, or one that couldn't be refreshed, may have been for want of the permission.
-                        void readAccounts(setAccounts, setAccountsError).then(() => {
-                          const hunting = useSchemas.getState().byKey.hunting;
-                          if (hunting?.origin === 'builtIn' || hunting?.fallbackReason) {
-                            void useSchemas.getState().load('hunting', { refresh: true });
-                          }
-                          void useTabs.getState().rerun(id);
-                        });
-                      }}
+                      onSignIn={() => setAccountsOpen(true)}
                     />
-                    {explaining ? (
-                      <ExplainView request={explaining} onOpenRaw={(url) => openRaw({ path: url, version: 'beta' })} />
-                    ) : (
-                      <Results tab={active} dialogOpen={paletteOpen || saving !== null || confirming} />
-                    )}
-                  </>
-                )}
-              </>
-            ) : (
-              <div className="flex flex-1 flex-col items-center justify-center gap-3">
-                <span className="muted">No query open.</span>
-                <button type="button" className="btn primary" onClick={() => useTabs.getState().open('graph')}>
-                  New Microsoft Graph query
-                </button>
-              </div>
+                  )}
+                  {/* A raw tab has no query: the editor stays mounted for the other tabs, hidden. The parameters view takes its
+                      place, at its size, so the results below keep theirs. */}
+                  {showingParams && (
+                    <div className="min-h-[160px] shrink-0 basis-[38%] overflow-y-auto border-b border-line">
+                      <ParamsForm tab={active} query={runText(active, cursor)} onRun={() => runActive('block')} />
+                    </div>
+                  )}
+                  <div className="relative min-h-[160px] shrink-0 basis-[38%] border-b border-line" hidden={raw || showingParams}>
+                    <EditorFailed>
+                      <Suspense fallback={<p className="faint m-0 p-4 text-[12px]">Loading the editor…</p>}>
+                        <KqlEditor ref={editor} schemas={schemas} onRun={(mode) => void useTabs.getState().run(active.id, mode)} />
+                      </Suspense>
+                    </EditorFailed>
+                  </div>
+                  {raw ? (
+                    <RawTab
+                      key={active.id}
+                      tab={active}
+                      schema={graphSchema ?? null}
+                      defaultVersion={settings?.settings.rawDefaultVersion ?? 'beta'}
+                      accountKey={account?.key}
+                      onSignIn={() => setAccountsOpen(true)}
+                    />
+                  ) : (
+                    <>
+                      <RunStatus
+                        run={active.run}
+                        scope={active.run?.options?.scope}
+                        onSignIn={() => setAccountsOpen(true)}
+                        accountKey={accountKey}
+                        account={account}
+                        createApp={canCreateApp(account)}
+                        onConsented={() => void useTabs.getState().rerun(active.id)}
+                        onGranted={() => {
+                          const id = active.id;
+                          // The account's permissions are read again first, so a run still refused says what it lacks. A
+                          // built-in hunting schema, or one that couldn't be refreshed, may have been for want of the permission.
+                          void readAccounts(setAccounts, setAccountsError).then(() => {
+                            const hunting = useSchemas.getState().byKey.hunting;
+                            if (hunting?.origin === 'builtIn' || hunting?.fallbackReason) {
+                              void useSchemas.getState().load('hunting', { refresh: true });
+                            }
+                            void useTabs.getState().rerun(id);
+                          });
+                        }}
+                      />
+                      {explaining ? (
+                        <ExplainView request={explaining} onOpenRaw={(url) => openRaw({ path: url, version: 'beta' })} />
+                      ) : (
+                        <Results tab={active} dialogOpen={paletteOpen || saving !== null || confirming} />
+                      )}
+                    </>
+                  )}
+                </>
+              ) : (
+                <div className="flex flex-1 flex-col items-center justify-center gap-3">
+                  <span className="muted">No query open.</span>
+                  <button type="button" className="btn primary" onClick={() => useTabs.getState().open('graph')}>
+                    New Microsoft Graph query
+                  </button>
+                </div>
+              )}
+            </main>
+          </div>
+          <footer className="statusbar">
+            {cursor && !raw && (
+              <span>
+                Ln {cursor.line}, Col {cursor.column}
+              </span>
             )}
-          </main>
+            <span>{LANGUAGE[active?.source ?? 'graph']}</span>
+            {footer && <span title={footerSource === 'graph' ? schemas.graph?.source : undefined}>{footer}</span>}
+            <div className="grow" />
+            <span title="Theme">{theme.theme === 'system' ? `System (${themeName(theme.resolved)})` : themeName(theme.theme)}</span>
+          </footer>
         </div>
-        <footer className="statusbar">
-          {cursor && !raw && (
-            <span>
-              Ln {cursor.line}, Col {cursor.column}
-            </span>
-          )}
-          <span>{LANGUAGE[active?.source ?? 'graph']}</span>
-          {footer && <span title={footerSource === 'graph' ? schemas.graph?.source : undefined}>{footer}</span>}
-          <div className="grow" />
-          <span title="Theme">{theme.theme === 'system' ? `System (${themeName(theme.resolved)})` : themeName(theme.theme)}</span>
-        </footer>
       </div>
       {savingTab && (
         <SaveDialog
