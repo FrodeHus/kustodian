@@ -124,7 +124,7 @@ export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = fa
   const detailsRow = details === null ? undefined : result.rows[details];
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="rbar">
         <div role="tablist" aria-label="Result" className="flex shrink-0" onKeyDown={onTabKey}>
           {tabs.map((t) => (
