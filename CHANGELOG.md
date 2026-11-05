@@ -31,6 +31,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- The row details sheet takes the full height of the window, beside the editor and results, not only the results
+  area.
 - The title bar and the tab strip are one bar, so queries get more room. Settings and accounts moved into a menu on the
   account button.
 - With many tabs open, the tabs scroll sideways without a scrollbar and the active one stays in view; the account button
