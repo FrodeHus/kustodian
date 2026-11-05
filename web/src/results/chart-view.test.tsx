@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import { useState, type ComponentProps, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import ChartView from './chart-view';
+import ChartView, { type Picked } from './chart-view';
 
 // jsdom has no layout for Recharts to measure: each chart stands in as an element naming its kind and series.
 vi.mock('recharts', () => {
@@ -59,9 +59,15 @@ const rows = [
   ['Exchange', 5],
 ];
 
+// The panel holds the picks; here the test does.
+function Chart(props: Omit<ComponentProps<typeof ChartView>, 'picked' | 'setPicked'>) {
+  const [picked, setPicked] = useState<Picked>({});
+  return <ChartView {...props} picked={picked} setPicked={setPicked} />;
+}
+
 describe('ChartView', () => {
   it('chart_view_picks_the_shape_and_the_picker_overrides_it', () => {
-    const { container } = render(<ChartView columns={columns} rows={rows} kql="t | summarize n = count() by app" />);
+    const { container } = render(<Chart columns={columns} rows={rows} kql="t | summarize n = count() by app" />);
     const picker = screen.getByRole('combobox', { name: 'Chart type' });
 
     expect(picker).toHaveProperty('value', 'column');
@@ -78,19 +84,19 @@ describe('ChartView', () => {
 
   it('chart_view_click_picks_the_rows_behind_the_mark', () => {
     const onPick = vi.fn();
-    const { container } = render(<ChartView columns={columns} rows={rows} kql="t" onPick={onPick} />);
+    const { container } = render(<Chart columns={columns} rows={rows} kql="t" onPick={onPick} />);
     fireEvent.click(container.querySelector('[data-mark="bar"]')!);
     expect(onPick).toHaveBeenCalledWith([{ id: 'app', value: 'Exchange' }]);
   });
 
   it('chart_view_follows_the_render_hint', () => {
-    render(<ChartView columns={columns} rows={rows} kql={'t\n| summarize n = count() by app\n| render piechart'} />);
+    render(<Chart columns={columns} rows={rows} kql={'t\n| summarize n = count() by app\n| render piechart'} />);
     expect(screen.getByRole('combobox', { name: 'Chart type' })).toHaveProperty('value', 'pie');
     expect(screen.getByText('From render piechart')).toBeTruthy();
   });
 
   it('chart_view_empty_state_explains', () => {
-    render(<ChartView columns={[{ name: 'tags', type: 'dynamic' }]} rows={[[[]]]} kql="t" />);
+    render(<Chart columns={[{ name: 'tags', type: 'dynamic' }]} rows={[[[]]]} kql="t" />);
     expect(screen.getByText('This result has no shape to chart: it needs a text, true/false or date column and a number column.')).toBeTruthy();
     expect(screen.queryByRole('combobox', { name: 'Chart type' })).toBeNull();
   });
@@ -106,7 +112,7 @@ describe('ChartView', () => {
       ['Teams', 'iOS', 3, 1],
       ['Exchange', 'Windows', 5, 2],
     ];
-    const { container } = render(<ChartView columns={cols} rows={data} kql="t | render columnchart" />);
+    const { container } = render(<Chart columns={cols} rows={data} kql="t | render columnchart" />);
     const names = () => [...container.querySelectorAll('[data-mark="bar"]')].map((m) => m.getAttribute('data-name'));
     expect(screen.getByRole('combobox', { name: 'X axis' })).toHaveProperty('value', 'app');
     expect(names()).toEqual(['n', 'm']);
@@ -125,7 +131,7 @@ describe('ChartView', () => {
       { name: 'Count A', type: 'long' },
       { name: 'Count B', type: 'long' },
     ];
-    const { container } = render(<ChartView columns={cols} rows={[[10, 4]]} kql="t" />);
+    const { container } = render(<Chart columns={cols} rows={[[10, 4]]} kql="t" />);
     expect(screen.getByRole('combobox', { name: 'X axis' })).toHaveProperty('value', '');
     expect(screen.getByRole('option', { name: 'Column names' })).toBeTruthy();
     expect(container.querySelectorAll('[data-mark="bar"]')).toHaveLength(1);
@@ -141,7 +147,7 @@ describe('ChartView', () => {
       [10, 'Acme', 'HR'],
       [20, 'Acme', 'Finance'],
     ];
-    const { container } = render(<ChartView columns={cols} rows={data} kql="t" />);
+    const { container } = render(<Chart columns={cols} rows={data} kql="t" />);
     const names = () => [...container.querySelectorAll('[data-mark="bar"]')].map((m) => m.getAttribute('data-name'));
     const split = screen.getByRole('combobox', { name: 'Split by' });
     expect(split).toHaveProperty('value', 'Department');
@@ -165,7 +171,7 @@ describe('ChartView', () => {
       [20, 2, 'Acme', 'Finance'],
     ];
     const kql = 't\n| render columnchart with (kind=stacked, xcolumn=Department, ycolumns=Value, series=CompanyName, title="Headcount")';
-    const { container } = render(<ChartView columns={cols} rows={data} kql={kql} />);
+    const { container } = render(<Chart columns={cols} rows={data} kql={kql} />);
     const marks = () => [...container.querySelectorAll('[data-mark="bar"]')];
     expect(screen.getByText('Headcount')).toBeTruthy();
     expect(screen.getByRole('combobox', { name: 'X axis' })).toHaveProperty('value', 'Department');
