@@ -257,6 +257,34 @@ export function splitColumn(columns: ResultColumn[], spec: ChartSpec): ResultCol
   return spec.series.length === 1 && splits.length === 1 ? splits[0] : undefined;
 }
 
+/** A split series' name: the split column's value, and the number column too when there are several. */
+const splitSeriesName = (spec: ChartSpec, value: string, series: string) => (spec.series.length > 1 ? `${value} · ${series}` : value);
+
+/** A column (by its name, as the grid's column ids are) and the text its cells must have. */
+export interface CellMatch {
+  id: string;
+  value: string;
+}
+
+/**
+ * The rows behind one chart mark, as the cells they must have: the mark's `x` value, and for a series of a {@link splitColumn}
+ * the split column's value that series was drawn for. Null for a chart with the series' names along its axis, whose marks all
+ * come from its one row.
+ */
+export function markFilter(columns: ResultColumn[], rows: Row[], spec: ChartSpec, x: string, series?: string): CellMatch[] | null {
+  if (spec.x === null) {
+    return null;
+  }
+  const filter = [{ id: spec.x, value: x }];
+  const split = splitColumn(columns, spec);
+  if (!split || series === undefined) {
+    return filter;
+  }
+  const at = columns.indexOf(split);
+  const value = rows.map((row) => cellText(row[at])).find((v) => spec.series.some((s) => splitSeriesName(spec, v, s) === series));
+  return value === undefined ? filter : [...filter, { id: split.name, value }];
+}
+
 /**
  * The points to draw, one per x value in the order they first appear. With a {@link splitColumn}, each series is drawn once per
  * value of that column (named by the value, and by the series too when there are several); otherwise each row is a point and
@@ -290,7 +318,7 @@ export function chartData(columns: ResultColumn[], unsorted: Row[], spec: ChartS
     const x = cellText(row[xAt]);
     const point = points.get(x) ?? { x, values: {} };
     for (const s of spec.series) {
-      const name = spec.series.length > 1 ? `${cellText(row[splitAt])} · ${s}` : cellText(row[splitAt]);
+      const name = splitSeriesName(spec, cellText(row[splitAt]), s);
       series.add(name);
       point.values[name] = row[index(s)] ?? null;
     }

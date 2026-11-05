@@ -3,6 +3,7 @@ import { errorText } from '../shell/errors';
 import { reportIdOf } from '../shell/report-id';
 import { useTabs } from '../tabs/tab-store';
 import type { RunResult, Source } from '../wire';
+import type { CellMatch } from './chart-shape';
 import { CompareView } from './compare-view';
 import { DiagnosticsView } from './diagnostics-view';
 import { EXPORT_FORMATS, EXPORT_NAMES, exportResult, toJson, type ExportFormat } from './export';
@@ -61,11 +62,14 @@ export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = fa
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
   const [details, setDetails] = useState<number | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
-  // A new result closes the row details: its index was into the old rows.
+  // The rows behind the chart mark last clicked: the Rows tab shows only them until it's cleared.
+  const [chartFilter, setChartFilter] = useState<CellMatch[] | null>(null);
+  // A new result closes the row details (its index was into the old rows) and drops the chart's filter.
   const [resultSeen, setResultSeen] = useState(result);
   if (resultSeen !== result) {
     setResultSeen(result);
     setDetails(null);
+    setChartFilter(null);
   }
   if (dialogOpen && details !== null) {
     setDetails(null);
@@ -171,6 +175,16 @@ export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = fa
           </button>
         )}
       </div>
+      {active === 'rows' && chartFilter && (
+        <div className="flex px-3 pt-2">
+          <span className="chip min-w-0" title="Rows behind the chart mark you clicked">
+            <span className="truncate">Chart: {chartFilter.map((f) => `${f.id} = ${f.value === '' ? '(empty)' : f.value}`).join(' · ')}</span>
+            <button type="button" className="shrink-0 cursor-pointer" aria-label="Clear the chart filter" onClick={() => setChartFilter(null)}>
+              ✕
+            </button>
+          </span>
+        </div>
+      )}
       {notice && <NoticeLine notice={notice} onDismiss={() => setNotice(null)} />}
       {panel(
         'rows',
@@ -181,6 +195,7 @@ export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = fa
           onOpenRow={setDetails}
           inspected={details}
           inspectorId={`${id}-details`}
+          cellFilters={chartFilter ?? undefined}
         />,
       )}
       {panel(
@@ -188,7 +203,15 @@ export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = fa
         active === 'chart' && (
           <ChartFailed>
             <Suspense fallback={<p className="faint m-0 p-4 text-[12px]">Loading the chart…</p>}>
-              <ChartView columns={result.columns} rows={result.rows} kql={kql} />
+              <ChartView
+                columns={result.columns}
+                rows={result.rows}
+                kql={kql}
+                onPick={(filter) => {
+                  setChartFilter(filter);
+                  setChosen('rows');
+                }}
+              />
             </Suspense>
           </ChartFailed>
         ),

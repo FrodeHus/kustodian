@@ -14,8 +14,21 @@ vi.mock('recharts', () => {
       );
     };
   const mark = (kind: string) =>
-    function Mark({ name, fill, stroke, stackId }: { name?: string; fill?: string; stroke?: string; stackId?: string }) {
-      return <span data-mark={kind} data-name={name} data-colour={fill ?? stroke} data-stack={stackId} />;
+    function Mark({
+      name,
+      fill,
+      stroke,
+      stackId,
+      onClick,
+    }: {
+      name?: string;
+      fill?: string;
+      stroke?: string;
+      stackId?: string;
+      onClick?: (data: unknown, index: number) => void;
+    }) {
+      // A click on the mark stands for one on its second point.
+      return <span data-mark={kind} data-name={name} data-colour={fill ?? stroke} data-stack={stackId} onClick={() => onClick?.({}, 1)} />;
     };
   const none = () => null;
   return {
@@ -61,6 +74,13 @@ describe('ChartView', () => {
 
     fireEvent.change(picker, { target: { value: 'pie' } });
     expect(container.querySelectorAll('[data-mark="cell"]')).toHaveLength(2);
+  });
+
+  it('chart_view_click_picks_the_rows_behind_the_mark', () => {
+    const onPick = vi.fn();
+    const { container } = render(<ChartView columns={columns} rows={rows} kql="t" onPick={onPick} />);
+    fireEvent.click(container.querySelector('[data-mark="bar"]')!);
+    expect(onPick).toHaveBeenCalledWith([{ id: 'app', value: 'Exchange' }]);
   });
 
   it('chart_view_follows_the_render_hint', () => {

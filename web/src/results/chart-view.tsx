@@ -18,7 +18,7 @@ import {
 } from 'recharts';
 import type { ResultColumn } from '../wire';
 import type { Row } from './export';
-import { CHART_TYPES, NO_SHAPE, RENDER_HINTS, chartData, chartShape, isCategory, isNumeric, renderHint, renderOptions, splitColumn, type ChartPoint, type ChartType, type Stack } from './chart-shape';
+import { CHART_TYPES, NO_SHAPE, RENDER_HINTS, chartData, chartShape, isCategory, markFilter, isNumeric, renderHint, renderOptions, splitColumn, type CellMatch, type ChartPoint, type ChartType, type Stack } from './chart-shape';
 
 /** Series colours, from the theme's tokens, so they follow light and dark. */
 const COLOURS = ['var(--accent)', 'var(--warn)', 'var(--ok)', 'var(--bad)', 'var(--kw)', 'var(--fn)', 'var(--num)', 'var(--str)', 'var(--col)'];
@@ -75,9 +75,20 @@ const RENDER_WORDS = Object.fromEntries(Object.entries(RENDER_HINTS).map(([word,
 
 /**
  * The Chart tab (spec 6.5): the result drawn as the chart its shape (or the query's `| render` and its `with (...)` properties)
- * picks, with pickers for the type, the x axis, the number columns, the split and the stacking that override it. Loaded on demand, so Recharts is a chunk of its own.
+ * picks, with pickers for the type, the x axis, the number columns, the split and the stacking that override it. Clicking a
+ * column, bar, slice or point gives `onPick` the cells of the rows behind it. Loaded on demand, so Recharts is a chunk of its own.
  */
-export default function ChartView({ columns, rows, kql }: { columns: ResultColumn[]; rows: Row[]; kql: string }) {
+export default function ChartView({
+  columns,
+  rows,
+  kql,
+  onPick,
+}: {
+  columns: ResultColumn[];
+  rows: Row[];
+  kql: string;
+  onPick?: (filter: CellMatch[]) => void;
+}) {
   const hint = renderHint(kql);
   const options = renderOptions(kql);
   const shape = chartShape(columns, rows, hint, options);
@@ -102,6 +113,15 @@ export default function ChartView({ columns, rows, kql }: { columns: ResultColum
   const split = picked.split === undefined || (picked.split !== null && !splits.includes(picked.split)) ? auto.split : picked.split;
   const spec = { type, x, series: type === 'pie' ? chosen.slice(0, 1) : chosen, split };
   const { series, data } = chartData(columns, rows, spec);
+  // The point at `index` (a mark's, or the chart's active one for lines and areas), and the series clicked when there is one.
+  const pick = (index: unknown, name?: string) => {
+    const point = data[Number(index)];
+    const filter = point && markFilter(columns, rows, spec, point.x, name);
+    if (filter) {
+      onPick?.(filter);
+    }
+  };
+  const pointer = onPick && spec.x !== null ? { cursor: 'pointer' } : undefined;
   // Only bars and areas stack; stacked to 100%, the value axis reads as shares.
   const stackable = type === 'column' || type === 'bar' || type === 'area';
   const stack = stackable ? (picked.stack ?? options.stack ?? 'none') : 'none';
@@ -131,7 +151,7 @@ export default function ChartView({ columns, rows, kql }: { columns: ResultColum
           {xAxis}
           <YAxis {...AXIS} tickFormatter={valueTick} />
           {series.map((s, i) => (
-            <Bar key={s} name={s} dataKey={valueOf(s)} fill={colour(i)} stackId={stackId} isAnimationActive={false} />
+            <Bar key={s} name={s} dataKey={valueOf(s)} fill={colour(i)} stackId={stackId} isAnimationActive={false} style={pointer} onClick={(_, i) => pick(i, s)} />
           ))}
         </BarChart>
       );
@@ -143,14 +163,14 @@ export default function ChartView({ columns, rows, kql }: { columns: ResultColum
           <XAxis type="number" {...AXIS} tickFormatter={valueTick} />
           <YAxis type="category" dataKey="x" width={140} {...AXIS} tickFormatter={time ? dateTick : undefined} />
           {series.map((s, i) => (
-            <Bar key={s} name={s} dataKey={valueOf(s)} fill={colour(i)} stackId={stackId} isAnimationActive={false} />
+            <Bar key={s} name={s} dataKey={valueOf(s)} fill={colour(i)} stackId={stackId} isAnimationActive={false} style={pointer} onClick={(_, i) => pick(i, s)} />
           ))}
         </BarChart>
       );
       break;
     case 'area':
       chart = (
-        <AreaChart data={data} stackOffset={stackOffset}>
+        <AreaChart data={data} stackOffset={stackOffset} style={pointer} onClick={(state) => pick(state.activeIndex)}>
           {common}
           {xAxis}
           <YAxis {...AXIS} tickFormatter={valueTick} />
@@ -174,7 +194,15 @@ export default function ChartView({ columns, rows, kql }: { columns: ResultColum
         <PieChart>
           <Tooltip {...TOOLTIP} />
           <Legend {...LEGEND} />
-          <Pie data={data} dataKey={valueOf(series[0] ?? '')} nameKey="x" stroke="var(--panel)" isAnimationActive={false}>
+          <Pie
+            data={data}
+            dataKey={valueOf(series[0] ?? '')}
+            nameKey="x"
+            stroke="var(--panel)"
+            isAnimationActive={false}
+            style={pointer}
+            onClick={(_, i) => pick(i)}
+          >
             {data.map((_, i) => (
               <Cell key={i} fill={colour(i)} />
             ))}
@@ -184,7 +212,7 @@ export default function ChartView({ columns, rows, kql }: { columns: ResultColum
       break;
     default:
       chart = (
-        <LineChart data={data}>
+        <LineChart data={data} style={pointer} onClick={(state) => pick(state.activeIndex)}>
           {common}
           {xAxis}
           <YAxis {...AXIS} />

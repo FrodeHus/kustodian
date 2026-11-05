@@ -12,7 +12,13 @@ vi.mock('../bridge', async (importOriginal) => ({
 }));
 
 // Recharts can't lay out in jsdom; the chart's own tests cover it.
-vi.mock('./chart-view', () => ({ default: () => <p>The chart</p> }));
+vi.mock('./chart-view', () => ({
+  default: ({ onPick }: { onPick: (filter: { id: string; value: string }[]) => void }) => (
+    <button type="button" onClick={() => onPick([{ id: 'displayName', value: 'Payroll' }])}>
+      The chart
+    </button>
+  ),
+}));
 
 const result: RunResult = {
   outcome: 'ok',
@@ -91,6 +97,20 @@ describe('ResultPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Unpin' }));
     expect(useTabs.getState().tabs[0]?.pinned).toBeUndefined();
+  });
+
+  it('result_panel_chart_click_filters_the_rows', async () => {
+    const { container } = render(<ResultPanel {...props} />);
+    const names = () => [...container.querySelectorAll('tbody tr[data-index] td:nth-child(2)')].map((td) => td.textContent);
+    fireEvent.click(screen.getByRole('tab', { name: 'Chart' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'The chart' }));
+
+    expect(screen.getByRole('tab', { name: 'Rows · 2' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByText('Chart: displayName = Payroll')).toBeTruthy();
+    expect(names()).toEqual(['Payroll']);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear the chart filter' }));
+    expect(names()).toEqual(['Contoso', 'Payroll']);
   });
 
   it('result_panel_exports_every_row_with_the_tab_title', async () => {
