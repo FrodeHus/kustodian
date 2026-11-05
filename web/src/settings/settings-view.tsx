@@ -227,7 +227,7 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
   return (
     <>
       <div
-        className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto px-16 py-10"
+        className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto px-8 py-8"
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
             onClose();
