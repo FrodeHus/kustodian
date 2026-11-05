@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -55,7 +54,7 @@ function dateTick(value: string): string {
 const valueOf = (series: string) => (p: ChartPoint) => p.values[series];
 
 /** What the Chart tab's pickers override: the type, the x axis (null for the series' names) and the series. */
-interface Picked {
+export interface Picked {
   type?: ChartType;
   x?: string | null;
   series?: string[];
@@ -83,16 +82,20 @@ export default function ChartView({
   rows,
   kql,
   onPick,
+  picked,
+  setPicked,
 }: {
   columns: ResultColumn[];
   rows: Row[];
   kql: string;
   onPick?: (filter: CellMatch[]) => void;
+  /** Held by the results panel, so the picks outlive switching tabs. */
+  picked: Picked;
+  setPicked: (picked: Picked) => void;
 }) {
   const hint = renderHint(kql);
   const options = renderOptions(kql);
   const shape = chartShape(columns, rows, hint, options);
-  const [picked, setPicked] = useState<Picked>({});
 
   if (!shape) {
     return (

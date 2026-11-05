@@ -4,6 +4,7 @@ import { reportIdOf } from '../shell/report-id';
 import { useTabs } from '../tabs/tab-store';
 import type { RunResult, Source } from '../wire';
 import type { CellMatch } from './chart-shape';
+import type { Picked } from './chart-view';
 import { CompareView } from './compare-view';
 import { DiagnosticsView } from './diagnostics-view';
 import { EXPORT_FORMATS, EXPORT_NAMES, exportResult, toJson, type ExportFormat } from './export';
@@ -64,6 +65,8 @@ export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = fa
   const [notice, setNotice] = useState<Notice | null>(null);
   // The rows behind the chart mark last clicked: the Rows tab shows only them until it's cleared.
   const [chartFilter, setChartFilter] = useState<CellMatch[] | null>(null);
+  // The Chart tab's picks live here, so leaving the tab and coming back keeps them.
+  const [chartPicked, setChartPicked] = useState<Picked>({});
   // A new result closes the row details (its index was into the old rows) and drops the chart's filter.
   const [resultSeen, setResultSeen] = useState(result);
   if (resultSeen !== result) {
@@ -207,6 +210,8 @@ export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = fa
                 columns={result.columns}
                 rows={result.rows}
                 kql={kql}
+                picked={chartPicked}
+                setPicked={setChartPicked}
                 onPick={(filter) => {
                   setChartFilter(filter);
                   setChosen('rows');

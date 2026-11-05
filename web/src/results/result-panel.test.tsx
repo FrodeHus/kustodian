@@ -13,10 +13,23 @@ vi.mock('../bridge', async (importOriginal) => ({
 
 // Recharts can't lay out in jsdom; the chart's own tests cover it.
 vi.mock('./chart-view', () => ({
-  default: ({ onPick }: { onPick: (filter: { id: string; value: string }[]) => void }) => (
-    <button type="button" onClick={() => onPick([{ id: 'displayName', value: 'Payroll' }])}>
-      The chart
-    </button>
+  default: ({
+    onPick,
+    picked,
+    setPicked,
+  }: {
+    onPick: (filter: { id: string; value: string }[]) => void;
+    picked: { type?: string };
+    setPicked: (picked: { type?: string }) => void;
+  }) => (
+    <>
+      <button type="button" onClick={() => onPick([{ id: 'displayName', value: 'Payroll' }])}>
+        The chart
+      </button>
+      <button type="button" onClick={() => setPicked({ type: 'pie' })}>
+        Chart type: {picked.type ?? 'auto'}
+      </button>
+    </>
   ),
 }));
 
@@ -111,6 +124,15 @@ describe('ResultPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Clear the chart filter' }));
     expect(names()).toEqual(['Contoso', 'Payroll']);
+  });
+
+  it('result_panel_chart_keeps_its_picks_across_tabs', async () => {
+    render(<ResultPanel {...props} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Chart' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Chart type: auto' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Rows · 2' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Chart' }));
+    expect(await screen.findByRole('button', { name: 'Chart type: pie' })).toBeTruthy();
   });
 
   it('result_panel_exports_every_row_with_the_tab_title', async () => {
