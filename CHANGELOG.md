@@ -33,6 +33,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Row details show dynamic values as a property grid: a key and a value on each row, with nested objects and arrays to
+  open and close. JSON text in a string column shows the same way. **Raw** shows the JSON as text.
 - The row details sheet takes the full height of the window, beside the editor and results, not only the results
   area.
 - The title bar and the tab strip are one bar, so queries get more room. Settings and accounts moved into a menu on the
@@ -52,6 +54,7 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- On the glass themes, row details were see-through, so the rows behind showed through their text.
 - A chart with many series, such as bars split by a column with dozens of values, no longer draws its legend over the
   X axis, Split by and Stacking pickers. The legend now takes up to three lines and scrolls.
 - A query error naming a long table, such as `reports_authenticationMethods_userRegistrationDetails`, no longer runs over

@@ -667,7 +667,7 @@ function JsonPanel({ opened, onClose }: { opened: Opened; onClose: () => void })
     <div
       role="dialog"
       aria-label={opened.column}
-      className="absolute top-0 right-0 bottom-0 z-[2] flex w-[420px] max-w-full flex-col border-l border-line bg-panel shadow-[0_18px_40px_rgba(0,0,0,0.45)]"
+      className="sheet absolute top-0 right-0 bottom-0 z-[2] flex w-[420px] max-w-full flex-col border-l border-line shadow-[0_18px_40px_rgba(0,0,0,0.45)]"
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
           onClose();

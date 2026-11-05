@@ -2,13 +2,25 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { ResultColumn } from '../wire';
 import { copyFailed, copyText } from './copy';
 import { cellText, type Row } from './export';
-import { JsonTree } from './json-tree';
+import { PropertyGrid } from './property-grid';
 import type { Notice } from './result-grid';
 
 const isComplex = (value: unknown): value is Record<string, unknown> | unknown[] => typeof value === 'object' && value !== null;
 
 /** A dynamic value too long for the engine to send whole: it comes as its JSON text, cut, and ends in "…". */
 const isCutJson = (value: unknown) => typeof value === 'string' && value.endsWith('…') && /^\s*[[{]/.test(value);
+
+/** JSON text in a string column (an API's raw payload, say), parsed so it shows as a grid; anything else as it is. */
+const parsed = (value: unknown): unknown => {
+  if (typeof value !== 'string' || !/^\s*[[{]/.test(value) || isCutJson(value)) {
+    return value;
+  }
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return value;
+  }
+};
 
 /** A value as it is shown and copied: dynamic values as formatted JSON. */
 const valueText = (value: unknown) => (isComplex(value) ? JSON.stringify(value, null, 2) : cellText(value));
@@ -28,6 +40,8 @@ export function RowDetails({ columns, row, onClose, id }: { columns: ResultColum
   const [notice, setNotice] = useState<Notice | null>(null);
   // Fully opened dynamic values, by column; another row starts closed again, with no notice.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  // Columns shown as their raw JSON rather than as a grid.
+  const [raw, setRaw] = useState<ReadonlySet<string>>(new Set());
   const [rowSeen, setRowSeen] = useState(row);
   // How many times another row took this one's place: the trees start again with each.
   const [switches, setSwitches] = useState(0);
@@ -35,6 +49,7 @@ export function RowDetails({ columns, row, onClose, id }: { columns: ResultColum
     setRowSeen(row);
     setNotice(null);
     setExpanded(new Set());
+    setRaw(new Set());
     setSwitches(switches + 1);
   }
   const sheet = useRef<HTMLDivElement>(null);
@@ -55,14 +70,16 @@ export function RowDetails({ columns, row, onClose, id }: { columns: ResultColum
     }
   }, [row]);
 
-  const toggleAll = (name: string) =>
-    setExpanded((all) => {
+  const toggle = (set: typeof setExpanded) => (name: string) =>
+    set((all) => {
       const next = new Set(all);
       if (!next.delete(name)) {
         next.add(name);
       }
       return next;
     });
+  const toggleAll = toggle(setExpanded);
+  const toggleRaw = toggle(setRaw);
 
   const close = () => {
     const back = before.current;
@@ -98,7 +115,7 @@ export function RowDetails({ columns, row, onClose, id }: { columns: ResultColum
       id={id}
       role="dialog"
       aria-label={`Row details: ${title}`}
-      className="absolute top-0 right-0 bottom-0 z-[4] flex w-[420px] max-w-full flex-col border-l border-line bg-panel shadow-[0_18px_40px_rgba(0,0,0,0.45)]"
+      className="sheet absolute top-0 right-0 bottom-0 z-[4] flex w-[420px] max-w-full flex-col border-l border-line shadow-[0_18px_40px_rgba(0,0,0,0.45)]"
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
           e.preventDefault();
@@ -130,15 +147,30 @@ export function RowDetails({ columns, row, onClose, id }: { columns: ResultColum
       <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto px-3.5 py-3">
         {columns.map((column, i) => {
           const value = row[i];
-          const tree = isComplex(value) && (Array.isArray(value) ? value.length > 0 : Object.keys(value).length > 0);
+          const shown = parsed(value);
+          const tree = isComplex(shown) && (Array.isArray(shown) ? shown.length > 0 : Object.keys(shown).length > 0);
           const all = expanded.has(column.name);
+          const asRaw = tree && raw.has(column.name);
           return (
             <div key={column.name} className="field">
               <div className="flex items-center gap-2">
                 <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-muted">
                   {column.name} · {column.type}
+                  {shown !== value && isComplex(shown) && ' · JSON'}
                 </span>
                 {tree && (
+                  <button
+                    type="button"
+                    className="btn ghost shrink-0"
+                    style={{ height: 22, padding: '0 8px' }}
+                    aria-label={`Show ${column.name} as raw JSON`}
+                    aria-pressed={asRaw}
+                    onClick={() => toggleRaw(column.name)}
+                  >
+                    Raw
+                  </button>
+                )}
+                {tree && !asRaw && (
                   <button
                     type="button"
                     className="btn ghost shrink-0"
@@ -161,8 +193,10 @@ export function RowDetails({ columns, row, onClose, id }: { columns: ResultColum
               </div>
               {value === null || value === undefined ? (
                 <span className="mono faint">null</span>
-              ) : isComplex(value) ? (
-                <JsonTree key={`${switches}-${all}`} value={value} label={column.name} openDepth={all ? Infinity : 1} />
+              ) : asRaw ? (
+                <pre className="codeblock m-0 overflow-auto whitespace-pre-wrap break-all">{JSON.stringify(shown, null, 2)}</pre>
+              ) : isComplex(shown) ? (
+                <PropertyGrid key={`${switches}-${all}`} value={shown} label={column.name} openDepth={all ? Infinity : 1} />
               ) : isCutJson(value) ? (
                 <>
                   <pre className="codeblock m-0 overflow-auto whitespace-pre-wrap break-all">{cellText(value)}</pre>
