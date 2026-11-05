@@ -25,6 +25,8 @@ const COLOURS = ['var(--accent)', 'var(--warn)', 'var(--ok)', 'var(--bad)', 'var
 const colour = (i: number) => COLOURS[i % COLOURS.length];
 
 const AXIS = { stroke: 'var(--line)', tick: { fill: 'var(--muted)', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' } };
+// Many series wrap the legend; capped and scrolling, it can't grow over the options above the chart.
+const LEGEND = { wrapperStyle: { fontSize: 12, color: 'var(--muted)', maxHeight: 64, overflowY: 'auto' as const } };
 // The glass themes' --panel is near see-through, so over the chart the tooltip takes their menu background, as menus do.
 const TOOLTIP = {
   contentStyle: {
@@ -116,7 +118,7 @@ export default function ChartView({ columns, rows, kql }: { columns: ResultColum
     <>
       <CartesianGrid stroke="var(--line)" vertical={false} />
       <Tooltip {...TOOLTIP} labelFormatter={time ? (label) => dateTick(String(label)) : undefined} />
-      {series.length > 1 && <Legend wrapperStyle={{ fontSize: 12, color: 'var(--muted)' }} />}
+      {series.length > 1 && <Legend {...LEGEND} />}
     </>
   );
 
@@ -171,7 +173,7 @@ export default function ChartView({ columns, rows, kql }: { columns: ResultColum
       chart = (
         <PieChart>
           <Tooltip {...TOOLTIP} />
-          <Legend wrapperStyle={{ fontSize: 12, color: 'var(--muted)' }} />
+          <Legend {...LEGEND} />
           <Pie data={data} dataKey={valueOf(series[0] ?? '')} nameKey="x" stroke="var(--panel)" isAnimationActive={false}>
             {data.map((_, i) => (
               <Cell key={i} fill={colour(i)} />
