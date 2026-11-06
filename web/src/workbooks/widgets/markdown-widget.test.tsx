@@ -48,5 +48,6 @@ describe('withValues', () => {
     expect(withValues('Range {TimeRange}', { TimeRange: '7d' })).toBe('Range 7d');
     expect(withValues('{A}', { A: '[y](https://evil)' })).toBe('\\[y\\]\\(https://evil\\)');
     expect(withValues('{Nope}', {})).toBe('{Nope}');
+    expect(withValues('{constructor} {__proto__} {toString}', {})).toBe('{constructor} {__proto__} {toString}');
   });
 });
