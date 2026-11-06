@@ -59,11 +59,12 @@ function widget(id: string, type: WidgetType, title: string, text = 'Users | tak
 
 let doc: WorkbookDoc;
 const setWorkbookValue = vi.fn();
+const setWidgetValue = vi.fn();
 
 function show(runs: Record<string, WidgetRun>, editing = false) {
   const state: WorkbookState = {
     doc,
-    values: { workbook: { Env: 'prod' }, widgets: {} },
+    values: { workbook: { Env: 'prod', Days: '7' }, widgets: {} },
     runs,
     editing,
     undo: [],
@@ -71,7 +72,7 @@ function show(runs: Record<string, WidgetRun>, editing = false) {
     dirty: false,
     viewCharts: {},
   };
-  useWorkbooks.setState({ byTab: { t: state }, setWorkbookValue });
+  useWorkbooks.setState({ byTab: { t: state }, setWorkbookValue, setWidgetValue });
   return render(<WorkbookView tabId="t" />);
 }
 
@@ -79,16 +80,17 @@ const frame = (title: string) => screen.getByRole('region', { name: title });
 
 beforeEach(() => {
   setWorkbookValue.mockReset();
+  setWidgetValue.mockReset();
   call.mockReset();
   useTabs.setState({ tabs: [], activeId: null });
   doc = {
     ...newWorkbook('Sign-in review'),
     folder: 'Security',
-    parameters: [env],
+    parameters: [env, { ...env, name: 'Days', type: 'number', value: '7', choices: null, label: null }],
     widgets: [
       widget('m', 'markdown', 'Notes', undefined, { markdown: '# Read me' }),
       widget('c', 'chart', 'Sign-ins by day', 'SignIns | where Env == {Env}'),
-      widget('tb', 'table', 'Users'),
+      widget('tb', 'table', 'Users', 'Users | take {Top}', { parameters: { Top: { from: 'widget', value: '5' } } }),
       widget('s', 'stat', 'Total', 'Users | count', { stat: { value: 'value', compare: 'previous' } }),
     ],
   };
@@ -110,6 +112,21 @@ describe('WorkbookView', () => {
     show({});
     fireEvent.change(screen.getByRole('combobox', { name: 'Environment' }), { target: { value: 'test' } });
     expect(setWorkbookValue).toHaveBeenCalledWith('t', 'Env', 'test', { now: true });
+  });
+
+  it('a typed value waits for typing to stop, Enter sends it at once', () => {
+    show({});
+    const days = screen.getByRole('textbox', { name: 'Days' });
+    fireEvent.change(days, { target: { value: '14' } });
+    expect(setWorkbookValue).toHaveBeenLastCalledWith('t', 'Days', '14', { now: false });
+    fireEvent.keyDown(days, { key: 'Enter' });
+    expect(setWorkbookValue).toHaveBeenLastCalledWith('t', 'Days', '7', { now: true });
+
+    const top = within(frame('Users')).getByRole('textbox', { name: 'Top' });
+    fireEvent.change(top, { target: { value: '10' } });
+    expect(setWidgetValue).toHaveBeenLastCalledWith('t', 'tb', 'Top', '10', { now: false });
+    fireEvent.keyDown(top, { key: 'Enter' });
+    expect(setWidgetValue).toHaveBeenLastCalledWith('t', 'tb', 'Top', '5', { now: true });
   });
 
   it('says why a blocked widget did not run', () => {

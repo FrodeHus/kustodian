@@ -15,12 +15,12 @@ const FORMATS: ExportFormat[] = ['csv', 'json', 'markdown'];
 
 const duration = (ms: number) => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`);
 
-/** A Widget · shown parameter's control: a select for one with choices, else a text box that sets its value on Enter or
- * when it loses focus, so typing doesn't rerun the widget on each key. */
-function ShownControl({ param, choices, onChange }: { param: ResolvedParam; choices: string[] | null; onChange: (value: string) => void }) {
+/** A Widget · shown parameter's control: a select for one with choices, which reruns the widget at once, else a text box,
+ * which reruns it when typing stops, or at once on Enter. */
+function ShownControl({ param, choices, onChange }: { param: ResolvedParam; choices: string[] | null; onChange: (value: string, now: boolean) => void }) {
   if (choices) {
     return (
-      <select className="textbox mono" style={{ height: 24 }} aria-label={param.name} value={param.value} onChange={(e) => onChange(e.target.value)}>
+      <select className="textbox mono" style={{ height: 24 }} aria-label={param.name} value={param.value} onChange={(e) => onChange(e.target.value, true)}>
         {(choices.includes(param.value) ? choices : [param.value, ...choices]).map((c) => (
           <option key={c} value={c}>
             {c === '' ? '(none)' : c}
@@ -29,17 +29,15 @@ function ShownControl({ param, choices, onChange }: { param: ResolvedParam; choi
       </select>
     );
   }
-  const commit = (value: string) => value !== param.value && onChange(value);
   return (
     <input
-      key={param.value}
       className="textbox mono w-24"
       style={{ height: 24 }}
       aria-label={param.name}
       placeholder={param.name}
-      defaultValue={param.value}
-      onBlur={(e) => commit(e.target.value)}
-      onKeyDown={(e) => e.key === 'Enter' && commit(e.currentTarget.value)}
+      value={param.value}
+      onChange={(e) => onChange(e.target.value, false)}
+      onKeyDown={(e) => e.key === 'Enter' && onChange(e.currentTarget.value, true)}
     />
   );
 }
@@ -165,7 +163,7 @@ export function WidgetFrame({ tabId, widget, children, onSignIn = () => undefine
         {params
           .filter((p) => p.from === 'widget')
           .map((p) => (
-            <ShownControl key={p.name} param={p} choices={choicesOf(live, p)} onChange={(v) => useWorkbooks.getState().setWidgetValue(tabId, widget.id, p.name, v)} />
+            <ShownControl key={p.name} param={p} choices={choicesOf(live, p)} onChange={(v, now) => useWorkbooks.getState().setWidgetValue(tabId, widget.id, p.name, v, { now })} />
           ))}
         {used.length > 0 && (
           <span className="faint flex items-center gap-1 text-[11.5px]" title="Workbook parameters it uses">

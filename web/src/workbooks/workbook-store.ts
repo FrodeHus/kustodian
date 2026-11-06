@@ -38,8 +38,8 @@ export interface WorkbookActions {
   unload(tabId: string): void; // cancels its runs
   runWidget(tabId: string, widgetId: string, opts?: { refresh?: boolean }): Promise<void>;
   runAll(tabId: string, opts?: { refresh?: boolean }): Promise<void>;
-  setWorkbookValue(tabId: string, name: string, value: string, opts?: { now?: boolean }): void; // reruns widgetsUsing; text is debounced unless now
-  setWidgetValue(tabId: string, widgetId: string, name: string, value: string): void; // reruns that widget
+  setWorkbookValue(tabId: string, name: string, value: string, opts?: { now?: boolean }): void; // reruns widgetsUsing; a value typed (no choices) is debounced unless now
+  setWidgetValue(tabId: string, widgetId: string, name: string, value: string, opts?: { now?: boolean }): void; // reruns that widget, debounced unless now
   edit(tabId: string, change: (doc: WorkbookDoc) => WorkbookDoc): void; // pushes undo, marks the tab dirty
   undoEdit(tabId: string): void;
   redoEdit(tabId: string): void;
@@ -88,6 +88,17 @@ const debounce = (key: string, fn: () => void) => {
       fn();
     }, TEXT_DEBOUNCE_MS),
   );
+};
+
+/** Runs `fn` after the debounce when `wait`, else at once, dropping a debounced run pending under `key`. */
+const rerunAfter = (key: string, wait: boolean, fn: () => void) => {
+  if (wait) {
+    debounce(key, fn);
+  } else {
+    clearTimeout(timers.get(key));
+    timers.delete(key);
+    fn();
+  }
 };
 
 /** Drops a widget's queued or running job; the bridge sends `query.cancel` for a running one when its signal aborts. */
@@ -308,20 +319,17 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
         }
       };
       const key = `${tabId}:value:${name}`;
-      if (!opts?.now && s.doc.parameters.find((p) => p.name === name)?.type === 'text') {
-        debounce(key, rerun);
-      } else {
-        clearTimeout(timers.get(key));
-        timers.delete(key);
-        rerun();
-      }
+      // Any value typed, whatever its type, waits until typing stops; one picked from choices runs at once.
+      const typed = !s.doc.parameters.find((p) => p.name === name)?.choices?.length;
+      rerunAfter(key, !opts?.now && typed, rerun);
     },
 
-    setWidgetValue(tabId, widgetId, name, value) {
+    setWidgetValue(tabId, widgetId, name, value, opts) {
       update(tabId, (s) => ({
         values: { ...s.values, widgets: { ...s.values.widgets, [widgetId]: { ...s.values.widgets[widgetId], [name]: value } } },
       }));
-      void get().runWidget(tabId, widgetId);
+      // The header's selects pass `now`; its text boxes wait until typing stops.
+      rerunAfter(`${tabId}:widget:${widgetId}:${name}`, !opts?.now, () => void get().runWidget(tabId, widgetId));
     },
 
     edit(tabId, change) {

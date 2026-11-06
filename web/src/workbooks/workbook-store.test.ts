@@ -134,7 +134,7 @@ describe('workbook store', () => {
   });
 
   it('a workbook value reruns only the widgets using it; text waits 400 ms after the last change, Enter runs at once', async () => {
-    const doc = docOf([wbParam('Name', 'x'), wbParam('Kind', 'k', { type: 'select' })], [widget('a', 'T {Name}'), widget('b', 'T {Kind}')]);
+    const doc = docOf([wbParam('Name', 'x'), wbParam('Kind', 'k', { type: 'list', choices: ['k', 'j'] })], [widget('a', 'T {Name}'), widget('b', 'T {Kind}')]);
     void useWorkbooks.getState().load('t', doc);
     await flush();
     runs.forEach((r) => r.answer(result([])));
@@ -158,6 +158,39 @@ describe('workbook store', () => {
     await flush();
     expect(runs.map((r) => r.params.tabId)).toEqual(['t/a', 't/a', 't/b']);
     expect(tab().doc).toBe(doc);
+  });
+
+  it('a typed value of any type waits 400 ms after the last change; Enter runs at once', async () => {
+    const top = { Top: { from: 'widget' as const, value: '5' } };
+    const doc = docOf([wbParam('Count', '1', { type: 'number' })], [widget('a', 'T {Count}'), widget('b', 'T {Top}', {}, top)]);
+    void useWorkbooks.getState().load('t', doc);
+    await flush();
+    runs.forEach((r) => r.answer(result([])));
+    await flush();
+    runs = [];
+
+    useWorkbooks.getState().setWorkbookValue('t', 'Count', '1');
+    await vi.advanceTimersByTimeAsync(300);
+    useWorkbooks.getState().setWorkbookValue('t', 'Count', '12');
+    await vi.advanceTimersByTimeAsync(399);
+    expect(runs).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(runs.map((r) => [r.params.tabId, r.params.parameters?.[0]?.value])).toEqual([['t/a', '12']]);
+    useWorkbooks.getState().setWorkbookValue('t', 'Count', '123', { now: true });
+    await flush();
+    expect(runs).toHaveLength(2);
+
+    runs = [];
+    useWorkbooks.getState().setWidgetValue('t', 'b', 'Top', '1');
+    await vi.advanceTimersByTimeAsync(300);
+    useWorkbooks.getState().setWidgetValue('t', 'b', 'Top', '10');
+    await vi.advanceTimersByTimeAsync(399);
+    expect(runs).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(runs.map((r) => [r.params.tabId, r.params.parameters?.[0]?.value])).toEqual([['t/b', '10']]);
+    useWorkbooks.getState().setWidgetValue('t', 'b', 'Top', '100', { now: true });
+    await flush();
+    expect(runs).toHaveLength(2);
   });
 
   it('only the latest run of a widget lands', async () => {
@@ -240,7 +273,7 @@ describe('workbook store', () => {
     await flush();
     const doc = tab().doc;
     useWorkbooks.getState().setWorkbookValue('t', 'Name', 'y', { now: true });
-    useWorkbooks.getState().setWidgetValue('t', 'a', 'Top', '10');
+    useWorkbooks.getState().setWidgetValue('t', 'a', 'Top', '10', { now: true });
     useWorkbooks.getState().setViewChart('t', 'a', { type: 'bar' } as never);
     expect(tab()).toMatchObject({ doc, dirty: false, viewCharts: { a: { type: 'bar' } } });
     expect(runs.at(-1)?.params.parameters?.map((p) => p.value)).toEqual(['y', '10']);
