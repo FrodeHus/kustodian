@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { runCommand } from '../shell/commands';
+import { newWorkbook } from '../workbooks/model';
 import { useTabs } from './tab-store';
 import { TabStrip } from './tab-strip';
 
@@ -20,6 +21,7 @@ describe('TabStrip', () => {
       expect.stringContaining('Defender hunting query'),
       expect.stringContaining('Resource Graph query'),
       expect.stringContaining('Raw Graph request'),
+      expect.stringContaining('New workbook'),
     ]);
     fireEvent.click(items[0]!);
 
@@ -188,5 +190,26 @@ describe('TabStrip', () => {
     act(() => void runCommand('tab.close'));
     expect(useTabs.getState().tabs).toEqual([]);
     expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+
+  it('a_workbook_tab_shows_its_icon_and_asks_before_closing_with_unsaved_changes', () => {
+    useTabs.getState().openWorkbook(newWorkbook('Hygiene'), { dirty: true });
+    render(<TabStrip />);
+
+    const tab = screen.getByRole('tab', { selected: true }).parentElement!;
+    expect(within(tab).getByTitle('Workbook')).toBeTruthy();
+    expect(within(tab).queryByRole('button', { name: /Change source/ })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close Hygiene' }));
+    expect(screen.getByRole('alertdialog').textContent).toContain('Hygiene');
+    fireEvent.click(screen.getByRole('button', { name: 'Close without saving' }));
+    expect(useTabs.getState().tabs).toEqual([]);
+  });
+
+  it('new_workbook_opens_an_unsaved_workbook_tab', () => {
+    render(<TabStrip />);
+    fireEvent.click(screen.getByRole('button', { name: 'New tab' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /New workbook/ }));
+    expect(useTabs.getState().tabs).toMatchObject([{ source: 'workbook', title: 'Workbook 1', savedId: undefined }]);
   });
 });

@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { QueryRunParams, RunResult, SavedQuery } from '../wire';
 import type { Widget, WidgetParam, WidgetQuery, WorkbookDoc, WorkbookParameter } from './model';
 import { newWidget, newWorkbook } from './model';
-import { useWorkbooks } from './workbook-store';
+import { useTabs } from '../tabs/tab-store';
+import { saveWorkbook, startWorkbookTabs, useWorkbooks } from './workbook-store';
 
 const bridge = vi.hoisted(() => ({ call: vi.fn() }));
 
@@ -90,6 +91,8 @@ beforeEach(() => {
         return Promise.resolve({ values: remembered });
       case 'workbook.values.save':
         return Promise.resolve(null);
+      case 'workbook.save':
+        return Promise.resolve({ workbook: { ...(params as { workbook: WorkbookDoc }).workbook, modifiedAt: 'now' } });
       case 'query.run':
         return new Promise((resolve) => runs.push({ params: params as QueryRunParams, signal, answer: resolve }));
       default:
@@ -304,5 +307,38 @@ describe('workbook store', () => {
     expect(saves()).toHaveLength(0);
     await vi.advanceTimersByTimeAsync(1);
     expect(saves()).toEqual([['workbook.values.save', { id: doc.id, values: { Name: 'ab' } }]]);
+  });
+
+  it('a workbook tab loads when it opens, mirrors its dirty flag and unloads when it closes', async () => {
+    useTabs.setState({ tabs: [], activeId: null, cursors: {} });
+    const stop = startWorkbookTabs();
+    const id = useTabs.getState().openWorkbook(docOf([], []));
+    expect(useWorkbooks.getState().byTab[id]).toBeDefined();
+
+    useWorkbooks.getState().edit(id, (d) => ({ ...d, widgets: [widget('a', 'users')] }));
+    expect(useTabs.getState().tabs[0]).toMatchObject({ dirty: true, workbook: useWorkbooks.getState().byTab[id]!.doc });
+
+    useTabs.getState().close(id);
+    expect(useWorkbooks.getState().byTab[id]).toBeUndefined();
+    stop();
+  });
+
+  it('saving refreshes linked copies from the library, then marks the workbook and its tab saved', async () => {
+    library = [{ ...saved('q1', 'users | take 5'), name: 'Five users' }];
+    useTabs.setState({ tabs: [], activeId: null, cursors: {} });
+    const stop = startWorkbookTabs();
+    const linked = widget('a', 'old', { saved: { id: 'q1', name: 'old name' } });
+    const id = useTabs.getState().openWorkbook(docOf([], [linked]), { dirty: true });
+    await flush();
+
+    await saveWorkbook(id, { name: 'Hygiene', folder: 'Ops' });
+    const sent = bridge.call.mock.calls.find(([m]) => m === 'workbook.save')?.[1] as { workbook: WorkbookDoc };
+    expect(sent.workbook).toMatchObject({ name: 'Hygiene', folder: 'Ops' });
+    expect(sent.workbook.widgets[0]?.query).toMatchObject({ text: 'users | take 5', saved: { id: 'q1', name: 'Five users' } });
+    expect(useWorkbooks.getState().byTab[id]).toMatchObject({ dirty: false, doc: { name: 'Hygiene', modifiedAt: 'now' } });
+    expect(useTabs.getState().tabs[0]).toMatchObject({ dirty: false, title: 'Hygiene', savedId: sent.workbook.id });
+
+    useTabs.getState().close(id);
+    stop();
   });
 });

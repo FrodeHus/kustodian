@@ -3,13 +3,13 @@ import { BridgeError, call } from '../bridge';
 import { errorText } from '../shell/errors';
 import { reportIdOf } from '../shell/report-id';
 import { useTabs } from '../tabs/tab-store';
-import type { ArmResourceTypesAnswer, ListedByDefault, SchemaLicenses, SchemaView, Source } from '../wire';
+import type { ArmResourceTypesAnswer, ListedByDefault, SchemaLicenses, SchemaView, Source, TabSource } from '../wire';
 
 /** The sources with a schema of their own. A raw request tab completes against Graph's. */
 export type SchemaSource = Exclude<Source, 'raw'>;
 
-/** The schema a tab of `source` uses: a raw request tab uses Graph's. */
-export const schemaSourceOf = (source: Source): SchemaSource => (source === 'raw' ? 'graph' : source);
+/** The schema a tab of `source` uses: a raw request tab, and a workbook tab, use Graph's. */
+export const schemaSourceOf = (source: TabSource): SchemaSource => (source === 'raw' || source === 'workbook' ? 'graph' : source);
 
 interface SchemasState {
   /** Each source's schema, once read. */

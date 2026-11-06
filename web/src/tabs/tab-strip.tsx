@@ -4,7 +4,7 @@ import { openRaw } from '../raw/raw-request';
 import { registerCommands, type Command } from '../shell/commands';
 import { MOD, SHIFT } from '../shell/keys';
 import type { Source } from '../wire';
-import { SourceBadge } from './source-badge';
+import { SourceBadge, WorkbookIcon } from './source-badge';
 import { SOURCES } from './sources';
 import { useTabs, type Tab } from './tab-store';
 
@@ -33,7 +33,7 @@ const sourceCommands = (): Command[] => [
       },
       enabled: () => {
         const tab = activeTab();
-        return !!tab && tab.source !== 'raw' && tab.source !== source;
+        return !!tab && tab.source !== 'raw' && tab.source !== 'workbook' && tab.source !== source;
       },
     }),
   ),
@@ -45,7 +45,7 @@ const sourceCommands = (): Command[] => [
 export function TabStrip({ onDialog }: { onDialog?: (open: boolean) => void } = {}) {
   const tabs = useTabs((s) => s.tabs);
   const activeId = useTabs((s) => s.activeId);
-  const { open, close, activate } = useTabs.getState();
+  const { open, openWorkbook, close, activate } = useTabs.getState();
   const [menu, setMenu] = useState(false);
   const [closing, setClosing] = useState<Tab | null>(null);
   /** The tab whose badge menu ("Change source") is open, and where it opens. */
@@ -162,7 +162,7 @@ export function TabStrip({ onDialog }: { onDialog?: (open: boolean) => void } = 
       <div ref={listRef} role="tablist" aria-label="Open queries" className="flex items-end gap-0.5 overflow-x-auto">
         {tabs.map((tab) => (
           <div key={tab.id} className={`tab${tab.id === activeId ? ' on' : ''}`}>
-            {tab.source !== 'raw' && (
+            {tab.source !== 'raw' && tab.source !== 'workbook' && (
               <button
                 type="button"
                 className="src-pick"
@@ -180,6 +180,7 @@ export function TabStrip({ onDialog }: { onDialog?: (open: boolean) => void } = 
             )}
             <button type="button" role="tab" aria-selected={tab.id === activeId} onClick={() => activate(tab.id)}>
               {tab.source === 'raw' && <SourceBadge source={tab.source} titled />}
+              {tab.source === 'workbook' && <WorkbookIcon titled />}
               <span className="whitespace-nowrap">{tab.title}</span>
               {tab.dirty && <span className="mod" aria-label="Unsaved changes" role="img" />}
             </button>
@@ -223,10 +224,21 @@ export function TabStrip({ onDialog }: { onDialog?: (open: boolean) => void } = 
               <SourceBadge source="raw" />
               Raw Graph request
             </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMenu(false);
+                openWorkbook();
+              }}
+            >
+              <WorkbookIcon />
+              New workbook
+            </button>
           </div>
         )}
       </div>
-      {pickingTab && pickingTab.source !== 'raw' && (
+      {pickingTab && pickingTab.source !== 'raw' && pickingTab.source !== 'workbook' && (
         <div
           ref={pickRef}
           className="menu"

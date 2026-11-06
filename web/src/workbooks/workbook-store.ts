@@ -1,8 +1,10 @@
 import type { StoreApi, UseBoundStore } from 'zustand';
 import { create } from 'zustand';
 import { call } from '../bridge';
+import { useRevisions } from '../library/saving';
 import type { Picked } from '../results/chart-view';
 import { newId } from '../shell/ids';
+import { useTabs } from '../tabs/tab-store';
 import type { LibraryList, QueryRunParams, RunResult, SavedQuery, Source } from '../wire';
 import type { Widget, WorkbookDoc } from './model';
 import type { ViewValues } from './resolve';
@@ -24,7 +26,7 @@ export interface WorkbookState {
   editing: boolean;
   undo: WorkbookDoc[];
   redo: WorkbookDoc[];
-  /** The doc differs from the file (Ruling R1); Task 9 mirrors it into the tab. */
+  /** The doc differs from the file (Ruling R1); {@link startWorkbookTabs} mirrors it into the tab. */
   dirty: boolean;
   /** Chart picks changed outside edit mode, by widget id: view state, never in the doc (Ruling R3). */
   viewCharts: Record<string, Picked>;
@@ -37,7 +39,7 @@ export interface WorkbookActions {
   runAll(tabId: string, opts?: { refresh?: boolean }): Promise<void>;
   setWorkbookValue(tabId: string, name: string, value: string, opts?: { now?: boolean }): void; // reruns widgetsUsing; text is debounced unless now
   setWidgetValue(tabId: string, widgetId: string, name: string, value: string): void; // reruns that widget
-  edit(tabId: string, change: (doc: WorkbookDoc) => WorkbookDoc): void; // pushes undo, marks the tab dirty (Task 9)
+  edit(tabId: string, change: (doc: WorkbookDoc) => WorkbookDoc): void; // pushes undo, marks the tab dirty
   undoEdit(tabId: string): void;
   redoEdit(tabId: string): void;
   setEditing(tabId: string, editing: boolean, discard?: boolean): void;
@@ -391,3 +393,82 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
   };
   return store;
 });
+
+/**
+ * Keeps the workbook tabs and this store together (Ruling R1): a workbook tab that opens, or comes back with the session,
+ * loads; one that closes unloads; and each workbook's doc and dirty flag are mirrored into its tab, so the session keeps
+ * unsaved edits and closing asks. Returns the function that stops it.
+ */
+export function startWorkbookTabs(): () => void {
+  const reconcile = () => {
+    const { tabs } = useTabs.getState();
+    const { byTab, load, unload } = useWorkbooks.getState();
+    for (const t of tabs) {
+      if (t.workbook && !byTab[t.id]) {
+        void load(t.id, t.workbook, { dirty: t.dirty });
+      }
+    }
+    for (const id of Object.keys(byTab)) {
+      if (!tabs.some((t) => t.id === id)) {
+        unload(id);
+      }
+    }
+  };
+  const stopWorkbooks = useWorkbooks.subscribe((state, previous) => {
+    for (const [id, s] of Object.entries(state.byTab)) {
+      const was = previous.byTab[id];
+      if (s.doc !== was?.doc || s.dirty !== was.dirty) {
+        useTabs.getState().setWorkbook(id, s.doc, s.dirty);
+      }
+    }
+  });
+  const stopTabs = useTabs.subscribe((state, previous) => {
+    if (state.tabs !== previous.tabs) {
+      reconcile();
+    }
+  });
+  reconcile();
+  return () => {
+    stopWorkbooks();
+    stopTabs();
+  };
+}
+
+/**
+ * Saves a workbook tab's document. Linked widgets first take their saved query's current source, text, options, parameters
+ * and name, so the file works without the library entry (spec §9.2); a link the library no longer has keeps its last copy.
+ * `as` names the workbook and puts it in a folder (the first save's dialog). Rejects with the host's refusal (a bad name or
+ * folder). Allowed while editing.
+ */
+export async function saveWorkbook(tabId: string, as?: { name: string; folder: string | null }): Promise<void> {
+  if (!useWorkbooks.getState().byTab[tabId]) {
+    throw new Error('The workbook is no longer open.');
+  }
+  // Unreadable library: the widgets keep their last copies.
+  const library = await call<LibraryList>('library.list').then(
+    (l) => new Map(l.queries.map((q) => [q.id, q])),
+    () => new Map<string, SavedQuery>(),
+  );
+  const base = useWorkbooks.getState().byTab[tabId]?.doc;
+  if (!base) {
+    throw new Error('The workbook is no longer open.');
+  }
+  const widgets = base.widgets.map((w) => {
+    const q = w.query?.saved ? library.get(w.query.saved.id) : undefined;
+    return w.query && q && q.source !== 'raw'
+      ? { ...w, query: { ...w.query, source: q.source, text: q.text, options: q.options ?? null, parameters: q.parameters, saved: { id: q.id, name: q.name } } }
+      : w;
+  });
+  const { workbook } = await call<{ workbook: WorkbookDoc }>('workbook.save', { workbook: { ...base, widgets, ...as } });
+  // An edit made while the save was out stays, unsaved.
+  if (useWorkbooks.getState().byTab[tabId]?.doc === base) {
+    useWorkbooks.getState().markSaved(tabId, workbook);
+  }
+  const tabs = useTabs.getState();
+  tabs.markSaved(tabId, { savedId: workbook.id, title: workbook.name, text: tabs.tabs.find((t) => t.id === tabId)?.text ?? '' });
+  const now = useWorkbooks.getState().byTab[tabId];
+  if (now) {
+    useTabs.getState().setWorkbook(tabId, now.doc, now.dirty);
+  }
+  useRevisions.getState().bump('library');
+}

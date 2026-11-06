@@ -1,6 +1,6 @@
 import { SchemaPanel } from '../schema/schema-panel';
 import { schemaSourceOf, useSchemas } from '../schema/schema-store';
-import type { Source } from '../wire';
+import type { TabSource } from '../wire';
 import { PANELS, type PanelName } from './panels';
 import { RecentPanel } from './recent-panel';
 import { SavedPanel } from './saved-panel';
@@ -21,8 +21,8 @@ export function Rail({ panel, onChoose }: { panel: PanelName; onChoose: (panel: 
 
 interface SidePanelProps {
   panel: PanelName;
-  /** The active tab's source: every panel follows it (spec 6.1). A raw request tab's is Graph's. */
-  source: Source;
+  /** The active tab's source: every panel follows it (spec 6.1). A raw request tab's, and a workbook tab's, is Graph's. */
+  source: TabSource;
   /** The active tab's query, for the schema's "In this query". */
   text: string;
   /** Puts text at the editor's cursor; false when the editor isn't ready. */
