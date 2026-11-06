@@ -38,7 +38,8 @@ export function widgetParams(doc: WorkbookDoc, widget: Widget, values: ViewValue
       return { ...shape, value: own ?? entry.value, from: 'widget' as const };
     }
     if (wb) {
-      return { ...shape, value: values.workbook[name] ?? wb.value, from: 'workbook' as const };
+      // The workbook parameter owns type and required for the widgets that take it (spec 6.2/6.3).
+      return { name, type: wb.type, required: wb.required, value: values.workbook[name] ?? wb.value, from: 'workbook' as const };
     }
     return { ...shape, value: own ?? def?.value ?? '', from: 'widget' as const };
   });

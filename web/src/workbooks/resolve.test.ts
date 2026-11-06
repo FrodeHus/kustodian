@@ -73,6 +73,15 @@ describe('widgetParams', () => {
     expect(toParameterValues(params)).toEqual([{ name: 'Tmerange', type: 'text', value: '', required: false }]);
   });
 
+  it('takes type and required from the workbook parameter, not the query definition', () => {
+    const def: ParameterDef = { name: 'Ids', type: 'text', value: '', required: false, choices: null };
+    const w = widget('T | where a in ({Ids})', { parameters: [def] });
+    const doc = docOf([wbParam('Ids', '', { type: 'list', required: true })], [w]);
+    const params = widgetParams(doc, w, none);
+    expect(params[0]).toMatchObject({ type: 'list', required: true, from: 'workbook' });
+    expect(missingRequired(params)).toEqual(['Ids']);
+  });
+
   it('has none for a Markdown widget', () => {
     const w = widget('', {}, {}, 'markdown');
     expect(widgetParams(docOf([], [w]), w, none)).toEqual([]);
