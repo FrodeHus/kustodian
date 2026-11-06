@@ -332,10 +332,7 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
               })}
             </tbody>
           </table>
-          <span className="faint text-[12px]">
-            Workbook follows the workbook parameter of that name. Widget · shown puts a control in the widget’s header. Fixed
-            sends the value set here.
-          </span>
+          <span className="faint text-[12px]">Workbook: follows the global value. Widget · shown: a control in the widget header. Fixed: a set value, no control.</span>
         </div>
       );
 

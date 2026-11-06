@@ -125,6 +125,7 @@ describe('WidgetEditor', () => {
     expect(within(top).getByRole('option', { name: 'Widget · shown' })).toBeTruthy();
     const range = screen.getByRole('combobox', { name: 'TimeRange: value comes from' }) as HTMLSelectElement;
     expect(range.value).toBe('workbook');
+    expect(screen.getByText('Workbook: follows the global value. Widget · shown: a control in the widget header. Fixed: a set value, no control.')).toBeTruthy();
   });
 
   it('Fixed and a value store {from: fixed, value}', () => {

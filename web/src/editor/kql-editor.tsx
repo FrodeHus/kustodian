@@ -257,7 +257,6 @@ export default function KqlEditor({ schemas, onRun, ref, draft }: KqlEditorProps
   const tabActiveId = useTabs((s) => s.activeId);
   const activeId = draft ? draft.id : tabActiveId;
   const draftId = draft?.id;
-  const draftText = draft?.text;
 
   useEffect(() => {
     const editor = monaco.editor.create(host.current!, {
@@ -295,7 +294,7 @@ export default function KqlEditor({ schemas, onRun, ref, draft }: KqlEditorProps
       latest.current.onRun(mode),
     );
     // The window's commands (palette, tabs, run without cache ...) work while typing too.
-    const stopBinding = bindCommandKeys(editor, { KeyMod: monaco.KeyMod, KeyCode: monaco.KeyCode }, runKeys);
+    const stopBinding = bindCommandKeys(editor, { KeyMod: monaco.KeyMod, KeyCode: monaco.KeyCode }, runKeys.taken);
     // Monaco's theme is global: it follows the window's.
     const stopTheme = useTheme.subscribe((t, previous) => {
       if (monacoTheme(t) !== monacoTheme(previous)) {
@@ -342,6 +341,7 @@ export default function KqlEditor({ schemas, onRun, ref, draft }: KqlEditorProps
 
     return () => {
       disposed = true;
+      runKeys.dispose();
       stopBinding();
       stopTheme();
       subscriptions.forEach((s) => s.dispose());
@@ -360,7 +360,8 @@ export default function KqlEditor({ schemas, onRun, ref, draft }: KqlEditorProps
     if (!editor) {
       return;
     }
-    const tabs = draftId !== undefined ? [{ id: draftId, text: draftText ?? '' }] : useTabs.getState().tabs;
+    // A draft's text comes in once, with its model: after that the model is ahead of any render's copy of it.
+    const tabs = draftId !== undefined ? [{ id: draftId, text: latest.current.draft?.text ?? '' }] : useTabs.getState().tabs;
     const open = new Set(tabs.map((t) => t.id));
     for (const [id, model] of models.current) {
       if (!open.has(id)) {
@@ -373,7 +374,7 @@ export default function KqlEditor({ schemas, onRun, ref, draft }: KqlEditorProps
       const model = models.current.get(tab.id);
       if (!model) {
         models.current.set(tab.id, monaco.editor.createModel(tab.text, 'kusto', uriOf(tab.id)));
-      } else if (model.getValue() !== tab.text) {
+      } else if (draftId === undefined && model.getValue() !== tab.text) {
         model.setValue(tab.text);
       }
     }
@@ -393,7 +394,7 @@ export default function KqlEditor({ schemas, onRun, ref, draft }: KqlEditorProps
         editor.focus();
       }
     }
-  }, [tabsChanged, activeId, draftId, draftText]);
+  }, [tabsChanged, activeId, draftId]);
 
   // The language service completes and checks against the active tab's source's schema (one at a time: it is the worker's).
   // Until that source's schema is read it has an empty database for it, so a hunting tab never completes Graph's tables.

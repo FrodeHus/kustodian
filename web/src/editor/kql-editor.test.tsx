@@ -10,7 +10,11 @@ import type { SchemaView } from '../wire';
 const fake = vi.hoisted(() => {
   const KeyMod = { CtrlCmd: 2048, Shift: 1024, Alt: 512, WinCtrl: 256 };
   const KeyCode = { Enter: 3, KeyK: 41, KeyP: 46, KeyT: 50, KeyW: 53 };
-  const commands = new Map<number, () => void>();
+  // Monaco's keybinding service is one for every editor, and the last binding of a key wins: `addCommand`'s holds for any
+  // editor and is never removed; an action's holds only in its editor and goes when disposed.
+  const bindings: { keybinding: number; editorId: number | null; run: () => void; gone: boolean }[] = [];
+  let editors = 0;
+  let focused = 0;
   const created = { options: null as unknown };
   const themes = { defined: [] as string[], set: [] as string[] };
   const fonts = { remeasured: 0 };
@@ -29,10 +33,15 @@ const fake = vi.hoisted(() => {
     };
   };
   const providers: { provideCompletionItems: (...args: unknown[]) => Promise<{ suggestions: unknown[] }> }[] = [];
-  const editor = {
+  const editorOf = (id: number) => ({
     addCommand: (keybinding: number, handler: () => void) => {
-      commands.set(keybinding, handler);
+      bindings.push({ keybinding, editorId: null, run: handler, gone: false });
       return null;
+    },
+    addAction: ({ keybindings, run }: { keybindings: number[]; run: () => void }) => {
+      const added = keybindings.map((keybinding) => ({ keybinding, editorId: id, run, gone: false }));
+      bindings.push(...added);
+      return { dispose: () => added.forEach((b) => (b.gone = true)) };
     },
     getSelection: () => ({ isEmpty: () => selectionEmpty }),
     onDidChangeModelContent: (listener: () => void) => {
@@ -46,7 +55,7 @@ const fake = vi.hoisted(() => {
     restoreViewState: () => undefined,
     focus: () => undefined,
     dispose: () => undefined,
-  };
+  });
   const monaco = {
     KeyMod,
     KeyCode,
@@ -54,7 +63,8 @@ const fake = vi.hoisted(() => {
     editor: {
       create: (_host: unknown, options: unknown) => {
         created.options = options;
-        return editor;
+        focused = ++editors;
+        return editorOf(focused);
       },
       createModel: (value: string, _language: string, uri: { toString: () => string }) => model(value, uri),
       defineTheme: (name: string) => themes.defined.push(name),
@@ -70,7 +80,13 @@ const fake = vi.hoisted(() => {
   };
   return {
     monaco,
-    commands,
+    bound: (keybinding: number) => bindings.some((b) => b.keybinding === keybinding && !b.gone && b.editorId === focused),
+    focus: (id: number) => (focused = id),
+    reset: () => {
+      bindings.length = 0;
+      editors = 0;
+      focused = 0;
+    },
     created,
     themes,
     fonts,
@@ -78,7 +94,8 @@ const fake = vi.hoisted(() => {
     model,
     live,
     setSelectionEmpty: (empty: boolean) => (selectionEmpty = empty),
-    press: (keybinding: number) => commands.get(keybinding)?.(),
+    press: (keybinding: number) =>
+      bindings.findLast((b) => b.keybinding === keybinding && !b.gone && (b.editorId === null || b.editorId === focused))?.run(),
     kustoWorker: (): Promise<unknown> => new Promise(() => undefined),
   };
 });
@@ -111,7 +128,7 @@ const huntingView: SchemaView = {
 };
 
 beforeEach(() => {
-  fake.commands.clear();
+  fake.reset();
   fake.themes.set.length = 0;
   applyTheme('dark');
   fake.setSelectionEmpty(true);
@@ -238,7 +255,7 @@ describe('KqlEditor', () => {
     expect(close).toHaveBeenCalledTimes(1);
 
     // The run keys stay the editor's own (they know about the selection).
-    expect(fake.commands.has(KeyMod.CtrlCmd | KeyCode.Enter)).toBe(true);
+    expect(fake.bound(KeyMod.CtrlCmd | KeyCode.Enter)).toBe(true);
     unregisterClose();
     unregister();
   });
@@ -279,5 +296,32 @@ describe('KqlEditor', () => {
     fake.live.onContent();
     expect(onChange).toHaveBeenCalledWith('DeviceInfo | take 1');
     expect(useTabs.getState().tabs).toBe(before);
+  });
+
+  it('run keys stay each editor’s own after a second editor came and went', () => {
+    const onRun = vi.fn();
+    const onPreview = vi.fn();
+    render(<KqlEditor schemas={{}} onRun={onRun} />);
+    const second = render(<KqlEditor schemas={{}} onRun={onPreview} draft={{ id: 'widget-editor', source: 'graph', text: '', onChange: () => undefined }} />);
+    const { KeyMod, KeyCode } = fake.monaco;
+    fake.press(KeyMod.CtrlCmd | KeyCode.Enter);
+    expect(onPreview).toHaveBeenCalledTimes(1);
+
+    second.unmount();
+    fake.focus(1);
+    fake.press(KeyMod.CtrlCmd | KeyCode.Enter);
+    fake.press(KeyMod.Shift | KeyCode.Enter);
+    expect(onRun.mock.calls).toEqual([['block'], ['all']]);
+    expect(onPreview).toHaveBeenCalledTimes(1);
+  });
+
+  it('a draft’s text goes in with its model; a later render’s older copy never replaces what was typed', () => {
+    const onChange = vi.fn();
+    const draft = (text: string) => ({ id: 'widget-editor', source: 'graph' as const, text, onChange });
+    const view = render(<KqlEditor schemas={{}} onRun={() => undefined} draft={draft('users')} />);
+    expect(fake.live.model?.getValue()).toBe('users');
+    fake.live.model?.setValue('users | take 2');
+    view.rerender(<KqlEditor schemas={{}} onRun={() => undefined} draft={draft('users | take')} />);
+    expect(fake.live.model?.getValue()).toBe('users | take 2');
   });
 });
