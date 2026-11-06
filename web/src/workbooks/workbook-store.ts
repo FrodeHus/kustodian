@@ -73,6 +73,8 @@ const libraries = new Map<string, Map<string, SavedQuery> | null>();
 /** The doc, dirty flag and undo stacks as they were when editing started, for a discard. */
 const editStarts = new Map<string, Pick<WorkbookState, 'doc' | 'dirty' | 'undo' | 'redo'>>();
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
+/** The current load of each tab; a read that finishes after an unload or a newer load is dropped. */
+const loads = new Map<string, symbol>();
 
 const debounce = (key: string, fn: () => void) => {
   clearTimeout(timers.get(key));
@@ -114,11 +116,16 @@ function pump() {
 }
 
 async function readLibrary(tabId: string) {
+  const token = loads.get(tabId);
+  let library: Map<string, SavedQuery> | null;
   try {
     const list = await call<LibraryList>('library.list');
-    libraries.set(tabId, new Map(list.queries.map((q) => [q.id, q])));
+    library = new Map(list.queries.map((q) => [q.id, q]));
   } catch {
-    libraries.set(tabId, null);
+    library = null;
+  }
+  if (token && loads.get(tabId) === token) {
+    libraries.set(tabId, library);
   }
 }
 
@@ -166,6 +173,8 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
 
     async load(tabId, doc, opts) {
       const fresh: WorkbookState = { doc, values: initialValues(doc, {}), runs: {}, editing: false, undo: [], redo: [], dirty: opts?.dirty ?? false, viewCharts: {} };
+      const token = Symbol(tabId);
+      loads.set(tabId, token);
       set((st) => ({ byTab: { ...st.byTab, [tabId]: fresh } }));
       const [remembered] = await Promise.all([
         call<{ values: Record<string, string> }>('workbook.values.get', { id: doc.id }).then(
@@ -174,10 +183,15 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
         ),
         readLibrary(tabId),
       ]);
-      if (get().byTab[tabId] !== fresh) {
+      if (loads.get(tabId) !== token) {
         return; // unloaded or reloaded meanwhile
       }
-      update(tabId, (s) => ({ values: { ...s.values, workbook: initialValues(s.doc, remembered).workbook } }));
+      // Values the user changed during the load win over the remembered ones.
+      // shortcut: a value changed back to its default counts as unchanged; track touched names if that matters.
+      const changed = (s: WorkbookState) => Object.entries(s.values.workbook).filter(([n, v]) => v !== fresh.values.workbook[n]);
+      update(tabId, (s) => ({
+        values: { ...s.values, workbook: { ...initialValues(s.doc, remembered).workbook, ...Object.fromEntries(changed(s)) } },
+      }));
       await get().runAll(tabId);
     },
 
@@ -190,6 +204,7 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
         timers.delete(key);
       }
       libraries.delete(tabId);
+      loads.delete(tabId);
       editStarts.delete(tabId);
       set((st) => {
         const { [tabId]: _gone, ...byTab } = st.byTab;
@@ -281,7 +296,10 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
       update(tabId, (t) => ({ values: { ...t.values, workbook: { ...t.values.workbook, [name]: value } } }));
       remember(tabId);
       const rerun = () => {
-        for (const id of widgetsUsing(get().byTab[tabId]?.doc ?? s.doc, name)) {
+        const doc = get().byTab[tabId]?.doc ?? s.doc;
+        // A linked widget is rerun by what its library query uses, not its local copy.
+        const running = { ...doc, widgets: doc.widgets.map((w) => effective(tabId, w) ?? w) };
+        for (const id of widgetsUsing(running, name)) {
           void get().runWidget(tabId, id);
         }
       };
@@ -360,6 +378,11 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
 
     markSaved(tabId, doc) {
       update(tabId, () => ({ doc, dirty: false }));
+      // Saved while editing: a later discard returns to what was saved.
+      const s = get().byTab[tabId];
+      if (s && editStarts.has(tabId)) {
+        editStarts.set(tabId, { doc, dirty: false, undo: s.undo, redo: s.redo });
+      }
     },
 
     setViewChart(tabId, widgetId, picked) {

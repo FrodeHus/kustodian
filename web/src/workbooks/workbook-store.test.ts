@@ -35,6 +35,8 @@ interface Pending {
 let runs: Pending[];
 let library: SavedQuery[];
 let remembered: Record<string, string>;
+/** When set, `library.list` answers only after it resolves. */
+let libraryGate: Promise<void> | null;
 
 const saved = (id: string, text: string): SavedQuery => ({
   version: 1,
@@ -78,11 +80,12 @@ beforeEach(() => {
   runs = [];
   library = [];
   remembered = {};
+  libraryGate = null;
   bridge.call.mockReset();
   bridge.call.mockImplementation((method: string, params: unknown, signal: AbortSignal) => {
     switch (method) {
       case 'library.list':
-        return Promise.resolve({ queries: library, folders: [], skipped: 0 });
+        return (libraryGate ?? Promise.resolve()).then(() => ({ queries: library, folders: [], skipped: 0 }));
       case 'workbook.values.get':
         return Promise.resolve({ values: remembered });
       case 'workbook.values.save':
@@ -243,6 +246,47 @@ describe('workbook store', () => {
     expect(tab().doc.parameters[0]?.value).toBe('y');
     expect(tab().doc.widgets[0]?.parameters.Top).toEqual({ from: 'widget', value: '10' });
     expect(tab()).toMatchObject({ dirty: true, undo: [doc] });
+  });
+
+  it('a change while the library is read does not stop the load, and the change wins over the remembered value', async () => {
+    let open!: () => void;
+    libraryGate = new Promise((resolve) => (open = resolve));
+    remembered = { Name: 'kept' };
+    void useWorkbooks.getState().load('t', docOf([wbParam('Name', 'x', { remember: true })], [widget('a', 'T {Name}'), widget('b', 'users')]));
+    await flush();
+    useWorkbooks.getState().setViewChart('t', 'a', { type: 'bar' } as never);
+    useWorkbooks.getState().setWorkbookValue('t', 'Name', 'mine', { now: true });
+    runs = [];
+    open();
+    await flush();
+    expect(tab().values.workbook.Name).toBe('mine');
+    expect(runs.map((r) => [r.params.tabId, r.params.parameters?.[0]?.value])).toEqual([
+      ['t/a', 'mine'],
+      ['t/b', undefined],
+    ]);
+  });
+
+  it('a linked widget reruns for a value its library query uses, not its local copy', async () => {
+    library = [saved('s1', 'T {Name}')];
+    void useWorkbooks.getState().load('t', docOf([wbParam('Name', 'x')], [widget('a', 'old copy', { saved: { id: 's1', name: 's1' } })]));
+    await flush();
+    runs = [];
+    useWorkbooks.getState().setWorkbookValue('t', 'Name', 'y', { now: true });
+    await flush();
+    expect(runs.map((r) => [r.params.tabId, r.params.kql])).toEqual([['t/a', 'T {Name}']]);
+  });
+
+  it('saving while editing makes a later discard return to what was saved', async () => {
+    void useWorkbooks.getState().load('t', docOf([], [widget('a', 'users')]));
+    await flush();
+    const { edit, setEditing, markSaved } = useWorkbooks.getState();
+    setEditing('t', true);
+    edit('t', (d) => ({ ...d, name: 'saved' }));
+    markSaved('t', tab().doc);
+    const savedDoc = tab().doc;
+    edit('t', (d) => ({ ...d, name: 'draft' }));
+    setEditing('t', false, true);
+    expect(tab()).toMatchObject({ doc: savedDoc, dirty: false, editing: false });
   });
 
   it('remembered values load on open and are saved, debounced', async () => {
