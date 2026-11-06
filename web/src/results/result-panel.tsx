@@ -22,7 +22,8 @@ type ResultTab = 'rows' | 'chart' | 'json' | 'diagnostics' | 'compare';
 const count = (n: number) => n.toLocaleString('en-US');
 const rowCount = (n: number) => `${count(n)} ${n === 1 ? 'row' : 'rows'}`;
 
-class ChartFailed extends Component<{ children: ReactNode }, { failed: boolean }> {
+/** Says so when the chart chunk can't be loaded. */
+export class ChartFailed extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() {
     return { failed: true };

@@ -15,10 +15,10 @@ export type WidgetRun =
   | { state: 'idle' }
   | { state: 'waiting' }
   | { state: 'running'; runId: string; startedAt: number }
-  | { state: 'done'; result: RunResult }
+  | { state: 'done'; result: RunResult; finishedAt?: number }
   | { state: 'blocked'; reason: string } // a required value is missing, or widgetRunOptions gave a problem
   | { state: 'gone' } // the linked saved query no longer exists
-  | { state: 'failed'; error: unknown };
+  | { state: 'failed'; error: unknown; finishedAt?: number };
 
 export interface WorkbookState {
   doc: WorkbookDoc;
@@ -132,6 +132,22 @@ async function readLibrary(tabId: string) {
   }
 }
 
+/** The widget as it runs: a linked one takes the library query's text, source, options and parameters (as last read for the
+ * tab). Null when gone. */
+export function effectiveWidget(tabId: string, widget: Widget): Widget | null {
+  const query = widget.query;
+  const lib = libraries.get(tabId);
+  if (!query?.saved || !lib) {
+    return widget;
+  }
+  const q = lib.get(query.saved.id);
+  // A raw request can't run in a widget; a link to one counts as gone.
+  if (!q || q.source === 'raw') {
+    return null;
+  }
+  return { ...widget, query: { ...query, source: q.source, text: q.text, options: q.options ?? null, parameters: q.parameters } };
+}
+
 export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set, get) => {
   const update = (tabId: string, change: (s: WorkbookState) => Partial<WorkbookState>) =>
     set((st) => {
@@ -140,21 +156,6 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
     });
   const setRun = (tabId: string, widgetId: string, run: WidgetRun) =>
     update(tabId, (s) => ({ runs: { ...s.runs, [widgetId]: run } }));
-
-  /** The widget as it runs: a linked one takes the library query's text, source, options and parameters. Null when gone. */
-  const effective = (tabId: string, widget: Widget): Widget | null => {
-    const query = widget.query;
-    const lib = libraries.get(tabId);
-    if (!query?.saved || !lib) {
-      return widget;
-    }
-    const q = lib.get(query.saved.id);
-    // A raw request can't run in a widget; a link to one counts as gone.
-    if (!q || q.source === 'raw') {
-      return null;
-    }
-    return { ...widget, query: { ...query, source: q.source, text: q.text, options: q.options ?? null, parameters: q.parameters } };
-  };
 
   /** Writes the values of the parameters marked `remember`, debounced. */
   const remember = (tabId: string) => {
@@ -224,7 +225,7 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
       }
       const key = `${tabId}/${widgetId}`;
       drop(key);
-      const widget = effective(tabId, own);
+      const widget = effectiveWidget(tabId, own);
       if (!widget?.query) {
         setRun(tabId, widgetId, { state: 'gone' });
         pump();
@@ -264,9 +265,9 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
             setRun(tabId, widgetId, { state: 'running', runId, startedAt: Date.now() });
             let run: WidgetRun;
             try {
-              run = { state: 'done', result: await call<RunResult>('query.run', runParams, controller.signal) };
+              run = { state: 'done', result: await call<RunResult>('query.run', runParams, controller.signal), finishedAt: Date.now() };
             } catch (error) {
-              run = { state: 'failed', error };
+              run = { state: 'failed', error, finishedAt: Date.now() };
             }
             // Review Focus 2: an answer for any run but the widget's latest is stale.
             if (jobs.get(key) === job) {
@@ -301,7 +302,7 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
       const rerun = () => {
         const doc = get().byTab[tabId]?.doc ?? s.doc;
         // A linked widget is rerun by what its library query uses, not its local copy.
-        const running = { ...doc, widgets: doc.widgets.map((w) => effective(tabId, w) ?? w) };
+        const running = { ...doc, widgets: doc.widgets.map((w) => effectiveWidget(tabId, w) ?? w) };
         for (const id of widgetsUsing(running, name)) {
           void get().runWidget(tabId, id);
         }

@@ -6,6 +6,7 @@ import { ExplainView, type ExplainRequest } from './explain/explain-view';
 import { SaveDialog } from './library/save-dialog';
 import { SaveWorkbookDialog } from './workbooks/save-workbook-dialog';
 import { saveWorkbook, startWorkbookTabs } from './workbooks/workbook-store';
+import { WorkbookView } from './workbooks/workbook-view';
 import { newerRelease } from './settings/update-check';
 import { UpdateDialog } from './settings/update-dialog';
 import { openDroppedFile, openKqlFile, save, saveToFile } from './library/saving';
@@ -654,8 +655,7 @@ export function App() {
                     </EditorFailed>
                   </div>
                   {workbook ? (
-                    // Task 10 renders the workbook.
-                    <p className="muted m-0 p-4">{active.title}</p>
+                    <WorkbookView key={active.id} tabId={active.id} onSignIn={() => setAccountsOpen(true)} />
                   ) : raw ? (
                     <RawTab
                       key={active.id}

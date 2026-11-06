@@ -173,7 +173,7 @@ describe('workbook store', () => {
     await flush();
     first!.answer(result([['one']]));
     await flush();
-    expect(tab().runs.a).toEqual({ state: 'done', result: result([['two']]) });
+    expect(tab().runs.a).toMatchObject({ state: 'done', result: result([['two']]) });
   });
 
   it('a widget missing a required value is blocked and not sent', async () => {

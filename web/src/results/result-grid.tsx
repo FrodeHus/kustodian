@@ -143,12 +143,15 @@ export function NoticeLine({ notice, onDismiss }: { notice: Notice; onDismiss: (
 export function MenuButton({
   label,
   text,
+  icon,
   primary = false,
   children,
 }: {
   /** The menu's name, and the button's unless `text` is given. */
   label: string;
   text?: string;
+  /** Shown on the button in place of `label`, which still names it. */
+  icon?: ReactNode;
   primary?: boolean;
   /** The menu's items: buttons with a `menuitem…` role and `tabIndex={-1}`. */
   children: ReactNode;
@@ -218,7 +221,7 @@ export function MenuButton({
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
       >
-        {text ?? label}
+        {icon ?? text ?? label}
         {primary && <span aria-hidden="true"> ▾</span>}
       </button>
       {open && (

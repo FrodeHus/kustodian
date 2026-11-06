@@ -235,6 +235,12 @@ body {
   .chip.warn { background: var(--warn-soft); border-color: transparent; color: var(--warn); }
   .chip.bad { background: var(--bad-soft); border-color: transparent; color: var(--bad); }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  /* The workbook grid (layout.ts: 12 columns, 8 px rows, 12 px gaps). Each widget sits at its layout, given as --x --y --w --h;
+     below 900 px of grid width each takes the full width, in document order, which is (y, x). */
+  .wb-canvas { container-type: inline-size; }
+  .wb-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-auto-rows: 8px; gap: 12px; }
+  .wb-widget { grid-column: var(--x) / span var(--w); grid-row: var(--y) / span var(--h); }
+  @container (max-width: 899px) { .wb-widget { grid-column: 1 / -1; grid-row: auto / span var(--h); } }
   .field { display: flex; flex-direction: column; gap: 5px; }
   .field label { font-size: 12px; font-weight: 600; color: var(--muted); }
   .textbox { height: 32px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); padding: 0 10px; font: inherit; }
