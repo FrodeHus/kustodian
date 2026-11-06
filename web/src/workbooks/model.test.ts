@@ -71,6 +71,19 @@ describe('parseWorkbook', () => {
     expect(doc(e).widgets[0]).toMatchObject({ parameters: {}, title: '' });
   });
 
+  it('gives a data widget without a query an empty graph query, and never leaves query null', () => {
+    const e = example();
+    e.widgets = [
+      { id: 'a', type: 'table', query: null },
+      { id: 'b', type: 'stat' },
+      { id: 'c', type: 'markdown', query: null },
+    ] as never;
+    const [a, b, c] = doc(e).widgets;
+    expect(a?.query).toMatchObject({ source: 'graph', text: '', saved: null, parameters: [] });
+    expect(b?.query?.source).toBe('graph');
+    expect(c && 'query' in c).toBe(false);
+  });
+
   it('clamps a layout to the grid and the minimum size', () => {
     const e = example();
     e.widgets = [{ id: 'm', type: 'chart', layout: { x: 10, y: -2, w: 1, h: 1 } }] as never;

@@ -129,12 +129,15 @@ function parseWidget(v: unknown): Widget | null {
     return null;
   }
   const type = v.type as WidgetType;
-  const query = parseQuery(v.query);
-  if (query === null) {
+  const parsed = parseQuery(v.query);
+  if (parsed === null) {
     return null;
   }
+  // Data widgets always have a query, as newWidget makes them.
+  const query = parsed ?? (type === 'markdown' ? undefined : emptyQuery());
+  const { query: _dropped, ...rest } = v;
   return {
-    ...v,
+    ...rest,
     id: v.id,
     type,
     title: str(v.title, ''),
