@@ -153,6 +153,48 @@ public sealed class SessionServiceTests : IDisposable
         Assert.Null(read.Value.ActiveId);
     }
 
+    private static SessionTab WorkbookTab(string id, System.Text.Json.Nodes.JsonObject workbook) =>
+        new(id, "workbook", "Book " + id, "", true, null, [], null, null, null, workbook);
+
+    [Fact]
+    public async Task A_workbook_tab_round_trips_with_its_document()
+    {
+        var document = System.Text.Json.Nodes.JsonNode.Parse("""{"version":1,"cells":[{"id":"c1","kind":"markdown","text":"hi"}]}""")!.AsObject();
+
+        var dropped = await NewService().SaveAsync(new Session(1, "w", [WorkbookTab("w", document)]), Ct);
+        var read = await NewService().GetAsync(Ct);
+
+        Assert.Equal(0, dropped);
+        var tab = Assert.Single(read.Value.Tabs);
+        Assert.Equal("", tab.Text);
+        Assert.True(System.Text.Json.Nodes.JsonNode.DeepEquals(document, tab.Workbook));
+    }
+
+    [Fact]
+    public async Task A_workbook_tab_over_the_cap_is_dropped_and_counted()
+    {
+        var big = new System.Text.Json.Nodes.JsonObject { ["blob"] = new string('x', SessionService.MaxTextBytes + 1) };
+
+        var dropped = await NewService().SaveAsync(new Session(1, "big", [Tab("a"), WorkbookTab("big", big)]), Ct);
+        var read = await NewService().GetAsync(Ct);
+
+        Assert.Equal(1, dropped);
+        Assert.Equal(["a"], read.Value.Tabs.Select(t => t.Id));
+    }
+
+    [Fact]
+    public async Task A_tab_without_workbook_reads_as_before()
+    {
+        await File.WriteAllTextAsync(Directory.CreateDirectory(_dir).FullName + "/session.json",
+            """{"version":1,"activeId":"a","tabs":[{"id":"a","source":"graph","title":"A","text":"users","dirty":false,"savedId":null,"parameters":[]}]}""",
+            Ct);
+
+        var read = await NewService().GetAsync(Ct);
+
+        Assert.False(read.Corrupt);
+        Assert.Null(Assert.Single(read.Value.Tabs).Workbook);
+    }
+
     [Fact]
     public async Task Corrupt_session_file_is_moved_aside_and_reads_as_empty()
     {
