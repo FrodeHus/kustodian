@@ -328,6 +328,22 @@ export interface LibraryList {
   skipped: number;
 }
 
+/** One workbook in `workbook.list`; `widgets` is how many it holds. */
+export interface WorkbookSummary {
+  id: string;
+  name: string;
+  folder: string | null;
+  modifiedAt: string;
+  widgets: number;
+}
+
+/** `workbook.list`'s answer. `skipped`: files that couldn't be read and were moved aside. */
+export interface WorkbookList {
+  workbooks: WorkbookSummary[];
+  folders: string[];
+  skipped: number;
+}
+
 export interface Snippet {
   id: string;
   source: Source;

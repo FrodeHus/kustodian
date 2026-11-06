@@ -13,6 +13,7 @@ using Kustodian.Raw;
 using Kustodian.Sessions;
 using Kustodian.Settings;
 using Kustodian.Snippets;
+using Kustodian.Workbooks;
 using Kustodian.Sources;
 using Kustodian.Sources.Arg;
 using Kustodian.Sources.Hunting;
@@ -44,6 +45,7 @@ public sealed class AppServices : IAsyncDisposable
     private readonly ArmDirectory _armDirectory;
     private readonly LibraryService _library;
     private readonly RecentService _recent;
+    private readonly WorkbookService _workbooks;
     private readonly SessionService _session;
     private readonly SnippetService _snippets;
     private readonly ExternalToolService _tools;
@@ -62,6 +64,7 @@ public sealed class AppServices : IAsyncDisposable
         _tokenCache = tokenCache;
         _library = new LibraryService(store, time, new StderrLogger<LibraryService>());
         _recent = new RecentService(store, new StderrLogger<RecentService>());
+        _workbooks = new WorkbookService(store, time, new StderrLogger<WorkbookService>());
         _session = new SessionService(store);
         _snippets = new SnippetService(store, new StderrLogger<SnippetService>());
         _tools = new ExternalToolService(store.Root);
@@ -132,6 +135,7 @@ public sealed class AppServices : IAsyncDisposable
         new QueryHandler(_schema, ActiveAccountAsync, Sources(), _recent, _time, new StderrLogger<QueryHandler>(), Limits, _licenses,
             Reporter, Trail).Register(bridge);
         new LibraryHandler(_library, _recent).Register(bridge);
+        new WorkbookHandler(_workbooks).Register(bridge);
         new SessionHandler(_session, _allowedFiles).Register(bridge);
         new SnippetHandler(_snippets).Register(bridge);
         new ExternalToolHandler(_tools).Register(bridge);
