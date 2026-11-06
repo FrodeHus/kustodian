@@ -97,14 +97,48 @@ describe('workbook edit mode', () => {
     expect(live().textContent).toBe('Resized to 4 × 13');
   });
 
-  it('Delete removes it, Ctrl+Z restores it, Ctrl+Shift+Z removes it again', () => {
+  it('Delete removes it and focuses the previous grip; Ctrl+Z there restores it, Ctrl+Shift+Z removes it again', () => {
     show();
     fireEvent.keyDown(grip('Notes'), { key: 'Delete' });
     expect(layoutOf('b')).toBeUndefined();
-    fireEvent.keyDown(grip('Users'), { key: 'z', ctrlKey: true });
+    expect(document.activeElement).toBe(grip('Users'));
+    fireEvent.keyDown(document.activeElement!, { key: 'z', ctrlKey: true });
     expect(layoutOf('b')).toBeTruthy();
-    fireEvent.keyDown(grip('Users'), { key: 'Z', ctrlKey: true, shiftKey: true });
+    fireEvent.keyDown(document.activeElement!, { key: 'Z', ctrlKey: true, shiftKey: true });
     expect(layoutOf('b')).toBeUndefined();
+  });
+
+  it('Delete focuses the next grip, and Undo once the last widget is gone', () => {
+    show();
+    fireEvent.keyDown(grip('Users'), { key: 'Delete' });
+    expect(document.activeElement).toBe(grip('Notes'));
+    fireEvent.keyDown(grip('Notes'), { key: 'Delete' });
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Undo' }));
+    fireEvent.keyDown(document.activeElement!, { key: 'z', ctrlKey: true });
+    expect(layoutOf('b')).toBeTruthy();
+  });
+
+  it('says the same thing twice when it happens twice', () => {
+    show();
+    fireEvent.keyDown(grip('Users'), { key: 'ArrowLeft' });
+    const first = live().firstChild;
+    expect(live().textContent).toBe('Moved to column 1, row 1');
+    fireEvent.keyDown(grip('Users'), { key: 'ArrowLeft' });
+    expect(live().textContent).toBe('Moved to column 1, row 1');
+    expect(live().firstChild).not.toBe(first);
+  });
+
+  it('moves focus and says so on Edit, Done and Discard', () => {
+    show();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: '+ Add widget' }));
+    expect(live().textContent).toBe('Editing the workbook');
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit' }));
+    expect(live().textContent).toBe('Done editing');
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit' }));
+    expect(live().textContent).toBe('Changes discarded');
   });
 
   it('Discard restores the doc from when editing began', () => {
@@ -181,5 +215,18 @@ describe('workbook edit mode', () => {
     expect(added.title).toBe('Risky sign-ins');
     expect(added.query).toEqual({ source: 'hunting', text: 'SigninLogs', options: { timespan: 'P1D' }, parameters: [], saved: { id: 'q1', name: 'Risky sign-ins' } });
     expect(screen.queryByRole('dialog')).toBeNull();
+    // Done re-reads the library for the new link, then runs without skipping the result cache.
+    call.mockClear();
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Done' })));
+    expect(call).toHaveBeenCalledWith('library.list');
+    expect(runAll).toHaveBeenCalledWith('t');
+  });
+
+  it('Done after an undo back to the start doesn’t rerun', () => {
+    show();
+    fireEvent.keyDown(grip('Notes'), { key: 'ArrowRight' });
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    expect(runAll).not.toHaveBeenCalled();
   });
 });

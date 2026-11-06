@@ -12,13 +12,13 @@ import { SourceBadge } from '../tabs/source-badge';
 import { useTabs } from '../tabs/tab-store';
 import type { LibraryList, SavedQuery } from '../wire';
 import { narrowOrder, place } from './layout';
-import { MIN_SIZE, newWidget, type Widget, type WidgetType, type WorkbookDoc, type WorkbookParameter } from './model';
+import { MIN_SIZE, newWidget, type Widget, type WidgetType, type WorkbookParameter } from './model';
 import { WidgetFrame } from './widget-frame';
 import { ChartWidget } from './widgets/chart-widget';
 import { MarkdownWidget } from './widgets/markdown-widget';
 import { StatWidget } from './widgets/stat-widget';
 import { TableWidget } from './widgets/table-widget';
-import { useWorkbooks } from './workbook-store';
+import { editStartDoc, readLibrary, useWorkbooks } from './workbook-store';
 
 const ALL = '\u0000all';
 
@@ -212,10 +212,21 @@ export function WorkbookView({
   const [deleting, setDeleting] = useState(false);
   const [problem, setProblem] = useState<Shown | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const [said, setSaid] = useState('');
+  // Each announcement is a fresh node (n), so saying the same thing twice is heard twice.
+  const [said, setSaid] = useState({ text: '', n: 0 });
+  const say = (text: string) => setSaid((s) => ({ text, n: s.n + 1 }));
   const [picking, setPicking] = useState(false);
-  // The doc when Edit was pressed, and whether a saved query was linked since. Null after a remount: Done then reruns.
-  const editStart = useRef<{ doc: WorkbookDoc; linked: boolean } | null>(null);
+  const editRef = useRef<HTMLButtonElement>(null);
+  const editingBar = useRef<HTMLDivElement>(null);
+  const undoRef = useRef<HTMLButtonElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  // Where focus goes once the next render is in (the toolbar swaps, a removed grip unmounts, Undo enables).
+  const focusNext = useRef<(() => HTMLElement | null | undefined) | null>(null);
+  useEffect(() => {
+    const target = focusNext.current?.();
+    focusNext.current = null;
+    target?.focus();
+  });
   if (!state) {
     return <p className="faint m-0 p-4 text-[12px]">Opening the workbook…</p>;
   }
@@ -240,7 +251,7 @@ export function WorkbookView({
   const add = (widget: Widget, what: string) => {
     store().edit(tabId, (d) => ({ ...d, widgets: [...d.widgets, widget] }));
     setSelected(widget.id);
-    setSaid(`Added ${what} at column ${widget.layout.x + 1}, row ${widget.layout.y + 1}`);
+    say(`Added ${what} at column ${widget.layout.x + 1}, row ${widget.layout.y + 1}`);
   };
   const addNew = (type: WidgetType, name: string) => {
     const min = MIN_SIZE[type];
@@ -255,39 +266,49 @@ export function WorkbookView({
     const widget = newWidget('table', place(doc.widgets, min.w, min.h * 2));
     widget.title = q.name;
     widget.query = { source: q.source, text: q.text, options: q.options ?? null, parameters: q.parameters, saved: { id: q.id, name: q.name } };
-    if (editStart.current) {
-      editStart.current.linked = true;
-    }
     add(widget, q.name);
   };
   const startEditing = () => {
-    editStart.current = { doc, linked: false };
     store().setEditing(tabId, true);
+    focusNext.current = () => editingBar.current?.querySelector('button');
+    say('Editing the workbook');
   };
-  const done = () => {
-    const start = editStart.current;
-    editStart.current = null;
+  const leave = (discard: boolean) => {
+    const start = editStartDoc(tabId);
     setSelected(null);
-    store().setEditing(tabId, false);
-    // Edits don't rerun widgets (the store's ruling); Done reruns once if anything changed. A new link needs the library re-read.
-    if (!start || start.linked) {
-      void store().runAll(tabId, { refresh: true });
-    } else if (start.doc !== store().byTab[tabId]?.doc) {
+    store().setEditing(tabId, false, discard);
+    focusNext.current = () => editRef.current;
+    say(discard ? 'Changes discarded' : 'Done editing');
+    const now = store().byTab[tabId]?.doc;
+    // Edits don't rerun widgets (the store's ruling); Done reruns once if the doc changed.
+    if (discard || !start || !now || start === now) {
+      return;
+    }
+    // A saved query linked since editing began may be newer than the tab's copy of the library.
+    const known = new Set(start.widgets.map((w) => w.query?.saved?.id));
+    const linked = now.widgets.some((w) => w.query?.saved && !known.has(w.query.saved.id));
+    if (linked) {
+      void readLibrary(tabId).then(() => store().runAll(tabId));
+    } else {
       void store().runAll(tabId);
     }
   };
-  const discard = () => {
-    editStart.current = null;
-    setSelected(null);
-    store().setEditing(tabId, false, true);
+  const removeWidget = (w: Widget) => {
+    // Grips are in the grid's (y, x) order; focus the next one, else the previous, else Undo.
+    const grips = [...(gridRef.current?.querySelectorAll<HTMLElement>('.wb-grip') ?? [])];
+    const at = narrowOrder(doc.widgets).findIndex((x) => x.id === w.id);
+    const next = grips[at + 1] ?? grips[at - 1];
+    store().edit(tabId, (d) => ({ ...d, widgets: d.widgets.filter((x) => x.id !== w.id) }));
+    focusNext.current = () => next ?? undoRef.current;
+    say(`Removed ${w.title || 'Untitled widget'}`);
   };
   const undo = () => {
     store().undoEdit(tabId);
-    setSaid('Undone');
+    say('Undone');
   };
   const redo = () => {
     store().redoEdit(tabId);
-    setSaid('Redone');
+    say('Redone');
   };
   const onKey = (e: KeyboardEvent) => {
     if (!editing || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z' || inTextField(e.target)) {
@@ -330,7 +351,7 @@ export function WorkbookView({
   return (
     <div className="flex min-h-0 flex-1 flex-col" onKeyDown={onKey}>
       {editing ? (
-        <div className="toolbar" role="group" aria-label="Editing the workbook">
+        <div ref={editingBar} className="toolbar" role="group" aria-label="Editing the workbook">
           <span className="chip warn">EDITING</span>
           <h1 className="m-0 truncate text-[14px] font-semibold">{doc.name}</h1>
           <div className="grow" />
@@ -347,16 +368,16 @@ export function WorkbookView({
           <button type="button" className="btn" onClick={onParameters}>
             Parameters
           </button>
-          <button type="button" className="btn ghost" disabled={state.undo.length === 0} onClick={undo}>
+          <button ref={undoRef} type="button" className="btn ghost" disabled={state.undo.length === 0} onClick={undo}>
             Undo
           </button>
           <button type="button" className="btn ghost" disabled={state.redo.length === 0} onClick={redo}>
             Redo
           </button>
-          <button type="button" className="btn ghost" onClick={discard}>
+          <button type="button" className="btn ghost" onClick={() => leave(true)}>
             Discard
           </button>
-          <button type="button" className="btn primary" onClick={done}>
+          <button type="button" className="btn primary" onClick={() => leave(false)}>
             Done
           </button>
         </div>
@@ -369,7 +390,7 @@ export function WorkbookView({
           <button type="button" className="btn" onClick={() => void store().runAll(tabId, { refresh: true })}>
             Refresh all
           </button>
-          <button type="button" className="btn" onClick={startEditing}>
+          <button ref={editRef} type="button" className="btn" onClick={startEditing}>
             Edit
           </button>
           <MenuButton label="Workbook menu" icon="⋯">
@@ -386,7 +407,7 @@ export function WorkbookView({
         </div>
       )}
       <p className="wb-announce sr-only" aria-live="polite">
-        {said}
+        <span key={said.n}>{said.text}</span>
       </p>
       {picking && <SavedQueryPicker onPick={addSaved} onClose={() => setPicking(false)} />}
       {deleting && <ConfirmDelete name={doc.name} onDelete={remove} onCancel={() => setDeleting(false)} />}
@@ -407,7 +428,7 @@ export function WorkbookView({
         {doc.widgets.length === 0 && !editing ? (
           <p className="faint m-0 text-[12px]">No widgets yet. Edit the workbook to add some.</p>
         ) : (
-          <div className={editing ? 'wb-grid wb-editing' : 'wb-grid'}>
+          <div ref={gridRef} className={editing ? 'wb-grid wb-editing' : 'wb-grid'}>
             {narrowOrder(doc.widgets).map((w) => (
               <WidgetFrame
                 key={w.id}
@@ -416,7 +437,7 @@ export function WorkbookView({
                 onSignIn={onSignIn}
                 editing={
                   editing
-                    ? { selected: selected === w.id, onSelect: () => setSelected(w.id), onEditWidget: () => onEditWidget(w.id), announce: setSaid }
+                    ? { selected: selected === w.id, onSelect: () => setSelected(w.id), onEditWidget: () => onEditWidget(w.id), onRemove: () => removeWidget(w), announce: say }
                     : undefined
                 }
               >

@@ -19,6 +19,8 @@ export interface WidgetEditing {
   selected: boolean;
   onSelect: () => void;
   onEditWidget: () => void;
+  /** Removes the widget and puts focus somewhere that keeps working (the workbook knows the order). */
+  onRemove: () => void;
   /** Said through the workbook's live region. */
   announce: (text: string) => void;
 }
@@ -210,10 +212,6 @@ export function WidgetFrame({
     }
     editing?.announce(kind === 'move' ? `Moved to column ${now.x + 1}, row ${now.y + 1}` : `Resized to ${now.w} × ${now.h}`);
   };
-  const remove = () => {
-    edit(tabId, (d) => ({ ...d, widgets: d.widgets.filter((w) => w.id !== widget.id) }));
-    editing?.announce(`Removed ${title}`);
-  };
   const duplicate = () => {
     edit(tabId, (d) => ({ ...d, widgets: [...d.widgets, { ...widget, id: newWidget(widget.type, widget.layout).id, layout: place(d.widgets, widget.layout.w, widget.layout.h) }] }));
     editing?.announce(`Duplicated ${title}`);
@@ -258,7 +256,7 @@ export function WidgetFrame({
       commit(e.shiftKey ? { w: true, h: true } : 'move', arrow[0], arrow[1]);
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
-      remove();
+      editing?.onRemove();
     }
   };
 
@@ -322,7 +320,7 @@ export function WidgetFrame({
               <button type="button" className="btn ghost" onClick={duplicate}>
                 Duplicate
               </button>
-              <button type="button" className="btn ghost" onClick={remove}>
+              <button type="button" className="btn ghost" onClick={editing?.onRemove}>
                 Remove
               </button>
             </>

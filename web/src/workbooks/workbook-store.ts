@@ -129,7 +129,8 @@ function pump() {
   }
 }
 
-async function readLibrary(tabId: string) {
+/** Reads the library into the tab's cache of saved queries, which linked widgets run from. */
+export async function readLibrary(tabId: string) {
   const token = loads.get(tabId);
   let library: Map<string, SavedQuery> | null;
   try {
@@ -141,6 +142,11 @@ async function readLibrary(tabId: string) {
   if (token && loads.get(tabId) === token) {
     libraries.set(tabId, library);
   }
+}
+
+/** The doc as it was when editing started (or as last saved since), while editing. */
+export function editStartDoc(tabId: string): WorkbookDoc | undefined {
+  return editStarts.get(tabId)?.doc;
 }
 
 /** The widget as it runs: a linked one takes the library query's text, source, options and parameters (as last read for the
