@@ -222,7 +222,7 @@ export function App() {
   // The last session's tabs come back, or one empty Graph tab.
   useEffect(() => startSessionSync(setProblem, setLasting), [setProblem]);
   // Workbook tabs load their workbook when they open and keep its unsaved changes in the tab.
-  useEffect(() => startWorkbookTabs(), []);
+  useEffect(() => startWorkbookTabs(setProblem), [setProblem]);
   // Explain closes when its tab's source changes from Graph, so coming back to Graph doesn't explain the query again unasked.
   useEffect(
     () =>

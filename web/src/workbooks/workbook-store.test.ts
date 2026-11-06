@@ -341,4 +341,31 @@ describe('workbook store', () => {
     useTabs.getState().close(id);
     stop();
   });
+
+  it('a damaged workbook from the session is repaired; one that cannot be read is said once and not tried again', async () => {
+    const good = widget('a', 'users');
+    const damaged = { ...docOf([], []), parameters: undefined, widgets: [good, { ...good, id: 'b', type: 'map' }] } as unknown as WorkbookDoc;
+    const other = { ...docOf([], []), kind: 'other' } as unknown as WorkbookDoc;
+    const tabOf = (id: string, title: string, workbook: WorkbookDoc) =>
+      ({ id, source: 'workbook' as const, title, text: '', dirty: true, savedId: null, parameters: [], filePath: null, workbook });
+    useTabs.getState().restore({ version: 1, activeId: 'w1', tabs: [tabOf('w1', 'Fixed', damaged), tabOf('w2', 'Other', other)] });
+    const notify = vi.fn();
+    const stop = startWorkbookTabs(notify);
+    await flush();
+
+    expect(useWorkbooks.getState().byTab.w1?.doc).toMatchObject({ parameters: [], widgets: [{ id: 'a' }] });
+    expect(useWorkbooks.getState().byTab.w1?.doc.widgets).toHaveLength(1);
+    expect(useTabs.getState().tabs[0]).toMatchObject({ dirty: true, workbook: { parameters: [] } });
+    expect(useWorkbooks.getState().byTab.w2).toBeUndefined();
+    expect(notify).toHaveBeenCalledWith("Other couldn’t be opened: This isn't a Kustodian workbook.");
+
+    // Later tab changes don't try it again; its document stays in the tab for the session.
+    useTabs.getState().open('graph');
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(useTabs.getState().tabs[1]?.workbook).toBe(other);
+
+    useTabs.getState().close('w1');
+    useTabs.getState().close('w2');
+    stop();
+  });
 });

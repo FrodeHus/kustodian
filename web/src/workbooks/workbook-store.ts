@@ -7,6 +7,7 @@ import { newId } from '../shell/ids';
 import { useTabs } from '../tabs/tab-store';
 import type { LibraryList, QueryRunParams, RunResult, SavedQuery, Source } from '../wire';
 import type { Widget, WorkbookDoc } from './model';
+import { parseWorkbook } from './model';
 import type { ViewValues } from './resolve';
 import { initialValues, missingRequired, toParameterValues, widgetParams, widgetRunOptions, widgetsUsing } from './resolve';
 
@@ -397,15 +398,33 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
 /**
  * Keeps the workbook tabs and this store together (Ruling R1): a workbook tab that opens, or comes back with the session,
  * loads; one that closes unloads; and each workbook's doc and dirty flag are mirrored into its tab, so the session keeps
- * unsaved edits and closing asks. Returns the function that stops it.
+ * unsaved edits and closing asks. A document from the session goes through `parseWorkbook` first, so a damaged one is
+ * repaired; one that can't be read stays in its tab as it is, `notify` says why, and it isn't tried again. Returns the
+ * function that stops it.
  */
-export function startWorkbookTabs(): () => void {
+export function startWorkbookTabs(notify?: (message: string) => void): () => void {
+  /** Tabs whose document couldn't be read or loaded. */
+  const failed = new Set<string>();
+  const fail = (id: string, title: string, why: string) => {
+    failed.add(id);
+    notify?.(`${title} couldn’t be opened: ${why}`);
+  };
   const reconcile = () => {
     const { tabs } = useTabs.getState();
     const { byTab, load, unload } = useWorkbooks.getState();
+    for (const id of failed) {
+      if (!tabs.some((t) => t.id === id)) {
+        failed.delete(id);
+      }
+    }
     for (const t of tabs) {
-      if (t.workbook && !byTab[t.id]) {
-        void load(t.id, t.workbook, { dirty: t.dirty });
+      if (t.workbook && !byTab[t.id] && !failed.has(t.id)) {
+        const doc = parseWorkbook(t.workbook);
+        if (typeof doc === 'string') {
+          fail(t.id, t.title, doc);
+        } else {
+          load(t.id, doc, { dirty: t.dirty }).catch((e: unknown) => fail(t.id, t.title, e instanceof Error ? e.message : String(e)));
+        }
       }
     }
     for (const id of Object.keys(byTab)) {
