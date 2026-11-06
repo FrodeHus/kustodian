@@ -13,6 +13,7 @@ import { useTabs } from '../tabs/tab-store';
 import type { LibraryList, SavedQuery } from '../wire';
 import { narrowOrder, place } from './layout';
 import { MIN_SIZE, newWidget, type Widget, type WidgetType, type WorkbookParameter } from './model';
+import { WidgetEditor } from './widget-editor';
 import { WidgetFrame } from './widget-frame';
 import { ChartWidget } from './widgets/chart-widget';
 import { MarkdownWidget } from './widgets/markdown-widget';
@@ -197,13 +198,10 @@ function Updated({ at }: { at: number }) {
 export function WorkbookView({
   tabId,
   onSignIn,
-  onEditWidget = () => undefined,
   onParameters = () => undefined,
 }: {
   tabId: string;
   onSignIn?: () => void;
-  /** Edit mode's Edit widget, by the widget's id (Ruling R4: the widget editor comes with Task 13). */
-  onEditWidget?: (widgetId: string) => void;
   /** Edit mode's Parameters (Ruling R4: the parameters dialog comes with Task 14). */
   onParameters?: () => void;
 }) {
@@ -216,6 +214,8 @@ export function WorkbookView({
   const [said, setSaid] = useState({ text: '', n: 0 });
   const say = (text: string) => setSaid((s) => ({ text, n: s.n + 1 }));
   const [picking, setPicking] = useState(false);
+  // The widget open in the widget editor, and the Edit widget control focus goes back to when it closes.
+  const [editingWidget, setEditingWidget] = useState<{ id: string; opener: HTMLElement } | null>(null);
   const editRef = useRef<HTMLButtonElement>(null);
   const editingBar = useRef<HTMLDivElement>(null);
   const undoRef = useRef<HTMLButtonElement>(null);
@@ -311,7 +311,7 @@ export function WorkbookView({
     say('Redone');
   };
   const onKey = (e: KeyboardEvent) => {
-    if (!editing || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z' || inTextField(e.target)) {
+    if (!editing || editingWidget || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z' || inTextField(e.target)) {
       return;
     }
     e.preventDefault();
@@ -409,6 +409,16 @@ export function WorkbookView({
       <p className="wb-announce sr-only" aria-live="polite">
         <span key={said.n}>{said.text}</span>
       </p>
+      {editingWidget && (
+        <WidgetEditor
+          tabId={tabId}
+          widgetId={editingWidget.id}
+          onClose={() => {
+            focusNext.current = () => editingWidget.opener;
+            setEditingWidget(null);
+          }}
+        />
+      )}
       {picking && <SavedQueryPicker onPick={addSaved} onClose={() => setPicking(false)} />}
       {deleting && <ConfirmDelete name={doc.name} onDelete={remove} onCancel={() => setDeleting(false)} />}
       {problem && (
@@ -437,7 +447,7 @@ export function WorkbookView({
                 onSignIn={onSignIn}
                 editing={
                   editing
-                    ? { selected: selected === w.id, onSelect: () => setSelected(w.id), onEditWidget: () => onEditWidget(w.id), onRemove: () => removeWidget(w), announce: say }
+                    ? { selected: selected === w.id, onSelect: () => setSelected(w.id), onEditWidget: (opener) => setEditingWidget({ id: w.id, opener }), onRemove: () => removeWidget(w), announce: say }
                     : undefined
                 }
               >

@@ -37,6 +37,9 @@ export interface WorkbookActions {
   load(tabId: string, doc: WorkbookDoc, opts?: { dirty?: boolean }): Promise<void>; // reads remembered values and the library, then runAll
   unload(tabId: string): void; // cancels its runs
   runWidget(tabId: string, widgetId: string, opts?: { refresh?: boolean }): Promise<void>;
+  /** Runs a draft of a widget (the widget editor's preview) as `runWidget` would, under the run tab id `tab/preview`; only the
+   * latest call answers, the others reject. Rejects with the reason when it can't run. Its result isn't kept in `runs`. */
+  runDraft(tabId: string, widget: Widget): Promise<RunResult>;
   runAll(tabId: string, opts?: { refresh?: boolean }): Promise<void>;
   setWorkbookValue(tabId: string, name: string, value: string, opts?: { now?: boolean }): void; // reruns widgetsUsing; a value typed (no choices) is debounced unless now
   setWidgetValue(tabId: string, widgetId: string, name: string, value: string, opts?: { now?: boolean }): void; // reruns that widget, debounced unless now
@@ -67,7 +70,7 @@ interface Job {
   started: boolean;
   controller: AbortController;
   start: () => Promise<void>;
-  /** Resolves the job's `runWidget` promise. */
+  /** Called when the job is dropped before it answers. */
   settle: () => void;
 }
 const jobs = new Map<string, Job>();
@@ -165,6 +168,72 @@ export function effectiveWidget(tabId: string, widget: Widget): Widget | null {
   return { ...widget, query: { ...query, source: q.source, text: q.text, options: q.options ?? null, parameters: q.parameters } };
 }
 
+/**
+ * Queues a run of `own` (as it runs: a linked one takes its library query) under the run tab id `key`, after dropping the
+ * one already there, with the tab's current values. Returns `waiting` once queued, or why it doesn't run: then nothing is
+ * sent and no callback is called. The caller calls `pump` after. Only the latest run under a key is answered (Review Focus 2); a dropped one gets
+ * `onDropped`.
+ */
+function queue(
+  tabId: string,
+  key: string,
+  own: Widget,
+  refresh: boolean,
+  on: { onStart: (runId: string) => void; onAnswer: (run: WidgetRun) => void; onDropped: () => void },
+): WidgetRun {
+  drop(key);
+  const s = useWorkbooks.getState().byTab[tabId];
+  const widget = effectiveWidget(tabId, own);
+  if (!s || !widget?.query) {
+    return { state: 'gone' };
+  }
+  const params = widgetParams(s.doc, widget, s.values);
+  const options = widgetRunOptions(s.doc, widget, s.values);
+  const blocked = missingRequired(params).length > 0 ? NEEDS_VALUE : options && 'problem' in options ? options.problem : null;
+  if (blocked || widget.query.text.trim() === '') {
+    return blocked ? { state: 'blocked', reason: blocked } : { state: 'idle' };
+  }
+
+  const { source, text } = widget.query;
+  const runId = newId();
+  const controller = new AbortController();
+  const runParams: QueryRunParams = {
+    tabId: key,
+    runId,
+    source,
+    kql: text,
+    parameters: toParameterValues(params),
+    options: options as QueryRunParams['options'],
+    refresh,
+    addToRecent: false,
+  };
+  const job: Job = {
+    key,
+    source,
+    runId,
+    started: false,
+    controller,
+    settle: on.onDropped,
+    start: async () => {
+      on.onStart(runId);
+      let run: WidgetRun;
+      try {
+        run = { state: 'done', result: await call<RunResult>('query.run', runParams, controller.signal), finishedAt: Date.now() };
+      } catch (error) {
+        run = { state: 'failed', error, finishedAt: Date.now() };
+      }
+      // Review Focus 2: an answer for any run but the key's latest is stale.
+      if (jobs.get(key) === job) {
+        jobs.delete(key);
+        on.onAnswer(run);
+        pump();
+      }
+    },
+  };
+  jobs.set(key, job);
+  return { state: 'waiting' };
+}
+
 export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set, get) => {
   const update = (tabId: string, change: (s: WorkbookState) => Partial<WorkbookState>) =>
     set((st) => {
@@ -235,69 +304,38 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
     },
 
     runWidget(tabId, widgetId, opts) {
-      const s = get().byTab[tabId];
-      const own = s?.doc.widgets.find((w) => w.id === widgetId);
-      if (!s || !own?.query) {
+      const own = get().byTab[tabId]?.doc.widgets.find((w) => w.id === widgetId);
+      if (!own?.query) {
         return Promise.resolve();
       }
-      const key = `${tabId}/${widgetId}`;
-      drop(key);
-      const widget = effectiveWidget(tabId, own);
-      if (!widget?.query) {
-        setRun(tabId, widgetId, { state: 'gone' });
-        pump();
-        return Promise.resolve();
-      }
-      const params = widgetParams(s.doc, widget, s.values);
-      const options = widgetRunOptions(s.doc, widget, s.values);
-      const blocked = missingRequired(params).length > 0 ? NEEDS_VALUE : options && 'problem' in options ? options.problem : null;
-      if (blocked || widget.query.text.trim() === '') {
-        setRun(tabId, widgetId, blocked ? { state: 'blocked', reason: blocked } : { state: 'idle' });
-        pump();
-        return Promise.resolve();
-      }
-
-      const { source, text } = widget.query;
-      const runId = newId();
-      const controller = new AbortController();
-      const runParams: QueryRunParams = {
-        tabId: key,
-        runId,
-        source,
-        kql: text,
-        parameters: toParameterValues(params),
-        options: options as QueryRunParams['options'],
-        refresh: opts?.refresh ?? false,
-        addToRecent: false,
-      };
       return new Promise<void>((settle) => {
-        const job: Job = {
-          key,
-          source,
-          runId,
-          started: false,
-          controller,
-          settle,
-          start: async () => {
-            setRun(tabId, widgetId, { state: 'running', runId, startedAt: Date.now() });
-            let run: WidgetRun;
-            try {
-              run = { state: 'done', result: await call<RunResult>('query.run', runParams, controller.signal), finishedAt: Date.now() };
-            } catch (error) {
-              run = { state: 'failed', error, finishedAt: Date.now() };
-            }
-            // Review Focus 2: an answer for any run but the widget's latest is stale.
-            if (jobs.get(key) === job) {
-              jobs.delete(key);
-              setRun(tabId, widgetId, run);
-              settle();
-              pump();
-            }
+        const queued = queue(tabId, `${tabId}/${widgetId}`, own, opts?.refresh ?? false, {
+          onStart: (runId) => setRun(tabId, widgetId, { state: 'running', runId, startedAt: Date.now() }),
+          onAnswer: (run) => {
+            setRun(tabId, widgetId, run);
+            settle();
           },
-        };
-        jobs.set(key, job);
-        setRun(tabId, widgetId, { state: 'waiting' });
+          onDropped: settle,
+        });
+        setRun(tabId, widgetId, queued);
         pump();
+        if (queued.state !== 'waiting') {
+          settle();
+        }
+      });
+    },
+
+    runDraft(tabId, widget) {
+      return new Promise<RunResult>((resolve, reject) => {
+        const queued = queue(tabId, `${tabId}/preview`, widget, false, {
+          onStart: () => undefined,
+          onAnswer: (run) => (run.state === 'done' ? resolve(run.result) : reject(run.state === 'failed' ? run.error : new Error(run.state))),
+          onDropped: () => reject(new DOMException('A newer preview replaced this one.', 'AbortError')),
+        });
+        pump();
+        if (queued.state !== 'waiting') {
+          reject(new Error(queued.state === 'blocked' ? queued.reason : queued.state === 'gone' ? 'This saved query is gone.' : 'No query yet.'));
+        }
       });
     },
 

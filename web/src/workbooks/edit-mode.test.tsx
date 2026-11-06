@@ -13,6 +13,8 @@ vi.mock('../bridge', async (importOriginal) => ({
   on: () => () => undefined,
 }));
 
+// Monaco doesn't run in jsdom; the widget editor's own tests cover it.
+vi.mock('../editor/kql-editor', () => ({ default: () => null }));
 // Recharts can't lay out in jsdom; the chart's own tests cover it.
 vi.mock('../results/chart-view', () => ({ default: () => null }));
 
@@ -23,7 +25,6 @@ function widget(id: string, type: WidgetType, title: string, x: number, y: numbe
 
 let doc: WorkbookDoc;
 const runAll = vi.fn(() => Promise.resolve());
-const onEditWidget = vi.fn();
 const onParameters = vi.fn();
 
 function show() {
@@ -31,7 +32,7 @@ function show() {
     byTab: { t: { doc, values: { workbook: {}, widgets: {} }, runs: {}, editing: false, undo: [], redo: [], dirty: false, viewCharts: {} } },
     runAll,
   });
-  render(<WorkbookView tabId="t" onEditWidget={onEditWidget} onParameters={onParameters} />);
+  render(<WorkbookView tabId="t" onParameters={onParameters} />);
   fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
 }
 
@@ -41,9 +42,8 @@ const grip = (title: string) => screen.getByRole('button', { name: `Move ${title
 const live = () => document.querySelector('.wb-announce')!;
 
 beforeEach(() => {
-  call.mockReset();
+  call.mockReset().mockReturnValue(new Promise(() => undefined));
   runAll.mockClear();
-  onEditWidget.mockReset();
   onParameters.mockReset();
   doc = { ...newWorkbook('Sign-in review'), widgets: [widget('a', 'table', 'Users', 0, 0), widget('b', 'markdown', 'Notes', 4, 0)] };
 });
@@ -76,8 +76,16 @@ describe('workbook edit mode', () => {
     expect(within(users).getByText('4 × 12')).toBeTruthy();
     expect(within(users).queryByRole('button', { name: 'Duplicate' })).toBeNull();
     fireEvent.focus(grip('Users'));
-    fireEvent.click(within(users).getByRole('button', { name: 'Edit widget' }));
-    expect(onEditWidget).toHaveBeenCalledWith('a');
+    const editWidget = within(users).getByRole('button', { name: 'Edit widget' });
+    fireEvent.click(editWidget);
+    const dialog = screen.getByRole('dialog', { name: 'Edit widget' });
+    expect((within(dialog).getByRole('textbox', { name: 'Title' }) as HTMLInputElement).value).toBe('Users');
+    // Ctrl+Z in the editor isn't the workbook's undo.
+    fireEvent.keyDown(within(dialog).getByRole('button', { name: 'Cancel' }), { key: 'z', ctrlKey: true });
+    expect(live().textContent).not.toBe('Undone');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(editWidget);
     fireEvent.click(within(users).getByRole('button', { name: 'Duplicate' }));
     expect(state().doc.widgets).toHaveLength(3);
     expect(state().doc.widgets[2]?.title).toBe('Users');

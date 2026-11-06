@@ -16,6 +16,7 @@ const fake = vi.hoisted(() => {
   const fonts = { remeasured: 0 };
   let selectionEmpty = true;
   const disposable = { dispose: () => undefined };
+  const live = { model: null as ReturnType<typeof model> | null, onContent: () => undefined as void };
   const model = (value: string, uri: { toString: () => string } = { toString: () => 'x' }) => {
     let text = value;
     return {
@@ -34,10 +35,13 @@ const fake = vi.hoisted(() => {
       return null;
     },
     getSelection: () => ({ isEmpty: () => selectionEmpty }),
-    onDidChangeModelContent: () => disposable,
+    onDidChangeModelContent: (listener: () => void) => {
+      live.onContent = listener;
+      return disposable;
+    },
     onDidChangeCursorSelection: () => disposable,
-    setModel: () => undefined,
-    getModel: () => null,
+    setModel: (m: ReturnType<typeof model> | null) => (live.model = m),
+    getModel: () => live.model,
     saveViewState: () => null,
     restoreViewState: () => undefined,
     focus: () => undefined,
@@ -72,6 +76,7 @@ const fake = vi.hoisted(() => {
     fonts,
     providers,
     model,
+    live,
     setSelectionEmpty: (empty: boolean) => (selectionEmpty = empty),
     press: (keybinding: number) => commands.get(keybinding)?.(),
     kustoWorker: (): Promise<unknown> => new Promise(() => undefined),
@@ -252,5 +257,27 @@ describe('KqlEditor', () => {
     expect(fake.themes.set.at(-1)).toBe('kustodian-light');
     act(() => applyTheme('dark'));
     expect(fake.themes.set.at(-1)).toBe('kustodian-dark');
+  });
+
+  it('a draft is edited in place of the tabs, with its own source’s schema', async () => {
+    const setSchema = vi.fn().mockResolvedValue(undefined);
+    fake.kustoWorker = () => Promise.resolve(() => Promise.resolve({ setSchema }));
+    const onChange = vi.fn();
+    const before = useTabs.getState().tabs;
+    render(
+      <KqlEditor
+        schemas={{ graph: schema as SchemaView, hunting: huntingView }}
+        onRun={() => undefined}
+        draft={{ id: 'widget-editor', source: 'hunting', text: 'DeviceInfo', onChange }}
+      />,
+    );
+    expect(fake.live.model?.getValue()).toBe('DeviceInfo');
+    await waitFor(() => expect(setSchema).toHaveBeenCalledTimes(1));
+    expect(setSchema.mock.calls[0]?.[0].database.tables.map((t: { name: string }) => t.name)).toEqual(['DeviceInfo']);
+
+    fake.live.model?.setValue('DeviceInfo | take 1');
+    fake.live.onContent();
+    expect(onChange).toHaveBeenCalledWith('DeviceInfo | take 1');
+    expect(useTabs.getState().tabs).toBe(before);
   });
 });

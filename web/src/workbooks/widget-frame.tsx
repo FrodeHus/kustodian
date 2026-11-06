@@ -18,7 +18,8 @@ const FORMATS: ExportFormat[] = ['csv', 'json', 'markdown'];
 export interface WidgetEditing {
   selected: boolean;
   onSelect: () => void;
-  onEditWidget: () => void;
+  /** Opens the widget editor; focus goes back to `opener` when it closes. */
+  onEditWidget: (opener: HTMLElement) => void;
   /** Removes the widget and puts focus somewhere that keeps working (the workbook knows the order). */
   onRemove: () => void;
   /** Said through the workbook's live region. */
@@ -314,7 +315,7 @@ export function WidgetFrame({
           )}
           {selected && (
             <>
-              <button type="button" className="btn ghost" onClick={editing?.onEditWidget}>
+              <button type="button" className="btn ghost" onClick={(e) => editing?.onEditWidget(e.currentTarget)}>
                 Edit widget
               </button>
               <button type="button" className="btn ghost" onClick={duplicate}>

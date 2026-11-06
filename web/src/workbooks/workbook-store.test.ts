@@ -209,6 +209,27 @@ describe('workbook store', () => {
     expect(tab().runs.a).toMatchObject({ state: 'done', result: result([['two']]) });
   });
 
+  it('runDraft runs a draft widget as the preview, with the workbook values, and only its latest call lands', async () => {
+    void useWorkbooks.getState().load('t', docOf([wbParam('Name', 'x')], [widget('a', 'T')]));
+    await flush();
+    const { runDraft } = useWorkbooks.getState();
+    const first = runDraft('t', widget('a', 'one {Name}'));
+    const second = runDraft('t', widget('a', 'two {Name}'));
+    const replaced = expect(first).rejects.toThrow('A newer preview replaced this one.');
+    await flush();
+    const preview = runs.filter((r) => r.params.tabId === 't/preview');
+    expect(preview.map((r) => r.params.kql)).toEqual(['one {Name}', 'two {Name}']);
+    expect(preview[1]?.params).toMatchObject({ addToRecent: false, parameters: [{ name: 'Name', value: 'x' }] });
+    expect(preview[0]?.signal.aborted).toBe(true);
+    await replaced;
+
+    preview[0]!.answer(result([['one']]));
+    preview[1]!.answer(result([['two']]));
+    await expect(second).resolves.toEqual(result([['two']]));
+    expect(Object.keys(tab().runs)).toEqual(['a']);
+    await expect(runDraft('t', widget('a', ''))).rejects.toThrow('No query yet.');
+  });
+
   it('a widget missing a required value is blocked and not sent', async () => {
     const doc = docOf([wbParam('Name', '', { required: true })], [widget('a', 'T {Name}'), widget('b', 'users')]);
     void useWorkbooks.getState().load('t', doc);
