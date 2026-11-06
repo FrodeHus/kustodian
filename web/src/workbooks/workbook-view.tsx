@@ -12,6 +12,7 @@ import { narrowOrder } from './layout';
 import type { Widget, WorkbookParameter } from './model';
 import { WidgetFrame } from './widget-frame';
 import { ChartWidget } from './widgets/chart-widget';
+import { MarkdownWidget } from './widgets/markdown-widget';
 import { StatWidget } from './widgets/stat-widget';
 import { TableWidget } from './widgets/table-widget';
 import { useWorkbooks } from './workbook-store';
@@ -124,8 +125,7 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
     const run = runs[w.id] ?? { state: 'idle' };
     switch (w.type) {
       case 'markdown':
-        // Ruling R4: Task 11 renders it.
-        return <pre className="m-0 min-h-0 flex-1 overflow-auto whitespace-pre-wrap px-3 pb-3 text-[12.5px]">{w.markdown ?? ''}</pre>;
+        return <MarkdownWidget text={w.markdown ?? ''} values={values.workbook} />;
       case 'chart':
         return (
           <ChartWidget

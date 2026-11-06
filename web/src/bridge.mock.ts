@@ -582,6 +582,7 @@ export function createMockTransport(): Transport {
         reply(id, { current: '0.0.0-mock', latest: '0.0.0', available: false });
         break;
       case 'app.openRelease':
+      case 'app.openLink':
         reply(id, null);
         break;
       case 'settings.get':
