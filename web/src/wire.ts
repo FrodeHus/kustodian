@@ -264,6 +264,8 @@ export interface QueryRunParams {
   parameters?: ParameterValue[];
   runId?: string;
   options?: QueryOptions | null;
+  /** False keeps the run out of Recent (workbook widgets). Omitted means true. */
+  addToRecent?: boolean;
 }
 
 /** A raw request header as the raw tab's editor holds it. */

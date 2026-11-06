@@ -20,8 +20,8 @@ namespace Kustodian.Messaging.Handlers;
 /// its <c>source</c> names in <paramref name="sources"/> (an unknown one is a <c>bad_request</c>), with its <c>options</c>
 /// (<see cref="QueryOptions"/>; options that aren't valid are a <c>bad_request</c> and nothing runs). Each tab has at most one
 /// run: a new run on a tab cancels the one before, and <c>query.cancel</c> cancels it. A cancelled run answers with the error
-/// code <c>cancelled</c>. Every run that finishes is added to <paramref name="recent"/> (when given); a cancelled run is not,
-/// and a failure to write Recent is logged and never fails the run. A run's (and an explain's) <c>parameters</c> are a list of
+/// code <c>cancelled</c>. Every run that finishes is added to <paramref name="recent"/> (when given), unless its <c>addToRecent</c> is
+/// false (default true; workbook widgets pass false); a cancelled run is not, and a failure to write Recent is logged and never fails the run. A run's (and an explain's) <c>parameters</c> are a list of
 /// <see cref="ParameterValue"/>; fields missing from (or null in) one take their defaults, and so do those of its options. A
 /// run's optional <c>runId</c> names it (progress events and the answer carry it) when it is a GUID in <c>D</c> format;
 /// otherwise the host names it. <c>query.explain</c> describes what a Graph run would send, within <paramref name="limits"/>
@@ -183,7 +183,7 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
     /// result still goes out.</summary>
     private async Task RecordAsync(RunParams p, DateTimeOffset started, RunResult result)
     {
-        if (recent is null)
+        if (recent is null || !p.AddToRecent)
         {
             return;
         }
@@ -370,7 +370,7 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
     }
 
     private sealed record RunParams(string? TabId, string? Source, string? Kql, bool Refresh,
-        IReadOnlyList<ParameterValue>? Parameters = null, string? RunId = null, QueryOptions? Options = null) : IHasParameters;
+        IReadOnlyList<ParameterValue>? Parameters = null, string? RunId = null, QueryOptions? Options = null, bool AddToRecent = true) : IHasParameters;
 
     private sealed record ExplainParams(string? Source, string? Kql, IReadOnlyList<ParameterValue>? Parameters = null) : IHasParameters;
 

@@ -139,6 +139,25 @@ public sealed class RecentServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Run_with_addToRecent_false_is_not_added_to_Recent()
+    {
+        var recent = NewService();
+        var bridge = new Messaging.Bridge(_ => { });
+        new QueryHandler(GraphSchemaCatalog.Beta, () => Task.FromResult<string?>("acct"), FakeSource.Graph((_, _, _, _, _, _, _) =>
+            Task.FromResult(new RunResult(RunOutcome.Ok, null, null, [], [], 0, [], TimeSpan.Zero))), recent).Register(bridge);
+
+        var answer = await bridge.HandleAsync(JsonSerializer.Serialize(new
+        {
+            id = "r1",
+            method = "query.run",
+            @params = new { tabId = "t1", source = "graph", kql = "users", refresh = false, addToRecent = false },
+        }));
+
+        Assert.Contains("\"result\"", answer);
+        Assert.Empty(await recent.ListAsync(Ct));
+    }
+
+    [Fact]
     public async Task Recent_write_failure_does_not_fail_the_run()
     {
         Directory.CreateDirectory(RecentPath);
