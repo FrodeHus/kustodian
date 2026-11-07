@@ -43,7 +43,7 @@ export function MarkdownWidget({ text, values }: { text: string; values: Record<
   const [failed, setFailed] = useState<string | null>(null);
   const components = useMemo(() => linkComponents(setFailed), []);
   return (
-    <div className="min-h-0 flex-1 overflow-auto px-3 pb-3 text-[12.5px]">
+    <div className="md min-h-0 flex-1 overflow-auto px-3 pb-3 text-[12.5px]">
       {failed && (
         <p role="alert" className="m-0 mb-2 text-[12px] text-bad">
           {failed}

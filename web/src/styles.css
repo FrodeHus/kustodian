@@ -296,6 +296,25 @@ body {
   .pgrid-num { color: var(--num); }
   .pgrid-bool { color: var(--kw); }
   .codeblock { font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 19px; white-space: pre; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; color: var(--text); }
+
+  /* Markdown widget prose: Tailwind's preflight strips headings, lists and code of their defaults. */
+  .md > :first-child { margin-top: 0; }
+  .md :is(h1, h2, h3, h4, h5, h6) { margin: 14px 0 6px; font-weight: 600; line-height: 1.3; }
+  .md h1 { font-size: 20px; }
+  .md h2 { font-size: 17px; }
+  .md h3 { font-size: 15px; }
+  .md :is(h4, h5, h6) { font-size: 13px; }
+  .md :is(p, ul, ol, blockquote, pre, table) { margin: 0 0 8px; }
+  .md ul { list-style: disc; padding-left: 20px; }
+  .md ol { list-style: decimal; padding-left: 20px; }
+  .md li + li { margin-top: 2px; }
+  .md strong { font-weight: 600; }
+  .md em { font-style: italic; }
+  .md blockquote { border-left: 3px solid var(--line); padding-left: 10px; color: var(--muted); }
+  .md hr { border: 0; border-top: 1px solid var(--line); margin: 12px 0; }
+  .md code { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; background: var(--panel2); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+  .md pre { font-family: 'JetBrains Mono', monospace; font-size: 12px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; overflow-x: auto; }
+  .md pre code { background: transparent; border: 0; padding: 0; }
 }
 
 /* The glass themes' shapes: a backdrop of colour, the window's parts as frosted panels with gaps between them. */
