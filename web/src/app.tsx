@@ -6,7 +6,6 @@ import { ExplainView, type ExplainRequest } from './explain/explain-view';
 import { SaveDialog } from './library/save-dialog';
 import { SaveWorkbookDialog } from './workbooks/save-workbook-dialog';
 import { saveWorkbook, startWorkbookTabs } from './workbooks/workbook-store';
-import { WorkbookView } from './workbooks/workbook-view';
 import { newerRelease } from './settings/update-check';
 import { UpdateDialog } from './settings/update-dialog';
 import { openDroppedFile, openKqlFile, save, saveToFile } from './library/saving';
@@ -44,6 +43,7 @@ import type { AccountList, QueryOptions, SchemaView, SettingsAnswer, Source, Tab
 
 // Monaco and the Kusto language service are several megabytes: a chunk of their own, loaded after the window is up.
 const KqlEditor = lazy(() => import('./editor/kql-editor'));
+const WorkbookView = lazy(() => import('./workbooks/workbook-view').then((m) => ({ default: m.WorkbookView })));
 
 class EditorFailed extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -655,7 +655,9 @@ export function App() {
                     </EditorFailed>
                   </div>
                   {workbook ? (
-                    <WorkbookView key={active.id} tabId={active.id} onSignIn={() => setAccountsOpen(true)} />
+                    <Suspense fallback={<p className="faint m-0 p-4 text-[12px]">Loading the workbook…</p>}>
+                      <WorkbookView key={active.id} tabId={active.id} onSignIn={() => setAccountsOpen(true)} />
+                    </Suspense>
                   ) : raw ? (
                     <RawTab
                       key={active.id}
