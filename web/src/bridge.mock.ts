@@ -314,6 +314,7 @@ function serverRunResult(source: 'hunting' | 'arg') {
 }
 
 /** A `count()` query's answer: a text and a number column, so Chart and Stat widgets have something to show. */
+let countedRuns = 0;
 function countedResult<T extends typeof runResult>(base: T): T {
   return {
     ...base,
@@ -322,7 +323,7 @@ function countedResult<T extends typeof runResult>(base: T): T {
       { name: 'Count', type: 'long' },
     ],
     rows: [
-      ['Finance', 42],
+      ['Finance', 42 + countedRuns++], // rises each run, so a Stat on an every-run Values history shows a change
       ['Engineering', 128],
       ['Sales', 67],
     ],
@@ -722,7 +723,18 @@ export function createMockTransport(): Transport {
             reply(id, { recorded: false, skipped: 'tooManyRows', reset: false });
             break;
           }
-          h.snapshots = [{ takenAt: now, columns: hp.columns, rows }];
+          // As the host: `run` appends; a day or week replaces the last snapshot when it is in the same local day or Monday-start week.
+          const period = (iso: string) => {
+            const d = new Date(iso);
+            d.setHours(0, 0, 0, 0);
+            if (hp.setting.interval === 'week') {
+              d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+            }
+            return d.getTime();
+          };
+          const last = h.snapshots.at(-1);
+          const replace = hp.setting.interval !== 'run' && last && period(last.takenAt) === period(now);
+          h.snapshots = [...(replace ? h.snapshots.slice(0, -1) : h.snapshots), { takenAt: now, columns: hp.columns, rows }];
         } else {
           const n = hp.setting.keys.length;
           const keyOf = (row: unknown[]) => JSON.stringify(row.slice(0, n));
