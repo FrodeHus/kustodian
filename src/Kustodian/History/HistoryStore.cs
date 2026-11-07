@@ -29,7 +29,7 @@ public sealed record SeriesInfo(string Label, DateTimeOffset Since, int Snapshot
 /// <summary>
 /// Per-widget result history in one SQLite file, <c>history.db</c>. A series is one workbook, widget and parameter combination.
 /// Values mode keeps whole results as snapshots; Rows mode keeps key rows with first seen and gone times. Local only: nothing
-/// here is exported, reported or logged. A file that can't be opened or fails its check is moved aside and replaced
+/// here is exported, reported or logged. A file that is corrupt, not a database or fails its check is moved aside and replaced
 /// (<see cref="RecordAnswer.Reset"/> says so for the rest of the session). One gate serialises every call.
 /// </summary>
 public sealed class HistoryStore(string root, TimeProvider time, ILogger<HistoryStore>? logger = null) : IDisposable
@@ -127,7 +127,8 @@ public sealed class HistoryStore(string root, TimeProvider time, ILogger<History
             }
 
             var cutoff = now - setting.RetentionDays * 86_400_000L;
-            Run(db, tx, "DELETE FROM snapshots WHERE series_id = $i AND taken_at < $c", ("$i", id), ("$c", cutoff));
+            // Only Values snapshots age out: Rows markers are what "Previous snapshot" compares with.
+            Run(db, tx, "DELETE FROM snapshots WHERE series_id = $i AND taken_at < $c AND result IS NOT NULL", ("$i", id), ("$c", cutoff));
             Run(db, tx, "DELETE FROM tracked WHERE series_id = $i AND gone < $c", ("$i", id), ("$c", cutoff));
             tx.Commit();
             return new RecordAnswer(true, null, _reset);
@@ -360,7 +361,8 @@ public sealed class HistoryStore(string root, TimeProvider time, ILogger<History
         {
             _db = Connect();
         }
-        catch (SqliteException)
+        // Only damage resets; disk full, read-only, busy or can't-open propagate and the call fails.
+        catch (SqliteException e) when (e.SqliteErrorCode is 11 or 26)
         {
             Reset();
             _db = Connect();

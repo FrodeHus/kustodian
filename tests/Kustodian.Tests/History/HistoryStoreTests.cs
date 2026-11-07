@@ -195,13 +195,28 @@ public sealed class HistoryStoreTests : IDisposable
         var info = Assert.Single(await s.SeriesAsync("wb", "w1", Ct));
 
         Assert.Empty(changes.Gone);
-        Assert.Equal(1, info.Snapshots);
+        // Rows markers aren't snapshots with data: retention keeps them, so "Previous snapshot" still has one to compare with.
+        Assert.Equal(3, info.Snapshots);
 
         var v = NewStore();
         await v.RecordAsync(Request(Values, [Row("old")], Query("V")), Ct);
         _time.Advance(TimeSpan.FromDays(31));
         await v.RecordAsync(Request(Values, [Row("new")], Query("V")), Ct);
         Assert.Single((await v.ValuesAsync("wb", "w1", Query("V"), Values, Ct)).Snapshots);
+    }
+
+    [Fact]
+    public async Task rows_retention_keeps_the_markers_previous_snapshot_uses()
+    {
+        var s = NewStore();
+        await Record(s, Rows, "A");
+        _time.Advance(TimeSpan.FromDays(31));
+        await Record(s, Rows, "A", "B");
+
+        var changes = await s.ChangesAsync("wb", "w1", Query(), Rows, "previous", Ct);
+
+        Assert.NotNull(changes.Since);
+        Assert.Equal("B", Assert.Single(changes.New).Values[0].GetString());
     }
 
     [Fact]
@@ -320,5 +335,26 @@ public sealed class HistoryStoreTests : IDisposable
         Assert.True(answer.Recorded);
         Assert.True(answer.Reset);
         Assert.Single(Directory.GetFiles(_dir, "history.db.damaged-*"), f => !f.Contains("-wal") && !f.Contains("-shm"));
+    }
+
+    [Fact]
+    public async Task a_file_that_cannot_be_opened_for_another_reason_is_left_alone()
+    {
+        // A directory where the file should be: SQLITE_CANTOPEN, not damage. The call fails; nothing is renamed.
+        Directory.CreateDirectory(Path.Combine(_dir, "history.db"));
+
+        var s = NewStore();
+        var e = await Assert.ThrowsAsync<SqliteException>(() => Record(s, Rows, "A"));
+
+        Assert.NotEqual(11, e.SqliteErrorCode);
+        Assert.NotEqual(26, e.SqliteErrorCode);
+        Assert.True(Directory.Exists(Path.Combine(_dir, "history.db")));
+        Assert.Empty(Directory.GetFileSystemEntries(_dir, "history.db.damaged-*"));
+
+        // Once it can open, nothing was reset: the widget mustn't say its file was damaged.
+        Directory.Delete(Path.Combine(_dir, "history.db"));
+        var answer = await Record(s, Rows, "A");
+        Assert.True(answer.Recorded);
+        Assert.False(answer.Reset);
     }
 }
