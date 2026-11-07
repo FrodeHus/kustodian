@@ -10,6 +10,7 @@ import { SourceBadge } from '../tabs/source-badge';
 import type { LibraryList, ParameterDef, RunResult, SavedQuery } from '../wire';
 import type { ParamFrom, Widget, WidgetQuery } from './model';
 import { widgetParams, workbookValues } from './resolve';
+import { ColumnSelect, ToolButtonsSection } from './tool-buttons-section';
 import { ChartWidget } from './widgets/chart-widget';
 import { MarkdownWidget } from './widgets/markdown-widget';
 import { StatWidget } from './widgets/stat-widget';
@@ -30,12 +31,13 @@ const FROM_NAMES: [ParamFrom, string][] = [
   ['fixed', 'Fixed'],
 ];
 
-type Section = 'query' | 'parameters' | 'visualization';
-// A table has no visualization settings in v1.
+type Section = 'query' | 'parameters' | 'visualization' | 'tools';
+// A table has no visualization settings in v1; only a table has tool buttons.
 const SECTIONS: [Section, string][] = [
   ['query', 'Query'],
   ['parameters', 'Parameters'],
   ['visualization', 'Visualization'],
+  ['tools', 'Tool buttons'],
 ];
 
 /** The query a saved one makes: its source, text, options and parameters, linked when `linked`. */
@@ -43,23 +45,6 @@ const fromSaved = (query: WidgetQuery, q: SavedQuery, linked: boolean): WidgetQu
   q.source === 'raw'
     ? query
     : { ...query, source: q.source, text: q.text, options: q.options ?? null, parameters: q.parameters, saved: linked ? { id: q.id, name: q.name } : null };
-
-/** A select over the preview's columns; '' is the chart's or stat's own pick. */
-function ColumnSelect({ label, value, columns, onChange }: { label: string; value: string; columns: string[]; onChange: (value: string) => void }) {
-  return (
-    <label className="field">
-      <span>{label}</span>
-      <select className="textbox" value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">Automatic</option>
-        {columns.map((c) => (
-          <option key={c} value={c}>
-            {c}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
 
 /**
  * Edit widget (spec 5.4 and 6.2, screen 3): the title, then for a data widget its Query (written here, or a linked saved
@@ -164,6 +149,7 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
   const result = preview?.state === 'done' ? preview.result : lastRun?.state === 'done' ? lastRun.result : null;
   const columns = result?.columns.map((c) => c.name) ?? [];
 
+  const toolless = draft.tools?.some((b) => !b.tool) ?? false;
   const params = widgetParams(doc, live, values);
   const setParam = (name: string, from: ParamFrom, value: string) => {
     const { [name]: _old, ...rest } = draft.parameters;
@@ -383,14 +369,22 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
     body = (
       <>
         <div role="tablist" aria-label="Widget settings" className="flex">
-          {SECTIONS.filter(([s]) => s !== 'visualization' || visualizationPanel).map(([s, name]) => (
+          {SECTIONS.filter(([s]) => (s === 'visualization' ? visualizationPanel : s !== 'tools' || draft.type === 'table')).map(([s, name]) => (
             <button key={s} type="button" role="tab" className="rtab" aria-selected={section === s} onClick={() => setSection(s)}>
               {name}
             </button>
           ))}
         </div>
         <div className="min-h-0 overflow-auto" role="tabpanel">
-          {section === 'query' ? queryPanel : section === 'parameters' ? parametersPanel : visualizationPanel}
+          {section === 'query' ? (
+            queryPanel
+          ) : section === 'parameters' ? (
+            parametersPanel
+          ) : section === 'tools' ? (
+            <ToolButtonsSection draft={draft} columns={result?.columns ?? []} set={set} />
+          ) : (
+            visualizationPanel
+          )}
         </div>
         <div className="flex items-center gap-2 border-t border-line pt-3">
           <b className="text-[12.5px]">Preview</b>
@@ -454,11 +448,12 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
           <input className="textbox" autoFocus value={draft.title} onChange={(e) => set({ title: e.target.value })} />
         </label>
         {body}
-        <div className="flex justify-end gap-2">
+        <div className="flex items-center justify-end gap-2">
+          {toolless && <span className="faint text-[12px]">Choose a tool for each button.</span>}
           <button type="button" className="btn ghost" onClick={close}>
             Cancel
           </button>
-          <button type="button" className="btn primary" disabled={query?.saved?.id === ''} onClick={apply}>
+          <button type="button" className="btn primary" disabled={query?.saved?.id === '' || toolless} onClick={apply}>
             Apply
           </button>
         </div>
