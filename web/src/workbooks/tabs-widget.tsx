@@ -1,4 +1,4 @@
-import { useId, useRef, type KeyboardEvent, type ReactNode } from 'react';
+import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { Widget } from './model';
 import { childrenOf } from './tabs';
 import { WidgetGrid, type GridEditing } from './widget-grid';
@@ -25,22 +25,31 @@ export function TabsWidget({
   const state = useWorkbooks((s) => s.byTab[tabId]);
   const id = useId();
   const refs = useRef(new Map<string, HTMLButtonElement>());
+  // The tab with keyboard focus: arrows move it without showing the tab, as showing one runs its queries.
+  const [focused, setFocused] = useState<string | null>(null);
   if (!state) {
     return null;
   }
   const tabs = widget.tabs ?? [];
   const shown = visibleTab(state, widget.id);
+  const current = tabs.some((t) => t.id === focused) ? focused : shown;
   const choose = (tab: string) => {
+    setFocused(tab);
     useWorkbooks.getState().showTab(tabId, widget.id, tab);
     editing?.onSelectPlace({ tabs: widget.id, tab });
   };
   const onKey = (e: KeyboardEvent) => {
-    const at = tabs.findIndex((t) => t.id === shown);
+    if ((e.key === 'Enter' || e.key === ' ') && current) {
+      e.preventDefault();
+      choose(current);
+      return;
+    }
+    const at = tabs.findIndex((t) => t.id === current);
     const to = e.key === 'ArrowRight' ? at + 1 : e.key === 'ArrowLeft' ? at - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : null;
     const next = to === null ? undefined : tabs[(to + tabs.length) % tabs.length];
     if (next) {
       e.preventDefault();
-      choose(next.id);
+      setFocused(next.id);
       refs.current.get(next.id)?.focus();
     }
   };
@@ -72,7 +81,7 @@ export function TabsWidget({
             className="rtab whitespace-nowrap"
             aria-selected={t.id === shown}
             aria-controls={`${id}-panel`}
-            tabIndex={t.id === shown ? 0 : -1}
+            tabIndex={t.id === current ? 0 : -1}
             data-wb-tab={t.id}
             data-wb-tabs={widget.id}
             onClick={() => choose(t.id)}
@@ -87,7 +96,7 @@ export function TabsWidget({
           </button>
         ))}
       </div>
-      <div id={`${id}-panel`} role="tabpanel" aria-labelledby={`${id}-${shown}`} className="min-h-0 flex-1 overflow-auto p-3">
+      <div id={`${id}-panel`} role="tabpanel" aria-labelledby={shown && `${id}-${shown}`} tabIndex={0} className="min-h-0 flex-1 overflow-auto p-3">
         {empty && <p className="faint m-0 pb-2 text-[12px]">{editing ? 'Drag a widget here or use Move to…' : 'No widgets on this tab'}</p>}
         {shown !== undefined && (!empty || editing) && <WidgetGrid tabId={tabId} place={{ tabs: widget.id, tab: shown }} editing={editing} body={body} onSignIn={onSignIn} />}
       </div>

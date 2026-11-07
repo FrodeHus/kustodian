@@ -267,7 +267,8 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
   const add = (widget: Widget, what: string) => {
     store().edit(tabId, (d) => ({ ...d, widgets: [...d.widgets, widget] }));
     setSelected(widget.id);
-    say(`Added ${what} at column ${widget.layout.x + 1}, row ${widget.layout.y + 1}`);
+    const tab = widget.in && doc.widgets.find((w) => w.id === widget.in?.tabs)?.tabs?.find((t) => t.id === widget.in?.tab);
+    say(`Added ${what}${tab ? ` to ${tab.name}` : ''} at column ${widget.layout.x + 1}, row ${widget.layout.y + 1}`);
   };
   // Into the selected tab while it's the one shown; a tabs widget always goes to the top level.
   const into = (type: WidgetType) => (type !== 'tabs' && selectedPlace && visibleTab(state, selectedPlace.tabs) === selectedPlace.tab ? selectedPlace : null);

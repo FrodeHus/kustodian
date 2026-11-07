@@ -134,6 +134,20 @@ describe('WorkbookView', () => {
     expect(styles).toContain('.theme-glass .workspace:has(.wb-full) { backdrop-filter: none; }');
   });
 
+  it('Full screen on a widget inside a tab: the tabs widget around it neither holds it nor covers it', () => {
+    doc.widgets = [
+      { ...widget('tw', 'tabs', ''), tabs: [{ id: 't1', name: 'One' }] },
+      widget('in', 'markdown', 'Inside', undefined, { markdown: 'x', in: { tabs: 'tw', tab: 't1' } }),
+    ];
+    show({});
+    fireEvent.click(within(frame('Inside')).getByRole('button', { name: 'Inside menu' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Full screen' }));
+    expect(frame('Inside').classList.contains('wb-full')).toBe(true);
+    // The glass themes' .card backdrop filter would make the outer tabs widget the box `fixed` resolves against.
+    expect(styles).toContain('.theme-glass .wb-widget:has(.wb-full) { backdrop-filter: none; }');
+    expect(styles).toContain('.wb-widget:has(.wb-full) { z-index: 20; }');
+  });
+
   it('in the glass themes, nothing in the widget editor has a backdrop filter, which would misplace Monaco’s suggest and hover', () => {
     expect(styles).toContain('.theme-glass .wb-editor, .theme-glass .wb-editor .card { backdrop-filter: none;');
   });

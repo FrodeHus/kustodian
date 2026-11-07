@@ -412,6 +412,7 @@ describe('workbook edit mode', () => {
     const added = state().doc.widgets.at(-1)!;
     expect(added.in).toEqual({ tabs: 'tw', tab: 't1' });
     expect(added.layout).toEqual(place(inside, MIN_SIZE.chart.w, MIN_SIZE.chart.h * 2));
+    expect(live().textContent).toMatch(/^Added a Chart widget to One at column \d+, row \d+$/);
     // A tabs widget always goes to the top level.
     fireEvent.click(screen.getByRole('button', { name: '+ Add widget' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Tabs' }));

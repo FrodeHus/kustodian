@@ -85,10 +85,16 @@ describe('TabsWidget', () => {
     expect(tab(/Details/).getAttribute('aria-selected')).toBe('true');
   });
 
-  it('arrow keys move between tabs', () => {
+  it('arrow keys move focus between tabs; Enter or Space shows one', () => {
     show();
     fireEvent.keyDown(tab(/Overview/), { key: 'ArrowRight' });
     expect(document.activeElement).toBe(tab(/Details/));
+    expect(tab(/Details/).tabIndex).toBe(0);
+    // Showing a tab runs its queries: arrowing past one doesn't show it.
+    expect(tab(/Overview/).getAttribute('aria-selected')).toBe('true');
+    expect(showTab).not.toHaveBeenCalled();
+    fireEvent.keyDown(tab(/Details/), { key: 'Enter' });
+    expect(showTab).toHaveBeenCalledWith('t', 'tw', 't2');
     expect(tab(/Details/).getAttribute('aria-selected')).toBe('true');
     fireEvent.keyDown(tab(/Details/), { key: 'End' });
     expect(document.activeElement).toBe(tab(/Empty/));
@@ -100,6 +106,10 @@ describe('TabsWidget', () => {
     expect(document.activeElement).toBe(tab(/Overview/));
     expect(tab(/Overview/).tabIndex).toBe(0);
     expect(tab(/Details/).tabIndex).toBe(-1);
+    expect(showTab).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(tab(/Overview/), { key: ' ' });
+    expect(showTab).toHaveBeenLastCalledWith('t', 'tw', 't1');
+    expect(screen.getByRole('tabpanel').tabIndex).toBe(0);
   });
 
   it('tab marks show "not run" and "out of date"', () => {
