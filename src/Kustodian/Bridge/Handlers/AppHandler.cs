@@ -65,6 +65,12 @@ public sealed class AppHandler(MemoryGraphObjectCache objects, IGraphProbeCache 
                 throw new BridgeException(BridgeErrorCodes.BadRequest, "Only https links open.");
             }
 
+            // The allowlist stays as it is; the widget tells the user which host it refused.
+            if (!SystemBrowser.IsAllowed(link))
+            {
+                throw new BridgeException(BridgeErrorCodes.BadRequest, $"Kustodian can't open links to {link.Host}.");
+            }
+
             try
             {
                 _browser.Open(link);

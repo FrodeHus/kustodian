@@ -572,6 +572,30 @@ describe('App', () => {
     vi.mocked(console.error).mockRestore();
   });
 
+  it('drop_of_a_link_or_text_never_navigates_the_window', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+
+    for (const types of [['text/uri-list', 'text/plain'], ['text/plain']]) {
+      const dataTransfer = { files: [], types, dropEffect: 'copy' };
+      expect(fireEvent.dragOver(document.body, { dataTransfer })).toBe(false);
+      expect(dataTransfer.dropEffect).toBe('none');
+      expect(fireEvent.drop(document.body, { dataTransfer })).toBe(false);
+    }
+    // A drag the page takes itself keeps its drop.
+    const list = document.body.appendChild(document.createElement('ol'));
+    list.addEventListener('dragover', (e) => e.preventDefault());
+    const own = { files: [], types: [], dropEffect: 'move' };
+    fireEvent.dragOver(list, { dataTransfer: own });
+    expect(own.dropEffect).toBe('move');
+    list.remove();
+    // Text dropped into a text box still goes in.
+    const editor = await screen.findByRole('textbox', { name: 'KQL query' });
+    expect(fireEvent.drop(editor, { dataTransfer: { files: [], types: ['text/plain'] } })).toBe(true);
+    expect(useTabs.getState().tabs).toHaveLength(1);
+  });
+
   it('toolbar_shows_parameter_count', async () => {
     host({ accounts: [kari], cache: 'persistent' });
     render(<App />);

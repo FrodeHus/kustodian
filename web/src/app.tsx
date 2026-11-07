@@ -455,15 +455,29 @@ export function App() {
   });
   useEffect(() => bindGlobalKeys(() => shortcutsOn.current), []);
 
-  // A .kql file dropped on the window opens in a new tab. The page never lets the webview open a dropped file itself.
+  // A .kql file dropped on the window opens in a new tab. The page never lets the webview open a dropped file itself, nor
+  // navigate to a dropped link or URL text (the page has the bridge); text dropped into a text box still goes in.
   useEffect(() => {
     const hasFiles = (e: DragEvent) => !!e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+    const inTextBox = (e: DragEvent) =>
+      e.target instanceof Element && !!e.target.closest('input, textarea, [contenteditable]:not([contenteditable="false"]), .monaco-editor');
+    // A drag the page handles itself (the Parameters list) already called preventDefault.
+    const refuse = (e: DragEvent) => {
+      if (!e.defaultPrevented && !hasFiles(e) && !inTextBox(e)) {
+        e.preventDefault();
+        if (e.dataTransfer) {
+          e.dataTransfer.dropEffect = 'none';
+        }
+      }
+    };
     const onDragOver = (e: DragEvent) => {
       if (hasFiles(e)) {
         e.preventDefault();
       }
+      refuse(e);
     };
     const onDrop = (e: DragEvent) => {
+      refuse(e);
       const files = e.dataTransfer?.files;
       if (!files || files.length === 0) {
         return;

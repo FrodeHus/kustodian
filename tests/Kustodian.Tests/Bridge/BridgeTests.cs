@@ -504,6 +504,20 @@ public class BridgeTests
         Assert.Equal(new Uri("https://frodehus.github.io/kustodian/telemetry.html"), Assert.Single(opened));
     }
 
+    [Fact]
+    public async Task Open_link_to_a_host_kustodian_does_not_open_says_which_host()
+    {
+        var bridge = NewBridge();
+        var opened = new List<Uri>();
+        NewAppHandler(new MemoryGraphObjectCache(TimeProvider.System), NoGraphProbeCache.Instance, opened.Add).Register(bridge);
+
+        var refused = Parse(await bridge.HandleAsync("""{"id":"a","method":"app.openLink","params":{"url":"https://example.com/x"}}"""));
+
+        Assert.Empty(opened);
+        Assert.Equal("bad_request", refused.GetProperty("error").GetProperty("code").GetString());
+        Assert.Equal("Kustodian can't open links to example.com.", refused.GetProperty("error").GetProperty("message").GetString());
+    }
+
     private static AppHandler NewAppHandler(MemoryGraphObjectCache objects, IGraphProbeCache probes, Action<Uri>? open = null) =>
         new(objects, probes, new UpdateCheck(new HttpClient(), "0.0.0"), new SystemBrowser(open ?? (_ => { })));
 

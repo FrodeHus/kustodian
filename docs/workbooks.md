@@ -17,8 +17,8 @@ Markdown) and Full screen.
 
 Markdown links open in your own browser, but only for the sites Kustodian already opens: Microsoft sign-in and Entra
 pages (`login.microsoftonline.com`, `entra.microsoft.com`), Kustodian's own site (`frodehus.github.io`) and its GitHub release
-pages. Only `https` links are links; any other address, or one on another site, shows as plain text or does nothing when
-clicked.
+pages. Only `https` links are links; any other address shows as plain text, and a link to another site says in the widget
+that Kustodian can't open it.
 
 Widgets run in parallel, at most three at a time per source; the rest say "waiting". One that fails shows its own error and
 the others carry on. Widget runs are not added to Recent, and results are never saved with the workbook.
