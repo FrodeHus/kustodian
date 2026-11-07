@@ -9,3 +9,10 @@
 - [ ] Tests added or updated
 - [ ] No warning suppressions
 - [ ] `CHANGELOG.md` updated for user-visible changes
+
+### Solutions (if `Solutions/` changed)
+
+- [ ] `solutionVersion` bumped in every changed solution
+- [ ] Index regenerated
+- [ ] No tenant data (tenant IDs, names, UPNs, IPs) in queries or samples
+- [ ] Tools reviewed by Copilot (`tools.json` findings resolved)

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kustodian · Community Solutions</title>
+<link rel="stylesheet" href="studio.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0F1115}
+.sol{display:flex;flex-direction:column;gap:3px;width:100%;padding:9px 10px;border:0;border-radius:8px;background:transparent;color:var(--text);font:inherit;text-align:left}
+.sol:hover,.sol.on{background:var(--raise)}
+.sol .top{display:flex;align-items:center;gap:6px;font-weight:600;font-size:12.5px}
+.sol .meta{display:flex;white-space:nowrap;align-items:center;gap:6px;font-size:11.5px;color:var(--faint)}
+.sol .desc{font-size:11.5px;color:var(--muted);line-height:16px}
+.tier{font-size:10px;font-weight:600;padding:0 6px;height:16px;line-height:16px;border-radius:4px}
+.tier.k{background:var(--accent-soft);color:var(--accent)}
+.tier.c{background:var(--raise);color:var(--muted)}
+.state{margin-left:auto;white-space:nowrap;font-size:11px;font-weight:500}
+.state.ok{color:var(--ok)}.state.up{color:var(--accent)}.state.no{color:var(--faint)}
+.filters{display:flex;gap:6px;padding:0 12px 10px;flex-wrap:wrap}
+.sel2{height:26px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);font:inherit;font-size:11.5px;padding:0 8px}
+.dlg{position:absolute;z-index:2;left:372px;top:96px;width:1044px;max-height:800px;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+.dlg header{display:flex;align-items:flex-start;gap:12px;padding:18px 20px 14px;border-bottom:1px solid var(--line)}
+.dlg h3{margin:0;font-size:17px;line-height:22px;font-weight:600}
+.dlg .cols{display:grid;grid-template-columns:minmax(0,1fr) 320px;min-height:0;flex:1}
+.dlg .readme{padding:16px 20px;overflow:hidden;border-right:1px solid var(--line);font-size:13px;line-height:20px;color:var(--muted)}
+.dlg .readme h4{margin:0 0 6px;color:var(--text);font-size:14px}
+.dlg .readme p{margin:0 0 10px}
+.dlg aside{padding:16px 18px;display:flex;flex-direction:column;gap:16px;overflow:hidden}
+.h5{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:0 0 6px}
+.item{display:flex;align-items:center;gap:8px;height:28px;font-size:12.5px}
+.item input{accent-color:var(--accent);margin:0}
+.item .k2{margin-left:auto;font-size:11px;color:var(--faint)}
+.req{display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:17px;padding:3px 0}
+.req .i{width:16px;flex-shrink:0;text-align:center;font-weight:700}
+.req.ok .i{color:var(--ok)}.req.miss .i{color:var(--warn)}.req.info .i{color:var(--faint)}
+.caveat{display:flex;gap:8px;padding:9px 12px;border-radius:8px;background:var(--warn-soft);color:var(--warn);font-size:12px;line-height:17px}
+.dlg footer{display:flex;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+<div class="studio" style="width:1440px;height:900px;display:flex;flex-direction:column;position:relative;overflow:hidden">
+<div class="titlebar"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><span class="brand">Kustodian</span><div style="flex-grow:1"></div><span class="pill"><span class="dot-ok"></span><b>kari@contoso.com</b> · Contoso Ltd</span></div>
+<div class="tabs"><button type="button" class="tab" aria-selected="true"><span class="src graph">MG</span> Risky users <span class="x">×</span></button><button type="button" class="tab" aria-selected="false"><span class="src hunt">DH</span> Sign-ins <span class="x">×</span></button><button type="button" class="tab-add">+</button></div>
+<div class="body">
+<nav class="rail" aria-label="Side panels">
+<button type="button" aria-pressed="false" aria-label="Schema"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"></ellipse><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"></path><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"></path></svg></button>
+<button type="button" aria-pressed="false" aria-label="Saved queries"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"></path></svg></button>
+<button type="button" aria-pressed="false" aria-label="Recent runs"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg></button>
+<button type="button" aria-pressed="false" aria-label="Snippets"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M8 7l-5 5 5 5"></path><path d="M16 7l5 5-5 5"></path></svg></button>
+<button type="button" aria-pressed="true" aria-label="Solutions"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4-8 4-8-4z"></path><path d="M4 12l8 4 8-4"></path><path d="M4 17l8 4 8-4"></path></svg></button>
+<div style="flex-grow:1"></div>
+<button type="button" aria-pressed="false" aria-label="Settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3.9a7 7 0 0 0-2-1.2L14 3h-4l-.6 2.6a7 7 0 0 0-2 1.2l-2.3-.9-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.3-.9a7 7 0 0 0 2 1.2L10 21h4l.6-2.6a7 7 0 0 0 2-1.2l2.3.9 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z"></path></svg></button>
+</nav>
+<aside class="side" aria-label="Community Solutions" style="width:300px">
+<div style="display:flex;align-items:center"><h2 style="flex:1">Community Solutions</h2><button type="button" class="btn ghost" style="height:24px;margin-right:6px;font-size:12px">Refresh</button></div>
+<input class="search" type="search" aria-label="Find a solution" placeholder="Find among 9 solutions">
+<div class="filters">
+<select class="sel2" aria-label="Category"><option>All categories</option></select>
+<select class="sel2" aria-label="Source"><option>All sources</option></select>
+<select class="sel2" aria-label="Show"><option>All</option></select>
+</div>
+<div style="padding:0 6px;display:flex;flex-direction:column;gap:2px">
+<button type="button" class="sol on"><span class="top">Entra risky users <span class="tier k">Kustodian</span></span><span class="desc">Weekly review of risky users and their sign-ins.</span><span class="meta"><span class="src graph">MG</span><span class="src hunt">DH</span>2 queries · 1 workbook · 1 tool</span></button>
+<button type="button" class="sol"><span class="top">Stale app credentials <span class="tier k">Kustodian</span></span><span class="desc">Secrets and certificates expiring or unused.</span><span class="meta"><span class="src graph">MG</span>4 queries · 1 workbook<span class="state up">Update 1.3.0</span></span></button>
+<button type="button" class="sol"><span class="top">VM power hygiene <span class="tier c">Community</span></span><span class="desc">VMs left running out of hours, with Start / Stop buttons.</span><span class="meta"><span class="src arg">RG</span>3 queries · 1 workbook · 2 tools<span class="state ok">Installed</span></span></button>
+<button type="button" class="sol"><span class="top">Defender device exposure <span class="tier c">Community</span></span><span class="desc">Devices with the most exploitable CVEs.</span><span class="meta"><span class="src hunt">DH</span>5 queries</span></button>
+<button type="button" class="sol"><span class="top">Guest access review <span class="tier c">Community</span></span><span class="desc">Guests by last sign-in and group memberships.</span><span class="meta"><span class="src graph">MG</span>3 queries · 1 workbook</span></button>
+<button type="button" class="sol" style="opacity:.6"><span class="top">Conditional Access gaps <span class="tier c">Community</span></span><span class="desc">Users and apps no policy covers.</span><span class="meta"><span class="src graph">MG</span>2 queries · 1 workbook<span class="state no">Needs Kustodian 1.2.0</span></span></button>
+</div>
+</aside>
+<div class="main" style="background:var(--bg)"></div>
+</div>
+<div class="status"><span>Catalog fetched 10:42</span></div>
+
+<div class="overlay" style="left:348px;top:74px"></div>
+<section class="dlg" role="dialog" aria-label="Entra risky users">
+<header>
+<div style="flex:1;display:flex;flex-direction:column;gap:6px">
+<div style="display:flex;align-items:center;gap:8px"><h3>Entra risky users</h3><span class="tier k">Kustodian</span><span class="faint" style="font-size:12px">1.2.0 · frodehus</span></div>
+<span class="muted" style="font-size:12.5px">Weekly review of risky users and their sign-ins.</span>
+</div>
+<button type="button" class="btn ghost" aria-label="Close">×</button>
+</header>
+<div class="cols">
+<div class="readme">
+<h4>What it answers</h4>
+<p>Which users Entra ID Protection currently rates as risky, how that changed over the week, and which of their sign-ins were flagged, side by side in one workbook.</p>
+<h4>How to use it</h4>
+<p>Open <b style="color:var(--text)">Weekly risky-user review</b> from Saved. Pick a risk level and a time range; the table lists the users with their last risky sign-in.</p>
+<p>Tick users and press <b style="color:var(--text)">Confirm compromised</b> to mark them in Entra. The button runs the Azure CLI on your machine and always asks first.</p>
+<h4>Needs</h4>
+<p>Entra ID P2 for risk data, and Defender advanced hunting for the sign-in widget.</p>
+</div>
+<aside>
+<div>
+<p class="h5">Installs into “Entra risky users”</p>
+<label class="item"><input type="checkbox" checked><span class="src graph">MG</span>Risky users<span class="k2">query</span></label>
+<label class="item"><input type="checkbox" checked><span class="src hunt">DH</span>Risky sign-ins<span class="k2">query</span></label>
+<label class="item"><input type="checkbox" checked><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="color:var(--muted)"><rect x="3" y="3" width="8" height="8" rx="1.5"></rect><rect x="13" y="3" width="8" height="5" rx="1.5"></rect><rect x="13" y="10" width="8" height="11" rx="1.5"></rect><rect x="3" y="13" width="8" height="8" rx="1.5"></rect></svg>Weekly risky-user review<span class="k2">workbook</span></label>
+<label class="item"><input type="checkbox"><span class="mono" style="font-size:11.5px;color:var(--muted)">&gt;_</span>Confirm compromised<span class="k2">tool · review</span></label>
+</div>
+<div>
+<p class="h5">Needs</p>
+<div class="req ok"><span class="i">✓</span><span>IdentityRiskyUser.Read.All</span></div>
+<div class="req miss"><span class="i">!</span><span>AuditLog.Read.All <span class="faint">not granted</span></span></div>
+<div class="req ok"><span class="i">✓</span><span>Entra ID P2</span></div>
+<div class="req info"><span class="i">i</span><span>Security Reader role for Defender hunting</span></div>
+<button type="button" class="btn" style="margin-top:8px;align-self:flex-start">Grant permissions…</button>
+</div>
+<div class="caveat" style="background:var(--panel2);color:var(--muted)"><span>Nothing runs on install. Queries and the workbook run when you open them.</span></div>
+</aside>
+</div>
+<footer><span class="faint" style="font-size:12px;flex:1">3 of 4 items · you choose tools one by one</span><button type="button" class="btn ghost">Cancel</button><button type="button" class="btn primary">Install</button></footer>
+</section>
+</div>
+</body>
+</html>

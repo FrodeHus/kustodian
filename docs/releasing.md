@@ -101,9 +101,10 @@ the secret, and remove the old key.
 
 The rulesets:
 
-- **main** (the default branch): no deletion, no force push, changes through a pull request, and the three `ci` checks
-  (`build and test (windows-latest)`, `(macos-latest)` and `(ubuntu-latest)`) must pass on a branch that is up to date
-  with `main`. Deploy keys and administrators may bypass it.
+- **main** (the default branch): no deletion, no force push, changes through a pull request with review from Code Owners
+  (`.github/CODEOWNERS`), and the three `ci` checks (`build and test (windows-latest)`, `(macos-latest)` and
+  `(ubuntu-latest)`) and the `solutions` check `solutionVersion bumped` must pass on a branch that is up to date with
+  `main`. Deploy keys and administrators may bypass it.
 - **release** (`refs/tags/v*`): a release tag can't be deleted or moved. Deploy keys and administrators may bypass it,
   which is what lets you delete a tag to redo a release. It doesn't restrict who may create a tag; the build run's first
   job is what keeps a tag off `main`, or without its changelog section, away from the signing certificate and the

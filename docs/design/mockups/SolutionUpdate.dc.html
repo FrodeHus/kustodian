@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kustodian · Update a solution</title>
+<link rel="stylesheet" href="studio.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0F1115}
+.dlg{position:absolute;z-index:2;left:50%;top:50%;transform:translate(-50%,-50%);width:920px;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+.dlg header{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--line)}
+.dlg h3{margin:0;font-size:17px;font-weight:600}
+.dlg .body2{padding:14px 20px;display:flex;flex-direction:column;gap:16px}
+.h5{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:0 0 8px;display:flex;gap:8px;align-items:center}
+.row{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-top:1px solid var(--line);font-size:12.5px}
+.row input{accent-color:var(--accent);margin:0}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{height:26px;padding:0 10px;border:0;background:var(--panel2);color:var(--muted);font:inherit;font-size:12px}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.diff{font-family:"JetBrains Mono",monospace;font-size:11.5px;line-height:18px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 0;margin:4px 10px 10px 42px}
+.diff div{padding:0 12px;white-space:pre}
+.diff .del{background:var(--bad-soft);color:var(--bad)}
+.diff .add{background:rgba(127,212,168,.12);color:var(--ok)}
+.tool{border:1px solid var(--warn);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;background:var(--warn-soft)}
+.cmdline{font-family:"JetBrains Mono",monospace;font-size:12px;line-height:19px;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:8px 10px;color:var(--text);white-space:pre-wrap}
+.cmdline .p{color:var(--col)}
+.cmdline del{color:var(--bad)}.cmdline ins{color:var(--ok);text-decoration:none}
+.dlg footer{display:flex;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+<div class="studio" style="width:1440px;height:900px;display:flex;flex-direction:column;position:relative;overflow:hidden">
+<div class="titlebar"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><span class="brand">Kustodian</span><div style="flex-grow:1"></div><span class="pill"><span class="dot-ok"></span><b>kari@contoso.com</b> · Contoso Ltd</span></div>
+<div style="flex:1"></div>
+<div class="overlay"></div>
+<section class="dlg" role="dialog" aria-label="Update VM power hygiene">
+<header><h3>Update VM power hygiene</h3><span class="tier" style="font-size:10px;font-weight:600;padding:0 6px;height:16px;line-height:16px;border-radius:4px;background:var(--raise);color:var(--muted)">Community</span><span class="faint" style="font-size:12px">1.1.0 → 1.2.0</span><div style="flex:1"></div><button type="button" class="btn ghost" aria-label="Close">×</button></header>
+<div class="body2">
+
+<div>
+<p class="h5">Updates by themselves <span class="faint" style="text-transform:none;letter-spacing:0;font-weight:400">· you haven't changed these</span></p>
+<div class="row"><input type="checkbox" checked><span><span class="src arg">RG</span> Running VMs out of hours</span><span class="faint" style="font-size:11.5px">query</span></div>
+<div class="row"><input type="checkbox" checked><span>Power hygiene <span class="faint">· 2 widgets changed, 1 added</span></span><span class="faint" style="font-size:11.5px">workbook</span></div>
+</div>
+
+<div>
+<p class="h5">You changed this <span class="chip warn" style="height:18px;font-size:10.5px;text-transform:none;letter-spacing:0">modified</span></p>
+<div class="row"><span></span><span><span class="src arg">RG</span> Idle VMs by cost</span><span class="seg" role="radiogroup"><button type="button" class="on">Keep mine</button><button type="button">Take theirs</button><button type="button">Keep both</button></span></div>
+<div class="diff"><div class="del">- | where tags.env != "prod"</div><div class="add">+ | where tags.env !in ("prod", "shared")</div><div>  | summarize cost = sum(costPerHour) by name, resourceGroup</div></div>
+</div>
+
+<div>
+<p class="h5">Tool changed <span class="faint" style="text-transform:none;letter-spacing:0;font-weight:400">· never updated without you</span></p>
+<div class="tool">
+<label style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px"><input type="checkbox" style="accent-color:var(--accent);margin:0">Stop VM <span class="faint" style="font-weight:400;font-size:12px">· each row</span></label>
+<div class="cmdline">az vm <del>stop</del><ins>deallocate</ins> --ids <span class="p">{id}</span> <ins>--no-wait</ins></div>
+<div class="field"><label>Executable for az</label><div style="display:flex;gap:8px"><input class="input mono" style="flex:1;font-size:12px" value="/opt/homebrew/bin/az"><button type="button" class="btn">Choose…</button></div></div>
+<span class="muted" style="font-size:12px">Reviewed by the Kustodian maintainer before it was published. It runs on your machine with your Azure CLI sign-in.</span>
+</div>
+</div>
+
+</div>
+<footer><span class="faint" style="font-size:12px;flex:1">2 updates · 1 kept · tool unticked</span><button type="button" class="btn ghost">Cancel</button><button type="button" class="btn primary">Update</button></footer>
+</section>
+</div>
+</body>
+</html>
