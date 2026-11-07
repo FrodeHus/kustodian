@@ -1,10 +1,12 @@
-import { useId, useMemo, useState } from 'react';
+import { useContext, useId, useMemo, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import type { Row } from '../../results/export';
 import { ResultGrid, type GridSelection } from '../../results/result-grid';
 import { RowDetails } from '../../results/row-details';
 import type { Widget } from '../model';
 import { useWorkbooks, type WidgetRun } from '../workbook-store';
 import { HistoryTable } from './history-table';
+import { SheetHost } from './sheet-host';
 
 /** A table widget: the result grid, its tools in a bar of their own. With a `tabId` its row selection lives in the store, for
  * its tool buttons; without one (the editor's preview) the grid keeps its own. With Row tracking it is the tracked table. */
@@ -13,6 +15,7 @@ export function TableWidget({ widget, run, tabId }: { widget: Widget; run: Widge
   const since = useWorkbooks((s) => (tabId ? s.byTab[tabId]?.since[widget.id] : undefined)) ?? widget.history?.since;
   const mode = widget.selection ?? 'multi';
   const id = useId();
+  const host = useContext(SheetHost);
   // The opened row, with the rows it indexes: a rerun's new rows close it.
   const [details, setDetails] = useState<{ rows: Row[]; index: number } | null>(null);
   // The store keeps the old selection until the rerun answers; with selection off it counts as empty.
@@ -28,6 +31,7 @@ export function TableWidget({ widget, run, tabId }: { widget: Widget; run: Widge
   }
   const inspected = details?.rows === run.result.rows ? details.index : null;
   const detailsRow = inspected === null ? undefined : run.result.rows[inspected];
+  const sheet = (node: ReactNode) => (host ? createPortal(node, host) : node);
   const grid = (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <ResultGrid
@@ -39,7 +43,7 @@ export function TableWidget({ widget, run, tabId }: { widget: Widget; run: Widge
         inspectorId={`${id}-details`}
         onShownChange={tabId === undefined ? undefined : (shown) => useWorkbooks.getState().setShown(tabId, widget.id, shown)}
       />
-      {detailsRow && <RowDetails id={`${id}-details`} columns={run.result.columns} row={detailsRow} onClose={() => setDetails(null)} />}
+      {detailsRow && sheet(<RowDetails id={`${id}-details`} columns={run.result.columns} row={detailsRow} onClose={() => setDetails(null)} />)}
     </div>
   );
   return tabId !== undefined && widget.history?.mode === 'rows' && since !== undefined ? (

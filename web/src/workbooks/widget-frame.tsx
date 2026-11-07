@@ -16,6 +16,7 @@ import { ClearConfirm } from './history-section';
 import { widgetParams, widgetRunOptions, type ResolvedParam } from './resolve';
 import { buttonName, effectiveSelection, okResult, toolTarget } from './tool-buttons';
 import { useToolRun } from './tool-run';
+import { SheetHost } from './widgets/sheet-host';
 import { effectiveWidget, useWorkbooks, type WidgetRun } from './workbook-store';
 
 const FORMATS: ExportFormat[] = ['csv', 'json', 'markdown'];
@@ -474,7 +475,11 @@ export function WidgetFrame({
         </header>
         {notice && <NoticeLine notice={notice} onDismiss={() => setNotice(null)} />}
         <div className={`flex min-h-0 flex-1 flex-col overflow-hidden ${bare ? 'pt-3' : ''}`}>
-          {(widget.query && runBody(tabId, widget, run, onSignIn)) ?? <HistoryData.Provider value={{ ...history, filter, setFilter }}>{children}</HistoryData.Provider>}
+          {(widget.query && runBody(tabId, widget, run, onSignIn)) ?? (
+            <HistoryData.Provider value={{ ...history, filter, setFilter }}>
+              {full ? <SheetHost.Provider value={null}>{children}</SheetHost.Provider> : children}
+            </HistoryData.Provider>
+          )}
         </div>
         {widget.history && (
           <footer className="faint flex flex-col gap-0.5 px-3 pb-2 text-[11.5px]">
