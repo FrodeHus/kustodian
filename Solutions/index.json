@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "solutions": [
+    {
+      "manifest": {
+        "version": 1,
+        "id": "entra-risky-users",
+        "name": "Entra risky users",
+        "solutionVersion": "1.0.0",
+        "description": "Risky users from Microsoft Entra ID Protection, with their recent sign-ins, and a weekly review workbook.",
+        "author": "Kustodian",
+        "support": "kustodian",
+        "categories": [
+          "Identity",
+          "Security"
+        ],
+        "sources": [
+          "graph"
+        ],
+        "minAppVersion": "1.0.0",
+        "requires": {
+          "graph": [
+            "IdentityRiskyUser.Read.All"
+          ],
+          "roles": null,
+          "licenses": [
+            "AAD_PREMIUM_P2"
+          ],
+          "azure": null
+        },
+        "content": {
+          "queries": [
+            "risky-users",
+            "risky-signins"
+          ],
+          "workbooks": [
+            "weekly-review"
+          ],
+          "tools": []
+        }
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "sha256": "4ec3374c19513650bfd967084828626437af02f88a4d0c821cc46660e99997f8",
+          "size": 499
+        },
+        {
+          "path": "queries/risky-signins.json",
+          "sha256": "fa0e0719b56ea4fcef783dcfd30c4b9ac7c7580cc84c7e410c6206ac5c9511d7",
+          "size": 617
+        },
+        {
+          "path": "queries/risky-users.json",
+          "sha256": "f64fc8c82b065fa2ddb7dea024f802b519ffb8b1b1fade38e83be88c0db3a478",
+          "size": 412
+        },
+        {
+          "path": "solution.json",
+          "sha256": "c120e6f7aa4b3e359dd3acb6dcd54cfdfa756b438a7b57d6b7f54f94a82bd98a",
+          "size": 602
+        },
+        {
+          "path": "workbooks/weekly-review.json",
+          "sha256": "e0870055110d01c03a36ef738b9b7d8a52bb9ad00332cd14c13250ac295d4c67",
+          "size": 1981
+        }
+      ]
+    }
+  ]
+}

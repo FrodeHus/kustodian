@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "id": "entra-risky-users",
+  "name": "Entra risky users",
+  "solutionVersion": "1.0.0",
+  "description": "Risky users from Microsoft Entra ID Protection, with their recent sign-ins, and a weekly review workbook.",
+  "author": "Kustodian",
+  "support": "kustodian",
+  "categories": ["Identity", "Security"],
+  "sources": ["graph"],
+  "minAppVersion": "1.0.0",
+  "requires": {
+    "graph": ["IdentityRiskyUser.Read.All"],
+    "licenses": ["AAD_PREMIUM_P2"]
+  },
+  "content": {
+    "queries": ["risky-users", "risky-signins"],
+    "workbooks": ["weekly-review"],
+    "tools": []
+  }
+}
