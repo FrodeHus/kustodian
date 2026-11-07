@@ -29,6 +29,7 @@
 
   <ItemGroup>
     <PackageReference Include="Photino.NET" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
     <PackageReference Include="Microsoft.Identity.Client" />
     <PackageReference Include="Microsoft.Identity.Client.Extensions.Msal" />
   </ItemGroup>
