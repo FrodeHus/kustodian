@@ -12,7 +12,7 @@ follow [Semantic Versioning](https://semver.org/).
   items to install into a library folder named after it, with new ids; nothing runs on install. Uninstall removes what you
   haven't changed and keeps the rest in Saved, offline too and after a solution leaves the catalog. The last catalog is
   kept for offline use, every solution file downloaded is checked against its SHA-256 and size, and the catalog index has a
-  4 MB limit. **Entra risky users** and **MFA and passkey adoption** ship first. See
+  4 MB limit. **Entra risky users**, **MFA and passkey adoption** and **Defender vulnerability patch SLAs** ship first. See
   [docs/solutions.md](docs/solutions.md).
 - **Workbooks**: a tab of Markdown, Chart, Table and Stat widgets on a grid, each running a query written in the widget or a
   linked saved one, on any source. Workbook parameters rerun only the widgets that use them, and widgets can show their own.

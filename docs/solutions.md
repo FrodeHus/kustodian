@@ -12,6 +12,8 @@ overview is also on the [Solutions page](https://frodehus.github.io/kustodian/so
   workbook.
 - **MFA and passkey adoption**: passkey and MFA registration by company: who has a passkey, who has only app or phone MFA,
   and who has none.
+- **Defender vulnerability patch SLAs**: a patch SLA KPI per severity (for example 95% of critical exposures within 7
+  days), the exposures past their window, and the trend of unique CVEs older than 90 days.
 
 ## The panel
 

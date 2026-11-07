@@ -4,6 +4,76 @@
     {
       "manifest": {
         "version": 1,
+        "id": "defender-vulnerability-sla",
+        "name": "Defender vulnerability patch SLAs",
+        "solutionVersion": "1.0.0",
+        "description": "Patch SLA KPIs per severity from Defender Vulnerability Management, overdue exposures, and the trend of legacy vulnerabilities older than 90 days.",
+        "author": "Kustodian",
+        "support": "community",
+        "categories": [
+          "Vulnerability management",
+          "Security"
+        ],
+        "sources": [
+          "hunting"
+        ],
+        "minAppVersion": "1.0.0",
+        "requires": {
+          "graph": [
+            "ThreatHunting.Read.All"
+          ],
+          "roles": null,
+          "licenses": null,
+          "azure": null
+        },
+        "content": {
+          "queries": [
+            "sla-compliance",
+            "overdue-exposures",
+            "legacy-vulnerabilities"
+          ],
+          "workbooks": [
+            "patch-sla"
+          ],
+          "tools": []
+        }
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "sha256": "f0b0dd9389240bfd1434fb9addd0a6fdf3b3cb6dee3b4132b1eb9665391d8990",
+          "size": 2129
+        },
+        {
+          "path": "queries/legacy-vulnerabilities.json",
+          "sha256": "73fb35a9cc875197742d6715da9f5778fa84761b1416b48f1143a88036bbdb3b",
+          "size": 539
+        },
+        {
+          "path": "queries/overdue-exposures.json",
+          "sha256": "12b3a577884b8cee1d4284e18962fbfea31af985cd55cd7b741840908e7e0d48",
+          "size": 2153
+        },
+        {
+          "path": "queries/sla-compliance.json",
+          "sha256": "e3c52ca3f6489de19961a82cba62344581374ad7b16a2ae96d851b342bbdd57e",
+          "size": 2241
+        },
+        {
+          "path": "solution.json",
+          "sha256": "b60a3898facb9e585b0636dc9dfb87bd2ba7e280c987372231e1ddc83166c579",
+          "size": 675
+        },
+        {
+          "path": "workbooks/patch-sla.json",
+          "sha256": "63477d5acf8cdd6c6d05bf033ca09908e2db1c83ffbad9592b67bcbd44f37b7f",
+          "size": 15769
+        }
+      ]
+    },
+    {
+      "manifest": {
+        "version": 1,
         "id": "entra-risky-users",
         "name": "Entra risky users",
         "solutionVersion": "1.0.0",
