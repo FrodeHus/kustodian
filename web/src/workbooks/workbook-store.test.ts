@@ -515,6 +515,23 @@ describe('workbook store', () => {
       expect(tab().history.a).toEqual({ skipped: null, reset: false, recordedAt: expect.any(Number), query: records()[0]![1].query });
     });
 
+    it('the_hunting_timespan_is_a_parameter_of_the_series_not_part_of_the_query', async () => {
+      const w: Widget = { ...withHistory('a', 'T'), query: { ...withHistory('a', 'T').query!, source: 'hunting' } };
+      await open(w, undefined, [wbParam('Span', '7d', { type: 'timespan', huntingTimespan: true })]);
+      await answer(result([[1]]));
+      useWorkbooks.getState().setWorkbookValue('t', 'Span', '30d', { now: true });
+      await flush();
+      await answer(result([[2]]));
+      const [week, month] = records().map(([, p]) => p as HistoryRecordParams);
+      expect(runs.map((r) => r.params.options?.timespan)).toEqual(['P7D', 'P30D']);
+      // The same query key, so the host keeps both series; the span tells them apart.
+      expect(week!.query.options).toEqual(w.query!.options ?? null);
+      expect(month!.query.options).toEqual(week!.query.options);
+      expect(week!.query.parameters).toEqual([{ name: 'Span', value: 'P7D' }]);
+      expect(month!.query.parameters).toEqual([{ name: 'Span', value: 'P30D' }]);
+      expect(month!.label).toBe('Span = P30D');
+    });
+
     it('a_skipped_run_still_keeps_its_query', async () => {
       await open(withHistory('a'), { dirty: true });
       await answer(result([[1]]));

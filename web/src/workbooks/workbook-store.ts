@@ -9,7 +9,7 @@ import { historyRows, recordable, seriesLabel } from './history';
 import type { SkipReason } from './history';
 import type { Widget, WorkbookDoc } from './model';
 import { parseWorkbook } from './model';
-import type { ViewValues } from './resolve';
+import type { ResolvedParam, ViewValues } from './resolve';
 import { initialValues, missingRequired, toParameterValues, widgetParams, widgetRunOptions, widgetsUsing } from './resolve';
 import type { RowSelection } from './tool-buttons';
 
@@ -225,9 +225,18 @@ function queue(
     refresh,
     addToRecent: false,
   };
+  // The hunting timespan is a parameter value, not part of the query: another span is another series, not an edited query
+  // (which would drop the other spans' history). A widget whose text names the parameter already sends it.
+  const hunting = source === 'hunting' ? s.doc.parameters.find((p) => p.huntingTimespan) : undefined;
+  const timespan = runParams.options?.timespan;
+  const span: ResolvedParam[] =
+    hunting && timespan && !params.some((p) => p.name === hunting.name)
+      ? [{ name: hunting.name, type: hunting.type, required: false, value: timespan, from: widget.parameters[hunting.name]?.from ?? 'workbook' }]
+      : [];
+  const series = [...params, ...span];
   const sent = {
-    query: { source, text, options: runParams.options ?? null, parameters: params.map(({ name, value }) => ({ name, value })) },
-    label: seriesLabel(params),
+    query: { source, text, options: widget.query.options ?? null, parameters: series.map(({ name, value }) => ({ name, value })) },
+    label: seriesLabel(series),
   };
   const job: Job = {
     key,
