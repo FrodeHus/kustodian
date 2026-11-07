@@ -12,8 +12,9 @@ namespace Kustodian.ExternalTools;
 /// a JSON array of objects.</summary>
 public sealed record ExternalTool(string Name, string Command, IReadOnlyList<string> Args, string Mode);
 
-/// <summary>The user's tools, or none and the <see cref="Problem"/> with <c>tools.json</c> when it can't be used.</summary>
-public sealed record ToolList(IReadOnlyList<ExternalTool> Tools, string? Problem, string Path);
+/// <summary>The user's tools, or none and the <see cref="Problem"/> with <c>tools.json</c> when it can't be used.
+/// <see cref="Missing"/> names the tools whose command is no file, which can't start from an app without the shell's PATH.</summary>
+public sealed record ToolList(IReadOnlyList<ExternalTool> Tools, string? Problem, string Path, IReadOnlyList<string> Missing);
 
 /// <summary>One run of the command: the arguments it got, its exit code and what it wrote.</summary>
 public sealed record ToolOutcome(IReadOnlyList<string> Args, int ExitCode, string Output, string Error);
@@ -22,9 +23,9 @@ public sealed record ToolOutcome(IReadOnlyList<string> Args, int ExitCode, strin
 public sealed class ToolRejectedException(string message) : Exception(message);
 
 /// <summary>
-/// The user's external tools, kept by hand in <c>tools.json</c> under the app's root. The file is read on every list and run, so
-/// what runs is always what the file says, never what the UI sent. A file that isn't valid is reported and left as it is: the
-/// user wrote it. Commands start directly with an argument list, never through a shell, so a row value is always one argument
+/// The user's external tools, kept in <c>tools.json</c> under the app's root, by hand or from Settings. The file is read on every list and run, so
+/// what runs is always what the file says, never what the UI sent. A file that isn't valid is reported and left as it is, Save
+/// included: the user wrote it. Commands start directly with an argument list, never through a shell, so a row value is always one argument
 /// and nothing in it is run.
 /// </summary>
 public sealed partial class ExternalToolService(string root, Action<string>? openInEditor = null)
@@ -47,19 +48,39 @@ public sealed partial class ExternalToolService(string root, Action<string>? ope
     {
         if (!File.Exists(Path))
         {
-            return new ToolList([], null, Path);
+            return new ToolList([], null, Path, []);
         }
 
         try
         {
             var file = JsonSerializer.Deserialize<ToolsFile>(await File.ReadAllTextAsync(Path, ct), JsonFileStore.Options);
             var problem = file is null ? "tools.json is empty." : Problem(file.Tools);
-            return problem is null ? new ToolList(file!.Tools, null, Path) : new ToolList([], problem, Path);
+            return problem is null
+                ? new ToolList(file!.Tools, null, Path, [.. file.Tools.Where(t => !File.Exists(t.Command)).Select(t => t.Name)])
+                : new ToolList([], problem, Path, []);
         }
         catch (JsonException ex)
         {
-            return new ToolList([], $"tools.json isn't valid: {ex.Message}", Path);
+            return new ToolList([], $"tools.json isn't valid: {ex.Message}", Path, []);
         }
+    }
+
+    /// <summary>Writes <paramref name="tools"/> to <c>tools.json</c>, in that order, and answers the list as it now reads. Throws
+    /// <see cref="ToolRejectedException"/> when a tool isn't valid, or when the file there isn't, which it never writes over.</summary>
+    public async Task<ToolList> SaveAsync(IReadOnlyList<ExternalTool>? tools, CancellationToken ct = default)
+    {
+        if ((await ListAsync(ct)).Problem is { } problem)
+        {
+            throw new ToolRejectedException($"{problem} Fix it first: saving would write over it.");
+        }
+
+        if (Problem(tools) is { } wrong)
+        {
+            throw new ToolRejectedException(wrong);
+        }
+
+        await new JsonFileStore(root).WriteAsync(FileName, new ToolsFile(1, tools!), ct);
+        return await ListAsync(ct);
     }
 
     /// <summary>Opens <c>tools.json</c> in a text editor, first writing an example when there is no file.</summary>

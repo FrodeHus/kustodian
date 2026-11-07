@@ -1,14 +1,17 @@
 using System.Text.Json;
 using Kustodian.ExternalTools;
+using Kustodian.Files;
 
 namespace Kustodian.Messaging.Handlers;
 
-/// <summary><c>tools.list</c> answers <c>{tools, problem, path}</c>; <c>tools.edit</c> opens <c>tools.json</c> in an editor;
+/// <summary><c>tools.list</c> answers <c>{tools, problem, path, missing}</c>; <c>tools.save</c> takes <c>{tools}</c>, writes them to
+/// <c>tools.json</c> and answers the list as <c>tools.list</c> does; <c>tools.pickCommand</c> answers <c>{path}</c> for the file the user
+/// chose in the open dialog, or null when it was cancelled; <c>tools.edit</c> opens <c>tools.json</c> in an editor;
 /// <c>tools.run</c> takes <c>{runId, name, columns, rows, mapping}</c> (<c>mapping</c>, optional, names the column for each
 /// <c>{parameter}</c>; one it leaves out takes the column of the same name) and answers <c>{outcomes}</c>, sending <c>tools.progress</c>
 /// (<c>{runId, done, total}</c>) after each row; <c>tools.cancel</c> takes <c>{runId}</c> and stops that run, which answers with
 /// the error code <c>cancelled</c>. A tool that can't run is a <c>bad_request</c> whose message says why.</summary>
-public sealed class ExternalToolHandler(ExternalToolService tools)
+public sealed class ExternalToolHandler(ExternalToolService tools, IFileDialogs dialogs)
 {
     private readonly Lock _gate = new();
     private readonly Dictionary<string, CancellationTokenSource> _runs = new(StringComparer.Ordinal);
@@ -16,6 +19,9 @@ public sealed class ExternalToolHandler(ExternalToolService tools)
     public void Register(Bridge bridge)
     {
         bridge.Register("tools.list", async (_, ct) => await tools.ListAsync(ct));
+        bridge.Register("tools.save", async (p, ct) => await Rejected(() => tools.SaveAsync(BridgeJson.Params<SaveParams>(p).Tools, ct)));
+        bridge.Register("tools.pickCommand", async (_, _) =>
+            await dialogs.OpenAsync("Choose the command", []) is { } path ? new PickAnswer(path) : (object)BridgeNull.Value);
         bridge.Register("tools.edit", async (_, ct) =>
         {
             await Rejected(async () =>
@@ -92,6 +98,10 @@ public sealed class ExternalToolHandler(ExternalToolService tools)
         Dictionary<string, string>? Mapping);
 
     private sealed record CancelParams(string? RunId);
+
+    private sealed record SaveParams(ExternalTool[]? Tools);
+
+    private sealed record PickAnswer(string Path);
 
     private sealed record RunAnswer(IReadOnlyList<ToolOutcome> Outcomes);
 

@@ -138,8 +138,9 @@ public sealed class AppServices : IAsyncDisposable
         new WorkbookHandler(_workbooks).Register(bridge);
         new SessionHandler(_session, _allowedFiles).Register(bridge);
         new SnippetHandler(_snippets).Register(bridge);
-        new ExternalToolHandler(_tools).Register(bridge);
-        new FileHandler(new PhotinoFileDialogs(Window), _allowedFiles).Register(bridge);
+        var dialogs = new PhotinoFileDialogs(Window);
+        new ExternalToolHandler(_tools, dialogs).Register(bridge);
+        new FileHandler(dialogs, _allowedFiles).Register(bridge);
         new AccountHandler(_accounts, _tokenCache, Objects, Probes, _huntingSchema, _armDirectory, _licenses, Trail).Register(bridge);
         new RawHandler(new RawRequestService(_http, _time), ActiveAccountAsync).Register(bridge);
         new ArmHandler(_armDirectory, ActiveAccountAsync).Register(bridge);
