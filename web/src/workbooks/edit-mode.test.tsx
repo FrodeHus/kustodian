@@ -25,14 +25,13 @@ function widget(id: string, type: WidgetType, title: string, x: number, y: numbe
 
 let doc: WorkbookDoc;
 const runAll = vi.fn(() => Promise.resolve());
-const onParameters = vi.fn();
 
 function show() {
   useWorkbooks.setState({
     byTab: { t: { doc, values: { workbook: {}, widgets: {} }, runs: {}, editing: false, undo: [], redo: [], dirty: false, viewCharts: {} } },
     runAll,
   });
-  render(<WorkbookView tabId="t" onParameters={onParameters} />);
+  render(<WorkbookView tabId="t" />);
   fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
 }
 
@@ -44,7 +43,6 @@ const live = () => document.querySelector('.wb-announce')!;
 beforeEach(() => {
   call.mockReset().mockReturnValue(new Promise(() => undefined));
   runAll.mockClear();
-  onParameters.mockReset();
   doc = { ...newWorkbook('Sign-in review'), widgets: [widget('a', 'table', 'Users', 0, 0), widget('b', 'markdown', 'Notes', 4, 0)] };
 });
 
@@ -57,7 +55,7 @@ describe('workbook edit mode', () => {
     }
     expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Parameters' }));
-    expect(onParameters).toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'Workbook parameters' })).toBeTruthy();
   });
 
   it('Add widget → Chart adds a widget at place’s spot, twice its minimum height', () => {

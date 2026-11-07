@@ -13,6 +13,7 @@ import { useTabs } from '../tabs/tab-store';
 import type { LibraryList, SavedQuery } from '../wire';
 import { narrowOrder, place } from './layout';
 import { MIN_SIZE, newWidget, type Widget, type WidgetType, type WorkbookParameter } from './model';
+import { ParametersDialog } from './parameters-dialog';
 import { WidgetEditor } from './widget-editor';
 import { WidgetFrame } from './widget-frame';
 import { ChartWidget } from './widgets/chart-widget';
@@ -195,16 +196,7 @@ function Updated({ at }: { at: number }) {
  * stacks them full width in (y, x) order when narrow (`.wb-grid`). Edit swaps in the EDITING toolbar (spec 5.2, screen 2):
  * + Add widget, Parameters, Undo, Redo, Discard and Done.
  */
-export function WorkbookView({
-  tabId,
-  onSignIn,
-  onParameters = () => undefined,
-}: {
-  tabId: string;
-  onSignIn?: () => void;
-  /** Edit mode's Parameters (Ruling R4: the parameters dialog comes with Task 14). */
-  onParameters?: () => void;
-}) {
+export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: () => void }) {
   const state = useWorkbooks((s) => s.byTab[tabId]);
   const savedId = useTabs((s) => s.tabs.find((t) => t.id === tabId)?.savedId);
   const [deleting, setDeleting] = useState(false);
@@ -216,6 +208,8 @@ export function WorkbookView({
   const [picking, setPicking] = useState(false);
   // The widget open in the widget editor, and the Edit widget control focus goes back to when it closes.
   const [editingWidget, setEditingWidget] = useState<{ id: string; opener: HTMLElement } | null>(null);
+  const [parametersOpen, setParametersOpen] = useState(false);
+  const parametersRef = useRef<HTMLButtonElement>(null);
   const editRef = useRef<HTMLButtonElement>(null);
   const editingBar = useRef<HTMLDivElement>(null);
   const undoRef = useRef<HTMLButtonElement>(null);
@@ -311,7 +305,7 @@ export function WorkbookView({
     say('Redone');
   };
   const onKey = (e: KeyboardEvent) => {
-    if (!editing || editingWidget || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z' || inTextField(e.target)) {
+    if (!editing || editingWidget || parametersOpen || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z' || inTextField(e.target)) {
       return;
     }
     e.preventDefault();
@@ -365,7 +359,7 @@ export function WorkbookView({
               From a saved query…
             </button>
           </MenuButton>
-          <button type="button" className="btn" onClick={onParameters}>
+          <button ref={parametersRef} type="button" className="btn" onClick={() => setParametersOpen(true)}>
             Parameters
           </button>
           <button ref={undoRef} type="button" className="btn ghost" disabled={state.undo.length === 0} onClick={undo}>
@@ -416,6 +410,15 @@ export function WorkbookView({
           onClose={() => {
             focusNext.current = () => editingWidget.opener;
             setEditingWidget(null);
+          }}
+        />
+      )}
+      {parametersOpen && (
+        <ParametersDialog
+          tabId={tabId}
+          onClose={() => {
+            focusNext.current = () => parametersRef.current;
+            setParametersOpen(false);
           }}
         />
       )}
