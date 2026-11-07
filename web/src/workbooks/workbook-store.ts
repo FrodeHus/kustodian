@@ -51,6 +51,7 @@ export interface WorkbookActions {
   copySavedIntoWidget(tabId: string, widgetId: string): void;
   /** The workbook was saved as `doc`. */
   markSaved(tabId: string, doc: WorkbookDoc): void;
+  markUnsaved(tabId: string): void; // its file was deleted: dirty, also after a discard
   setViewChart(tabId: string, widgetId: string, picked: Picked): void;
 }
 
@@ -430,6 +431,14 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
         widgets: doc.widgets.map((w) => (w.id === widgetId && w.query ? { ...w, query: { ...w.query, saved: null } } : w)),
       }));
       void get().runWidget(tabId, widgetId);
+    },
+
+    markUnsaved(tabId) {
+      update(tabId, () => ({ dirty: true }));
+      const start = editStarts.get(tabId);
+      if (start) {
+        editStarts.set(tabId, { ...start, dirty: true });
+      }
     },
 
     markSaved(tabId, doc) {

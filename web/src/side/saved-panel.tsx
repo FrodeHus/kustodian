@@ -10,6 +10,7 @@ import { SourceBadge, WorkbookIcon } from '../tabs/source-badge';
 import { useTabs } from '../tabs/tab-store';
 import type { LibraryList, SavedQuery, Source, WorkbookList, WorkbookSummary } from '../wire';
 import { parseWorkbook } from '../workbooks/model';
+import { useWorkbooks } from '../workbooks/workbook-store';
 import { PanelHeading } from './panel-heading';
 import { ConfirmDelete, RowMenu } from './row-menu';
 
@@ -100,6 +101,11 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
     setDeleting(null);
     call('workbook.delete', { id: w.id }).then(
       () => {
+        // A tab it is open in stays, unsaved: Ctrl+S must not write the deleted file back.
+        for (const t of useTabs.getState().tabs.filter((t) => t.savedId === w.id)) {
+          useTabs.getState().forgetSaved(t.id);
+          useWorkbooks.getState().markUnsaved(t.id);
+        }
         setProblem(null);
         changed();
       },

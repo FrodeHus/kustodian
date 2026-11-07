@@ -142,6 +142,8 @@ interface TabsState {
   openWorkbook(doc?: WorkbookDoc, opts?: { savedId?: string; dirty?: boolean }): string;
   /** A workbook tab's document changed (the workbook store says whether it differs from the file). */
   setWorkbook(id: string, doc: WorkbookDoc, dirty: boolean): void;
+  /** The tab's saved workbook was deleted: it stays open, unsaved, and its next save asks for a name and folder. */
+  forgetSaved(id: string): void;
   /** Replaces the open tabs with a saved session's, unsaved text included. */
   restore(session: Session): void;
   setTitle(id: string, title: string): void;
@@ -279,6 +281,10 @@ export const useTabs = create<TabsState>()((set, get) => {
 
     setWorkbook(id, doc, dirty) {
       update(id, (t) => (t.workbook === doc && t.dirty === dirty ? {} : { workbook: doc, dirty }));
+    },
+
+    forgetSaved(id) {
+      update(id, () => ({ savedId: undefined, dirty: true }));
     },
 
     restore(session) {

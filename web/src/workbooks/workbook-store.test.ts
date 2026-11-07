@@ -349,6 +349,17 @@ describe('workbook store', () => {
     expect(runs.map((r) => [r.params.tabId, r.params.options?.timespan])).toEqual([['t/h', 'PT1H']]);
   });
 
+  it('a workbook deleted from the library is unsaved, also after a discard back to its saved doc', async () => {
+    void useWorkbooks.getState().load('t', docOf([], []));
+    await flush();
+    const { setEditing, edit, markUnsaved } = useWorkbooks.getState();
+    setEditing('t', true);
+    edit('t', (d) => ({ ...d, name: 'draft' }));
+    markUnsaved('t');
+    setEditing('t', false, true);
+    expect(tab().dirty).toBe(true);
+  });
+
   it('saving while editing makes a later discard return to what was saved', async () => {
     void useWorkbooks.getState().load('t', docOf([], [widget('a', 'users')]));
     await flush();

@@ -185,5 +185,8 @@ describe('SavedPanel', () => {
     fireEvent.click(within(screen.getByRole('group', { name: 'Delete “Hygiene”?' })).getByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('workbook.delete', { id: doc.id }));
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Hygiene' })).toBeNull());
+    // The open tab stays, as an unsaved workbook: its next save asks for a name and folder instead of writing the file back.
+    expect(useTabs.getState().tabs[0]).toMatchObject({ source: 'workbook', title: 'Hygiene', dirty: true });
+    expect(useTabs.getState().tabs[0]?.savedId).toBeUndefined();
   });
 });
