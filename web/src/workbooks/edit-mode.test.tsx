@@ -28,7 +28,7 @@ const runAll = vi.fn(() => Promise.resolve());
 
 function show() {
   useWorkbooks.setState({
-    byTab: { t: { doc, values: { workbook: {}, widgets: {} }, runs: {}, editing: false, undo: [], redo: [], dirty: false, selections: {} } },
+    byTab: { t: { doc, values: { workbook: {}, widgets: {} }, runs: {}, editing: false, undo: [], redo: [], dirty: false, selections: {}, history: {}, since: {} } },
     runAll,
   });
   const view = render(<WorkbookView tabId="t" />);

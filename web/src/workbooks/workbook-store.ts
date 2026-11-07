@@ -4,7 +4,9 @@ import { call } from '../bridge';
 import { useRevisions } from '../library/saving';
 import { newId } from '../shell/ids';
 import { useTabs } from '../tabs/tab-store';
-import type { LibraryList, QueryRunParams, RunResult, SavedQuery, Source } from '../wire';
+import type { HistoryQuery, HistoryRecordAnswer, HistoryRecordParams, LibraryList, QueryRunParams, RunResult, SavedQuery, Source } from '../wire';
+import { historyRows, recordable, seriesLabel } from './history';
+import type { SkipReason } from './history';
 import type { Widget, WorkbookDoc } from './model';
 import { parseWorkbook } from './model';
 import type { ViewValues } from './resolve';
@@ -31,6 +33,17 @@ export interface WorkbookState {
   dirty: boolean;
   /** Chosen rows and the order the grid shows them, by widget id: view state, never in the doc. */
   selections: Record<string, RowSelection>;
+  /** What recording did on each history widget's last answer, by widget id: view state, never in the doc. */
+  history: Record<string, WidgetHistoryState>;
+  /** The "since" each widget's history view chose, by widget id: view state, never in the doc. */
+  since: Record<string, string>;
+}
+
+export interface WidgetHistoryState {
+  skipped: SkipReason | null;
+  /** The history file was damaged and replaced; stays true for the session. */
+  reset: boolean;
+  recordedAt: number | null;
 }
 
 export interface WorkbookActions {
@@ -54,6 +67,7 @@ export interface WorkbookActions {
   markUnsaved(tabId: string): void; // its file was deleted: dirty, also after a discard
   setSelection(tabId: string, widgetId: string, selected: number[]): void;
   setShown(tabId: string, widgetId: string, shown: number[]): void; // no state change when equal to the current one
+  setSince(tabId: string, widgetId: string, since: string): void; // no rerun; the history view refetches
 }
 
 type Store = { byTab: Record<string, WorkbookState> } & WorkbookActions;
@@ -181,7 +195,7 @@ function queue(
   key: string,
   own: Widget,
   refresh: boolean,
-  on: { onStart: (runId: string) => void; onAnswer: (run: WidgetRun) => void; onDropped: () => void },
+  on: { onStart: (runId: string) => void; onAnswer: (run: WidgetRun, sent: { query: HistoryQuery; label: string }) => void; onDropped: () => void },
 ): WidgetRun {
   drop(key);
   const s = useWorkbooks.getState().byTab[tabId];
@@ -209,6 +223,10 @@ function queue(
     refresh,
     addToRecent: false,
   };
+  const sent = {
+    query: { source, text, options: runParams.options ?? null, parameters: params.map(({ name, value }) => ({ name, value })) },
+    label: seriesLabel(params),
+  };
   const job: Job = {
     key,
     source,
@@ -227,7 +245,7 @@ function queue(
       // Review Focus 2: an answer for any run but the key's latest is stale.
       if (jobs.get(key) === job) {
         jobs.delete(key);
-        on.onAnswer(run);
+        on.onAnswer(run, sent);
         pump();
       }
     },
@@ -260,11 +278,49 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
     });
   };
 
+  const setHistory = (tabId: string, widgetId: string, change: (was: WidgetHistoryState) => Partial<WidgetHistoryState>) =>
+    update(tabId, (s) => {
+      const was = s.history[widgetId] ?? { skipped: null, reset: false, recordedAt: null };
+      return { history: { ...s.history, [widgetId]: { ...was, ...change(was) } } };
+    });
+
+  /** Sends a terminal answer of a history widget to the host, unless it mustn't be kept (Review Focus 1). Fire and forget:
+   * a failed record leaves the run as it is. `dirty` and the doc are read now, not when the run was queued. */
+  const record = (tabId: string, widgetId: string, run: WidgetRun, sent: { query: HistoryQuery; label: string }) => {
+    const s = get().byTab[tabId];
+    const h = s?.doc.widgets.find((w) => w.id === widgetId)?.history;
+    if (!s || !h) {
+      return;
+    }
+    const rows = run.state === 'done' ? historyRows(run.result, h) : null;
+    const skipped = recordable(run, s.dirty) ?? (rows === 'keysNotUnique' ? rows : null);
+    if (skipped || run.state !== 'done' || !rows || rows === 'keysNotUnique') {
+      setHistory(tabId, widgetId, () => ({ skipped }));
+      return;
+    }
+    const params: HistoryRecordParams = {
+      workbookId: s.doc.id,
+      widgetId,
+      ...sent,
+      setting: { mode: h.mode, interval: h.interval, retentionDays: h.retentionDays, keys: h.keys },
+      ...rows,
+    };
+    call<HistoryRecordAnswer>('history.record', params).then(
+      (a) =>
+        setHistory(tabId, widgetId, (was) => ({
+          skipped: a.skipped === 'interval' ? null : a.skipped,
+          reset: was.reset || a.reset,
+          recordedAt: a.recorded ? Date.now() : was.recordedAt,
+        })),
+      () => setHistory(tabId, widgetId, () => ({ skipped: null })),
+    );
+  };
+
   const store: Store = {
     byTab: {},
 
     async load(tabId, doc, opts) {
-      const fresh: WorkbookState = { doc, values: initialValues(doc, {}), runs: {}, editing: false, undo: [], redo: [], dirty: opts?.dirty ?? false, selections: {} };
+      const fresh: WorkbookState = { doc, values: initialValues(doc, {}), runs: {}, editing: false, undo: [], redo: [], dirty: opts?.dirty ?? false, selections: {}, history: {}, since: {} };
       const token = Symbol(tabId);
       loads.set(tabId, token);
       set((st) => ({ byTab: { ...st.byTab, [tabId]: fresh } }));
@@ -313,8 +369,9 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
       return new Promise<void>((settle) => {
         const queued = queue(tabId, `${tabId}/${widgetId}`, own, opts?.refresh ?? false, {
           onStart: (runId) => setRun(tabId, widgetId, { state: 'running', runId, startedAt: Date.now() }),
-          onAnswer: (run) => {
+          onAnswer: (run, sent) => {
             setRun(tabId, widgetId, run);
+            record(tabId, widgetId, run, sent);
             if (run.state === 'done') {
               // The rows changed, so the old row indexes mean nothing.
               update(tabId, (s) => ({ selections: Object.fromEntries(Object.entries(s.selections).filter(([id]) => id !== widgetId)) }));
@@ -457,6 +514,10 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
 
     setSelection(tabId, widgetId, selected) {
       update(tabId, (s) => ({ selections: { ...s.selections, [widgetId]: { shown: null, ...s.selections[widgetId], selected } } }));
+    },
+
+    setSince(tabId, widgetId, since) {
+      update(tabId, (s) => ({ since: { ...s.since, [widgetId]: since } }));
     },
 
     setShown(tabId, widgetId, shown) {
