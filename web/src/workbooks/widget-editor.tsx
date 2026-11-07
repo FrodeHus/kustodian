@@ -437,7 +437,7 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
         role="dialog"
         aria-modal="true"
         aria-labelledby={`${id}-title`}
-        className="card absolute top-[6vh] left-1/2 flex max-h-[88vh] w-[760px] max-w-[calc(100vw-32px)] -translate-x-1/2 flex-col gap-3 overflow-auto p-5"
+        className="card wb-editor absolute inset-x-0 top-[6vh] mx-auto flex max-h-[88vh] w-[760px] max-w-[calc(100vw-32px)] flex-col gap-3 overflow-auto p-5"
         onKeyDown={(e) => {
           // Monaco's own Esc (closing its suggestions) comes first.
           if (e.key === 'Escape' && !e.defaultPrevented) {

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { call } from '../bridge';
 import { useRevisions } from '../library/saving';
 import { MenuButton } from '../results/result-grid';
@@ -305,7 +306,7 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
     say('Redone');
   };
   const onKey = (e: KeyboardEvent) => {
-    if (!editing || editingWidget || parametersOpen || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z' || inTextField(e.target)) {
+    if (!editing || editingWidget || parametersOpen || picking || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z' || inTextField(e.target)) {
       return;
     }
     e.preventDefault();
@@ -403,26 +404,32 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
       <p className="wb-announce sr-only" aria-live="polite">
         <span key={said.n}>{said.text}</span>
       </p>
-      {editingWidget && (
-        <WidgetEditor
-          tabId={tabId}
-          widgetId={editingWidget.id}
-          onClose={() => {
-            focusNext.current = () => editingWidget.opener;
-            setEditingWidget(null);
-          }}
-        />
-      )}
-      {parametersOpen && (
-        <ParametersDialog
-          tabId={tabId}
-          onClose={() => {
-            focusNext.current = () => parametersRef.current;
-            setParametersOpen(false);
-          }}
-        />
-      )}
-      {picking && <SavedQueryPicker onPick={addSaved} onClose={() => setPicking(false)} />}
+      {/* The dialogs go on the body: a glass theme's workspace (backdrop-filter) would hold a fixed overlay inside it and leave
+          the tab strip clickable. React events still come up through this tree, so onKey sees them. */}
+      {editingWidget &&
+        createPortal(
+          <WidgetEditor
+            tabId={tabId}
+            widgetId={editingWidget.id}
+            onClose={() => {
+              focusNext.current = () => editingWidget.opener;
+              setEditingWidget(null);
+            }}
+          />,
+          document.body,
+        )}
+      {parametersOpen &&
+        createPortal(
+          <ParametersDialog
+            tabId={tabId}
+            onClose={() => {
+              focusNext.current = () => parametersRef.current;
+              setParametersOpen(false);
+            }}
+          />,
+          document.body,
+        )}
+      {picking && createPortal(<SavedQueryPicker onPick={addSaved} onClose={() => setPicking(false)} />, document.body)}
       {deleting && <ConfirmDelete name={doc.name} onDelete={remove} onCancel={() => setDeleting(false)} />}
       {problem && (
         <p className="m-0 flex items-center gap-2 px-3 py-1.5 text-[12px] text-bad" role="alert">

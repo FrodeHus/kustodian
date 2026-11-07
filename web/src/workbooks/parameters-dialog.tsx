@@ -44,6 +44,8 @@ export function ParametersDialog({ tabId, onClose }: { tabId: string; onClose: (
   const focusKey = useRef<string | null>(null);
   const dragged = useRef<number | null>(null);
 
+  // Focus starts on the first parameter, or Add parameter when there is none: the first button.
+  useEffect(() => dialogRef.current?.querySelector<HTMLElement>('button')?.focus(), []);
   // A modal, as the widget editor is: focus that lands outside it goes back to it.
   useEffect(() => {
     const onFocusIn = (e: FocusEvent) => {

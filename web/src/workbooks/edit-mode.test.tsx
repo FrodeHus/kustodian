@@ -31,8 +31,9 @@ function show() {
     byTab: { t: { doc, values: { workbook: {}, widgets: {} }, runs: {}, editing: false, undo: [], redo: [], dirty: false, viewCharts: {} } },
     runAll,
   });
-  render(<WorkbookView tabId="t" />);
+  const view = render(<WorkbookView tabId="t" />);
   fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+  return view;
 }
 
 const state = () => useWorkbooks.getState().byTab.t!;
@@ -258,5 +259,52 @@ describe('workbook edit mode', () => {
     fireEvent.keyDown(screen.getByRole('button', { name: 'Cancel' }), { key: 'z', ctrlKey: true });
     expect(layoutOf('b')).toEqual(moved);
     expect(state().undo).toHaveLength(1);
+  });
+
+  it('Ctrl+Z is not the workbook’s undo while the saved-query picker is open', () => {
+    show();
+    fireEvent.keyDown(grip('Notes'), { key: 'ArrowRight' });
+    const moved = layoutOf('b');
+    fireEvent.click(screen.getByRole('button', { name: '+ Add widget' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'From a saved query…' }));
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Cancel' }), { key: 'z', ctrlKey: true });
+    expect(layoutOf('b')).toEqual(moved);
+    expect(state().undo).toHaveLength(1);
+  });
+
+  it('the parameters dialog focuses its first parameter on open, or Add parameter when there is none', () => {
+    doc = { ...doc, parameters: [{ name: 'Env', type: 'text', value: '', required: false, choices: null, label: null, multi: false, all: false, remember: false, huntingTimespan: false }] };
+    show();
+    fireEvent.click(screen.getByRole('button', { name: 'Parameters' }));
+    expect(document.activeElement).toBe(within(screen.getByRole('list', { name: 'Parameters' })).getByRole('button'));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove parameter' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Parameters' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Add parameter' }));
+  });
+
+  it('the widget editor focuses its Title on open', () => {
+    show();
+    fireEvent.focus(grip('Users'));
+    fireEvent.click(within(screen.getByRole('region', { name: 'Users' })).getByRole('button', { name: 'Edit widget' }));
+    expect(document.activeElement).toBe(within(screen.getByRole('dialog', { name: 'Edit widget' })).getByRole('textbox', { name: 'Title' }));
+  });
+
+  it('the widget editor, parameters dialog and saved-query picker cover the whole window, outside the workspace', () => {
+    const { container } = show();
+    const outside = (dialog: HTMLElement) => {
+      expect(container.contains(dialog)).toBe(false);
+      expect(dialog.closest('.fixed')?.parentElement).toBe(document.body);
+    };
+    fireEvent.focus(grip('Users'));
+    fireEvent.click(within(screen.getByRole('region', { name: 'Users' })).getByRole('button', { name: 'Edit widget' }));
+    outside(screen.getByRole('dialog', { name: 'Edit widget' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Parameters' }));
+    outside(screen.getByRole('dialog', { name: 'Workbook parameters' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(screen.getByRole('button', { name: '+ Add widget' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'From a saved query…' }));
+    outside(screen.getByRole('dialog', { name: 'Add a saved query' }));
   });
 });

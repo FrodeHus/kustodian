@@ -241,6 +241,8 @@ body {
   .wb-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-auto-rows: 8px; gap: 12px; }
   .wb-widget { grid-column: var(--x) / span var(--w); grid-row: var(--y) / span var(--h); }
   @container (max-width: 899px) { .wb-widget { grid-column: 1 / -1; grid-row: auto / span var(--h); } }
+  /* A widget with its ⋯ menu open sits above the widgets after it (each is its own stacking context in the glass themes). */
+  .wb-widget:has(.menu) { z-index: 1; }
   /* Edit mode: faint column guides behind the grid, the drop target, the grip and the selected widget's resize handles. */
   .wb-editing { min-height: 100%; background-image: repeating-linear-gradient(to right, var(--accent-soft) 0 calc((100% - 132px) / 12), transparent 0 calc((100% + 12px) / 12)); }
   .wb-drop { border: 2px dashed var(--accent); border-radius: 10px; background: var(--accent-soft); pointer-events: none; }
@@ -310,6 +312,9 @@ body {
   .theme-glass .datagrid th, .theme-glass .datagrid th.inspect-col { background: var(--glass-menu); }
   /* Side sheets (row details, a cell's JSON) sit over the grid: opaque, so the rows don't show through their text. */
   .theme-glass .sheet { background: rgb(22, 27, 40); }
+  /* The widget editor: no backdrop filter, which would make it the box Monaco places its fixed suggest and hover widgets in
+     (offset, and clipped by its scroll); opaque instead, as the sheets are. */
+  .theme-glass .wb-editor { backdrop-filter: none; background: rgb(22, 27, 40); }
   .theme-glass .btn.primary { background: linear-gradient(180deg, #8ad9ff, #4cb8f5); border-color: rgba(255, 255, 255, 0.5); box-shadow: 0 4px 18px rgba(76, 194, 255, 0.45); }
 
   /* Liquid glass: rounder, pill-shaped controls; the selected ones raised like drops. */
