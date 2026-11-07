@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { QueryRunParams, RunResult, SavedQuery } from '../wire';
+import type { HistoryRecordAnswer, HistoryRecordParams, QueryRunParams, RunResult, SavedQuery } from '../wire';
 import type { Widget, WidgetParam, WidgetQuery, WorkbookDoc, WorkbookParameter } from './model';
 import { newWidget, newWorkbook } from './model';
 import { useTabs } from '../tabs/tab-store';
@@ -38,6 +38,8 @@ let library: SavedQuery[];
 let remembered: Record<string, string>;
 /** When set, `library.list` answers only after it resolves. */
 let libraryGate: Promise<void> | null;
+/** What `history.record` does: answer, or reject when null. */
+let recordAnswer: HistoryRecordAnswer | null;
 
 const saved = (id: string, text: string): SavedQuery => ({
   version: 1,
@@ -82,6 +84,7 @@ beforeEach(() => {
   library = [];
   remembered = {};
   libraryGate = null;
+  recordAnswer = { recorded: true, skipped: null, reset: false };
   bridge.call.mockReset();
   bridge.call.mockImplementation((method: string, params: unknown, signal: AbortSignal) => {
     switch (method) {
@@ -93,6 +96,8 @@ beforeEach(() => {
         return Promise.resolve(null);
       case 'workbook.save':
         return Promise.resolve({ workbook: { ...(params as { workbook: WorkbookDoc }).workbook, modifiedAt: 'now' } });
+      case 'history.record':
+        return recordAnswer ? Promise.resolve(recordAnswer) : Promise.reject(new Error('disk'));
       case 'query.run':
         return new Promise((resolve) => runs.push({ params: params as QueryRunParams, signal, answer: resolve }));
       default:
@@ -471,5 +476,184 @@ describe('workbook store', () => {
     useTabs.getState().close('w1');
     useTabs.getState().close('w2');
     stop();
+  });
+
+  describe('history', () => {
+    const withHistory = (id: string, text = 'users', history: Partial<NonNullable<Widget['history']>> = {}): Widget => ({
+      ...widget(id, text),
+      history: { mode: 'values', interval: 'day', retentionDays: 30, keys: [], keep: [], since: 'previous', ...history },
+    });
+    const records = () => bridge.call.mock.calls.filter(([m]) => m === 'history.record');
+    const open = async (w: Widget, opts?: { dirty?: boolean }, ps: WorkbookParameter[] = []) => {
+      void useWorkbooks.getState().load('t', docOf(ps, [w]), opts);
+      await flush();
+    };
+    const answer = async (r: RunResult) => {
+      runs.at(-1)!.answer(r);
+      await flush();
+    };
+
+    it('a_finished_run_with_history_is_recorded', async () => {
+      const w = withHistory('a', 'T {Name}', { keep: ['ignored'], since: 'P7D' });
+      await open(w, undefined, [wbParam('Name', 'x')]);
+      await answer(result([[1], [2]]));
+      expect(records()).toEqual([
+        [
+          'history.record',
+          {
+            workbookId: tab().doc.id,
+            widgetId: 'a',
+            query: { source: 'graph', text: 'T {Name}', options: runs[0]!.params.options ?? null, parameters: [{ name: 'Name', value: 'x', type: 'text' }] },
+            setting: { mode: 'values', interval: 'day', retentionDays: 30, keys: [] },
+            label: 'Name = x',
+            columns: [{ name: 'n', type: 'long' }],
+            rows: [[1], [2]],
+          } satisfies HistoryRecordParams,
+        ],
+      ]);
+      // The resolved query of that run, so the widget reads the series the record wrote.
+      expect(tab().history.a).toEqual({ skipped: null, reset: false, recordedAt: expect.any(Number), query: records()[0]![1].query, pending: 0 });
+    });
+
+    it('the_hunting_timespan_is_a_parameter_of_the_series_not_part_of_the_query', async () => {
+      const w: Widget = { ...withHistory('a', 'T'), query: { ...withHistory('a', 'T').query!, source: 'hunting' } };
+      await open(w, undefined, [wbParam('Span', '7d', { type: 'timespan', huntingTimespan: true })]);
+      await answer(result([[1]]));
+      useWorkbooks.getState().setWorkbookValue('t', 'Span', '30d', { now: true });
+      await flush();
+      await answer(result([[2]]));
+      const [week, month] = records().map(([, p]) => p as HistoryRecordParams);
+      expect(runs.map((r) => r.params.options?.timespan)).toEqual(['P7D', 'P30D']);
+      // The same query key, so the host keeps both series; the span tells them apart.
+      expect(week!.query.options).toEqual(w.query!.options ?? null);
+      expect(month!.query.options).toEqual(week!.query.options);
+      expect(week!.query.parameters).toEqual([{ name: 'Span', value: 'P7D', type: 'timespan' }]);
+      expect(month!.query.parameters).toEqual([{ name: 'Span', value: 'P30D', type: 'timespan' }]);
+      expect(month!.label).toBe('Span = P30D');
+    });
+
+    it('a_skipped_run_still_keeps_its_query', async () => {
+      await open(withHistory('a'), { dirty: true });
+      await answer(result([[1]]));
+      expect(tab().history.a?.query).toEqual({ source: 'graph', text: 'users', options: runs[0]!.params.options ?? null, parameters: [] });
+    });
+
+    it('a_cut_off_run_is_not_recorded_and_says_why', async () => {
+      await open(withHistory('a'));
+      await answer({ ...result([[1]]), total: 5 });
+      expect(records()).toHaveLength(0);
+      expect(tab().history.a?.skipped).toBe('cutOff');
+    });
+
+    it('a_failed_run_is_not_recorded', async () => {
+      await open(withHistory('a'));
+      bridge.call.mockImplementationOnce(() => Promise.reject(new Error('x')));
+      const pending = runs.length;
+      void useWorkbooks.getState().runWidget('t', 'a');
+      await flush();
+      expect(runs.length).toBe(pending);
+      expect(records()).toHaveLength(0);
+      expect(tab().history.a?.skipped).toBe('failed');
+    });
+
+    it('a_dirty_workbook_is_not_recorded', async () => {
+      await open(withHistory('a'), { dirty: true });
+      await answer(result([[1]]));
+      expect(records()).toHaveLength(0);
+      expect(tab().history.a?.skipped).toBe('unsaved');
+    });
+
+    it('a dirty flag set by edit after the run started counts at answer time', async () => {
+      await open(withHistory('a'));
+      useWorkbooks.getState().edit('t', (d) => ({ ...d, name: 'x' }));
+      await answer(result([[1]]));
+      expect(records()).toHaveLength(0);
+      expect(tab().history.a?.skipped).toBe('unsaved');
+    });
+
+    it('the_preview_never_records', async () => {
+      await open(withHistory('a'));
+      await answer(result([[1]]));
+      bridge.call.mockClear();
+      const preview = useWorkbooks.getState().runDraft('t', withHistory('p'));
+      await flush();
+      runs.at(-1)!.answer(result([[1]]));
+      await preview;
+      expect(records()).toHaveLength(0);
+    });
+
+    it('a_widget_without_history_never_records', async () => {
+      await open(widget('a', 'users'));
+      await answer(result([[1]]));
+      expect(records()).toHaveLength(0);
+      expect(tab().history.a).toBeUndefined();
+    });
+
+    it('a_cancelled_or_dropped_run_is_not_recorded_and_has_no_skip_line', async () => {
+      await open(withHistory('a'));
+      useWorkbooks.getState().unload('t');
+      await flush();
+      expect(records()).toHaveLength(0);
+    });
+
+    it('a_record_failure_does_not_break_the_run_and_says_why', async () => {
+      recordAnswer = null;
+      await open(withHistory('a'));
+      await answer(result([[1]]));
+      expect(state('a')).toBe('done');
+      expect(tab().history.a).toEqual({ skipped: null, reset: false, recordedAt: null, query: expect.any(Object), error: 'disk', pending: 0 });
+      // The next answer that records clears it.
+      recordAnswer = { recorded: true, skipped: null, reset: false };
+      void useWorkbooks.getState().runWidget('t', 'a');
+      await flush();
+      await answer(result([[1]]));
+      expect(tab().history.a?.error).toBeUndefined();
+    });
+
+    it('values_mode_sends_no_key_columns', async () => {
+      await open(withHistory('a', 'users', { mode: 'values', keys: ['n'] }));
+      await answer(result([[1]]));
+      expect((records()[0]![1] as HistoryRecordParams).setting.keys).toEqual([]);
+    });
+
+    it('host_skips_map_to_reasons', async () => {
+      await open(withHistory('a'));
+      recordAnswer = { recorded: false, skipped: 'tooManyRows', reset: false };
+      await answer(result([[1]]));
+      expect(tab().history.a?.skipped).toBe('tooManyRows');
+      recordAnswer = { recorded: false, skipped: 'interval', reset: false };
+      void useWorkbooks.getState().runWidget('t', 'a');
+      await flush();
+      await answer(result([[1]]));
+      expect(tab().history.a).toEqual({ skipped: null, reset: false, recordedAt: null, query: expect.any(Object), pending: 0 });
+    });
+
+    it('reset_stays_for_the_session', async () => {
+      await open(withHistory('a'));
+      recordAnswer = { recorded: true, skipped: null, reset: true };
+      await answer(result([[1]]));
+      recordAnswer = { recorded: true, skipped: null, reset: false };
+      void useWorkbooks.getState().runWidget('t', 'a');
+      await flush();
+      await answer(result([[1]]));
+      expect(tab().history.a?.reset).toBe(true);
+    });
+
+    it('rows_mode_with_repeated_keys_is_not_recorded', async () => {
+      await open(withHistory('a', 'users', { mode: 'rows', keys: ['n'] }));
+      await answer(result([[1], [1]]));
+      expect(records()).toHaveLength(0);
+      expect(tab().history.a?.skipped).toBe('keysNotUnique');
+    });
+
+    it('setSince keeps the choice per widget and reruns nothing', async () => {
+      await open(withHistory('a'));
+      await answer(result([[1]]));
+      const before = runs.length;
+      useWorkbooks.getState().setSince('t', 'a', 'P7D');
+      await flush();
+      expect(tab().since).toEqual({ a: 'P7D' });
+      expect(runs.length).toBe(before);
+    });
   });
 });

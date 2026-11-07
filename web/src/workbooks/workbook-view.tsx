@@ -22,6 +22,7 @@ import { WidgetFrame } from './widget-frame';
 import { ChartWidget } from './widgets/chart-widget';
 import { MarkdownWidget } from './widgets/markdown-widget';
 import { StatWidget } from './widgets/stat-widget';
+import { SheetHost } from './widgets/sheet-host';
 import { TableWidget } from './widgets/table-widget';
 import { editStartDoc, readLibrary, useWorkbooks } from './workbook-store';
 
@@ -228,6 +229,8 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
   const editingBar = useRef<HTMLDivElement>(null);
   const undoRef = useRef<HTMLButtonElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  // Table widgets open their row details here, over the whole workbook, as a query tab's results do.
+  const [sheetHost, setSheetHost] = useState<HTMLDivElement | null>(null);
   // Where focus goes once the next render is in (the toolbar swaps, a removed grip unmounts, Undo enables).
   const focusNext = useRef<(() => HTMLElement | null | undefined) | null>(null);
   useEffect(() => {
@@ -346,12 +349,12 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
       case 'table':
         return <TableWidget widget={w} run={run} tabId={tabId} />;
       case 'stat':
-        return <StatWidget widget={w} run={run} />;
+        return <StatWidget widget={w} run={run} tabId={tabId} />;
     }
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" onKeyDown={onKey}>
+    <div ref={setSheetHost} className="relative flex min-h-0 flex-1 flex-col" onKeyDown={onKey}>
       {editing ? (
         <div ref={editingBar} className="toolbar" role="group" aria-label="Editing the workbook">
           <span className="chip warn">EDITING</span>
@@ -462,29 +465,31 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
           ))}
         </div>
       )}
-      <div className="wb-canvas min-h-0 flex-1 overflow-auto p-3">
-        {doc.widgets.length === 0 && !editing ? (
-          <p className="faint m-0 text-[12px]">No widgets yet. Edit the workbook to add some.</p>
-        ) : (
-          <div ref={gridRef} className={editing ? 'wb-grid wb-editing' : 'wb-grid'}>
-            {narrowOrder(doc.widgets).map((w) => (
-              <WidgetFrame
-                key={w.id}
-                tabId={tabId}
-                widget={w}
-                onSignIn={onSignIn}
-                editing={
-                  editing
-                    ? { selected: selected === w.id, onSelect: () => setSelected(w.id), onEditWidget: (opener) => setEditingWidget({ id: w.id, opener }), onRemove: () => removeWidget(w), announce: say }
-                    : undefined
-                }
-              >
-                {body(w)}
-              </WidgetFrame>
-            ))}
-          </div>
-        )}
-      </div>
+      <SheetHost.Provider value={sheetHost}>
+        <div className="wb-canvas min-h-0 flex-1 overflow-auto p-3">
+          {doc.widgets.length === 0 && !editing ? (
+            <p className="faint m-0 text-[12px]">No widgets yet. Edit the workbook to add some.</p>
+          ) : (
+            <div ref={gridRef} className={editing ? 'wb-grid wb-editing' : 'wb-grid'}>
+              {narrowOrder(doc.widgets).map((w) => (
+                <WidgetFrame
+                  key={w.id}
+                  tabId={tabId}
+                  widget={w}
+                  onSignIn={onSignIn}
+                  editing={
+                    editing
+                      ? { selected: selected === w.id, onSelect: () => setSelected(w.id), onEditWidget: (opener) => setEditingWidget({ id: w.id, opener }), onRemove: () => removeWidget(w), announce: say }
+                      : undefined
+                  }
+                >
+                  {body(w)}
+                </WidgetFrame>
+              ))}
+            </div>
+          )}
+        </div>
+      </SheetHost.Provider>
     </div>
   );
 }

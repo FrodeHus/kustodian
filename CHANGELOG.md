@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Community Solutions**: a **Solutions** panel in the rail lists ready-made queries and workbooks from the `Solutions/`
+  folder of the Kustodian repository, with **Kustodian** and **Community** badges. Open one to read its README and tick the
+  items to install into a library folder named after it, with new ids; nothing runs on install. Uninstall removes what you
+  haven't changed and keeps the rest in Saved, offline too and after a solution leaves the catalog. The last catalog is
+  kept for offline use, every solution file downloaded is checked against its SHA-256 and size, and the catalog index has a
+  4 MB limit. **Entra risky users** and **MFA and passkey adoption** ship first. See
+  [docs/solutions.md](docs/solutions.md).
 - **Workbooks**: a tab of Markdown, Chart, Table and Stat widgets on a grid, each running a query written in the widget or a
   linked saved one, on any source. Workbook parameters rerun only the widgets that use them, and widgets can show their own.
   Edit mode (mouse or keyboard) arranges widgets, and workbooks save to the library and come back after a restart. A
@@ -21,6 +28,9 @@ follow [Semantic Versioning](https://semver.org/).
   palette, shows a review first: saved queries are added to your library or copied into the widgets, tool buttons are matched
   by name to your own `tools.json` (which import never changes), and a workbook you already have can be kept alongside or
   replaced. See [docs/workbooks.md](docs/workbooks.md#sharing).
+- **Widget history**: a workbook widget can keep its own history, off by default. Values over time stores small results so a Stat
+  shows its change and a Chart plots it. Row tracking follows rows by key columns so a Table shows what is new or no longer
+  reported since a date. Local only, in `history.db`, never exported. See [docs/workbooks.md](docs/workbooks.md#history).
 - A **Full screen** button on the Chart tab fills the app window with the chart; click it again or press Esc to go back.
 - Click a column, bar, pie slice or point in the Chart tab to see the rows behind it on the Rows tab. It filters the
   result you already have, without running the query again; a chip in the result bar shows the filter and clears it.
@@ -73,6 +83,13 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Markdown widgets show headings, lists, quotes and code as such: `## Test` is a heading again, not plain text. Any widget
+  can now hide its title bar outside edit mode (**Hide the title bar outside edit mode** in Edit widget); its ⋯ menu hides
+  with it.
+- A table widget's inspect button (the magnifier) opens the row in the row details sheet, as on the Rows tab, instead of
+  ticking the row's checkbox.
+- A table widget's row details sheet opens over the whole workbook, full height on the right as in a query tab, instead of
+  inside the widget at its size. A widget in full screen keeps it inside.
 - Chart widgets can split by a column and stack again: the widget editor's Visualization tab has **Split by** (formerly
   "Series") and **Stacking** (None, Stacked, Stacked 100%) for column, bar and area charts.
 - Workbooks, after a look in the real app: a full-screen widget now fills the window. In the glass themes, completion and

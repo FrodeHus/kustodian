@@ -1,0 +1,9 @@
+{
+  "name": "Entra / Risky users",
+  "folder": "Entra",
+  "source": "graph",
+  "text": "riskyUsers\n| where riskLevel in ({RiskLevel})\n| project userDisplayName, userPrincipalName, riskLevel, riskState, riskLastUpdatedDateTime\n| order by riskLastUpdatedDateTime desc",
+  "parameters": [
+    { "name": "RiskLevel", "type": "list", "value": "high", "required": true, "choices": ["high", "medium", "low"] }
+  ]
+}

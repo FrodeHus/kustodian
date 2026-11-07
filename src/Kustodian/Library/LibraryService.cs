@@ -12,10 +12,16 @@ namespace Kustodian.Library;
 /// <c>list</c>; <see cref="Choices"/> are the values it may take, when it has a fixed set.</summary>
 public sealed record ParameterDef(string Name, string Type, string Value, bool Required, IReadOnlyList<string>? Choices);
 
+/// <summary>Where an installed item came from: the solution and version, the item's id in it, the SHA-256 of the catalog file
+/// (<see cref="UpstreamHash"/>) and of the item's content as installed (<see cref="ContentHash"/>).</summary>
+public sealed record SolutionOrigin(string SolutionId, string SolutionVersion, string ItemId, string UpstreamHash, string ContentHash);
+
 /// <summary>A query in the library. <see cref="Id"/> is a GUID and the file name (<c>saved/&lt;id&gt;.json</c>);
-/// <see cref="Folder"/> is one level or null. <see cref="Options"/> are the timespan or scope it runs with, null for none.</summary>
+/// <see cref="Folder"/> is one level or null. <see cref="Options"/> are the timespan or scope it runs with, null for none.
+/// <see cref="Origin"/> is set when the query was installed from a solution.</summary>
 public sealed record SavedQuery(int Version, string Id, string Name, string? Folder, string Source, string Text,
-    IReadOnlyList<ParameterDef> Parameters, DateTimeOffset CreatedAt, DateTimeOffset ModifiedAt, QueryOptions? Options = null);
+    IReadOnlyList<ParameterDef> Parameters, DateTimeOffset CreatedAt, DateTimeOffset ModifiedAt, QueryOptions? Options = null,
+    SolutionOrigin? Origin = null);
 
 /// <summary>What the UI sends to save a query: a null <see cref="Id"/> creates, any other updates.</summary>
 public sealed record SavedQueryInput(string? Id, string Name, string? Folder, string Source, string Text,
@@ -84,9 +90,16 @@ public sealed class LibraryService(JsonFileStore store, TimeProvider time, ILogg
 
     /// <summary>Saves <paramref name="input"/>: a new query when its Id is null, otherwise the query with that Id is replaced,
     /// keeping its <see cref="SavedQuery.CreatedAt"/> (a query whose file is gone is created again under the same Id).
-    /// <see cref="SavedQuery.ModifiedAt"/> is now. Throws <see cref="LibraryRejectedException"/> for a value that isn't allowed,
-    /// and writes nothing then.</summary>
-    public async Task<SavedQuery> SaveAsync(SavedQueryInput input, CancellationToken ct = default)
+    /// <see cref="SavedQuery.ModifiedAt"/> is now and <see cref="SavedQuery.Origin"/> is the existing file's. Throws
+    /// <see cref="LibraryRejectedException"/> for a value that isn't allowed, and writes nothing then.</summary>
+    public Task<SavedQuery> SaveAsync(SavedQueryInput input, CancellationToken ct = default) => SaveAsync(input, true, null, ct);
+
+    /// <summary>As <see cref="SaveAsync(SavedQueryInput, CancellationToken)"/>, with <paramref name="origin"/> as the query's
+    /// origin (null clears it).</summary>
+    internal Task<SavedQuery> SaveAsync(SavedQueryInput input, SolutionOrigin? origin, CancellationToken ct) =>
+        SaveAsync(input, false, origin, ct);
+
+    private async Task<SavedQuery> SaveAsync(SavedQueryInput input, bool keepOrigin, SolutionOrigin? origin, CancellationToken ct)
     {
         var id = input.Id is null ? Guid.NewGuid().ToString("D") : NormalizeId(input.Id);
         if (Problem(input) is { } problem)
@@ -100,7 +113,7 @@ public sealed class LibraryService(JsonFileStore store, TimeProvider time, ILogg
             var now = time.GetUtcNow();
             var existing = input.Id is null ? null : await ReadAsync(RelativePath(id), ct);
             var saved = new SavedQuery(1, id, input.Name, input.Folder, input.Source, input.Text, input.Parameters.ToList(),
-                existing?.CreatedAt ?? now, now, input.Options);
+                existing?.CreatedAt ?? now, now, input.Options, keepOrigin ? existing?.Origin : origin);
             await store.WriteAsync(RelativePath(id), saved, ct);
             return saved;
         }
@@ -211,7 +224,7 @@ public sealed class LibraryService(JsonFileStore store, TimeProvider time, ILogg
 
     /// <summary>What is wrong with <paramref name="input"/>, or null when nothing is. Parts missing from the JSON arrive as null,
     /// whatever the types say.</summary>
-    private static string? Problem(SavedQueryInput input)
+    internal static string? Problem(SavedQueryInput input)
     {
         if (input.Parameters is null || input.Name is null || input.Source is null || input.Text is null)
         {

@@ -1,3 +1,4 @@
+import { SolutionsPanel } from '../solutions/solutions-panel';
 import { SchemaPanel } from '../schema/schema-panel';
 import { schemaSourceOf, useSchemas } from '../schema/schema-store';
 import type { TabSource } from '../wire';
@@ -53,6 +54,8 @@ export function SidePanel({ panel, source: tabSource, text, onInsert, accountKey
       return <RecentPanel source={source} />;
     case 'snippets':
       return <SnippetPanel source={source} onInsert={onInsert} />;
+    case 'solutions':
+      return <SolutionsPanel />;
     default:
       return (
         <SchemaPanel

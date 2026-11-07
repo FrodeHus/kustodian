@@ -654,3 +654,141 @@ export interface ErrorDetails {
   report: FullReport | null;
   canSend: boolean;
 }
+
+/** What a widget keeps of its results. Values keeps whole results (at most 500 rows); Rows keeps the key columns' rows with when
+ * each was first seen and went missing. In Rows mode `keys` are the result's first columns, in order. */
+export interface HistorySetting {
+  mode: 'values' | 'rows';
+  interval: 'run' | 'day' | 'week';
+  retentionDays: 30 | 90 | 365;
+  keys: string[];
+}
+
+/** What a run asked: history is filed under this, so a changed query starts a new series. */
+export interface HistoryQuery {
+  source: 'graph' | 'hunting' | 'arg';
+  text: string;
+  options: QueryOptions | null;
+  /** `type` is part of the series: another type writes the value into the query differently. */
+  parameters: { name: string; value: string; type: string }[];
+}
+
+export interface HistoryRecordParams {
+  workbookId: string;
+  widgetId: string;
+  query: HistoryQuery;
+  setting: HistorySetting;
+  label: string;
+  columns: ResultColumn[];
+  rows: unknown[][];
+}
+
+/** `history.record`'s answer; `skipped` says why nothing was recorded. */
+export interface HistoryRecordAnswer {
+  recorded: boolean;
+  skipped: 'interval' | 'tooManyRows' | 'keysNotUnique' | null;
+  reset: boolean;
+}
+
+export interface HistorySnapshot {
+  takenAt: string;
+  columns: ResultColumn[];
+  rows: unknown[][];
+}
+
+/** `history.values`'s answer: the snapshots, oldest first. */
+export interface HistoryValues {
+  snapshots: HistorySnapshot[];
+  reset: boolean;
+}
+
+/** A tracked row; `gone` is when it stopped being reported, or null while it is still there. */
+export interface TrackedRow {
+  values: unknown[];
+  firstSeen: string;
+  gone: string | null;
+}
+
+/** `history.changes`'s answer: at most 5,000 rows each of `new` and `gone`, with their full counts. `since` is null when there
+ * was no earlier snapshot, so everything is new. */
+export interface HistoryChanges {
+  since: string | null;
+  columns: ResultColumn[];
+  new: TrackedRow[];
+  newCount: number;
+  gone: TrackedRow[];
+  goneCount: number;
+  open: number;
+  reset: boolean;
+}
+
+/** One entry of `history.series`. `stored` is snapshots (Values) or tracked rows (Rows). */
+export interface HistorySeries {
+  label: string;
+  since: string;
+  snapshots: number;
+  gaps: number;
+  stored: number;
+}
+
+/** What a solution needs from the tenant; every part is optional. */
+export interface SolutionRequires {
+  graph: string[] | null;
+  roles: string[] | null;
+  licenses: string[] | null;
+  azure: string | null;
+}
+
+/** A solution's `solution.json`: `queries` and `workbooks` are item ids, `tools` tool names. */
+export interface SolutionManifest {
+  version: number;
+  id: string;
+  name: string;
+  solutionVersion: string;
+  description: string;
+  author: string;
+  support: string;
+  categories: string[];
+  sources: string[];
+  minAppVersion: string;
+  requires: SolutionRequires | null;
+  content: { queries: string[]; workbooks: string[]; tools: string[] };
+}
+
+/** One solution in `solution.list`. `compatible` is false when it needs a newer app; `installedVersion` is null when not installed. */
+export interface CatalogItem {
+  manifest: SolutionManifest;
+  compatible: boolean;
+  installedVersion: string | null;
+}
+
+/** `solution.list`'s answer. `offline`: the list is the cached one from `fetchedAt` (an ISO date). */
+export interface Catalog {
+  solutions: CatalogItem[];
+  fetchedAt: string;
+  offline: boolean;
+}
+
+/** An item a solution installed: `kind` is `query` or `workbook`, `itemId` its id in the solution, `libraryId` the saved item's id. */
+export interface InstalledItem {
+  kind: 'query' | 'workbook';
+  itemId: string;
+  libraryId: string;
+}
+
+/** An installed solution; `installedAt` is an ISO date. `manifest`: the manifest as installed, missing for older installs. */
+export interface InstalledSolution {
+  id: string;
+  solutionVersion: string;
+  installedAt: string;
+  items: InstalledItem[];
+  manifest?: SolutionManifest | null;
+}
+
+/** `solution.get`'s answer. `modified`: library ids of installed items changed since install (empty when not installed). */
+export interface SolutionDetails {
+  manifest: SolutionManifest;
+  readme: string;
+  installed: InstalledSolution | null;
+  modified: string[];
+}

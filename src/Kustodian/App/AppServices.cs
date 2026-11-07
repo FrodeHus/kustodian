@@ -2,6 +2,7 @@ using Kustodian.Auth;
 using Kustodian.Auth.EntraApp;
 using Kustodian.Files;
 using Kustodian.Graph.Engine;
+using Kustodian.History;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Run;
 using Kustodian.Graph.Schema;
@@ -13,6 +14,7 @@ using Kustodian.Raw;
 using Kustodian.Sessions;
 using Kustodian.Settings;
 using Kustodian.Snippets;
+using Kustodian.Solutions;
 using Kustodian.Workbooks;
 using Kustodian.Sources;
 using Kustodian.Sources.Arg;
@@ -46,6 +48,8 @@ public sealed class AppServices : IAsyncDisposable
     private readonly LibraryService _library;
     private readonly RecentService _recent;
     private readonly WorkbookService _workbooks;
+    private readonly HistoryStore _history;
+    private readonly SolutionService _solutions;
     private readonly SessionService _session;
     private readonly SnippetService _snippets;
     private readonly ExternalToolService _tools;
@@ -65,6 +69,8 @@ public sealed class AppServices : IAsyncDisposable
         _library = new LibraryService(store, time, new StderrLogger<LibraryService>());
         _recent = new RecentService(store, new StderrLogger<RecentService>());
         _workbooks = new WorkbookService(store, time, new StderrLogger<WorkbookService>());
+        _history = new HistoryStore(store.Root, time, new StderrLogger<HistoryStore>());
+        _solutions = new SolutionService(store, _github, _library, _workbooks, _history, time, AppVersion.Text, new StderrLogger<SolutionService>());
         _session = new SessionService(store);
         _snippets = new SnippetService(store, new StderrLogger<SnippetService>());
         _tools = new ExternalToolService(store.Root);
@@ -135,7 +141,9 @@ public sealed class AppServices : IAsyncDisposable
         new QueryHandler(_schema, ActiveAccountAsync, Sources(), _recent, _time, new StderrLogger<QueryHandler>(), Limits, _licenses,
             Reporter, Trail).Register(bridge);
         new LibraryHandler(_library, _recent).Register(bridge);
-        new WorkbookHandler(_workbooks).Register(bridge);
+        new WorkbookHandler(_workbooks, _history).Register(bridge);
+        new HistoryHandler(_history).Register(bridge);
+        new SolutionHandler(_solutions).Register(bridge);
         new SessionHandler(_session, _allowedFiles).Register(bridge);
         new SnippetHandler(_snippets).Register(bridge);
         var dialogs = new PhotinoFileDialogs(Window);
@@ -166,6 +174,7 @@ public sealed class AppServices : IAsyncDisposable
         _hunting.Dispose();
         _github.Dispose();
         _telemetry.Dispose();
+        _history.Dispose();
         await Pool.DisposeAsync();
     }
 

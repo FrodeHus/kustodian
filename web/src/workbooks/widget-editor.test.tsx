@@ -1,8 +1,8 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ExternalTool, RunResult, SavedQuery } from '../wire';
+import type { ExternalTool, HistorySeries, RunResult, SavedQuery } from '../wire';
 import type { ToolButton, Widget, WidgetType, WorkbookDoc, WorkbookParameter } from './model';
-import { newWidget, newWorkbook } from './model';
+import { defaultHistory, newWidget, newWorkbook } from './model';
 import { WidgetEditor } from './widget-editor';
 import { useWorkbooks } from './workbook-store';
 
@@ -90,7 +90,7 @@ const vms: RunResult = {
 function open(widgetId: string, lastResult?: RunResult) {
   const runs = lastResult ? { [widgetId]: { state: 'done' as const, result: lastResult, finishedAt: 1 } } : {};
   useWorkbooks.setState({
-    byTab: { t: { doc, values: { workbook: { TimeRange: '1d' }, widgets: {} }, runs, editing: true, undo: [], redo: [], dirty: false, selections: {} } },
+    byTab: { t: { doc, values: { workbook: { TimeRange: '1d' }, widgets: {} }, runs, editing: true, undo: [], redo: [], dirty: false, selections: {}, history: {}, since: {} } },
     runWidget,
   });
   render(<WidgetEditor tabId="t" widgetId={widgetId} onClose={onClose} />);
@@ -392,6 +392,178 @@ describe('WidgetEditor', () => {
       expect(screen.getByText('Choose a tool for each button.')).toBeTruthy();
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
       expect(state().doc).toBe(doc);
+    });
+  });
+
+  describe('History tab', () => {
+    const seriesOf = (list: HistorySeries[]) => {
+      const base = call.getMockImplementation()!;
+      call.mockImplementation((method: string, params: unknown) => (method === 'history.series' ? Promise.resolve(list) : method === 'history.clear' ? Promise.resolve(null) : base(method, params)));
+    };
+    const one: HistorySeries = { label: 'All values', since: '2026-11-02T12:00:00Z', snapshots: 31, gaps: 3, stored: 120 };
+    const grid = (rows: unknown[][]): RunResult => ({ ...vms, columns: [{ name: 'name', type: 'string' }, { name: 'id', type: 'string' }], rows, total: rows.length });
+    const pick = (label: string, ...values: string[]) => {
+      const select = screen.getByRole('listbox', { name: label }) as HTMLSelectElement;
+      for (const o of select.options) {
+        o.selected = values.includes(o.value);
+      }
+      fireEvent.change(select);
+    };
+
+    it('the_history_tab_turns_history_on_with_the_defaults_for_the_type', () => {
+      open('a', vms);
+      tab('History');
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Keep history for this widget' }));
+      expect(screen.getByRole('button', { name: 'Row tracking' }).getAttribute('aria-pressed')).toBe('true');
+      expect(screen.getByText('Choose at least one key column.')).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Apply' })).toHaveProperty('disabled', true);
+      pick('Key columns: what makes a row the same row', 'name');
+      expect(screen.getByRole('button', { name: 'Apply' })).toHaveProperty('disabled', false);
+      expect(screen.queryByRole('option', { name: 'name', selected: false })).toBeNull();
+      apply();
+      expect(applied().history).toEqual({ ...defaultHistory('table'), keys: ['name'] });
+    });
+
+    it('each_type_offers_only_the_modes_it_can_show', () => {
+      doc.widgets.push(widget('c', 'chart', { history: defaultHistory('chart') }), widget('s', 'stat', { history: defaultHistory('stat') }));
+      doc.widgets[0] = { ...doc.widgets[0]!, history: defaultHistory('table') };
+      open('c');
+      tab('History');
+      expect(screen.getByRole('button', { name: 'Row tracking' })).toHaveProperty('disabled', true);
+      expect(screen.getByText('Charts plot values over time.')).toBeTruthy();
+      cleanup();
+      open('a');
+      tab('History');
+      expect(screen.getByRole('button', { name: 'Values over time' })).toHaveProperty('disabled', true);
+      expect(screen.getByText('Tables show tracked rows.')).toBeTruthy();
+      cleanup();
+      open('s');
+      tab('History');
+      expect(screen.getByRole('button', { name: 'Values over time' })).toHaveProperty('disabled', false);
+      expect(screen.getByRole('button', { name: 'Row tracking' })).toHaveProperty('disabled', false);
+    });
+
+    it('switching_to_values_drops_the_row_tracking_columns', () => {
+      seriesOf([]);
+      doc.widgets.push(widget('s', 'stat', { history: { ...defaultHistory('stat'), mode: 'rows', keys: ['name'], keep: ['id'] } }));
+      open('s', grid([['vm1', 'a']]));
+      tab('History');
+      fireEvent.click(screen.getByRole('button', { name: 'Values over time' }));
+      apply();
+      return vi.waitFor(() => expect(applied('s').history).toMatchObject({ mode: 'values', keys: [], keep: [] }));
+    });
+
+    it('key_uniqueness_is_shown_from_the_preview', () => {
+      doc.widgets[0] = { ...doc.widgets[0]!, history: { ...defaultHistory('table'), keys: ['name'] } };
+      open('a', grid([['vm1', 'a'], ['vm1', 'b']]));
+      tab('History');
+      expect(screen.getByText('Not unique in the last result')).toBeTruthy();
+      cleanup();
+      open('a', grid([['vm1', 'a'], ['vm2', 'b'], ['vm3', 'c']]));
+      tab('History');
+      expect(screen.getByText('✓ Unique in the last result (3 rows)')).toBeTruthy();
+    });
+
+    it('the_series_list_shows_each_parameter_combination', async () => {
+      seriesOf([one, { label: 'Severity = High', since: '2026-11-05T12:00:00Z', snapshots: 4, gaps: 1, stored: 9 }]);
+      open('a');
+      tab('History');
+      const rows = await screen.findAllByRole('row');
+      expect(rows).toHaveLength(3);
+      expect(within(rows[1]!).getByText('All values')).toBeTruthy();
+      expect(within(rows[1]!).getByText('Nov 2, 2026')).toBeTruthy();
+      expect(within(rows[1]!).getByText('31 · 3 gaps')).toBeTruthy();
+      expect(within(rows[1]!).getByText('120')).toBeTruthy();
+      expect(within(rows[2]!).getByText('4 · 1 gap')).toBeTruthy();
+    });
+
+    it('shows the error when the series cannot be read', async () => {
+      const base = call.getMockImplementation()!;
+      call.mockImplementation((method: string, params: unknown) => (method === 'history.series' ? Promise.reject(new Error('disk gone')) : base(method, params)));
+      open('a');
+      tab('History');
+      expect((await screen.findByRole('alert')).textContent).toContain('disk gone');
+    });
+
+    describe('applying an edit that would invalidate history', () => {
+      beforeEach(() => {
+        doc.widgets[0] = { ...doc.widgets[0]!, history: { ...defaultHistory('table'), keys: ['name'] } };
+      });
+      const editQuery = () => fireEvent.change(screen.getByRole('textbox', { name: 'KQL query' }), { target: { value: 'other' } });
+
+      it('applying_a_query_edit_with_history_asks_first: Clear and apply clears, then applies', async () => {
+        seriesOf([one]);
+        open('a');
+        editQuery();
+        apply();
+        const ask = await screen.findByRole('dialog', { name: "Clear this widget's history?" });
+        expect(ask.getAttribute('aria-modal')).toBe('true');
+        expect(applied().query?.text).not.toBe('other');
+        fireEvent.click(within(ask).getByRole('button', { name: 'Clear and apply' }));
+        await vi.waitFor(() => expect(applied().query?.text).toBe('other'));
+        expect(call).toHaveBeenCalledWith('history.clear', { workbookId: doc.id, widgetId: 'a' });
+        expect(onClose).toHaveBeenCalled();
+      });
+
+      it('Cancel keeps the editor open with the draft and clears nothing', async () => {
+        seriesOf([one]);
+        open('a');
+        editQuery();
+        apply();
+        fireEvent.click(within(await screen.findByRole('dialog', { name: "Clear this widget's history?" })).getByRole('button', { name: 'Cancel' }));
+        expect(screen.queryByRole('dialog', { name: "Clear this widget's history?" })).toBeNull();
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Apply' }));
+        expect((screen.getByRole('textbox', { name: 'KQL query' }) as HTMLTextAreaElement).value).toBe('other');
+        expect(call).not.toHaveBeenCalledWith('history.clear', expect.anything());
+        expect(onClose).not.toHaveBeenCalled();
+        expect(applied().query?.text).not.toBe('other');
+      });
+
+      it('a failed clear shows the error and does not apply', async () => {
+        seriesOf([one]);
+        const base = call.getMockImplementation()!;
+        call.mockImplementation((method: string, params: unknown) => (method === 'history.clear' ? Promise.reject(new Error('locked')) : base(method, params)));
+        open('a');
+        editQuery();
+        apply();
+        fireEvent.click(await screen.findByRole('button', { name: 'Clear and apply' }));
+        expect((await screen.findByRole('alert')).textContent).toContain('locked');
+        expect(applied().query?.text).not.toBe('other');
+      });
+
+      it('changing the keys, the mode or turning history off asks the same', async () => {
+        seriesOf([one]);
+        open('a', vms);
+        tab('History');
+        pick('Key columns: what makes a row the same row', 'id');
+        apply();
+        expect(await screen.findByRole('dialog', { name: "Clear this widget's history?" })).toBeTruthy();
+        cleanup();
+        open('a');
+        tab('History');
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Keep history for this widget' }));
+        apply();
+        expect(await screen.findByRole('dialog', { name: "Clear this widget's history?" })).toBeTruthy();
+      });
+
+      it('no stored series, or only interval and retention changed, means no question', async () => {
+        seriesOf([]);
+        open('a');
+        editQuery();
+        apply();
+        await vi.waitFor(() => expect(applied().query?.text).toBe('other'));
+        expect(screen.queryByRole('dialog', { name: "Clear this widget's history?" })).toBeNull();
+        cleanup();
+        seriesOf([one]);
+        doc = state().doc;
+        open('a');
+        tab('History');
+        fireEvent.change(screen.getByRole('combobox', { name: 'Save at most' }), { target: { value: 'week' } });
+        fireEvent.change(screen.getByRole('combobox', { name: 'Forget gone rows after' }), { target: { value: '30' } });
+        apply();
+        expect(applied().history).toMatchObject({ interval: 'week', retentionDays: 30 });
+        expect(call).not.toHaveBeenCalledWith('history.clear', expect.anything());
+      });
     });
   });
 });
