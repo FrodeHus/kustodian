@@ -436,4 +436,77 @@ describe('workbook edit mode', () => {
     expect(within(dialog).queryByRole('tablist')).toBeNull();
     expect(within(dialog).queryByRole('button', { name: 'Run preview' })).toBeNull();
   });
+
+  describe('a tabs widget with widgets', () => {
+    const tabsWidget = () => ({ ...widget('tw', 'tabs', '', 0, 12), layout: { x: 0, y: 12, w: 12, h: 30 }, tabs: [{ id: 't1', name: 'One' }, { id: 't2', name: 'Two' }] });
+    const kids = () => [
+      { ...widget('k1', 'markdown', 'Kid one', 0, 0), in: { tabs: 'tw', tab: 't1' } },
+      { ...widget('k2', 'markdown', 'Kid two', 4, 0), in: { tabs: 'tw', tab: 't1' } },
+      { ...widget('k3', 'markdown', 'Kid three', 0, 0), in: { tabs: 'tw', tab: 't2' } },
+    ];
+
+    it('removing a tabs widget asks, moves widgets to the top level, and Undo restores everything', () => {
+      doc = { ...doc, widgets: [...doc.widgets, tabsWidget(), ...kids()] };
+      show();
+      const before = state().doc.widgets;
+      fireEvent.focus(grip('Untitled widget'));
+      const remove = within(screen.getByRole('region', { name: 'Untitled widget' })).getAllByRole('button', { name: 'Remove' })[0]!;
+      remove.focus();
+      fireEvent.click(remove);
+      const dialog = screen.getByRole('dialog', { name: 'Remove Tabs? It has 3 widgets.' });
+      expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Move widgets to the top level' }));
+      expect(within(dialog).getByRole('button', { name: 'Delete them too' })).toBeTruthy();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+      expect(state().doc.widgets).toBe(before);
+      expect(document.activeElement).toBe(remove);
+      fireEvent.click(remove);
+      fireEvent.click(screen.getByRole('button', { name: 'Move widgets to the top level' }));
+      expect(state().doc.widgets.map((w) => w.id)).toEqual(['a', 'b', 'k1', 'k2', 'k3']);
+      expect(state().doc.widgets.every((w) => !w.in)).toBe(true);
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+      expect(state().doc.widgets).toEqual(before);
+      fireEvent.focus(grip('Untitled widget'));
+      fireEvent.click(within(screen.getByRole('region', { name: 'Untitled widget' })).getAllByRole('button', { name: 'Remove' })[0]!);
+      fireEvent.click(screen.getByRole('button', { name: 'Delete them too' }));
+      expect(state().doc.widgets.map((w) => w.id)).toEqual(['a', 'b']);
+    });
+
+    it('removing a tabs widget without widgets asks nothing', () => {
+      doc = { ...doc, widgets: [...doc.widgets, tabsWidget()] };
+      show();
+      fireEvent.focus(grip('Untitled widget'));
+      fireEvent.click(within(screen.getByRole('region', { name: 'Untitled widget' })).getAllByRole('button', { name: 'Remove' })[0]!);
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(state().doc.widgets.map((w) => w.id)).toEqual(['a', 'b']);
+    });
+
+    it('Duplicate on a tabs widget copies its tabs and children, and is disabled over the limit', () => {
+      doc = { ...doc, widgets: [...doc.widgets, { ...tabsWidget(), title: 'Sections' }, ...kids()] };
+      show();
+      fireEvent.focus(grip('Sections'));
+      fireEvent.click(within(screen.getByRole('region', { name: 'Sections' })).getAllByRole('button', { name: 'Duplicate' })[0]!);
+      const all = state().doc.widgets;
+      expect(all).toHaveLength(10);
+      const copy = all[6]!;
+      expect(copy.type).toBe('tabs');
+      expect(copy.id).not.toBe('tw');
+      expect(copy.tabs?.map((t) => t.name)).toEqual(['One', 'Two']);
+      const copies = all.slice(7);
+      expect(copies.map((w) => w.title)).toEqual(['Kid one', 'Kid two', 'Kid three']);
+      expect(copies.every((w) => w.in?.tabs === copy.id)).toBe(true);
+      expect(copies.map((w) => copy.tabs!.findIndex((t) => t.id === w.in?.tab))).toEqual([0, 0, 1]);
+    });
+
+    it('Duplicate on a tabs widget is disabled when its copies would pass 100 widgets', () => {
+      const fill = Array.from({ length: 92 }, (_, i) => widget(`w${i}`, 'markdown', `Note ${i}`, (i % 3) * 4, 100 + Math.floor(i / 3) * 12));
+      doc = { ...doc, widgets: [...doc.widgets, ...fill, { ...tabsWidget(), title: 'Sections' }, ...kids()] };
+      show();
+      fireEvent.focus(grip('Sections'));
+      const dup = within(screen.getByRole('region', { name: 'Sections' })).getAllByRole('button', { name: 'Duplicate' })[0] as HTMLButtonElement;
+      expect(dup.disabled).toBe(true);
+      expect(dup.title).toBe('A workbook can have at most 100 widgets.');
+      fireEvent.focus(grip('Note 0'));
+      expect((within(screen.getByRole('region', { name: 'Note 0' })).getByRole('button', { name: 'Duplicate' }) as HTMLButtonElement).disabled).toBe(false);
+    });
+  });
 });

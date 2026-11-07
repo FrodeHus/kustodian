@@ -9,9 +9,9 @@ import { reportIdOf } from '../shell/report-id';
 import { SourceBadge } from '../tabs/source-badge';
 import { failed, useTabs } from '../tabs/tab-store';
 import type { ParameterDef, RunResult } from '../wire';
-import { COLUMNS, GAP_PX, nudge, place, resize, ROW_PX } from './layout';
-import { MAX_WIDGETS, newWidget, type ToolButton, type Widget, type WidgetLayout } from './model';
-import { placeOf, withinPlace } from './tabs';
+import { COLUMNS, GAP_PX, nudge, resize, ROW_PX } from './layout';
+import { MAX_WIDGETS, type ToolButton, type Widget, type WidgetLayout } from './model';
+import { duplicateWidget, placeOf, withinPlace } from './tabs';
 import { daysSince, HistoryData, SKIP_TEXT, useHistory, type HistoryFilter } from './history';
 import { ClearConfirm } from './history-section';
 import { widgetParams, widgetRunOptions, type ResolvedParam } from './resolve';
@@ -296,8 +296,10 @@ export function WidgetFrame({
     }
     editing?.announce(kind === 'move' ? `Moved to column ${now.x + 1}, row ${now.y + 1}` : `Resized to ${now.w} × ${now.h}`);
   };
+  // Null when the copy (a tabs widget's with its widgets) would pass MAX_WIDGETS.
+  const duplicated = duplicateWidget(doc.widgets, widget.id);
   const duplicate = () => {
-    edit(tabId, (d) => ({ ...d, widgets: [...d.widgets, { ...widget, id: newWidget(widget.type, widget.layout).id, layout: place(d.widgets, widget.layout.w, widget.layout.h) }] }));
+    edit(tabId, (d) => ({ ...d, widgets: duplicateWidget(d.widgets, widget.id) ?? d.widgets }));
     editing?.announce(`Duplicated ${title}`);
   };
   /** Pointer handlers for the grip or a resize handle: moves by whole cells, with the drop target showing where it lands. */
@@ -459,8 +461,8 @@ export function WidgetFrame({
                   <button
                     type="button"
                     className="btn ghost"
-                    disabled={doc.widgets.length >= MAX_WIDGETS}
-                    title={doc.widgets.length >= MAX_WIDGETS ? `A workbook can have at most ${MAX_WIDGETS} widgets.` : undefined}
+                    disabled={!duplicated}
+                    title={duplicated ? undefined : `A workbook can have at most ${MAX_WIDGETS} widgets.`}
                     onClick={duplicate}
                   >
                     Duplicate

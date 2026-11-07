@@ -17,8 +17,8 @@ import { narrowOrder, place } from './layout';
 import { MAX_WIDGETS, MIN_SIZE, newWidget, type Place, type Widget, type WidgetType, type WorkbookParameter } from './model';
 import { huntingTimespanProblem, workbookValues } from './resolve';
 import { ParametersDialog } from './parameters-dialog';
-import { placeKey, placeOf, siblings } from './tabs';
-import { TabsWidget } from './tabs-widget';
+import { childrenOf, placeKey, placeOf, removeTabs, siblings } from './tabs';
+import { ChildrenConfirm, TabsWidget } from './tabs-widget';
 import { WidgetEditor } from './widget-editor';
 import { WidgetGrid, type GridEditing } from './widget-grid';
 import { ChartWidget } from './widgets/chart-widget';
@@ -226,6 +226,8 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
   const [said, setSaid] = useState({ text: '', n: 0 });
   const say = (text: string) => setSaid((s) => ({ text, n: s.n + 1 }));
   const [picking, setPicking] = useState(false);
+  // A tabs widget with widgets being removed: the confirm asks what happens to them.
+  const [removingTabs, setRemovingTabs] = useState<{ widget: Widget; count: number } | null>(null);
   // The widget open in the widget editor, and the Edit widget control focus goes back to when it closes.
   const [editingWidget, setEditingWidget] = useState<{ id: string; opener: HTMLElement } | null>(null);
   const [parametersOpen, setParametersOpen] = useState(false);
@@ -325,13 +327,20 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
       void store().runAll(tabId);
     }
   };
-  const removeWidget = (w: Widget) => {
+  /** Removes `w`; a tabs widget's widgets are moved to the top level or deleted too, as asked when it has any. */
+  const removeWidget = (w: Widget, children?: 'move' | 'delete') => {
+    setRemovingTabs(null);
+    const count = w.type === 'tabs' ? childrenOf(doc.widgets, w.id).length : 0;
+    if (count > 0 && !children) {
+      setRemovingTabs({ widget: w, count });
+      return;
+    }
     // Grips are in the widget's grid's (y, x) order; focus the next one, else the previous, else Undo.
     const grid = sheetHost?.querySelector(`[data-wb-place="${placeKey(placeOf(w))}"]`);
     const grips = [...(grid?.querySelectorAll<HTMLElement>(':scope > .wb-widget > header .wb-grip') ?? [])];
     const at = narrowOrder(siblings(doc.widgets, placeOf(w))).findIndex((x) => x.id === w.id);
     const next = grips[at + 1] ?? grips[at - 1];
-    store().edit(tabId, (d) => ({ ...d, widgets: d.widgets.filter((x) => x.id !== w.id) }));
+    store().edit(tabId, (d) => ({ ...d, widgets: w.type === 'tabs' ? removeTabs(d.widgets, w.id, children ?? 'move') : d.widgets.filter((x) => x.id !== w.id) }));
     focusNext.current = () => next ?? undoRef.current;
     say(`Removed ${w.title || 'Untitled widget'}`);
   };
@@ -459,6 +468,15 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
       </p>
       {/* The dialogs go on the body: a glass theme's workspace (backdrop-filter) would hold a fixed overlay inside it and leave
           the tab strip clickable. React events still come up through this tree, so onKey sees them. */}
+      {removingTabs && (
+        <ChildrenConfirm
+          question={`Remove ${removingTabs.widget.title || 'Tabs'}?`}
+          count={removingTabs.count}
+          move="Move widgets to the top level"
+          onChoose={(children) => removeWidget(removingTabs.widget, children)}
+          onCancel={() => setRemovingTabs(null)}
+        />
+      )}
       {editingWidget &&
         createPortal(
           <WidgetEditor

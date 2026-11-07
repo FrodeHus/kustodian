@@ -139,4 +139,146 @@ describe('TabsWidget', () => {
     expect(refreshTab).toHaveBeenCalledWith('t', 'tw');
     expect(runWidget).not.toHaveBeenCalled();
   });
+
+  describe('editing tabs', () => {
+    const tabsOf = () => useWorkbooks.getState().byTab.t!.doc.widgets.find((w) => w.id === 'tw')!.tabs!.map((t) => t.name);
+    const widgets = () => useWorkbooks.getState().byTab.t!.doc.widgets;
+    const menu = (name: string) => fireEvent.click(screen.getByRole('button', { name: `${name} tab menu` }));
+    const item = (name: string) => screen.getByRole('menuitem', { name }) as HTMLButtonElement;
+
+    it('Add tab adds and focuses a rename box', () => {
+      show({}, true);
+      fireEvent.click(screen.getByRole('button', { name: 'Add tab' }));
+      expect(tabsOf()).toEqual(['Overview', 'Details', 'Empty', 'Tab 4']);
+      const added = useWorkbooks.getState().byTab.t!.doc.widgets.find((w) => w.id === 'tw')!.tabs![3]!;
+      expect(showTab).toHaveBeenCalledWith('t', 'tw', added.id);
+      const box = screen.getByRole('textbox', { name: 'Tab name' }) as HTMLInputElement;
+      expect(document.activeElement).toBe(box);
+      expect(box.value).toBe('Tab 4');
+      expect(useWorkbooks.getState().byTab.t!.dirty).toBe(true);
+    });
+
+    it('rename commits on Enter, cancels on Esc, and keeps the old name when empty', () => {
+      show({}, true);
+      // Enter on the shown tab renames it; on another it shows that tab.
+      fireEvent.keyDown(tab(/Overview/), { key: 'Enter' });
+      let box = screen.getByRole('textbox', { name: 'Tab name' }) as HTMLInputElement;
+      expect(box.maxLength).toBe(40);
+      fireEvent.change(box, { target: { value: 'Summary' } });
+      fireEvent.keyDown(box, { key: 'Enter' });
+      expect(tabsOf()[0]).toBe('Summary');
+      expect(screen.queryByRole('textbox', { name: 'Tab name' })).toBeNull();
+      expect(document.activeElement).toBe(tab(/Summary/));
+      const undos = useWorkbooks.getState().byTab.t!.undo.length;
+      fireEvent.doubleClick(tab(/Summary/));
+      box = screen.getByRole('textbox', { name: 'Tab name' }) as HTMLInputElement;
+      fireEvent.change(box, { target: { value: 'Nope' } });
+      fireEvent.keyDown(box, { key: 'Escape' });
+      expect(tabsOf()[0]).toBe('Summary');
+      fireEvent.doubleClick(tab(/Summary/));
+      box = screen.getByRole('textbox', { name: 'Tab name' }) as HTMLInputElement;
+      fireEvent.change(box, { target: { value: '   ' } });
+      fireEvent.blur(box);
+      expect(tabsOf()[0]).toBe('Summary');
+      expect(useWorkbooks.getState().byTab.t!.undo).toHaveLength(undos);
+      fireEvent.keyDown(tab(/Details/), { key: 'Enter' });
+      expect(showTab).toHaveBeenLastCalledWith('t', 'tw', 't2');
+      expect(screen.queryByRole('textbox', { name: 'Tab name' })).toBeNull();
+      menu('Details');
+      fireEvent.click(item('Rename'));
+      expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Tab name' }));
+    });
+
+    it('Move left and Move right reorder, and are disabled at the ends', () => {
+      show({}, true);
+      menu('Overview');
+      expect(item('Move left').disabled).toBe(true);
+      fireEvent.click(item('Move right'));
+      expect(tabsOf()).toEqual(['Details', 'Overview', 'Empty']);
+      menu('Overview');
+      fireEvent.click(item('Move right'));
+      expect(tabsOf()).toEqual(['Details', 'Empty', 'Overview']);
+      menu('Overview');
+      expect(item('Move right').disabled).toBe(true);
+      fireEvent.click(item('Move left'));
+      expect(tabsOf()).toEqual(['Details', 'Overview', 'Empty']);
+    });
+
+    it('dragging a tab past another reorders it, and a click still shows a tab', () => {
+      show({}, true);
+      screen.getAllByRole('tab').forEach((el, i) => (el.getBoundingClientRect = () => ({ left: i * 100, width: 100, right: i * 100 + 100 }) as DOMRect));
+      fireEvent.pointerDown(tab(/Overview/), { button: 0, clientX: 50, pointerId: 1 });
+      fireEvent.pointerMove(tab(/Overview/), { clientX: 260, pointerId: 1 });
+      fireEvent.pointerUp(tab(/Overview/), { clientX: 260, pointerId: 1 });
+      fireEvent.click(tab(/Overview/));
+      expect(tabsOf()).toEqual(['Details', 'Empty', 'Overview']);
+      // Overview stays shown (pinned before the move), and the click that ends the drag shows nothing.
+      expect(showTab.mock.calls).toEqual([['t', 'tw', 't1']]);
+      expect(tab(/Overview/).getAttribute('aria-selected')).toBe('true');
+      fireEvent.pointerDown(tab(/Details/), { button: 0, clientX: 50, pointerId: 1 });
+      fireEvent.pointerUp(tab(/Details/), { clientX: 52, pointerId: 1 });
+      fireEvent.click(tab(/Details/));
+      expect(showTab).toHaveBeenCalledWith('t', 'tw', 't2');
+      expect(tabsOf()).toEqual(['Details', 'Empty', 'Overview']);
+    });
+
+    it('deleting an empty tab asks nothing', () => {
+      show({}, true);
+      fireEvent.click(tab(/Empty/));
+      menu('Empty');
+      fireEvent.click(item('Delete'));
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(tabsOf()).toEqual(['Overview', 'Details']);
+    });
+
+    it('deleting a tab with widgets asks, and Move them moves them to the next tab', () => {
+      show({}, true);
+      menu('Overview');
+      fireEvent.click(item('Delete'));
+      const dialog = screen.getByRole('dialog', { name: 'Delete Overview? It has 1 widget.' });
+      const moveThem = within(dialog).getByRole('button', { name: 'Move them to Details' });
+      expect(document.activeElement).toBe(moveThem);
+      expect(within(dialog).getByRole('button', { name: 'Delete them too' })).toBeTruthy();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+      expect(tabsOf()).toEqual(['Overview', 'Details', 'Empty']);
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Overview tab menu' }));
+      menu('Overview');
+      fireEvent.click(item('Delete'));
+      fireEvent.click(screen.getByRole('button', { name: 'Move them to Details' }));
+      expect(tabsOf()).toEqual(['Details', 'Empty']);
+      expect(widgets().find((w) => w.id === 'a')?.in).toEqual({ tabs: 'tw', tab: 't2' });
+      expect(showTab).toHaveBeenLastCalledWith('t', 'tw', 't2');
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('the last tab’s confirm moves its widgets to the top level', () => {
+      doc = { ...doc, widgets: doc.widgets.filter((w) => w.id !== 'b').map((w) => (w.id === 'tw' ? { ...w, tabs: [w.tabs![0]!] } : w)) };
+      show({}, true);
+      menu('Overview');
+      fireEvent.click(item('Delete'));
+      fireEvent.click(screen.getByRole('button', { name: 'Move them to the top level' }));
+      expect(widgets().map((w) => w.id)).toEqual(['m', 'a']);
+      expect(widgets().find((w) => w.id === 'a')?.in).toBeUndefined();
+    });
+
+    it('Delete them too deletes them', () => {
+      show({}, true);
+      menu('Overview');
+      fireEvent.click(item('Delete'));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete them too' }));
+      expect(tabsOf()).toEqual(['Details', 'Empty']);
+      expect(widgets().map((w) => w.id)).toEqual(['m', 'tw', 'b']);
+    });
+
+    it('Undo after deleting a tab with widgets brings back the tab and its widgets with the same ids and layouts', () => {
+      show({}, true);
+      const before = widgets();
+      menu('Overview');
+      fireEvent.click(item('Delete'));
+      fireEvent.click(screen.getByRole('button', { name: 'Move them to Details' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+      expect(widgets()).toEqual(before);
+      expect(tabsOf()).toEqual(['Overview', 'Details', 'Empty']);
+    });
+  });
 });
