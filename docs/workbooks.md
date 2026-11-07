@@ -67,7 +67,8 @@ Graph, Resource Graph and some Defender tables (`DeviceTvmSoftwareVulnerabilitie
 time. Turn on **Keep history for this widget** on the editor's **History** tab. Where the source already keeps history (most
 hunting tables, 30 days), put the comparison in the query instead.
 
-There are two modes. A Table widget uses Row tracking and Stat and Chart widgets use Values over time; each can't use the other's.
+There are two modes. A Stat widget can use either, a Chart only Values over time, and a Table only Row tracking. New Stat
+and Chart widgets start with Values over time.
 
 - **Values over time** stores each run's whole result, for small summarised results of at most 500 rows. A Stat shows the
   change since a chosen point, such as "vs yesterday". A Chart plots the snapshots over time, split by a column as usual. For
@@ -97,13 +98,16 @@ recorded, and the widget says why it skipped:
 - a Row tracking result whose key columns aren't unique;
 - a run of a workbook with unsaved changes, or one that was never saved.
 
+If the history file can't be written, the widget says "Not recorded:" and the reason.
+
 Selection and tool buttons apply only to the **Open now** filter.
 
 ### What belongs to a history
 
 A history belongs to the workbook, the widget and the resolved query, source, options and parameter values. Each combination of
-parameter values has its own history. **Forget gone rows after** (Row tracking) and **Keep snapshots for** (Values) are 30, 90
-or 365 days.
+parameter values has its own history, and so does each Defender hunting timespan: changing the workbook's timespan from 7 to 30
+days switches to the 30-day history and keeps the 7-day one. **Forget gone rows after** (Row tracking) and **Keep snapshots
+for** (Values) are 30, 90 or 365 days.
 
 Changing the widget's query, source, options, mode or key columns, or turning history off, asks "Clear this widget's history?"
 when history exists. Cancel keeps the editor open. Editing a linked saved query in the library doesn't ask: the widget's next
@@ -117,8 +121,9 @@ workbook deletes its history.
 History is in `history.db` in Kustodian's data folder, on this computer only. It is never in an exported workbook, an error
 report or a log. The widget's history *setting* exports with the rest of the widget, but its data does not.
 
-If `history.db` is damaged, Kustodian renames it to `history.db.damaged-<time>` and starts a new one. Widgets then say
-"History was reset: its file was damaged." The app and your workbooks load as usual.
+If `history.db` is damaged (corrupt, not a database, or failing its integrity check), Kustodian renames it to `history.db.damaged-<time>` and starts a new one. Widgets then say
+"History was reset: its file was damaged." The app and your workbooks load as usual. Other errors, such as a full disk or a
+file that is in use, leave the file as it is: the widget says it couldn't read or record history.
 
 ## Parameters
 
