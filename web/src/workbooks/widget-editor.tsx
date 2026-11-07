@@ -135,6 +135,10 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
   const copyIn = () => query && setQuery(linked ? fromSaved(query, linked, false) : { saved: null });
 
   const commit = () => {
+    // A history check answering after Cancel or Escape mustn't apply the dropped draft.
+    if (closing.current) {
+      return;
+    }
     close();
     if (draft === original) {
       return;

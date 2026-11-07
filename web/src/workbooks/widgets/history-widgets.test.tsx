@@ -129,11 +129,19 @@ describe('history in the widgets', () => {
 
   it('a_stat_with_row_tracking_counts_new_and_gone', async () => {
     show(widget('stat', { mode: 'rows', keys: ['Id'], since: '2026-10-30' }), { state: 'done', result: result([{ name: 'Id', type: 'string' }], [['a']]), finishedAt: 5 });
-    expect(await screen.findByText('1,206')).toBeTruthy();
-    expect(screen.getByText('23 new · 41 no longer reported since Oct 30')).toBeTruthy();
+    expect(await screen.findByText('23 new · 41 no longer reported since Oct 30')).toBeTruthy();
+    // This run's one row, not the stored 1,206 open rows an earlier run of the day left.
+    expect(screen.getByText('1')).toBeTruthy();
+    expect(screen.queryByText('1,206')).toBeNull();
     expect(sent('history.changes')[0]?.[1]).toMatchObject({ since: sinceInstant('2026-10-30', NOW), setting: { mode: 'rows', keys: ['Id'] } });
     // Row tracking's footer has no snapshots to count days from.
     expect(within(widgetFrame()).getByText('Daily')).toBeTruthy();
+  });
+
+  it('history_is_read_only_once_the_record_answers', async () => {
+    show(widget('stat', {}), { state: 'done', result: result(n, [[3]]), finishedAt: 5 }, { pending: 1 });
+    await act(async () => undefined);
+    expect(sent('history.values')).toHaveLength(0);
   });
 
   it('a_chart_with_history_plots_snapshots', async () => {

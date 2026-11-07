@@ -8,7 +8,7 @@ import { SinceSelect } from './history-table';
 const number = (n: number) => n.toLocaleString('en-US');
 
 /** A stat widget: the first row's value column (the first number column unless set), and its change against `stat.compare`.
- * With Values history the change is against the snapshot at Since instead; with Row tracking the number is the open rows, and
+ * With Values history the change is against the snapshot at Since instead; with Row tracking the number is this run's rows, and
  * the line counts the new and gone ones. Since is chosen under it (a `tabId` only: the editor's preview has no history). */
 export function StatWidget({ widget, run, tabId }: { widget: Widget; run: WidgetRun; tabId?: string }) {
   const { values, changes, readAt } = useContext(HistoryData);
@@ -23,7 +23,8 @@ export function StatWidget({ widget, run, tabId }: { widget: Widget; run: Widget
   let value = numberOf(rows[0]?.[valueAt]);
   let change: string | null = null;
   if (h?.mode === 'rows') {
-    value = changes?.open ?? rows.length;
+    // This run's rows: stored history can be an earlier run's (one record per interval, or this one not kept).
+    value = rows.length;
     change = changes ? `${number(changes.newCount)} new · ${number(changes.goneCount)} no longer reported since ${sinceWords(h.since)}` : null;
   } else if (valueAt < 0 || rows.length === 0 || !Number.isFinite(value)) {
     return <p className="faint m-0 p-4 text-[12px]">No number to show.</p>;

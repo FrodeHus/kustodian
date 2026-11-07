@@ -503,7 +503,7 @@ describe('workbook store', () => {
           {
             workbookId: tab().doc.id,
             widgetId: 'a',
-            query: { source: 'graph', text: 'T {Name}', options: runs[0]!.params.options ?? null, parameters: [{ name: 'Name', value: 'x' }] },
+            query: { source: 'graph', text: 'T {Name}', options: runs[0]!.params.options ?? null, parameters: [{ name: 'Name', value: 'x', type: 'text' }] },
             setting: { mode: 'values', interval: 'day', retentionDays: 30, keys: [] },
             label: 'Name = x',
             columns: [{ name: 'n', type: 'long' }],
@@ -512,7 +512,7 @@ describe('workbook store', () => {
         ],
       ]);
       // The resolved query of that run, so the widget reads the series the record wrote.
-      expect(tab().history.a).toEqual({ skipped: null, reset: false, recordedAt: expect.any(Number), query: records()[0]![1].query });
+      expect(tab().history.a).toEqual({ skipped: null, reset: false, recordedAt: expect.any(Number), query: records()[0]![1].query, pending: 0 });
     });
 
     it('the_hunting_timespan_is_a_parameter_of_the_series_not_part_of_the_query', async () => {
@@ -527,8 +527,8 @@ describe('workbook store', () => {
       // The same query key, so the host keeps both series; the span tells them apart.
       expect(week!.query.options).toEqual(w.query!.options ?? null);
       expect(month!.query.options).toEqual(week!.query.options);
-      expect(week!.query.parameters).toEqual([{ name: 'Span', value: 'P7D' }]);
-      expect(month!.query.parameters).toEqual([{ name: 'Span', value: 'P30D' }]);
+      expect(week!.query.parameters).toEqual([{ name: 'Span', value: 'P7D', type: 'timespan' }]);
+      expect(month!.query.parameters).toEqual([{ name: 'Span', value: 'P30D', type: 'timespan' }]);
       expect(month!.label).toBe('Span = P30D');
     });
 
@@ -601,7 +601,7 @@ describe('workbook store', () => {
       await open(withHistory('a'));
       await answer(result([[1]]));
       expect(state('a')).toBe('done');
-      expect(tab().history.a).toEqual({ skipped: null, reset: false, recordedAt: null, query: expect.any(Object), error: 'disk' });
+      expect(tab().history.a).toEqual({ skipped: null, reset: false, recordedAt: null, query: expect.any(Object), error: 'disk', pending: 0 });
       // The next answer that records clears it.
       recordAnswer = { recorded: true, skipped: null, reset: false };
       void useWorkbooks.getState().runWidget('t', 'a');
@@ -625,7 +625,7 @@ describe('workbook store', () => {
       void useWorkbooks.getState().runWidget('t', 'a');
       await flush();
       await answer(result([[1]]));
-      expect(tab().history.a).toEqual({ skipped: null, reset: false, recordedAt: null, query: expect.any(Object) });
+      expect(tab().history.a).toEqual({ skipped: null, reset: false, recordedAt: null, query: expect.any(Object), pending: 0 });
     });
 
     it('reset_stays_for_the_session', async () => {

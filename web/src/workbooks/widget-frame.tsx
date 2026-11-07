@@ -340,7 +340,7 @@ export function WidgetFrame({
 
   // A table widget's selected rows that are shown, of those shown, and its header buttons (spec screen 5).
   // A tracked table's tools act on Open now only: the other filters show history rows, which a tool can't act on.
-  const toolsOn = widget.type === 'table' && (filter === 'open' || !history.changes);
+  const toolsOn = widget.type === 'table' && (filter === 'open' || widget.history?.mode !== 'rows' || !history.changes);
   const ok = toolsOn ? okResult(run) : null;
   const picked = ok ? toolTarget('selected', ok.rows, selection).rows.length : 0;
   const headerTools = toolsOn && (widget.tools ?? []).some((b) => b.placement === 'header');

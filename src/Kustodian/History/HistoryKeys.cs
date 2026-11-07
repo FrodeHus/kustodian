@@ -4,7 +4,8 @@ using System.Text.Json;
 
 namespace Kustodian.History;
 
-public sealed record HistoryParameter(string Name, string Value);
+/// <summary>A resolved parameter. Its type is part of the series key: another type writes the value into the query differently.</summary>
+public sealed record HistoryParameter(string Name, string Value, string? Type = null);
 
 /// <summary>What a run asked: the source, the resolved query text, the source options and the parameter values.</summary>
 public sealed record HistoryQuery(string Source, string Text, JsonElement? Options, IReadOnlyList<HistoryParameter> Parameters);
