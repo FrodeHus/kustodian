@@ -6,6 +6,8 @@ import { ExplainView, type ExplainRequest } from './explain/explain-view';
 import { SaveDialog } from './library/save-dialog';
 import { SaveWorkbookDialog } from './workbooks/save-workbook-dialog';
 import { ImportReview } from './workbooks/import-review';
+import { SolutionDialog } from './solutions/solution-dialog';
+import { useSolutionDialog } from './solutions/solution-store';
 import { importWorkbook, useImportReview } from './workbooks/sharing';
 import { saveWorkbook, startWorkbookTabs } from './workbooks/workbook-store';
 import { newerRelease } from './settings/update-check';
@@ -458,12 +460,13 @@ export function App() {
   const askErrorReports = settings?.settings.errorReports === null && !errorReportsClosed && !askTelemetry;
 
   // The window's shortcuts act on the workspace, so none fires while sign-in or settings covers it, or a dialog is open (the
-  // palette, the save dialog, the close confirmation or a shared workbook's review, which handle their own keys, Esc included).
+  // palette, the save dialog, the close confirmation, a shared workbook's review or a solution's dialog, which handle their own keys, Esc included).
   const shortcutsOn = useRef(false);
   const importOpen = useImportReview((s) => s.pending !== null);
+  const solutionOpen = useSolutionDialog((s) => s.id !== null);
   useEffect(() => {
     shortcutsOn.current =
-      !signingIn && !settingsOpen && !paletteOpen && saving === null && !confirming && !askTelemetry && !askErrorReports && !update && !importOpen;
+      !signingIn && !settingsOpen && !paletteOpen && saving === null && !confirming && !askTelemetry && !askErrorReports && !update && !importOpen && !solutionOpen;
     paletteShown.current = paletteOpen;
     settingsShown.current = settingsOpen;
   });
@@ -791,6 +794,7 @@ export function App() {
       )}
       {update && !askTelemetry && !askErrorReports && <UpdateDialog info={update} onClose={() => setUpdate(null)} />}
       <ImportReview />
+      <SolutionDialog />
       {paletteOpen && (
         <Palette
           onClose={() => {

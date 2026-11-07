@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-export type PanelName = 'schema' | 'saved' | 'recent' | 'snippets';
+export type PanelName = 'schema' | 'saved' | 'recent' | 'snippets' | 'solutions';
 
 const icon = (paths: ReactNode) => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
@@ -42,6 +42,18 @@ export const PANELS: { name: PanelName; label: string; title: string; icon: Reac
       <>
         <path d="M8 7l-5 5 5 5" />
         <path d="M16 7l5 5-5 5" />
+      </>,
+    ),
+  },
+  {
+    name: 'solutions',
+    label: 'Solutions',
+    title: 'Community Solutions',
+    icon: icon(
+      <>
+        <path d="M12 3l8 4-8 4-8-4z" strokeLinejoin="round" />
+        <path d="M4 12l8 4 8-4" strokeLinejoin="round" />
+        <path d="M4 17l8 4 8-4" strokeLinejoin="round" />
       </>,
     ),
   },
