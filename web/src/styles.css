@@ -8,35 +8,10 @@
 @import '@fontsource/jetbrains-mono/400.css';
 @import '@fontsource/jetbrains-mono/500.css';
 
-/* Design tokens, from docs/design/mockups/studio.css. Dark is the default; .theme-light on the root element switches them. */
-:root {
-  --bg: #0f1115;
-  --panel: #161a20;
-  --panel2: #1c2129;
-  --raise: #232934;
-  --line: #2a303a;
-  --text: #e6e9ee;
-  --muted: #a3adbb;
-  --faint: #7d8796;
-  --accent: #4cc2ff;
-  --accent-ink: #06131c;
-  --accent-soft: rgba(76, 194, 255, 0.14);
-  --warn: #f5a524;
-  --warn-soft: rgba(245, 165, 36, 0.14);
-  --bad: #f0716b;
-  --bad-soft: rgba(240, 113, 107, 0.14);
-  --ok: #7fd4a8;
-  --kw: #c9a0ff;
-  --tbl: #4cc2ff;
-  --col: #f2c779;
-  --str: #a5d6a7;
-  --num: #f7a072;
-  --fn: #82aaff;
-  --cm: #7d8796;
-  color-scheme: dark;
-}
-
-.theme-light {
+/* Design tokens, from docs/design/mockups/studio.css. Dark is the default on screen; .theme-light on the root element switches
+ * them. Print is always light (the base), so a PDF reads like a document whatever the theme. Both are :where() rules, so the
+ * glass tokens below win over either. */
+:where(:root) {
   --bg: #f4f6f8;
   --panel: #ffffff;
   --panel2: #f8fafc;
@@ -63,29 +38,60 @@
   color-scheme: light;
 }
 
-/* Glass and liquid glass (docs/design: the "Kustodian — Glass" canvas): the dark tokens, lifted for a colourful backdrop, with
- * panels of frosted white over it. Both themes put .theme-glass on the root; liquid glass adds .theme-liquid-glass. */
-.theme-glass {
-  --bg: rgba(8, 11, 20, 0.42);
-  --panel: rgba(255, 255, 255, 0.07);
-  --panel2: rgba(255, 255, 255, 0.09);
-  --raise: rgba(255, 255, 255, 0.14);
-  --line: rgba(255, 255, 255, 0.14);
-  --text: #eef2f8;
-  --muted: #b4bfcf;
-  --faint: #8e9aac;
-  --accent: #5cc8ff;
-  --accent-soft: rgba(92, 200, 255, 0.18);
-  --glass-blur: blur(28px) saturate(160%);
-  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  --glass-menu: rgba(22, 27, 40, 0.82);
+@media screen {
+  :where(:root:not(.theme-light)) {
+    --bg: #0f1115;
+    --panel: #161a20;
+    --panel2: #1c2129;
+    --raise: #232934;
+    --line: #2a303a;
+    --text: #e6e9ee;
+    --muted: #a3adbb;
+    --faint: #7d8796;
+    --accent: #4cc2ff;
+    --accent-ink: #06131c;
+    --accent-soft: rgba(76, 194, 255, 0.14);
+    --warn: #f5a524;
+    --warn-soft: rgba(245, 165, 36, 0.14);
+    --bad: #f0716b;
+    --bad-soft: rgba(240, 113, 107, 0.14);
+    --ok: #7fd4a8;
+    --kw: #c9a0ff;
+    --tbl: #4cc2ff;
+    --col: #f2c779;
+    --str: #a5d6a7;
+    --num: #f7a072;
+    --fn: #82aaff;
+    --cm: #7d8796;
+    color-scheme: dark;
+  }
 }
 
-.theme-liquid-glass {
-  --bg: rgba(8, 11, 20, 0.55);
-  --glass-blur: blur(18px) saturate(180%) brightness(1.08);
-  /* A thick lens: a bright rim top-left, a faint one bottom-right. */
-  --glass-edge: inset 1.5px 1.5px 0 rgba(255, 255, 255, 0.45), inset -1px -1px 0 rgba(255, 255, 255, 0.1);
+/* Glass and liquid glass (docs/design: the "Kustodian — Glass" canvas): the dark tokens, lifted for a colourful backdrop, with
+ * panels of frosted white over it. Both themes put .theme-glass on the root; liquid glass adds .theme-liquid-glass. */
+@media screen {
+  .theme-glass {
+    --bg: rgba(8, 11, 20, 0.42);
+    --panel: rgba(255, 255, 255, 0.07);
+    --panel2: rgba(255, 255, 255, 0.09);
+    --raise: rgba(255, 255, 255, 0.14);
+    --line: rgba(255, 255, 255, 0.14);
+    --text: #eef2f8;
+    --muted: #b4bfcf;
+    --faint: #8e9aac;
+    --accent: #5cc8ff;
+    --accent-soft: rgba(92, 200, 255, 0.18);
+    --glass-blur: blur(28px) saturate(160%);
+    --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    --glass-menu: rgba(22, 27, 40, 0.82);
+  }
+
+  .theme-liquid-glass {
+    --bg: rgba(8, 11, 20, 0.55);
+    --glass-blur: blur(18px) saturate(180%) brightness(1.08);
+    /* A thick lens: a bright rim top-left, a faint one bottom-right. */
+    --glass-edge: inset 1.5px 1.5px 0 rgba(255, 255, 255, 0.45), inset -1px -1px 0 rgba(255, 255, 255, 0.1);
+  }
 }
 
 /* The tokens as Tailwind colours and fonts: bg-panel, text-muted, border-line, font-mono ... */
@@ -126,13 +132,15 @@ body {
 }
 
 /* The glass themes' backdrop: colour for the frosted panels to blur. */
-.theme-glass body {
-  background:
-    radial-gradient(520px 420px at 12% 18%, rgba(76, 194, 255, 0.55), transparent 70%),
-    radial-gradient(620px 520px at 88% 12%, rgba(160, 110, 255, 0.5), transparent 70%),
-    radial-gradient(700px 520px at 62% 96%, rgba(40, 220, 190, 0.38), transparent 70%),
-    radial-gradient(400px 300px at 30% 80%, rgba(255, 170, 90, 0.28), transparent 70%),
-    #0b0e1a;
+@media screen {
+  .theme-glass body {
+    background:
+      radial-gradient(520px 420px at 12% 18%, rgba(76, 194, 255, 0.55), transparent 70%),
+      radial-gradient(620px 520px at 88% 12%, rgba(160, 110, 255, 0.5), transparent 70%),
+      radial-gradient(700px 520px at 62% 96%, rgba(40, 220, 190, 0.38), transparent 70%),
+      radial-gradient(400px 300px at 30% 80%, rgba(255, 170, 90, 0.28), transparent 70%),
+      #0b0e1a;
+  }
 }
 
 /* The class roles of docs/design/mockups/studio.css: window chrome, tabs, side panel, toolbar, results, chips, cards and menus. */
@@ -260,12 +268,14 @@ body {
   .scrim { position: absolute; inset: 0; background: rgba(5, 7, 10, 0.55); }
 
   .src { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 16px; padding: 0 4px; border-radius: 4px; font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; font-family: 'Inter', sans-serif; }
-  .src.graph { background: rgba(76, 194, 255, 0.16); color: #4cc2ff; }
-  .src.hunt { background: rgba(245, 165, 36, 0.16); color: #f5a524; }
-  .src.arg { background: rgba(127, 212, 168, 0.16); color: #7fd4a8; }
-  .theme-light .src.graph { background: rgba(11, 111, 174, 0.1); color: #0b6fae; }
-  .theme-light .src.hunt { background: rgba(160, 90, 0, 0.1); color: #a05a00; }
-  .theme-light .src.arg { background: rgba(30, 122, 78, 0.1); color: #1e7a4e; }
+  .src.graph { background: rgba(11, 111, 174, 0.1); color: #0b6fae; }
+  .src.hunt { background: rgba(160, 90, 0, 0.1); color: #a05a00; }
+  .src.arg { background: rgba(30, 122, 78, 0.1); color: #1e7a4e; }
+  @media screen {
+    :root:not(.theme-light) .src.graph { background: rgba(76, 194, 255, 0.16); color: #4cc2ff; }
+    :root:not(.theme-light) .src.hunt { background: rgba(245, 165, 36, 0.16); color: #f5a524; }
+    :root:not(.theme-light) .src.arg { background: rgba(127, 212, 168, 0.16); color: #7fd4a8; }
+  }
   .menu { position: absolute; z-index: 3; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
   .menu button:not(.btn) { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
   .menu button:not(.btn):hover, .menu button:not(.btn):focus-visible, .menu button:not(.btn).on { background: var(--raise); outline: none; }
@@ -320,47 +330,67 @@ body {
   .md th { font-weight: 600; background: var(--panel2); }
 }
 
-/* The glass themes' shapes: a backdrop of colour, the window's parts as frosted panels with gaps between them. */
+/* The glass themes' shapes: a backdrop of colour, the window's parts as frosted panels with gaps between them. On screen only:
+ * print is the plain light theme. */
 @layer components {
-  .theme-glass .titlebar, .theme-glass .tabs, .theme-glass .rail, .theme-glass .side, .theme-glass .workspace, .theme-glass .statusbar {
-    backdrop-filter: var(--glass-blur);
-    box-shadow: var(--glass-edge);
-  }
-  .theme-glass .titlebar, .theme-glass .tabs, .theme-glass .statusbar { margin: 8px 8px 0; border: 1px solid var(--line); border-radius: 14px; }
-  .theme-glass .statusbar { margin-bottom: 8px; }
-  .theme-glass .tabs { align-items: center; }
-  .theme-glass .tab { border-radius: 10px; border-bottom: 1px solid transparent; }
-  .theme-glass .tab.on { background: var(--raise); }
-  .theme-glass .panes { gap: 8px; padding: 8px 8px 0; }
-  .theme-glass .rail, .theme-glass .side, .theme-glass .workspace { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
-  .theme-glass .workspace { background: var(--panel); }
-  .theme-glass .toolbar { background: transparent; }
-  .theme-glass .menu, .theme-glass .card { background: var(--glass-menu); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-edge), 0 18px 40px rgba(0, 0, 0, 0.45); }
-  .theme-glass .datagrid th, .theme-glass .datagrid th.inspect-col, .theme-glass .datagrid th.select-col { background: var(--glass-menu); }
-  /* Side sheets (row details, a cell's JSON) sit over the grid: opaque, so the rows don't show through their text. */
-  .theme-glass .sheet { background: rgb(22, 27, 40); }
-  /* The widget editor: no backdrop filter, which would make it the box Monaco places its fixed suggest and hover widgets in
-     (offset, and clipped by its scroll); opaque instead, as the sheets are. */
-  .theme-glass .wb-editor, .theme-glass .wb-editor .card { backdrop-filter: none; background: rgb(22, 27, 40); }
-  .theme-glass .workspace:has(.wb-full) { backdrop-filter: none; }
-  .theme-glass .btn.primary { background: linear-gradient(180deg, #8ad9ff, #4cb8f5); border-color: rgba(255, 255, 255, 0.5); box-shadow: 0 4px 18px rgba(76, 194, 255, 0.45); }
+  @media screen {
+    .theme-glass .titlebar, .theme-glass .tabs, .theme-glass .rail, .theme-glass .side, .theme-glass .workspace, .theme-glass .statusbar {
+      backdrop-filter: var(--glass-blur);
+      box-shadow: var(--glass-edge);
+    }
+    .theme-glass .titlebar, .theme-glass .tabs, .theme-glass .statusbar { margin: 8px 8px 0; border: 1px solid var(--line); border-radius: 14px; }
+    .theme-glass .statusbar { margin-bottom: 8px; }
+    .theme-glass .tabs { align-items: center; }
+    .theme-glass .tab { border-radius: 10px; border-bottom: 1px solid transparent; }
+    .theme-glass .tab.on { background: var(--raise); }
+    .theme-glass .panes { gap: 8px; padding: 8px 8px 0; }
+    .theme-glass .rail, .theme-glass .side, .theme-glass .workspace { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+    .theme-glass .workspace { background: var(--panel); }
+    .theme-glass .toolbar { background: transparent; }
+    .theme-glass .menu, .theme-glass .card { background: var(--glass-menu); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-edge), 0 18px 40px rgba(0, 0, 0, 0.45); }
+    .theme-glass .datagrid th, .theme-glass .datagrid th.inspect-col, .theme-glass .datagrid th.select-col { background: var(--glass-menu); }
+    /* Side sheets (row details, a cell's JSON) sit over the grid: opaque, so the rows don't show through their text. */
+    .theme-glass .sheet { background: rgb(22, 27, 40); }
+    /* The widget editor: no backdrop filter, which would make it the box Monaco places its fixed suggest and hover widgets in
+       (offset, and clipped by its scroll); opaque instead, as the sheets are. */
+    .theme-glass .wb-editor, .theme-glass .wb-editor .card { backdrop-filter: none; background: rgb(22, 27, 40); }
+    .theme-glass .workspace:has(.wb-full) { backdrop-filter: none; }
+    .theme-glass .btn.primary { background: linear-gradient(180deg, #8ad9ff, #4cb8f5); border-color: rgba(255, 255, 255, 0.5); box-shadow: 0 4px 18px rgba(76, 194, 255, 0.45); }
 
-  /* Liquid glass: rounder, pill-shaped controls; the selected ones raised like drops. */
-  .theme-liquid-glass .titlebar, .theme-liquid-glass .tabs, .theme-liquid-glass .statusbar { border-radius: 999px; }
-  .theme-liquid-glass .rail { border-radius: 999px; align-self: flex-start; }
-  .theme-liquid-glass .side, .theme-liquid-glass .workspace { border-radius: 26px; }
-  .theme-liquid-glass .tab, .theme-liquid-glass .btn, .theme-liquid-glass .pill, .theme-liquid-glass .chip, .theme-liquid-glass .search,
-  .theme-liquid-glass .textbox, .theme-liquid-glass .rail button, .theme-liquid-glass .schema-tree button, .theme-liquid-glass .side-item,
-  .theme-liquid-glass .side-open, .theme-liquid-glass .menu button:not(.btn) { border-radius: 999px; }
-  .theme-liquid-glass .tab.on, .theme-liquid-glass .rail button[aria-pressed='true'], .theme-liquid-glass .rtab[aria-selected='true'] {
-    background: radial-gradient(70% 90% at 30% 20%, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.1) 60%, rgba(255, 255, 255, 0.16));
-    box-shadow: inset 1.5px 1.5px 0 rgba(255, 255, 255, 0.7), inset -1.5px -1.5px 2px rgba(0, 0, 0, 0.18), 0 6px 18px rgba(0, 0, 0, 0.3);
-    color: var(--text);
+    /* Liquid glass: rounder, pill-shaped controls; the selected ones raised like drops. */
+    .theme-liquid-glass .titlebar, .theme-liquid-glass .tabs, .theme-liquid-glass .statusbar { border-radius: 999px; }
+    .theme-liquid-glass .rail { border-radius: 999px; align-self: flex-start; }
+    .theme-liquid-glass .side, .theme-liquid-glass .workspace { border-radius: 26px; }
+    .theme-liquid-glass .tab, .theme-liquid-glass .btn, .theme-liquid-glass .pill, .theme-liquid-glass .chip, .theme-liquid-glass .search,
+    .theme-liquid-glass .textbox, .theme-liquid-glass .rail button, .theme-liquid-glass .schema-tree button, .theme-liquid-glass .side-item,
+    .theme-liquid-glass .side-open, .theme-liquid-glass .menu button:not(.btn) { border-radius: 999px; }
+    .theme-liquid-glass .tab.on, .theme-liquid-glass .rail button[aria-pressed='true'], .theme-liquid-glass .rtab[aria-selected='true'] {
+      background: radial-gradient(70% 90% at 30% 20%, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.1) 60%, rgba(255, 255, 255, 0.16));
+      box-shadow: inset 1.5px 1.5px 0 rgba(255, 255, 255, 0.7), inset -1.5px -1.5px 2px rgba(0, 0, 0, 0.18), 0 6px 18px rgba(0, 0, 0, 0.3);
+      color: var(--text);
+    }
+    .theme-liquid-glass .rtab { height: 28px; border-bottom: 0; border-radius: 999px; }
+    .theme-liquid-glass .search, .theme-liquid-glass .textbox { background: rgba(0, 0, 0, 0.22); box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.35), inset -1px -1px 0 rgba(255, 255, 255, 0.14); }
+    .theme-liquid-glass .btn.primary {
+      background: radial-gradient(80% 120% at 30% 10%, #c9efff, #5cc8ff 55%, #2f9fe0);
+      box-shadow: inset 1.5px 1.5px 0 rgba(255, 255, 255, 0.85), inset -1px -2px 3px rgba(0, 40, 70, 0.35), 0 6px 22px rgba(76, 194, 255, 0.55);
+    }
   }
-  .theme-liquid-glass .rtab { height: 28px; border-bottom: 0; border-radius: 999px; }
-  .theme-liquid-glass .search, .theme-liquid-glass .textbox { background: rgba(0, 0, 0, 0.22); box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.35), inset -1px -1px 0 rgba(255, 255, 255, 0.14); }
-  .theme-liquid-glass .btn.primary {
-    background: radial-gradient(80% 120% at 30% 10%, #c9efff, #5cc8ff 55%, #2f9fe0);
-    box-shadow: inset 1.5px 1.5px 0 rgba(255, 255, 255, 0.85), inset -1px -2px 3px rgba(0, 40, 70, 0.35), 0 6px 22px rgba(76, 194, 255, 0.55);
+}
+
+/* Print or save as PDF (the workbook menu): only the workbook marked .wb-printing, in the light theme with its backgrounds kept,
+ * at the page's width (narrower than the window, so one widget a row, as on a narrow screen), widgets never split. Every ancestor stops clipping it to the window.
+ * shortcut: a table widget prints the rows its scroll box shows (the grid is virtualised); render all rows if asked for. */
+@media print {
+  @page { margin: 12mm; }
+  html, body { height: auto !important; overflow: visible !important; background: none !important; print-color-adjust: exact; }
+  body :not(:has(.wb-printing), .wb-printing, .wb-printing *) { display: none !important; }
+  body :has(.wb-printing), .wb-printing, .wb-printing .wb-canvas {
+    display: block !important;
+    position: static !important;
+    height: auto !important;
+    overflow: visible !important;
   }
+  .wb-printing button, .wb-printing [role='menu'] { display: none !important; }
+  .wb-widget { break-inside: avoid; }
 }

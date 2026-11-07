@@ -1,5 +1,6 @@
 using Kustodian.App;
 using Kustodian.Auth.EntraApp;
+using Kustodian.Files;
 using Kustodian.Graph.Fetch;
 using Kustodian.Storage;
 
@@ -9,8 +10,10 @@ namespace Kustodian.Messaging.Handlers;
 /// object and every column probing found a table can't serve in a list, of every account, so the next run reads them from Graph
 /// (and probes again). <c>app.openTelemetryDocs</c>: opens the site's page on what sharing Graph compatibility findings
 /// sends. <c>app.checkUpdate</c>: whether GitHub has a newer release. <c>app.openRelease</c>: opens a version's release page.
-/// <c>app.openLink</c>: opens an https link from a Markdown widget.</summary>
-public sealed class AppHandler(MemoryGraphObjectCache objects, IGraphProbeCache probes, UpdateCheck updates, ISystemBrowser? browser = null)
+/// <c>app.openLink</c>: opens an https link from a Markdown widget. <c>app.print</c>: on macOS, opens the print dialog for the
+/// page and answers true; elsewhere answers false, and the page calls <c>window.print()</c> itself.</summary>
+public sealed class AppHandler(MemoryGraphObjectCache objects, IGraphProbeCache probes, UpdateCheck updates, ISystemBrowser? browser = null,
+    WindowHolder? window = null)
 {
     public static readonly Uri TelemetryDocs = new("https://frodehus.github.io/kustodian/telemetry.html");
 
@@ -20,6 +23,39 @@ public sealed class AppHandler(MemoryGraphObjectCache objects, IGraphProbeCache 
     public void Register(Bridge bridge)
     {
         bridge.Register("app.info", (_, _) => Task.FromResult<object?>(Info));
+        bridge.Register("app.print", async (_, _) =>
+        {
+            if (!OperatingSystem.IsMacOS())
+            {
+                return false;
+            }
+
+            Action print = MacPrint.Print;
+            var shown = window?.Window ?? throw new BridgeException(BridgeErrorCodes.Failed, "The window isn't open.");
+            var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            shown.Invoke(() =>
+            {
+                try
+                {
+                    print();
+                    done.SetResult();
+                }
+                catch (Exception ex)
+                {
+                    done.SetException(ex);
+                }
+            });
+            try
+            {
+                await done.Task;
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or EntryPointNotFoundException or DllNotFoundException)
+            {
+                throw new BridgeException(BridgeErrorCodes.Failed, "Kustodian couldn't open the print dialog.");
+            }
+
+            return true;
+        });
         bridge.Register("cache.clear", async (_, ct) =>
         {
             objects.Clear();

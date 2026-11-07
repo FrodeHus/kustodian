@@ -27,23 +27,26 @@ export const useTheme = create<{ theme: Theme; resolved: 'dark' | 'light'; glass
 const LIGHT_QUERY = '(prefers-color-scheme: light)';
 let stopFollowing: (() => void) | undefined;
 
+/** The <style> element that holds the palette theme's tokens. */
+function paletteSheet(): HTMLStyleElement {
+  let sheet = document.getElementById('palette-theme') as HTMLStyleElement | null;
+  if (!sheet) {
+    sheet = document.head.appendChild(document.createElement('style'));
+    sheet.id = 'palette-theme';
+  }
+  return sheet;
+}
+
 function show(theme: Theme, light: boolean) {
   const root = document.documentElement.classList;
   root.toggle('theme-light', light);
   // Both glass themes share `.theme-glass`; liquid glass adds its own class on top.
   root.toggle('theme-glass', isGlass(theme));
   root.toggle('theme-liquid-glass', theme === 'liquid-glass');
-  // A palette theme sets the tokens on the root element itself, over the dark ones; any other theme clears them.
-  const style = document.documentElement.style;
-  // Every palette sets the same properties, so any one of them names what to clear.
-  for (const name of Object.keys(paletteVars(PALETTES.dracula))) {
-    style.removeProperty(name);
-  }
-  if (isPalette(theme)) {
-    for (const [name, value] of Object.entries(paletteVars(PALETTES[theme]))) {
-      style.setProperty(name, value);
-    }
-  }
+  // A palette theme sets the tokens over the dark ones, on screen only (print is always light); any other theme clears them.
+  paletteSheet().textContent = isPalette(theme)
+    ? `@media screen { :root { ${Object.entries(paletteVars(PALETTES[theme])).map(([name, value]) => `${name}: ${value};`).join(' ')} } }`
+    : '';
   useTheme.setState({ theme, resolved: light ? 'light' : 'dark', glass: isGlass(theme) });
 }
 
