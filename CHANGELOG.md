@@ -80,6 +80,9 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Markdown widgets show headings, lists, quotes and code as such: `## Test` is a heading again, not plain text. Any widget
+  can now hide its title bar outside edit mode (**Hide the title bar outside edit mode** in Edit widget); its ⋯ menu hides
+  with it.
 - Chart widgets can split by a column and stack again: the widget editor's Visualization tab has **Split by** (formerly
   "Series") and **Stacking** (None, Stacked, Stacked 100%) for column, bar and area charts.
 - Workbooks, after a look in the real app: a full-screen widget now fills the window. In the glass themes, completion and

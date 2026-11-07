@@ -8,7 +8,8 @@ the tab strip. It opens as a workbook tab next to your query tabs. Save it with 
 
 Widgets sit on a 12-column grid, at most 100 in a workbook. Each has a header with its title, the source, the parameters it shows, which workbook
 parameters it uses, and how long its last run took. The ⋯ menu has Refresh, Open in query tab, Export (CSV, JSON or
-Markdown) and Full screen.
+Markdown) and Full screen. **Hide the title bar outside edit mode** in Edit widget hides the header, ⋯ menu included, until
+you edit the workbook.
 
 - **Markdown**: headings, text and links. `{name}` shows the current value of a parameter. Raw HTML and images are dropped.
 - **Chart**: the Chart tab's chart types, with X, Y and series chosen in the widget editor.
