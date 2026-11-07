@@ -49,6 +49,18 @@ export function move(widgets: Widget[], id: string, x: number, y: number): Widge
   }));
 }
 
+/** A move by `dx` columns and `dy` rows, as an arrow key makes it. Down past a widget right below jumps by that widget's height:
+ * a one-row step would only be packed back above it, so the widget could never get past. */
+export function nudge(widgets: Widget[], id: string, dx: number, dy: number): Widget[] {
+  const l = widgets.find((w) => w.id === id)?.layout;
+  if (!l) {
+    return widgets;
+  }
+  const target = { ...l, x: l.x + dx, y: l.y + dy };
+  const below = dy > 0 ? widgets.filter((w) => w.id !== id && w.layout.y > l.y && overlaps(w.layout, target)).sort(byRow)[0] : undefined;
+  return move(widgets, id, target.x, below ? Math.max(target.y, l.y + below.layout.h) : target.y);
+}
+
 export function resize(widgets: Widget[], id: string, w: number, h: number): Widget[] {
   const type = widgets.find((i) => i.id === id)?.type;
   if (!type) {
