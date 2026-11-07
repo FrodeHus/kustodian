@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useState } from 'react';
 import { call } from '../bridge';
 import { errorText } from '../shell/errors';
 import type { HistorySeries, ResultColumn, RunResult } from '../wire';
@@ -13,11 +13,17 @@ const INTERVALS: [WidgetHistory['interval'], string][] = [
 const RETENTION: WidgetHistory['retentionDays'][] = [30, 90, 365];
 const date = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-/** Asks before clearing a widget's history: "Clear" style button named by `confirm`, Cancel keeps it. Same shape as `ConfirmDelete`. */
+/** Asks before clearing a widget's history: "Clear" style button named by `confirm`, Cancel keeps it. Same shape as `ConfirmDelete`.
+ * A modal dialog; when it goes, focus returns to what had it when it opened, if that is still there. */
 export function ClearConfirm({ title, confirm, error, onConfirm, onCancel }: { title: string; confirm: string; error?: string | null; onConfirm: () => void; onCancel: () => void }) {
+  const id = useId();
+  // Read while rendering, before autoFocus moves focus to Cancel.
+  const [opener] = useState(() => document.activeElement);
+  // A layout effect, so a caller's own refocus (a ref on the element that replaces this) comes after it.
+  useLayoutEffect(() => () => void (opener instanceof HTMLElement && opener.isConnected && opener.focus()), [opener]);
   return (
-    <div role="group" aria-label={title} className="flex flex-col gap-2 rounded-[7px] border border-line bg-panel2 p-2.5 text-[12px]">
-      <span>{title}</span>
+    <div role="dialog" aria-modal="true" aria-labelledby={id} className="flex flex-col gap-2 rounded-[7px] border border-line bg-panel2 p-2.5 text-[12px]">
+      <span id={id}>{title}</span>
       <span className="faint">Its saved snapshots and tracked rows are deleted. This can't be undone.</span>
       {error && (
         <span role="alert" className="text-bad">
@@ -208,7 +214,7 @@ export function HistorySection({
                 <tr key={i}>
                   <td>{s.label}</td>
                   <td>{date.format(new Date(s.since))}</td>
-                  <td>{s.gaps > 0 ? `${s.snapshots} · ${s.gaps} gaps` : `${s.snapshots}`}</td>
+                  <td>{s.gaps > 0 ? `${s.snapshots} · ${s.gaps} ${s.gaps === 1 ? 'gap' : 'gaps'}` : `${s.snapshots}`}</td>
                   <td>{s.stored}</td>
                 </tr>
               ))}

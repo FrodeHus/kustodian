@@ -465,7 +465,7 @@ describe('WidgetEditor', () => {
     });
 
     it('the_series_list_shows_each_parameter_combination', async () => {
-      seriesOf([one, { label: 'Severity = High', since: '2026-11-05T12:00:00Z', snapshots: 4, gaps: 0, stored: 9 }]);
+      seriesOf([one, { label: 'Severity = High', since: '2026-11-05T12:00:00Z', snapshots: 4, gaps: 1, stored: 9 }]);
       open('a');
       tab('History');
       const rows = await screen.findAllByRole('row');
@@ -474,7 +474,7 @@ describe('WidgetEditor', () => {
       expect(within(rows[1]!).getByText('Nov 2, 2026')).toBeTruthy();
       expect(within(rows[1]!).getByText('31 · 3 gaps')).toBeTruthy();
       expect(within(rows[1]!).getByText('120')).toBeTruthy();
-      expect(within(rows[2]!).getByText('4')).toBeTruthy();
+      expect(within(rows[2]!).getByText('4 · 1 gap')).toBeTruthy();
     });
 
     it('shows the error when the series cannot be read', async () => {
@@ -496,7 +496,8 @@ describe('WidgetEditor', () => {
         open('a');
         editQuery();
         apply();
-        const ask = await screen.findByRole('group', { name: "Clear this widget's history?" });
+        const ask = await screen.findByRole('dialog', { name: "Clear this widget's history?" });
+        expect(ask.getAttribute('aria-modal')).toBe('true');
         expect(applied().query?.text).not.toBe('other');
         fireEvent.click(within(ask).getByRole('button', { name: 'Clear and apply' }));
         await vi.waitFor(() => expect(applied().query?.text).toBe('other'));
@@ -509,8 +510,9 @@ describe('WidgetEditor', () => {
         open('a');
         editQuery();
         apply();
-        fireEvent.click(within(await screen.findByRole('group', { name: "Clear this widget's history?" })).getByRole('button', { name: 'Cancel' }));
-        expect(screen.queryByRole('group', { name: "Clear this widget's history?" })).toBeNull();
+        fireEvent.click(within(await screen.findByRole('dialog', { name: "Clear this widget's history?" })).getByRole('button', { name: 'Cancel' }));
+        expect(screen.queryByRole('dialog', { name: "Clear this widget's history?" })).toBeNull();
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Apply' }));
         expect((screen.getByRole('textbox', { name: 'KQL query' }) as HTMLTextAreaElement).value).toBe('other');
         expect(call).not.toHaveBeenCalledWith('history.clear', expect.anything());
         expect(onClose).not.toHaveBeenCalled();
@@ -535,13 +537,13 @@ describe('WidgetEditor', () => {
         tab('History');
         pick('Key columns: what makes a row the same row', 'id');
         apply();
-        expect(await screen.findByRole('group', { name: "Clear this widget's history?" })).toBeTruthy();
+        expect(await screen.findByRole('dialog', { name: "Clear this widget's history?" })).toBeTruthy();
         cleanup();
         open('a');
         tab('History');
         fireEvent.click(screen.getByRole('checkbox', { name: 'Keep history for this widget' }));
         apply();
-        expect(await screen.findByRole('group', { name: "Clear this widget's history?" })).toBeTruthy();
+        expect(await screen.findByRole('dialog', { name: "Clear this widget's history?" })).toBeTruthy();
       });
 
       it('no stored series, or only interval and retention changed, means no question', async () => {
@@ -550,7 +552,7 @@ describe('WidgetEditor', () => {
         editQuery();
         apply();
         await vi.waitFor(() => expect(applied().query?.text).toBe('other'));
-        expect(screen.queryByRole('group', { name: "Clear this widget's history?" })).toBeNull();
+        expect(screen.queryByRole('dialog', { name: "Clear this widget's history?" })).toBeNull();
         cleanup();
         seriesOf([one]);
         doc = state().doc;

@@ -365,9 +365,13 @@ describe('workbook edit mode', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Users menu' }));
     const item = screen.getByRole('menuitem', { name: 'Clear history…' });
     fireEvent.click(item);
-    const ask = screen.getByRole('group', { name: "Clear this widget's history?" });
+    const ask = screen.getByRole('dialog', { name: "Clear this widget's history?" });
+    expect(ask.getAttribute('aria-modal')).toBe('true');
+    expect(document.activeElement).toBe(within(ask).getByRole('button', { name: 'Cancel' }));
     fireEvent.click(within(ask).getByRole('button', { name: 'Cancel' }));
     expect(call).not.toHaveBeenCalledWith('history.clear', expect.anything());
+    // Focus goes back to the menu button that opened it.
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Users menu' }));
     fireEvent.click(screen.getByRole('button', { name: 'Users menu' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Clear history…' }));
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }));

@@ -68,6 +68,7 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
   const [draft, setDraft] = useState(original);
   const [section, setSection] = useState<Section>('query');
   const [asking, setAsking] = useState(false);
+  const refocusApply = useRef(false);
   const [applyError, setApplyError] = useState<string | null>(null);
   const [queries, setQueries] = useState<SavedQuery[] | null>(null);
   const [preview, setPreview] = useState<{ state: 'running' } | { state: 'done'; result: RunResult } | { state: 'failed'; text: string } | null>(null);
@@ -519,7 +520,16 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
         </label>
         {body}
         {asking ? (
-          <ClearConfirm title="Clear this widget's history?" confirm="Clear and apply" error={applyError} onConfirm={() => void clearAndApply()} onCancel={() => setAsking(false)} />
+          <ClearConfirm
+            title="Clear this widget's history?"
+            confirm="Clear and apply"
+            error={applyError}
+            onConfirm={() => void clearAndApply()}
+            onCancel={() => {
+              refocusApply.current = true;
+              setAsking(false);
+            }}
+          />
         ) : (
         <div className="flex items-center justify-end gap-2">
           {applyError && (
@@ -532,7 +542,19 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
           <button type="button" className="btn ghost" onClick={close}>
             Cancel
           </button>
-          <button type="button" className="btn primary" disabled={query?.saved?.id === '' || toolless || needsKey} onClick={apply}>
+          <button
+            // The question replaced this row, Apply with it: Cancel gives focus back to the new Apply.
+            ref={(b) => {
+              if (b && refocusApply.current) {
+                refocusApply.current = false;
+                b.focus();
+              }
+            }}
+            type="button"
+            className="btn primary"
+            disabled={query?.saved?.id === '' || toolless || needsKey}
+            onClick={apply}
+          >
             Apply
           </button>
         </div>
