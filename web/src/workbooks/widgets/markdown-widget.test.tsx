@@ -20,6 +20,12 @@ describe('MarkdownWidget', () => {
     expect(container.querySelector('li')?.textContent).toBe('a');
   });
 
+  it('renders GFM tables', () => {
+    const { container } = render(<MarkdownWidget text={'| Severity | Target |\n| --- | --- |\n| Critical | 95% |'} values={{}} />);
+    expect([...container.querySelectorAll('th')].map((c) => c.textContent)).toEqual(['Severity', 'Target']);
+    expect([...container.querySelectorAll('td')].map((c) => c.textContent)).toEqual(['Critical', '95%']);
+  });
+
   it('ignores raw HTML', () => {
     const { container } = render(<MarkdownWidget text={'<script>alert(1)</script>\n\n<b>x</b>'} values={{}} />);
     expect(container.querySelector('script')).toBeNull();
@@ -63,6 +69,11 @@ describe('MarkdownWidget', () => {
     expect(container.querySelector('a')).toBeNull();
     expect(container.textContent).toBe('Range [y](https://evil)');
   });
+
+  it('never autolinks a bare URL from a parameter value', () => {
+    const { container } = render(<MarkdownWidget text="See {R}" values={{ R: 'https://evil.example www.evil.example' }} />);
+    expect(container.querySelector('[role="link"]')).toBeNull();
+  });
 });
 
 describe('withValues', () => {
@@ -72,4 +83,5 @@ describe('withValues', () => {
     expect(withValues('{Nope}', {})).toBe('{Nope}');
     expect(withValues('{constructor} {__proto__} {toString}', {})).toBe('{constructor} {__proto__} {toString}');
   });
+
 });

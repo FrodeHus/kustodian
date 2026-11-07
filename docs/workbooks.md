@@ -11,7 +11,7 @@ parameters it uses, and how long its last run took. The ⋯ menu has Refresh, Op
 Markdown) and Full screen. **Hide the title bar outside edit mode** in Edit widget hides the header, ⋯ menu included, until
 you edit the workbook.
 
-- **Markdown**: headings, text and links. `{name}` shows the current value of a parameter. Raw HTML and images are dropped.
+- **Markdown**: headings, text, links and tables. `{name}` shows the current value of a parameter. Raw HTML and images are dropped.
 - **Chart**: the Chart tab's chart types, with X, Y and series chosen in the widget editor.
 - **Table**: the result grid, with sorting and its row filter.
 - **Stat**: one number from the first row, with an optional value to compare it with.

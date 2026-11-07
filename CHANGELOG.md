@@ -83,6 +83,7 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Markdown widgets and solution READMEs render pipe tables (`| a | b |`) as tables instead of one line of text.
 - Markdown widgets show headings, lists, quotes and code as such: `## Test` is a heading again, not plain text. Any widget
   can now hide its title bar outside edit mode (**Hide the title bar outside edit mode** in Edit widget); its ⋯ menu hides
   with it.
