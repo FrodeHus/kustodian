@@ -254,6 +254,10 @@ describe('ResultGrid', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select row 2' }));
     expect(onChange).toHaveBeenLastCalledWith(new Set([1]));
     expect(onChange).toHaveBeenCalledTimes(1);
+    // The inspect button opens the row without toggling its selection.
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect row 3' }));
+    expect(onOpenRow).toHaveBeenLastCalledWith(2);
+    expect(onChange).toHaveBeenCalledTimes(1);
 
     rerender(<ResultGrid columns={columns} rows={rows} onOpenRow={onOpenRow} selection={{ mode: 'multi', selected: new Set([1]), onChange }} />);
     expect(bodyRows(container).map((tr) => tr.getAttribute('aria-selected'))).toEqual(['false', 'true', 'false']);
