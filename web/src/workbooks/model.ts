@@ -26,6 +26,17 @@ export interface WidgetQuery {
   /** Set for a linked saved query; text, source, options and parameters are then the last copy of it (spec §9.2). */
   saved: { id: string; name: string } | null;
 }
+export type RowSelectionMode = 'multi' | 'single' | 'none';
+export interface ToolButton {
+  label: string;
+  /** A tool's name in the user's tools.json. Never a command (spec §4). */
+  tool: string;
+  /** Tool parameter → result column; '' or missing means "as defaultMapping picks". */
+  mapping: Record<string, string>;
+  runsOn: 'selectedOrAll' | 'selected';
+  after: 'refreshWidget' | 'refreshWorkbook' | 'none';
+  placement: 'header' | 'menu';
+}
 export interface Widget {
   id: string;
   type: WidgetType;
@@ -36,6 +47,8 @@ export interface Widget {
   parameters: Record<string, WidgetParam>;
   chart?: Picked;
   stat?: { value: string | null; compare: string | null };
+  selection?: RowSelectionMode; // table widgets only
+  tools?: ToolButton[]; // table widgets only
 }
 export interface WorkbookParameter extends ParameterDef {
   label: string | null;
@@ -87,8 +100,21 @@ export function newWidget(type: WidgetType, layout: WidgetLayout): Widget {
   if (type !== 'markdown') {
     widget.query = emptyQuery();
   }
+  if (type === 'table') {
+    widget.selection = 'multi';
+    widget.tools = [];
+  }
   return widget;
 }
+
+export const newToolButton = (): ToolButton => ({
+  label: '',
+  tool: '',
+  mapping: {},
+  runsOn: 'selectedOrAll',
+  after: 'refreshWidget',
+  placement: 'header',
+});
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -145,6 +171,28 @@ function clampLayout(type: WidgetType, v: unknown): WidgetLayout {
   };
 }
 
+const oneOf = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T =>
+  allowed.includes(v as T) ? (v as T) : fallback;
+
+/**
+ * Unlike the rest of the model this builds a new object from the six known fields only: a workbook file is shared, and
+ * an unknown field such as `command` must never ride along into something that runs (spec §4).
+ */
+function parseToolButton(v: unknown): ToolButton | null {
+  if (!isObj(v) || typeof v.tool !== 'string' || v.tool === '') {
+    return null;
+  }
+  const mapping = Object.entries(isObj(v.mapping) ? v.mapping : {}).filter((e): e is [string, string] => typeof e[1] === 'string');
+  return {
+    label: typeof v.label === 'string' && v.label !== '' ? v.label : v.tool,
+    tool: v.tool,
+    mapping: Object.fromEntries(mapping),
+    runsOn: oneOf(v.runsOn, ['selectedOrAll', 'selected'], 'selectedOrAll'),
+    after: oneOf(v.after, ['refreshWidget', 'refreshWorkbook', 'none'], 'refreshWidget'),
+    placement: oneOf(v.placement, ['header', 'menu'], 'header'),
+  };
+}
+
 function parseWidget(v: unknown): Widget | null {
   if (!isObj(v) || !WIDGET_TYPES.includes(v.type as WidgetType) || typeof v.id !== 'string') {
     return null;
@@ -156,7 +204,7 @@ function parseWidget(v: unknown): Widget | null {
   }
   // Data widgets always have a query, as newWidget makes them.
   const query = parsed ?? (type === 'markdown' ? undefined : emptyQuery());
-  const { query: _query, chart, stat, ...rest } = v;
+  const { query: _query, chart, stat, tools, selection, ...rest } = v;
   return {
     ...rest,
     id: v.id,
@@ -167,6 +215,12 @@ function parseWidget(v: unknown): Widget | null {
     ...(query ? { query } : {}),
     ...('markdown' in v ? { markdown: str(v.markdown, '') } : {}),
     ...(isObj(chart) ? { chart: chart as Picked } : {}),
+    ...(type === 'table'
+      ? {
+          selection: oneOf(selection, ['single', 'none'], 'multi') as RowSelectionMode,
+          tools: Array.isArray(tools) ? tools.flatMap((t) => parseToolButton(t) ?? []) : [],
+        }
+      : {}),
     ...(isObj(stat) ? { stat: { ...stat, value: strOrNull(stat.value), compare: strOrNull(stat.compare) } } : {}),
   };
 }
