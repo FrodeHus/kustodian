@@ -2,11 +2,13 @@ import type { Picked } from '../results/chart-view';
 import type { ParameterDef, QueryOptions, Source } from '../wire';
 
 export const WORKBOOK_KIND = 'kustodian.workbook';
-export const WORKBOOK_VERSION = 1;
+/** The newest file version: 2 is written only for a workbook with a tabs widget (spec §15), otherwise 1. */
+export const WORKBOOK_VERSION = 2;
+export const MAX_TAB_NAME = 40;
 /** As the host's WorkbookService.MaxWidgets: a save with more is refused, so the editor stops adding at this many. */
 export const MAX_WIDGETS = 100;
 
-export type WidgetType = 'markdown' | 'chart' | 'table' | 'stat';
+export type WidgetType = 'markdown' | 'chart' | 'table' | 'stat' | 'tabs';
 export interface WidgetLayout {
   x: number;
   y: number;
@@ -37,6 +39,15 @@ export interface ToolButton {
   after: 'refreshWidget' | 'refreshWorkbook' | 'none';
   placement: 'header' | 'menu';
 }
+export interface Tab {
+  id: string;
+  name: string;
+}
+/** Where a widget sits when it is inside a tab of a tabs widget; a widget at the top level has no place. */
+export interface Place {
+  tabs: string;
+  tab: string;
+}
 export interface Widget {
   id: string;
   type: WidgetType;
@@ -52,6 +63,8 @@ export interface Widget {
   selection?: RowSelectionMode; // table widgets only
   tools?: ToolButton[]; // table widgets only
   history?: WidgetHistory; // stat, chart and table widgets only
+  tabs?: Tab[]; // tabs widgets only
+  in?: Place; // absent at the top level
 }
 /** What the widget keeps between runs. `since` is `'previous'`, `'P1D'`, `'P7D'`, `'P30D'` or a `YYYY-MM-DD` date. */
 export interface WidgetHistory {
@@ -71,7 +84,7 @@ export interface WorkbookParameter extends ParameterDef {
 }
 export interface WorkbookDoc {
   kind: typeof WORKBOOK_KIND;
-  version: typeof WORKBOOK_VERSION;
+  version: 1 | 2;
   id: string;
   name: string;
   folder: string | null;
@@ -81,7 +94,7 @@ export interface WorkbookDoc {
 }
 
 const COLUMNS = 12;
-const WIDGET_TYPES: WidgetType[] = ['markdown', 'chart', 'table', 'stat'];
+const WIDGET_TYPES: WidgetType[] = ['markdown', 'chart', 'table', 'stat', 'tabs'];
 const SOURCES = ['graph', 'hunting', 'arg'];
 
 export const MIN_SIZE: Record<WidgetType, { w: number; h: number }> = {
@@ -89,12 +102,13 @@ export const MIN_SIZE: Record<WidgetType, { w: number; h: number }> = {
   stat: { w: 2, h: 6 },
   table: { w: 3, h: 8 },
   chart: { w: 3, h: 12 },
+  tabs: { w: 4, h: 12 },
 };
 
 export function newWorkbook(name: string): WorkbookDoc {
   return {
     kind: WORKBOOK_KIND,
-    version: WORKBOOK_VERSION,
+    version: 1,
     id: crypto.randomUUID(),
     name,
     folder: null,
@@ -106,10 +120,21 @@ export function newWorkbook(name: string): WorkbookDoc {
 const emptyQuery = (): WidgetQuery => ({ source: 'graph', text: '', options: null, parameters: [], saved: null });
 
 const newWidgetId = () => `w${crypto.randomUUID().replaceAll('-', '').slice(0, 8)}`;
+export const newTabId = () => `t${crypto.randomUUID().replaceAll('-', '').slice(0, 8)}`;
+
+export const placeOf = (w: Widget): Place | null => w.in ?? null;
+/** '' for the top level, else `${tabs}/${tab}`. */
+export const placeKey = (p: Place | null): string => (p ? `${p.tabs}/${p.tab}` : '');
+
+/** The file version for `doc`: 2 when it has a tabs widget, else 1. */
+export const withFileVersion = (doc: WorkbookDoc): WorkbookDoc => ({ ...doc, version: doc.widgets.some((w) => w.type === 'tabs') ? 2 : 1 });
 
 export function newWidget(type: WidgetType, layout: WidgetLayout): Widget {
   const widget: Widget = { id: newWidgetId(), type, title: '', layout, parameters: {} };
-  if (type !== 'markdown') {
+  if (type === 'tabs') {
+    widget.hideTitle = true;
+    widget.tabs = [{ id: newTabId(), name: 'Tab 1' }];
+  } else if (type !== 'markdown') {
     widget.query = emptyQuery();
   }
   if (type === 'table') {
@@ -229,6 +254,12 @@ function parseHistory(v: unknown): WidgetHistory | null {
   };
 }
 
+const parseTabs = (v: unknown): Tab[] =>
+  (Array.isArray(v) ? v : []).flatMap((t) => (isObj(t) ? [{ id: typeof t.id === 'string' && t.id !== '' ? t.id : newTabId(), name: str(t.name, '') }] : []));
+
+const parsePlace = (v: unknown): Place | undefined =>
+  isObj(v) && typeof v.tabs === 'string' && typeof v.tab === 'string' ? { tabs: v.tabs, tab: v.tab } : undefined;
+
 function parseWidget(v: unknown): Widget | null {
   if (!isObj(v) || !WIDGET_TYPES.includes(v.type as WidgetType) || typeof v.id !== 'string') {
     return null;
@@ -239,9 +270,9 @@ function parseWidget(v: unknown): Widget | null {
     return null;
   }
   // Data widgets always have a query, as newWidget makes them.
-  const query = parsed ?? (type === 'markdown' ? undefined : emptyQuery());
-  const parsedHistory = type === 'markdown' ? null : parseHistory(v.history);
-  const { query: _query, chart, stat, tools, selection, history: _history, hideTitle, ...rest } = v;
+  const query = parsed ?? (type === 'markdown' || type === 'tabs' ? undefined : emptyQuery());
+  const parsedHistory = type === 'markdown' || type === 'tabs' ? null : parseHistory(v.history);
+  const { query: _query, chart, stat, tools, selection, history: _history, hideTitle, tabs, in: place, ...rest } = v;
   return {
     ...rest,
     id: v.id,
@@ -249,6 +280,8 @@ function parseWidget(v: unknown): Widget | null {
     title: str(v.title, ''),
     ...(hideTitle === true ? { hideTitle: true } : {}),
     layout: clampLayout(type, v.layout),
+    ...(parsePlace(place) ? { in: parsePlace(place) } : {}),
+    ...(type === 'tabs' ? { tabs: parseTabs(tabs) } : {}),
     parameters: parseWidgetParams(v.parameters),
     ...(query ? { query } : {}),
     ...('markdown' in v ? { markdown: str(v.markdown, '') } : {}),
@@ -277,6 +310,35 @@ function uniqueIds(widgets: Widget[]): Widget[] {
   });
 }
 
+/**
+ * Makes the tab structure sound: a tabs widget has at least one tab, named 1 to 40 characters, with ids unique in it, and is at
+ * the top level; a widget whose place isn't an existing tab of a tabs widget goes to the top level, below everything there.
+ */
+function repairTabs(widgets: Widget[]): Widget[] {
+  const fixed = widgets.map((w) => {
+    if (w.type !== 'tabs') {
+      return w;
+    }
+    const seen = new Set<string>();
+    const tabs = (w.tabs?.length ? w.tabs : [{ id: newTabId(), name: '' }]).map((t, i) => {
+      const id = seen.has(t.id) ? newTabId() : t.id;
+      seen.add(id);
+      return { id, name: t.name.trim().slice(0, MAX_TAB_NAME) || `Tab ${i + 1}` };
+    });
+    return { ...w, tabs };
+  });
+  const tabIds = new Map(fixed.flatMap((w) => (w.type === 'tabs' ? [[w.id, new Set(w.tabs?.map((t) => t.id))] as const] : [])));
+  const misplaced = (w: Widget) => !!w.in && (w.type === 'tabs' || !tabIds.get(w.in.tabs)?.has(w.in.tab));
+  const bottom = Math.max(0, ...fixed.filter((w) => !misplaced(w) && !w.in).map((w) => w.layout.y + w.layout.h));
+  return fixed.map((w) => {
+    if (!misplaced(w)) {
+      return w;
+    }
+    const { in: _in, ...top } = w;
+    return { ...top, layout: { ...w.layout, y: bottom } };
+  });
+}
+
 /** Moves each widget (in y, x order) below whatever it overlaps. */
 function repairOverlaps(widgets: Widget[]): Widget[] {
   const placed: Widget[] = [];
@@ -288,6 +350,16 @@ function repairOverlaps(widgets: Widget[]): Widget[] {
     }
     placed.push(w);
   }
+  return widgets;
+}
+
+/** repairOverlaps within each place: a top-level widget and one in a tab never collide. */
+function repairOverlapsPerPlace(widgets: Widget[]): Widget[] {
+  const groups: Record<string, Widget[]> = {};
+  for (const w of widgets) {
+    (groups[placeKey(placeOf(w))] ??= []).push(w);
+  }
+  Object.values(groups).forEach(repairOverlaps);
   return widgets;
 }
 
@@ -322,16 +394,16 @@ export function parseWorkbook(json: unknown): WorkbookDoc | string {
     return "This workbook file is damaged and can't be read.";
   }
   const list = (v: unknown) => (Array.isArray(v) ? v : []);
-  return {
+  return withFileVersion({
     ...json,
     kind: WORKBOOK_KIND,
-    version: WORKBOOK_VERSION,
+    version: 1,
     id: json.id,
     name: json.name,
     folder: typeof json.folder === 'string' ? json.folder : null,
     parameters: list(json.parameters).flatMap((p) => parseParameter(p) ?? []),
-    widgets: repairOverlaps(uniqueIds(list(json.widgets).flatMap((w) => parseWidget(w) ?? []))),
-  };
+    widgets: repairOverlapsPerPlace(repairTabs(uniqueIds(list(json.widgets).flatMap((w) => parseWidget(w) ?? [])))),
+  });
 }
 
 const UNIT_SECONDS = { d: 86400, h: 3600, m: 60, s: 1, ms: 0.001 };

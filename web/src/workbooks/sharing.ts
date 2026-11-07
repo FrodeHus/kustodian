@@ -6,6 +6,7 @@ import { useTabs } from '../tabs/tab-store';
 import type { FileFilter, OpenedFile, SavedFile, SavedQuery, ToolList, WorkbookList, WorkbookSummary } from '../wire';
 import { applyImport, importFolder, linkedQueries, readWorkbookFile } from './import';
 import type { WorkbookDoc } from './model';
+import { withFileVersion } from './model';
 import { useWorkbooks, withLinkedCopies } from './workbook-store';
 
 export const WORKBOOK_FILTERS: FileFilter[] = [{ name: 'Kustodian workbook', extensions: ['json'] }];
@@ -20,7 +21,7 @@ export async function exportWorkbook(tabId: string): Promise<boolean> {
     throw new Error('The workbook is no longer open.');
   }
   // The file holds the author's defaults: no results, remembered values or save time.
-  const { modifiedAt: _modifiedAt, ...doc } = await withLinkedCopies(base);
+  const { modifiedAt: _modifiedAt, ...doc } = withFileVersion(await withLinkedCopies(base));
   const file = await call<SavedFile | null>('file.saveAs', {
     suggestedName: exportFileName(base.name),
     filters: WORKBOOK_FILTERS,
@@ -70,7 +71,7 @@ export async function importWorkbook(): Promise<void> {
     throw new Error(doc);
   }
   // The file is untrusted: the host checks it as it would a save, before anything is shown.
-  await call('workbook.check', { workbook: doc });
+  await call('workbook.check', { workbook: withFileVersion(doc) });
   const [tools, list] = await Promise.all([
     call<ToolList>('tools.list').catch(() => null),
     call<WorkbookList>('workbook.list'),
@@ -123,7 +124,7 @@ export async function saveImported(p: PendingImport, c: ReviewChoices, added: Ad
       }
     }
     const doc = applyImport(p.doc, { added: c.addQueries ? added : null, tools: c.tools, id: saveId(p, c) });
-    const { workbook } = await call<{ workbook: WorkbookDoc }>('workbook.save', { workbook: doc });
+    const { workbook } = await call<{ workbook: WorkbookDoc }>('workbook.save', { workbook: withFileVersion(doc) });
     useTabs.getState().openWorkbook(workbook, { savedId: workbook.id });
   } finally {
     useRevisions.getState().bump('library');

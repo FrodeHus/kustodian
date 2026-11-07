@@ -402,6 +402,7 @@ const RUN_DELAY_MS = 400;
 
 interface MockWorkbook {
   kind?: string;
+  version?: number;
   id: string;
   name: string;
   folder?: string | null;
@@ -738,6 +739,8 @@ export function createMockTransport(): Transport {
           fail(id, 'bad_request', 'The request has no workbook.');
         } else if (params.workbook.kind !== 'kustodian.workbook') {
           fail(id, 'bad_request', "This isn't a Kustodian workbook.");
+        } else if (params.workbook.version !== 1 && params.workbook.version !== 2) {
+          fail(id, 'bad_request', 'This workbook needs a newer Kustodian.');
         } else {
           reply(id, null);
         }

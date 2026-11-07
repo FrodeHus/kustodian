@@ -254,9 +254,14 @@ body {
   /* A full-screen widget fills the window: its ancestors stop being the box its position: fixed resolves against (a container
      query container is one; so is the glass workspace, by its backdrop filter, below). */
   .wb-canvas:has(.wb-full) { container-type: normal; }
+  /* A tabs widget holding a full-screen widget sits above the widgets after it. */
+  .wb-widget:has(.wb-full) { z-index: 20; }
   /* Edit mode: faint column guides behind the grid, the drop target, the grip and the selected widget's resize handles. */
   .wb-editing { min-height: 100%; background-image: repeating-linear-gradient(to right, var(--accent-soft) 0 calc((100% - 132px) / 12), transparent 0 calc((100% + 12px) / 12)); }
+  .wb-grid[data-selected] { outline: 2px dashed var(--accent); outline-offset: 4px; }
   .wb-drop { border: 2px dashed var(--accent); border-radius: 10px; background: var(--accent-soft); pointer-events: none; }
+  /* Another place's grid under a widget being dragged: outlined, and still under the pointer so the drag can find it. */
+  .wb-grid.wb-drop, .rtab.wb-drop { border: 0; outline: 2px dashed var(--accent); outline-offset: 4px; pointer-events: auto; }
   .wb-grip { cursor: grab; touch-action: none; padding: 0 6px; }
   .wb-resize-right, .wb-resize-bottom, .wb-resize-corner { position: absolute; touch-action: none; }
   .wb-resize-right { top: 0; right: -4px; bottom: 12px; width: 8px; cursor: ew-resize; }
@@ -355,6 +360,8 @@ body {
        (offset, and clipped by its scroll); opaque instead, as the sheets are. */
     .theme-glass .wb-editor, .theme-glass .wb-editor .card { backdrop-filter: none; background: rgb(22, 27, 40); }
     .theme-glass .workspace:has(.wb-full) { backdrop-filter: none; }
+    /* Both glass themes: a tabs widget holding a full-screen widget mustn't be the box it resolves against. */
+    .theme-glass .wb-widget:has(.wb-full) { backdrop-filter: none; }
     .theme-glass .btn.primary { background: linear-gradient(180deg, #8ad9ff, #4cb8f5); border-color: rgba(255, 255, 255, 0.5); box-shadow: 0 4px 18px rgba(76, 194, 255, 0.45); }
 
     /* Liquid glass: rounder, pill-shaped controls; the selected ones raised like drops. */

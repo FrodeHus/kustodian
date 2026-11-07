@@ -230,7 +230,7 @@ public sealed class WorkbookService(JsonFileStore store, TimeProvider time, ILog
             return "This isn't a Kustodian workbook.";
         }
 
-        if (doc["version"] is not JsonValue version || !version.TryGetValue<int>(out var number) || number != 1)
+        if (doc["version"] is not JsonValue version || !version.TryGetValue<int>(out var number) || number is < 1 or > 2)
         {
             return "This workbook needs a newer Kustodian.";
         }

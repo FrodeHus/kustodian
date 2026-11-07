@@ -26,7 +26,14 @@ function known(doc: WorkbookDoc): WorkbookDoc {
     ...only(doc, ['kind', 'version', 'id', 'name', 'folder']),
     parameters: doc.parameters.map((p) => only(p, [...PARAM_DEF, 'label', 'multi', 'all', 'remember', 'huntingTimespan'])),
     widgets: doc.widgets.map((w) => {
-      const next = only(w, ['id', 'type', 'title', 'layout', 'markdown', 'query', 'parameters', 'chart', 'stat', 'selection', 'tools']);
+      const next = only(w, ['id', 'type', 'title', 'hideTitle', 'layout', 'markdown', 'query', 'parameters', 'chart', 'stat', 'selection', 'tools']);
+      // parseWorkbook made tabs and in all strings and repaired them; only their known keys are copied.
+      if (w.tabs) {
+        next.tabs = w.tabs.map((t) => only(t, ['id', 'name']));
+      }
+      if (w.in) {
+        next.in = only(w.in, ['tabs', 'tab']);
+      }
       next.parameters = Object.fromEntries(Object.entries(w.parameters).map(([name, p]) => [name, only(p, ['from', 'value'])]));
       if (w.query) {
         const { options } = w.query;

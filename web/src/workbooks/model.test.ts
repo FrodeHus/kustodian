@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isoTimespan, MIN_SIZE, newToolButton, newWidget, newWorkbook, parseWorkbook } from './model';
+import { isoTimespan, MIN_SIZE, newToolButton, newWidget, newWorkbook, parseWorkbook, withFileVersion } from './model';
 import type { WorkbookDoc } from './model';
 
 const example = () => ({
@@ -56,7 +56,7 @@ describe('parseWorkbook', () => {
   it('refuses another kind and a newer version', () => {
     expect(parseWorkbook({ ...example(), kind: 'other' })).toBe("This isn't a Kustodian workbook.");
     expect(parseWorkbook(null)).toBe("This isn't a Kustodian workbook.");
-    expect(parseWorkbook({ ...example(), version: 2 })).toBe('This workbook needs a newer Kustodian.');
+    expect(parseWorkbook({ ...example(), version: 3 })).toBe('This workbook needs a newer Kustodian.');
   });
 
   it('drops a widget with an unknown type or a raw source and keeps the rest', () => {
@@ -290,5 +290,93 @@ describe('history setting', () => {
   });
   it('drops_a_non_string_key', () => {
     expect(parse(widget('chart', { ...good, keys: ['A', 1], keep: [null, 'B'] }))?.history).toMatchObject({ keys: ['A'], keep: ['B'] });
+  });
+});
+
+describe('tabs', () => {
+  const L = { x: 0, y: 0, w: 12, h: 12 };
+  const md = (id: string, extra: object = {}, layout = L) => ({ id, type: 'markdown', title: id, layout, ...extra });
+  const tabsW = (id: string, tabs: unknown, extra: object = {}, layout = L) => ({ id, type: 'tabs', title: '', layout, tabs, ...extra });
+  const file = (widgets: unknown[], version = 2) => ({ ...example(), version, widgets });
+  const byId = (d: WorkbookDoc, id: string) => d.widgets.find((w) => w.id === id);
+
+  it('parseWorkbook reads a version 2 file with a tabs widget', () => {
+    const d = doc(
+      file([
+        tabsW('t', [{ id: 'a', name: 'One' }, { id: 'b', name: 'Two' }]),
+        md('m', { in: { tabs: 't', tab: 'b' } }),
+      ]),
+    );
+    expect(d.version).toBe(2);
+    expect(byId(d, 't')?.tabs).toEqual([{ id: 'a', name: 'One' }, { id: 'b', name: 'Two' }]);
+    expect(byId(d, 'm')?.in).toEqual({ tabs: 't', tab: 'b' });
+  });
+
+  it('parseWorkbook refuses version 3', () => {
+    expect(parseWorkbook(file([], 3))).toBe('This workbook needs a newer Kustodian.');
+  });
+
+  it('repairs: a child whose in points to a missing tabs widget or tab, or to a non-tabs widget, goes to the top level at the bottom', () => {
+    const d = doc(
+      file([
+        md('top', {}, { x: 0, y: 0, w: 12, h: 5 }),
+        tabsW('t', [{ id: 'a', name: 'One' }], {}, { x: 0, y: 5, w: 12, h: 12 }),
+        md('c1', { in: { tabs: 'gone', tab: 'a' } }),
+        md('c2', { in: { tabs: 't', tab: 'gone' } }),
+        md('c3', { in: { tabs: 'top', tab: 'a' } }),
+      ]),
+    );
+    const bottom = 17;
+    for (const id of ['c1', 'c2', 'c3']) {
+      expect(byId(d, id)?.in).toBeUndefined();
+      expect(byId(d, id)!.layout.y).toBeGreaterThanOrEqual(bottom);
+    }
+  });
+
+  it('repairs: a tabs widget with no tabs gets one "Tab 1"', () => {
+    const d = doc(file([tabsW('t', [])]));
+    expect(byId(d, 't')?.tabs).toEqual([{ id: expect.any(String), name: 'Tab 1' }]);
+  });
+
+  it('repairs: repeated tab ids in one tabs widget are made unique', () => {
+    const d = doc(
+      file([
+        tabsW('t', [{ id: 'a', name: 'One' }, { id: 'a', name: 'Two' }]),
+        md('m', { in: { tabs: 't', tab: 'a' } }),
+      ]),
+    );
+    const [first, second] = byId(d, 't')!.tabs!;
+    expect(first?.id).toBe('a');
+    expect(second?.id).not.toBe('a');
+    expect(byId(d, 'm')?.in).toEqual({ tabs: 't', tab: 'a' });
+  });
+
+  it('repairs: a tabs widget with in is moved to the top level', () => {
+    const d = doc(file([tabsW('t', [{ id: 'a', name: 'One' }]), tabsW('u', [{ id: 'b', name: 'Two' }], { in: { tabs: 't', tab: 'a' } })]));
+    expect(byId(d, 'u')?.in).toBeUndefined();
+  });
+
+  it('repairs: tab names are trimmed to 40 characters, and an empty name becomes "Tab N"', () => {
+    const d = doc(file([tabsW('t', [{ id: 'a', name: 'x'.repeat(50) }, { id: 'b', name: '  ' }])]));
+    expect(byId(d, 't')?.tabs?.map((t) => t.name)).toEqual(['x'.repeat(40), 'Tab 2']);
+  });
+
+  it('overlaps are repaired per place', () => {
+    const d = doc(file([tabsW('t', [{ id: 'a', name: 'One' }], {}, { x: 0, y: 0, w: 12, h: 12 }), md('c', { in: { tabs: 't', tab: 'a' } }, { x: 0, y: 0, w: 12, h: 12 })]));
+    expect(byId(d, 't')?.layout).toEqual({ x: 0, y: 0, w: 12, h: 12 });
+    expect(byId(d, 'c')?.layout).toEqual({ x: 0, y: 0, w: 12, h: 12 });
+  });
+
+  it('withFileVersion writes 1 without a tabs widget and 2 with one', () => {
+    const d = doc(file([tabsW('t', [{ id: 'a', name: 'One' }])]));
+    expect(withFileVersion(d).version).toBe(2);
+    expect(withFileVersion({ ...d, widgets: [] }).version).toBe(1);
+  });
+
+  it("newWidget('tabs') has one tab \"Tab 1\", hideTitle, and no query", () => {
+    const w = newWidget('tabs', { x: 0, y: 0, w: 12, h: 12 });
+    expect(w).toMatchObject({ type: 'tabs', title: '', hideTitle: true, tabs: [{ name: 'Tab 1' }] });
+    expect(w.tabs?.[0]?.id).toBeTruthy();
+    expect(w.query).toBeUndefined();
   });
 });
