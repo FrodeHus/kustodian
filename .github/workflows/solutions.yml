@@ -1,0 +1,111 @@
+name: solutions
+
+# version-bump runs on pull_request with a read-only token. tools-change runs on pull_request_target so it can label and
+# comment on fork PRs; it must never check out or execute the PR's code. It reads tools.json through the API at the head
+# SHA and treats it as data only.
+
+on:
+  pull_request:
+    paths: ['Solutions/**']
+  pull_request_target:
+    paths: ['Solutions/**']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  version-bump:
+    name: solutionVersion bumped
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require a higher solutionVersion in every changed solution
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          fail=0
+          ids="$(git diff --name-only "origin/$BASE_REF...HEAD" -- 'Solutions/*/*' | cut -d/ -f2 | sort -u)"
+          for id in $ids; do
+            dir="Solutions/$id"
+            if [[ ! -f "$dir/solution.json" ]]; then
+              echo "$id: removed; nothing to bump."
+              continue
+            fi
+            if ! base_json="$(git show "origin/$BASE_REF:$dir/solution.json" 2>/dev/null)"; then
+              echo "$id: new solution; nothing to bump."
+              continue
+            fi
+            new="$(jq -r '.solutionVersion // empty' "$dir/solution.json")"
+            old="$(jq -r '.solutionVersion // empty' <<<"$base_json")"
+            if [[ -z "$new" ]]; then
+              echo "::error file=$dir/solution.json::solutionVersion is missing."
+              fail=1
+            elif [[ "$new" != "$old" && "$(printf '%s\n%s\n' "$old" "$new" | sort -V | tail -n1)" == "$new" ]]; then
+              echo "$id: $old -> $new"
+            else
+              echo "::error file=$dir/solution.json::$id changed but solutionVersion $new is not greater than $old on $BASE_REF. Bump it."
+              fail=1
+            fi
+          done
+          exit "$fail"
+
+  tools-change:
+    name: tools.json review notice
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Label and comment when tools.json changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          marker='<!-- solutions-tools-change -->'
+          # Only plain ids are accepted, so the path is safe to put in a URL.
+          files="$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename' \
+            | grep -E '^Solutions/[A-Za-z0-9._-]+/tools\.json$' || true)"
+          if [[ -z "$files" ]]; then
+            echo "No tools.json changes."
+            exit 0
+          fi
+          gh api -X POST "repos/$REPO/issues/$PR/labels" -f 'labels[]=tools-change' >/dev/null
+
+          body="$(mktemp)"
+          {
+            echo "$marker"
+            echo "### tools.json changed"
+            echo
+            echo "Review every tool below before approving. Copilot is asked to flag risky ones."
+            while IFS= read -r path; do
+              echo
+              echo "**\`$path\`**"
+              echo
+              echo '````text'
+              # Contents are data: backticks and control characters are stripped so they cannot close the fence.
+              gh api -H 'Accept: application/vnd.github.raw+json' "repos/$REPO/contents/$path?ref=$SHA" \
+                | jq -r '(.tools // [])[] | "\(.name): \(.command) \((.args // []) | map(tostring) | join(" "))"' \
+                | tr -d '`\000-\010\013-\037' | head -c 20000 \
+                || echo "(could not read or parse this file)"
+              echo '````'
+            done <<<"$files"
+          } >"$body"
+
+          id="$(gh api --paginate "repos/$REPO/issues/$PR/comments" \
+            --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n1)"
+          if [[ -n "$id" ]]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -F "body=@$body" >/dev/null
+          else
+            gh api -X POST "repos/$REPO/issues/$PR/comments" -F "body=@$body" >/dev/null
+          fi
