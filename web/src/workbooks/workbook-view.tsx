@@ -343,7 +343,7 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
       case 'chart':
         return <ChartWidget widget={w} run={run} />;
       case 'table':
-        return <TableWidget widget={w} run={run} />;
+        return <TableWidget widget={w} run={run} tabId={tabId} />;
       case 'stat':
         return <StatWidget widget={w} run={run} />;
     }

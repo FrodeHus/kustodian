@@ -304,6 +304,31 @@ describe('workbook store', () => {
     expect(tab()).toMatchObject({ dirty: true, undo: [doc] });
   });
 
+  it('a selection is view state, and a new result clears it', async () => {
+    void useWorkbooks.getState().load('t', docOf([], [widget('a', 'T')]));
+    await flush();
+    runs[0]!.answer(result([[1], [2]]));
+    await flush();
+    const before = tab();
+    useWorkbooks.getState().setSelection('t', 'a', [1]);
+    expect(tab().selections.a).toEqual({ selected: [1], shown: null });
+    expect([tab().doc, tab().dirty]).toEqual([before.doc, before.dirty]);
+
+    void useWorkbooks.getState().runWidget('t', 'a');
+    runs.at(-1)!.answer(result([[3]]));
+    await flush();
+    expect(tab().selections.a).toBeUndefined();
+  });
+
+  it('setShown with an equal array changes nothing', () => {
+    void useWorkbooks.getState().load('t', docOf([], [widget('a', 'T')]));
+    useWorkbooks.getState().setShown('t', 'a', [1, 0]);
+    expect(tab().selections.a).toEqual({ selected: [], shown: [1, 0] });
+    const was = useWorkbooks.getState().byTab.t;
+    useWorkbooks.getState().setShown('t', 'a', [1, 0]);
+    expect(useWorkbooks.getState().byTab.t).toBe(was);
+  });
+
   it('a change while the library is read does not stop the load, and the change wins over the remembered value', async () => {
     let open!: () => void;
     libraryGate = new Promise((resolve) => (open = resolve));

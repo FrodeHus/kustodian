@@ -90,6 +90,24 @@ describe('ChartView', () => {
     expect(screen.queryByRole('button', { name: 'Full screen' })).toBeNull();
   });
 
+  it('chart_view_without_controls_splits_and_stacks_as_picked', () => {
+    const cols = [
+      { name: 'app', type: 'string' },
+      { name: 'state', type: 'string' },
+      { name: 'n', type: 'long' },
+    ];
+    const split = [
+      ['Teams', 'open', 1],
+      ['Teams', 'closed', 2],
+      ['Exchange', 'open', 3],
+    ];
+    const { container } = render(<ChartView columns={cols} rows={split} kql="t" picked={{ type: 'column', x: 'app', split: 'state', stack: 'stacked100' }} controls={false} />);
+    const marks = [...container.querySelectorAll('[data-mark="bar"]')];
+    expect(marks.map((m) => m.getAttribute('data-name'))).toEqual(['open', 'closed']);
+    expect(marks.map((m) => m.getAttribute('data-stack'))).toEqual(['stack', 'stack']);
+    expect(container.querySelector('[data-chart="bar"]')?.getAttribute('data-offset')).toBe('expand');
+  });
+
   it('chart_view_without_controls_scrolls_a_bar_chart_of_many_categories', () => {
     const many = Array.from({ length: 40 }, (_, i) => [`app ${i}`, i]);
     const { container } = render(<ChartView columns={columns} rows={many} kql="t" picked={{ type: 'bar' }} controls={false} />);

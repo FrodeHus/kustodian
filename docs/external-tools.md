@@ -38,3 +38,7 @@ The command starts directly, never through a shell, so a row value is always exa
 For the same reason a Windows `.bat` or `.cmd` file can't take row values (Windows would run it through `cmd.exe`); use batch
 mode for those. Give `command` as a full path: an app started from the Finder or the Start menu doesn't get your shell's
 `PATH`. Commands run in your home folder.
+
+Table widgets in a [workbook](workbooks.md#selection-and-tool-buttons) can have tool buttons. A button names a tool here and
+never copies its command, so the workbook holds only the tool's name and a column mapping, and changing the tool here
+changes what the button runs. A workbook from someone else needs a tool of the same name in your own `tools.json`.

@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, useId, useRef, useState, type ReactNode } fr
 import { call } from '../bridge';
 import { openSaved } from '../library/open-library';
 import { PARAMETER_TYPES } from '../params/find-params';
-import { CHART_TYPES } from '../results/chart-shape';
+import { CHART_TYPES, STACKS, chartShape, isCategory, renderHint, renderOptions, stackable } from '../results/chart-shape';
 import { useSchemas } from '../schema/schema-store';
 import { errorText } from '../shell/errors';
 import { inSendDetails } from '../shell/send-details-marker';
@@ -10,6 +10,7 @@ import { SourceBadge } from '../tabs/source-badge';
 import type { LibraryList, ParameterDef, RunResult, SavedQuery } from '../wire';
 import type { ParamFrom, Widget, WidgetQuery } from './model';
 import { widgetParams, workbookValues } from './resolve';
+import { ColumnSelect, ToolButtonsSection } from './tool-buttons-section';
 import { ChartWidget } from './widgets/chart-widget';
 import { MarkdownWidget } from './widgets/markdown-widget';
 import { StatWidget } from './widgets/stat-widget';
@@ -30,12 +31,13 @@ const FROM_NAMES: [ParamFrom, string][] = [
   ['fixed', 'Fixed'],
 ];
 
-type Section = 'query' | 'parameters' | 'visualization';
-// A table has no visualization settings in v1.
+type Section = 'query' | 'parameters' | 'visualization' | 'tools';
+// A table has no visualization settings in v1; only a table has tool buttons.
 const SECTIONS: [Section, string][] = [
   ['query', 'Query'],
   ['parameters', 'Parameters'],
   ['visualization', 'Visualization'],
+  ['tools', 'Tool buttons'],
 ];
 
 /** The query a saved one makes: its source, text, options and parameters, linked when `linked`. */
@@ -43,23 +45,6 @@ const fromSaved = (query: WidgetQuery, q: SavedQuery, linked: boolean): WidgetQu
   q.source === 'raw'
     ? query
     : { ...query, source: q.source, text: q.text, options: q.options ?? null, parameters: q.parameters, saved: linked ? { id: q.id, name: q.name } : null };
-
-/** A select over the preview's columns; '' is the chart's or stat's own pick. */
-function ColumnSelect({ label, value, columns, onChange }: { label: string; value: string; columns: string[]; onChange: (value: string) => void }) {
-  return (
-    <label className="field">
-      <span>{label}</span>
-      <select className="textbox" value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">Automatic</option>
-        {columns.map((c) => (
-          <option key={c} value={c}>
-            {c}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
 
 /**
  * Edit widget (spec 5.4 and 6.2, screen 3): the title, then for a data widget its Query (written here, or a linked saved
@@ -164,6 +149,7 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
   const result = preview?.state === 'done' ? preview.result : lastRun?.state === 'done' ? lastRun.result : null;
   const columns = result?.columns.map((c) => c.name) ?? [];
 
+  const toolless = draft.tools?.some((b) => !b.tool) ?? false;
   const params = widgetParams(doc, live, values);
   const setParam = (name: string, from: ParamFrom, value: string) => {
     const { [name]: _old, ...rest } = draft.parameters;
@@ -337,6 +323,15 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
       );
 
     const picked = draft.chart ?? {};
+    // The type and stacking the chart draws when the widget leaves them automatic, as the Chart tab works them out.
+    const kql = live.query?.text ?? '';
+    const chartType = picked.type ?? (result ? chartShape(result.columns, result.rows, renderHint(kql), renderOptions(kql))?.type : undefined);
+    const stack = picked.stack ?? renderOptions(kql).stack ?? 'none';
+    const splits = (result?.columns ?? []).filter((c) => c.name !== picked.x && isCategory(c)).map((c) => c.name);
+    // Keep a saved split listed before a preview has run, so the select shows it.
+    if (picked.split && !splits.includes(picked.split)) {
+      splits.push(picked.split);
+    }
     const visualizationPanel =
       draft.type === 'chart' ? (
         <div className="flex flex-col gap-3">
@@ -356,7 +351,37 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
               columns={columns}
               onChange={(y) => set({ chart: { ...picked, series: y ? [y] : undefined } })}
             />
-            <ColumnSelect label="Series" value={picked.split ?? ''} columns={columns} onChange={(split) => set({ chart: { ...picked, split: split || undefined } })} />
+            <label className="field">
+              <span>Split by</span>
+              <select
+                className="textbox"
+                value={picked.split === undefined ? 'auto' : picked.split === null ? 'none' : `col:${picked.split}`}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  set({ chart: { ...picked, split: v === 'auto' ? undefined : v === 'none' ? null : v.slice(4) } });
+                }}
+              >
+                <option value="auto">Automatic</option>
+                <option value="none">None</option>
+                {splits.map((name) => (
+                  <option key={name} value={`col:${name}`}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {chartType && stackable(chartType) && (
+              <label className="field">
+                <span>Stacking</span>
+                <select className="textbox" value={stack} onChange={(e) => set({ chart: { ...picked, stack: STACKS.find((t) => t.stack === e.target.value)?.stack } })}>
+                  {STACKS.map((t) => (
+                    <option key={t.stack} value={t.stack}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
         </div>
       ) : draft.type === 'stat' ? (
@@ -383,14 +408,22 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
     body = (
       <>
         <div role="tablist" aria-label="Widget settings" className="flex">
-          {SECTIONS.filter(([s]) => s !== 'visualization' || visualizationPanel).map(([s, name]) => (
+          {SECTIONS.filter(([s]) => (s === 'visualization' ? visualizationPanel : s !== 'tools' || draft.type === 'table')).map(([s, name]) => (
             <button key={s} type="button" role="tab" className="rtab" aria-selected={section === s} onClick={() => setSection(s)}>
               {name}
             </button>
           ))}
         </div>
         <div className="min-h-0 overflow-auto" role="tabpanel">
-          {section === 'query' ? queryPanel : section === 'parameters' ? parametersPanel : visualizationPanel}
+          {section === 'query' ? (
+            queryPanel
+          ) : section === 'parameters' ? (
+            parametersPanel
+          ) : section === 'tools' ? (
+            <ToolButtonsSection draft={draft} columns={result?.columns ?? []} set={set} />
+          ) : (
+            visualizationPanel
+          )}
         </div>
         <div className="flex items-center gap-2 border-t border-line pt-3">
           <b className="text-[12.5px]">Preview</b>
@@ -454,11 +487,12 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
           <input className="textbox" autoFocus value={draft.title} onChange={(e) => set({ title: e.target.value })} />
         </label>
         {body}
-        <div className="flex justify-end gap-2">
+        <div className="flex items-center justify-end gap-2">
+          {toolless && <span className="faint text-[12px]">Choose a tool for each button.</span>}
           <button type="button" className="btn ghost" onClick={close}>
             Cancel
           </button>
-          <button type="button" className="btn primary" disabled={query?.saved?.id === ''} onClick={apply}>
+          <button type="button" className="btn primary" disabled={query?.saved?.id === '' || toolless} onClick={apply}>
             Apply
           </button>
         </div>

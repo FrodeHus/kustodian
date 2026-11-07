@@ -270,9 +270,11 @@ body {
   .menu button:not(.btn) { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
   .menu button:not(.btn):hover, .menu button:not(.btn):focus-visible, .menu button:not(.btn).on { background: var(--raise); outline: none; }
   /* Row details: the inspect column of the grid, and dynamic values as a tree. */
-  .datagrid .inspect-col { position: sticky; left: 0; width: 30px; min-width: 30px; padding: 0; text-align: center; background: var(--bg); }
-  .datagrid th.inspect-col { z-index: 2; background: var(--panel2); }
-  .datagrid tr.sel td.inspect-col { background: linear-gradient(var(--accent-soft), var(--accent-soft)), var(--bg); }
+  .datagrid .inspect-col, .datagrid .select-col { position: sticky; left: 0; width: 30px; min-width: 30px; padding: 0; text-align: center; background: var(--bg); }
+  /* A table widget's checkbox column comes first, so the inspect column sticks after it. */
+  .datagrid .select-col + .inspect-col { left: 30px; }
+  .datagrid th.inspect-col, .datagrid th.select-col { z-index: 2; background: var(--panel2); }
+  .datagrid tr.sel td.inspect-col, .datagrid tr.sel td.select-col { background: linear-gradient(var(--accent-soft), var(--accent-soft)), var(--bg); }
   .datagrid td.inspect-col button { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 5px; color: var(--faint); vertical-align: middle; }
   .datagrid td.inspect-col button:hover { background: var(--raise); color: var(--accent); }
   .datagrid td.inspect-col button:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
@@ -312,7 +314,7 @@ body {
   .theme-glass .workspace { background: var(--panel); }
   .theme-glass .toolbar { background: transparent; }
   .theme-glass .menu, .theme-glass .card { background: var(--glass-menu); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-edge), 0 18px 40px rgba(0, 0, 0, 0.45); }
-  .theme-glass .datagrid th, .theme-glass .datagrid th.inspect-col { background: var(--glass-menu); }
+  .theme-glass .datagrid th, .theme-glass .datagrid th.inspect-col, .theme-glass .datagrid th.select-col { background: var(--glass-menu); }
   /* Side sheets (row details, a cell's JSON) sit over the grid: opaque, so the rows don't show through their text. */
   .theme-glass .sheet { background: rgb(22, 27, 40); }
   /* The widget editor: no backdrop filter, which would make it the box Monaco places its fixed suggest and hover widgets in

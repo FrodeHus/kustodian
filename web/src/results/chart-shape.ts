@@ -77,6 +77,16 @@ export function renderHint(kql: string): ChartType | undefined {
 /** How bars and areas share the value axis: side by side (or overlapping), stacked, or stacked to 100%. */
 export type Stack = 'none' | 'stacked' | 'stacked100';
 
+/** The stackings the Chart tab and the widget editor offer. */
+export const STACKS: { stack: Stack; name: string }[] = [
+  { stack: 'none', name: 'None' },
+  { stack: 'stacked', name: 'Stacked' },
+  { stack: 'stacked100', name: 'Stacked 100%' },
+];
+
+/** Only bars and areas stack. */
+export const stackable = (type: ChartType) => type === 'column' || type === 'bar' || type === 'area';
+
 /** The `with (...)` properties of a query's `| render` that the Chart tab follows. Column names are as written; ones the
  * result doesn't have are ignored where they're used. */
 export interface RenderOptions {

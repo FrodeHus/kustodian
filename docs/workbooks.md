@@ -34,6 +34,32 @@ A Chart, Table or Stat widget gets its query one of two ways, picked in the widg
   into the first kind. The workbook keeps a copy of a linked query's last text, so a deleted saved query leaves the widget
   with an error and that copy to copy in.
 
+## Selection and tool buttons
+
+A table widget can have a checkbox column and tool buttons that run one of your external tools (see
+[external-tools.md](external-tools.md)) on its rows. In the widget editor, **Rows can be selected** turns the checkboxes on
+or off, and with **Several rows at once** off, only one row at a time can be selected. The widget header shows "2 of 14 selected", and select-all ticks
+the rows the filter shows.
+
+Tool buttons are set up on the editor's **Tool buttons** tab. Each button has:
+
+- a label, and a placement: the widget header or the ⋯ menu;
+- a **tool**, chosen from your `tools.json` by name. The editor shows its command line for reading;
+- a **column mapping** for each `{parameter}` in the tool's arguments. It starts with the column of the same name, ignoring
+  case. Only result columns can fill an argument;
+- **runs on**: the selected rows, or all rows the filter shows when none are selected (the default), or only the selected
+  rows, which leaves the button off while none are selected;
+- **after it runs**: refresh this widget (the default), refresh the whole workbook, or nothing.
+
+The label carries the count: `Stop VM · 2` with two rows selected, `Stop VM · all 14` when it will run on every row the
+filter shows. Clicking it opens the same dialog as the Rows tab's **Run tool**, titled for example "Stop VM on 2 selected
+rows": the mapping, the command line for the first row, and the row count, then Run. That confirmation can't be turned off.
+`each` and `batch` tools both work; a `batch` tool gets the rows on stdin. If the tool isn't in your `tools.json` the button
+says "There's no tool named Stop VM in your tools.json." and offers **Edit tools…**.
+
+A workbook stores only the tool's name and the column mapping, never a command. A workbook from someone else works only
+with a tool of the same name in your own `tools.json`, and what that tool does is up to you. Every run asks first.
+
 ## Parameters
 
 Queries use the same `{name}` placeholders as query tabs, and values are quoted for KQL the same way. In the widget editor

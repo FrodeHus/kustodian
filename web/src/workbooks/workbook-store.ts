@@ -9,6 +9,7 @@ import type { Widget, WorkbookDoc } from './model';
 import { parseWorkbook } from './model';
 import type { ViewValues } from './resolve';
 import { initialValues, missingRequired, toParameterValues, widgetParams, widgetRunOptions, widgetsUsing } from './resolve';
+import type { RowSelection } from './tool-buttons';
 
 export type WidgetRun =
   | { state: 'idle' }
@@ -28,6 +29,8 @@ export interface WorkbookState {
   redo: WorkbookDoc[];
   /** The doc differs from the file (Ruling R1); {@link startWorkbookTabs} mirrors it into the tab. */
   dirty: boolean;
+  /** Chosen rows and the order the grid shows them, by widget id: view state, never in the doc. */
+  selections: Record<string, RowSelection>;
 }
 
 export interface WorkbookActions {
@@ -49,6 +52,8 @@ export interface WorkbookActions {
   /** The workbook was saved as `doc`. */
   markSaved(tabId: string, doc: WorkbookDoc): void;
   markUnsaved(tabId: string): void; // its file was deleted: dirty, also after a discard
+  setSelection(tabId: string, widgetId: string, selected: number[]): void;
+  setShown(tabId: string, widgetId: string, shown: number[]): void; // no state change when equal to the current one
 }
 
 type Store = { byTab: Record<string, WorkbookState> } & WorkbookActions;
@@ -259,7 +264,7 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
     byTab: {},
 
     async load(tabId, doc, opts) {
-      const fresh: WorkbookState = { doc, values: initialValues(doc, {}), runs: {}, editing: false, undo: [], redo: [], dirty: opts?.dirty ?? false };
+      const fresh: WorkbookState = { doc, values: initialValues(doc, {}), runs: {}, editing: false, undo: [], redo: [], dirty: opts?.dirty ?? false, selections: {} };
       const token = Symbol(tabId);
       loads.set(tabId, token);
       set((st) => ({ byTab: { ...st.byTab, [tabId]: fresh } }));
@@ -310,6 +315,10 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
           onStart: (runId) => setRun(tabId, widgetId, { state: 'running', runId, startedAt: Date.now() }),
           onAnswer: (run) => {
             setRun(tabId, widgetId, run);
+            if (run.state === 'done') {
+              // The rows changed, so the old row indexes mean nothing.
+              update(tabId, (s) => ({ selections: Object.fromEntries(Object.entries(s.selections).filter(([id]) => id !== widgetId)) }));
+            }
             settle();
           },
           onDropped: settle,
@@ -444,6 +453,18 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
       if (s && editStarts.has(tabId)) {
         editStarts.set(tabId, { doc, dirty: false, undo: s.undo, redo: s.redo });
       }
+    },
+
+    setSelection(tabId, widgetId, selected) {
+      update(tabId, (s) => ({ selections: { ...s.selections, [widgetId]: { shown: null, ...s.selections[widgetId], selected } } }));
+    },
+
+    setShown(tabId, widgetId, shown) {
+      const was = get().byTab[tabId]?.selections[widgetId];
+      if (was?.shown && was.shown.length === shown.length && was.shown.every((v, i) => v === shown[i])) {
+        return;
+      }
+      update(tabId, (s) => ({ selections: { ...s.selections, [widgetId]: { selected: [], ...s.selections[widgetId], shown } } }));
     },
   };
   return store;
