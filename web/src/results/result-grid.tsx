@@ -22,7 +22,7 @@ import {
   type SortingState,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ErrorReportActions } from '../shell/error-report';
 import type { ExternalTool, ResultColumn } from '../wire';
@@ -248,6 +248,12 @@ export function MenuButton({
   );
 }
 
+export interface GridSelection {
+  mode: 'multi' | 'single';
+  selected: ReadonlySet<number>;
+  onChange: (selected: ReadonlySet<number>) => void;
+}
+
 interface GridProps {
   columns: ResultColumn[];
   rows: Row[];
@@ -266,6 +272,13 @@ interface GridProps {
   toolbar?: Element | null;
   /** Only the rows whose cells have these texts, by column: the rows behind a chart mark that was clicked. */
   cellFilters?: CellMatch[];
+  /**
+   * A selection the caller keeps (a table widget), by row index in `rows`, with a checkbox column; 'none' turns selection
+   * off. Without it the grid keeps its own selection and has no checkbox column, as the Rows tab does.
+   */
+  selection?: GridSelection | 'none';
+  /** The indexes in `rows` of every row the filter lets through, in the order shown; called after a render that changed them. */
+  onShownChange?: (shown: number[]) => void;
 }
 
 /** A magnifier: the inspect button's icon. */
@@ -281,7 +294,17 @@ const inspectIcon = (
  * row selection (click, Shift-click a range, Ctrl/⌘-click to toggle), copy as CSV, Markdown or JSON, and dynamic cells opened
  * as formatted JSON. Each row starts with an inspect button that opens it in the row details sheet, or closes it there.
  */
-export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspectorId, toolbar, cellFilters = NO_FILTERS }: GridProps) {
+export function ResultGrid({
+  columns,
+  rows,
+  onOpenRow,
+  inspected = null,
+  inspectorId,
+  toolbar,
+  cellFilters = NO_FILTERS,
+  selection,
+  onShownChange,
+}: GridProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [filter, setFilter] = useState('');
   const [opened, setOpened] = useState<Opened | null>(null);
@@ -289,18 +312,23 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
   const [order, setOrder] = useState<string[]>([]);
   const [grouping, setGrouping] = useState<string[]>([]);
   const [expanded, setExpanded] = useState<ExpandedState>({});
-  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
-  const [anchor, setAnchor] = useState<string | null>(null);
+  const [ownSelected, setOwnSelected] = useState<ReadonlySet<number>>(new Set());
+  const [anchor, setAnchor] = useState<number | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [tool, setTool] = useState<ExternalTool | null>(null);
   // A new result's rows start with nothing selected.
   const [rowsSeen, setRowsSeen] = useState(rows);
   if (rowsSeen !== rows) {
     setRowsSeen(rows);
-    setSelected(new Set());
+    setOwnSelected(new Set());
     setAnchor(null);
   }
   const scroller = useRef<HTMLDivElement>(null);
+  // By row index in `rows`, whichever side keeps it.
+  const owned = typeof selection === 'object' ? selection : undefined;
+  const mode = selection === 'none' ? 'none' : (owned?.mode ?? 'multi');
+  const selected = owned ? owned.selected : ownSelected;
+  const setSelected = owned ? owned.onChange : setOwnSelected;
 
   const meta = useMemo(() => new Map(columns.map((c) => [c.name, c])), [columns]);
   const widths = useMemo(() => columnWidths(columns, rows), [columns, rows]);
@@ -371,25 +399,34 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
   };
 
   const select = (row: TableRow<Features, Row>, e: MouseEvent) => {
-    if (e.shiftKey && anchor !== null) {
-      const from = shownLeaves.findIndex((r) => r.id === anchor);
+    if (mode === 'none') {
+      return;
+    }
+    if (mode === 'multi' && e.shiftKey && anchor !== null) {
+      const from = shownLeaves.findIndex((r) => r.index === anchor);
       const to = shownLeaves.indexOf(row);
       if (from >= 0) {
         const [lo, hi] = from < to ? [from, to] : [to, from];
-        setSelected(new Set(shownLeaves.slice(lo, hi + 1).map((r) => r.id)));
+        setSelected(new Set(shownLeaves.slice(lo, hi + 1).map((r) => r.index)));
         return;
       }
     }
-    if (e.ctrlKey || e.metaKey) {
-      const next = new Set(selected);
-      if (!next.delete(row.id)) {
-        next.add(row.id);
-      }
-      setSelected(next);
+    if (mode === 'multi' && (e.ctrlKey || e.metaKey)) {
+      toggle(row.index);
     } else {
-      setSelected(new Set([row.id]));
+      setSelected(new Set([row.index]));
     }
-    setAnchor(row.id);
+    setAnchor(row.index);
+  };
+
+  /** A row's checkbox, or Ctrl/⌘-click: in `multi` adds or removes the row, in `single` makes it the only one or clears it. */
+  const toggle = (index: number) => {
+    const next = new Set(mode === 'multi' ? selected : selected.has(index) ? [index] : []);
+    if (!next.delete(index)) {
+      next.add(index);
+    }
+    setSelected(next);
+    setAnchor(index);
   };
 
   const onGridKey = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -397,12 +434,12 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
     if (e.target !== e.currentTarget) {
       return;
     }
-    const at = shownLeaves.findIndex((r) => r.id === anchor);
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    const at = shownLeaves.findIndex((r) => r.index === anchor);
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && mode !== 'none') {
       const next = shownLeaves[at < 0 ? 0 : Math.min(Math.max(at + (e.key === 'ArrowDown' ? 1 : -1), 0), shownLeaves.length - 1)];
       if (next) {
-        setSelected(new Set([next.id]));
-        setAnchor(next.id);
+        setSelected(new Set([next.index]));
+        setAnchor(next.index);
         virtualizer.scrollToIndex(visible.indexOf(next));
       }
       e.preventDefault();
@@ -415,7 +452,7 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
   // Every row the filter lets through, in the order shown, and those of them that are selected. Selected rows the filter now
   // hides are neither counted nor copied; with none selected, every row shown is.
   const filteredLeaves = leaves(table.getSortedRowModel().rows);
-  const selectedShown = filteredLeaves.filter((r) => selected.has(r.id));
+  const selectedShown = filteredLeaves.filter((r) => selected.has(r.index));
   const chosen = selectedShown.length > 0 ? selectedShown : filteredLeaves;
   const chosenLabel = selectedShown.length > 0 ? `${rowCount(selectedShown.length)} selected` : `All ${rowCount(filteredLeaves.length)}`;
 
@@ -431,6 +468,14 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
   };
 
   const groupedBy = grouping[0];
+
+  const reportShown = useEffectEvent(() => onShownChange?.(filteredLeaves.map((r) => r.index)));
+  // Only when the shown rows can have changed, not on every render.
+  useEffect(() => reportShown(), [rows, filter, cellFilters, sorting, grouping]);
+
+  const checkboxes = owned !== undefined;
+  const span = visibleColumns.length + (checkboxes ? 2 : 1);
+  const allShown = filteredLeaves.length > 0 && selectedShown.length === filteredLeaves.length;
 
   const tools = (
     <>
@@ -529,6 +574,7 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
       <div ref={scroller} className="min-h-0 flex-1 overflow-auto" tabIndex={0} role="region" aria-label="Result rows" onKeyDown={onGridKey}>
         <table className="datagrid">
           <colgroup>
+            {checkboxes && <col style={{ width: 30 }} />}
             <col style={{ width: 30 }} />
             {visibleColumns.map((c) => (
               <col key={c.id} style={{ width: widths.get(c.id) }} />
@@ -537,6 +583,25 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
           <thead>
             {table.getHeaderGroups().map((group) => (
               <tr key={group.id}>
+                {checkboxes && (
+                  <th scope="col" className="select-col">
+                    {mode === 'multi' ? (
+                      <input
+                        type="checkbox"
+                        aria-label="Select all rows"
+                        checked={allShown}
+                        ref={(el) => {
+                          if (el) {
+                            el.indeterminate = selectedShown.length > 0 && !allShown;
+                          }
+                        }}
+                        onChange={() => setSelected(new Set(allShown ? [] : filteredLeaves.map((r) => r.index)))}
+                      />
+                    ) : (
+                      <span className="sr-only">Select</span>
+                    )}
+                  </th>
+                )}
                 <th scope="col" className="inspect-col">
                   <span className="sr-only">Inspect</span>
                 </th>
@@ -564,7 +629,7 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
           <tbody>
             {padTop > 0 && (
               <tr aria-hidden="true">
-                <td style={{ height: padTop, padding: 0, border: 0 }} colSpan={visibleColumns.length + 1} />
+                <td style={{ height: padTop, padding: 0, border: 0 }} colSpan={span} />
               </tr>
             )}
             {items.map((item) => {
@@ -577,7 +642,7 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
                 const open = row.getIsExpanded();
                 return (
                   <tr key={row.id} data-index={item.index} style={{ height: ROW_HEIGHT }}>
-                    <td colSpan={visibleColumns.length + 1} className="bg-panel2">
+                    <td colSpan={span} className="bg-panel2">
                       <button type="button" aria-expanded={open} onClick={row.getToggleExpandedHandler()}>
                         {open ? '▾' : '▸'} {row.groupingColumnId}: {value === '' ? 'null' : cellText(value)} · {count(row.getLeafRows().length)}
                       </button>
@@ -585,7 +650,7 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
                   </tr>
                 );
               }
-              const isSelected = selected.has(row.id);
+              const isSelected = selected.has(row.index);
               const isInspected = inspected === row.index;
               return (
                 <tr
@@ -603,6 +668,17 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
                   onClick={(e) => select(row, e)}
                   onDoubleClick={() => onOpenRow?.(row.index)}
                 >
+                  {checkboxes && (
+                    <td className="select-col">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select row ${count(row.index + 1)}`}
+                        checked={isSelected}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={() => toggle(row.index)}
+                      />
+                    </td>
+                  )}
                   <td className="inspect-col">
                     <button
                       type="button"
@@ -651,7 +727,7 @@ export function ResultGrid({ columns, rows, onOpenRow, inspected = null, inspect
             })}
             {padBottom > 0 && (
               <tr aria-hidden="true">
-                <td style={{ height: padBottom, padding: 0, border: 0 }} colSpan={visibleColumns.length + 1} />
+                <td style={{ height: padBottom, padding: 0, border: 0 }} colSpan={span} />
               </tr>
             )}
           </tbody>
