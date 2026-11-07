@@ -38,7 +38,8 @@ its results, so going back shows the earlier result without a rerun. Marks on a 
 
 Which tab is shown is not part of the workbook. It isn't saved, doesn't mark the workbook as changed, and can't be undone.
 
-Arrow keys move between tabs, and Enter or Space shows the one that has focus.
+Arrow keys move between tabs, and Enter or Space shows the one that has focus. The Tabs widget's own ⋯ **Refresh** reruns
+only the shown tab.
 
 In edit mode:
 
@@ -47,8 +48,10 @@ In edit mode:
 - The shown tab's ⋯ menu has **Rename**, **Move left**, **Move right** and **Delete**. Dragging a tab in the bar reorders it.
 - Deleting a tab that has widgets asks first: move them to the neighbouring tab, delete them too, or cancel. Removing the
   last tab removes the Tabs widget and asks the same way.
+- Removing a Tabs widget that holds widgets (**Remove**) asks first: **Move widgets to the top level**, **Delete them too**,
+  or cancel.
 - Move a widget to a tab by dragging its grip onto the tab bar: hold over a tab for about half a second and it is shown, so
-  you can drop the widget into it. Or open the widget's ⋯ menu and choose **Move to…**, then **Top level** or a tab. A
+  you can drop the widget into it, or drop it on the tab name to put it at the bottom of that tab. Or open the widget's ⋯ menu and choose **Move to…**, then **Top level** or a tab. A
   widget can be dragged out of a tab onto the grid the same way.
 - An empty tab says "No widgets on this tab", and in edit mode "Drag a widget here or use Move to…".
 

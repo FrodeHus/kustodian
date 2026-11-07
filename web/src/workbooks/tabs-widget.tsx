@@ -26,6 +26,8 @@ export function ChildrenConfirm({
     <div
       className="fixed inset-0 z-20"
       onKeyDown={(e) => {
+        // Not the workbook's Ctrl+Z (or any other key) behind the confirm.
+        e.stopPropagation();
         if (e.key === 'Escape') {
           // Not full screen's Esc as well.
           e.preventDefault();
@@ -240,7 +242,8 @@ export function TabsWidget({
     }
   };
   const marks = (tab: string) => {
-    const data = childrenOf(state.doc.widgets, widget.id, tab).filter((w) => w.query);
+    // A widget without query text never runs, so it can't be "not run".
+    const data = childrenOf(state.doc.widgets, widget.id, tab).filter((w) => w.query && w.query.text.trim() !== '');
     return [
       data.some((w) => (state.runs[w.id]?.state ?? 'idle') === 'idle') && 'not run',
       data.some((w) => state.stale[w.id]) && 'out of date',

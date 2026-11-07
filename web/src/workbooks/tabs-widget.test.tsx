@@ -112,7 +112,9 @@ describe('TabsWidget', () => {
     expect(screen.getByRole('tabpanel').tabIndex).toBe(0);
   });
 
-  it('tab marks show "not run" and "out of date"', () => {
+  it('tab marks show "not run" and "out of date"; a widget without query text never runs, so it isn\'t "not run"', () => {
+    doc.widgets[3] = { ...doc.widgets[3]!, query: { ...doc.widgets[3]!.query!, text: 'T' } };
+    doc.widgets.push(widget('e', 'table', 'Empty query', { in: { tabs: 'tw', tab: 't1' } }));
     const { unmount } = show();
     expect(tab(/Details/).textContent).toContain('not run');
     expect(tab(/Overview/).textContent).not.toContain('not run');

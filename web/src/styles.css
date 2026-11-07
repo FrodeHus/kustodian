@@ -253,7 +253,7 @@ body {
   .wb-grid[data-selected] { outline: 2px dashed var(--accent); outline-offset: 4px; }
   .wb-drop { border: 2px dashed var(--accent); border-radius: 10px; background: var(--accent-soft); pointer-events: none; }
   /* Another place's grid under a widget being dragged: outlined, and still under the pointer so the drag can find it. */
-  .wb-grid.wb-drop { border: 0; outline: 2px dashed var(--accent); outline-offset: 4px; pointer-events: auto; }
+  .wb-grid.wb-drop, .rtab.wb-drop { border: 0; outline: 2px dashed var(--accent); outline-offset: 4px; pointer-events: auto; }
   .wb-grip { cursor: grab; touch-action: none; padding: 0 6px; }
   .wb-resize-right, .wb-resize-bottom, .wb-resize-corner { position: absolute; touch-action: none; }
   .wb-resize-right { top: 0; right: -4px; bottom: 12px; width: 8px; cursor: ew-resize; }

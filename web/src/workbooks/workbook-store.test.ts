@@ -761,6 +761,41 @@ describe('tabs', () => {
     expect(tab().stale).toEqual({});
   });
 
+  it('showTab reruns a stale widget whose old run is still pending, once, with the new value (R16)', async () => {
+    const doc = tabbedDoc([wbParam('N', 'x')], { p: 'Tp', a: 'Ta', b: 'T {N}' });
+    void useWorkbooks.getState().load('t', doc);
+    await flush();
+    await answerAll();
+    useWorkbooks.getState().showTab('t', 'T', 'two');
+    await flush();
+    const old = runs.find((r) => r.params.tabId === 't/b')!;
+    runs = [];
+    useWorkbooks.getState().showTab('t', 'T', 'one');
+    useWorkbooks.getState().setWorkbookValue('t', 'N', 'y', { now: true });
+    await flush();
+    expect(tab().stale).toEqual({ b: true });
+    useWorkbooks.getState().showTab('t', 'T', 'two');
+    await flush();
+    expect(runs.map((r) => [r.params.tabId, r.params.parameters?.[0]?.value])).toEqual([['t/b', 'y']]);
+    old.answer(result([[1]]));
+    await answerAll();
+    expect(state('b')).toBe('done');
+    expect(tab().stale).toEqual({});
+  });
+
+  it("showTab leaves a widget alone that is running and isn't stale", async () => {
+    void useWorkbooks.getState().load('t', tabbedDoc());
+    await flush();
+    await answerAll();
+    useWorkbooks.getState().showTab('t', 'T', 'two');
+    await flush();
+    runs = [];
+    useWorkbooks.getState().showTab('t', 'T', 'one');
+    useWorkbooks.getState().showTab('t', 'T', 'two');
+    await flush();
+    expect(runs).toHaveLength(0);
+  });
+
   it('Refresh all marks hidden tabs stale', async () => {
     void useWorkbooks.getState().load('t', tabbedDoc());
     await flush();

@@ -479,7 +479,8 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
       const s = get().byTab[tabId];
       for (const w of s?.doc.widgets ?? []) {
         const state = s!.runs[w.id]?.state ?? 'idle';
-        if (w.query && w.in?.tabs === tabsId && w.in.tab === tab && (state === 'idle' || s!.stale[w.id]) && state !== 'waiting' && state !== 'running') {
+        // A stale widget reruns even mid-run (queue drops the old run); a fresh one in flight is left alone (R16).
+        if (w.query && w.in?.tabs === tabsId && w.in.tab === tab && (state === 'idle' || s!.stale[w.id])) {
           void get().runWidget(tabId, w.id);
         }
       }

@@ -707,6 +707,51 @@ describe('workbook edit mode', () => {
         fireEvent.pointerUp(g, { clientX: 10, clientY: 10, pointerId: 1 });
       });
 
+      it('a pointer drag dropped on a tab name moves the widget into that tab, at the bottom', () => {
+        show();
+        gridOf('').getBoundingClientRect = rect(0);
+        const two = screen.getByRole('tab', { name: /Two/ });
+        pointAt(two);
+        const g = grip('Users');
+        fireEvent.pointerDown(g, { clientX: 10, clientY: 10, button: 0, pointerId: 1 });
+        fireEvent.pointerMove(g, { clientX: 300, clientY: 280, pointerId: 1, buttons: 1 });
+        // Two isn't shown, so the tab itself is the drop target; the top-level grid isn't.
+        expect(two.classList.contains('wb-drop')).toBe(true);
+        expect(gridOf('').classList.contains('wb-drop')).toBe(false);
+        expect(document.querySelector('.wb-widget.wb-drop')).toBeNull();
+        fireEvent.pointerUp(g, { clientX: 300, clientY: 280, pointerId: 1 });
+        const moved = state().doc.widgets.find((w) => w.id === 'a')!;
+        expect(moved.in).toEqual({ tabs: 'tw', tab: 't2' });
+        expect(moved.layout).toMatchObject({ y: 12 });
+        expect(live().textContent).toBe('Moved to Two');
+        expect(two.classList.contains('wb-drop')).toBe(false);
+      });
+
+      it('a pointer drag over a tab panel outside its grid targets that tab, not the top level', () => {
+        show();
+        gridOf('').getBoundingClientRect = rect(0);
+        const inner = gridOf('tw/t1');
+        inner.getBoundingClientRect = rect(300);
+        pointAt(screen.getByRole('tabpanel'));
+        const g = grip('Users');
+        fireEvent.pointerDown(g, { clientX: 10, clientY: 10, button: 0, pointerId: 1 });
+        fireEvent.pointerMove(g, { clientX: 450, clientY: 325, pointerId: 1, buttons: 1 });
+        expect(inner.classList.contains('wb-drop')).toBe(true);
+        expect(gridOf('').classList.contains('wb-drop')).toBe(false);
+        fireEvent.pointerUp(g, { clientX: 450, clientY: 325, pointerId: 1 });
+        expect(state().doc.widgets.find((w) => w.id === 'a')?.in).toEqual({ tabs: 'tw', tab: 't1' });
+      });
+
+      it('Ctrl+Z in the delete-tab confirm isn\'t the workbook\'s undo', () => {
+        show();
+        fireEvent.click(screen.getByRole('button', { name: 'One tab menu' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+        const dialog = screen.getByRole('dialog', { name: /Delete One\?/ });
+        fireEvent.keyDown(within(dialog).getByRole('button', { name: 'Cancel' }), { key: 'z', ctrlKey: true });
+        expect(live().textContent).not.toBe('Undone');
+        expect(screen.getByRole('dialog', { name: /Delete One\?/ })).toBeTruthy();
+      });
+
       it('Undo after a move puts the widget back', () => {
         show();
         const before = state().doc.widgets;

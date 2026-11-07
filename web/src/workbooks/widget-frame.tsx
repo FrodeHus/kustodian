@@ -227,14 +227,15 @@ export function WidgetFrame({
   const tools = useToolRun(tabId, widget, setNotice);
   const ref = useRef<HTMLElement>(null);
   // The pointer gesture under way: what it does, where it started, the grid's measured column pitch, and `stop` removing its
-  // window listeners; in a move, also another place's grid under the pointer (`over`) and a hidden tab waiting to be shown.
+  // window listeners; in a move, also another place under the pointer (`over`: what is outlined, its place key, and whether the
+  // drop lands where the pointer is, in that grid, or at the bottom, for a tab name) and a hidden tab waiting to be shown.
   const gesture = useRef<{
     kind: Kind;
     x: number;
     y: number;
     column: number;
     stop: () => void;
-    over?: HTMLElement;
+    over?: { el: HTMLElement; place: string; at: boolean };
     hover?: { tab: HTMLElement; timer: ReturnType<typeof setTimeout> };
   } | null>(null);
   const [target, setTarget] = useState<WidgetLayout | null>(null);
@@ -316,12 +317,13 @@ export function WidgetFrame({
     gesture.current = null;
     g?.stop();
     clearTimeout(g?.hover?.timer);
-    g?.over?.classList.remove('wb-drop');
+    g?.over?.el.classList.remove('wb-drop');
     setTarget(null);
     setAway(false);
   }
   /** In a move, follows the pointer across grids: outlines another place's grid under it, and shows a hidden tab hovered for
-   * 500 ms. True when it is over another place. */
+   * 500 ms. Over a tab name the place is that tab (its grid outlined if shown, else the tab); in a tab panel outside its grid,
+   * that grid (R17). True when it is over another place. */
   const follow = (e: { clientX: number; clientY: number }) => {
     const g = gesture.current!;
     const under = document.elementFromPoint(e.clientX, e.clientY);
@@ -333,13 +335,18 @@ export function WidgetFrame({
           ? { tab, timer: setTimeout(() => useWorkbooks.getState().showTab(tabId, tab.dataset.wbTabs!, tab.dataset.wbTab!), 500) }
           : undefined;
     }
-    const grid = under?.closest<HTMLElement>('[data-wb-place]');
-    const over = grid && grid.dataset.wbPlace !== placeKey(placeOf(widget)) ? grid : undefined;
-    if (g.over !== over) {
-      g.over?.classList.remove('wb-drop');
-      over?.classList.add('wb-drop');
-      g.over = over;
+    // A tabs widget's panel holds its shown tab's grid; another widget's result panel holds none.
+    const gridIn = (panel: Element | null | undefined) => panel?.querySelector<HTMLElement>(':scope > [data-wb-place]') ?? undefined;
+    const grid = gridIn(under?.closest('[role=tabpanel]')) ?? under?.closest<HTMLElement>('[data-wb-place]') ?? undefined;
+    const place = tab ? placeKey({ tabs: tab.dataset.wbTabs!, tab: tab.dataset.wbTab! }) : grid?.dataset.wbPlace;
+    const shownGrid = tab?.getAttribute('aria-selected') === 'true' ? gridIn(document.getElementById(tab.getAttribute('aria-controls') ?? '')) : undefined;
+    const el = tab ? (shownGrid ?? tab) : grid;
+    const over = el && place !== undefined && place !== placeKey(placeOf(widget)) ? { el, place, at: !tab } : undefined;
+    if (g.over?.el !== over?.el) {
+      g.over?.el.classList.remove('wb-drop');
+      over?.el.classList.add('wb-drop');
     }
+    g.over = over;
     return over !== undefined;
   };
   const steps = (e: { clientX: number; clientY: number }) => {
@@ -402,17 +409,18 @@ export function WidgetFrame({
         const s = steps(u);
         const over = gesture.current?.over;
         endGesture();
-        const to = over && destinations(doc.widgets).find((d) => placeKey(d.to) === over.dataset.wbPlace);
+        const to = over && destinations(doc.widgets).find((d) => placeKey(d.to) === over.place);
         if (over) {
           // No destination when its tab went mid-drag: nothing moves.
           if (!to) {
             return;
           }
-          const r = over.getBoundingClientRect();
-          editing?.onMoveTo(to.to, {
-            x: Math.floor((u.clientX - r.left) / ((r.width + GAP_PX) / COLUMNS)),
-            y: Math.floor((u.clientY - r.top) / (ROW_PX + GAP_PX)),
-          });
+          // Dropped on a tab name: at the bottom of that tab.
+          const r = over.at ? over.el.getBoundingClientRect() : null;
+          editing?.onMoveTo(
+            to.to,
+            r ? { x: Math.floor((u.clientX - r.left) / ((r.width + GAP_PX) / COLUMNS)), y: Math.floor((u.clientY - r.top) / (ROW_PX + GAP_PX)) } : undefined,
+          );
         } else if (s && ref.current) {
           // Not when a tab shown mid-drag hid this widget: back over its home grid, that drop does nothing.
           commit(kind, s[0], s[1]);
