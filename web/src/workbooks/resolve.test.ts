@@ -131,3 +131,14 @@ describe('initialValues', () => {
     expect(initialValues(doc, { A: 'x', B: 'y' }).workbook).toEqual({ A: 'x', B: 'b' });
   });
 });
+
+describe('prototype keys', () => {
+  it('names like Object members never read inherited values', () => {
+    const w = widget('T | where a == {constructor} and b == {toString}');
+    const doc = docOf([wbParam('toString', 'x')], [w]);
+    expect(widgetParams(doc, w, { workbook: {}, widgets: { [w.id]: {} } })).toEqual([
+      { name: 'constructor', type: 'text', value: '', required: false, from: 'widget' },
+      { name: 'toString', type: 'text', value: 'x', required: false, from: 'workbook' },
+    ]);
+  });
+});

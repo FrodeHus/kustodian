@@ -333,6 +333,22 @@ describe('workbook store', () => {
     expect(runs.map((r) => [r.params.tabId, r.params.kql])).toEqual([['t/a', 'T {Name}']]);
   });
 
+  it('a hunting-timespan value reruns the hunting widgets it applies to, not those overriding it', async () => {
+    const own = { Span: { from: 'fixed' as const, value: '1d' } };
+    const doc = docOf(
+      [wbParam('Span', '7d', { type: 'timespan', huntingTimespan: true })],
+      [widget('h', 'T', { source: 'hunting' }), widget('o', 'T', { source: 'hunting' }, own), widget('g', 'users')],
+    );
+    void useWorkbooks.getState().load('t', doc);
+    await flush();
+    runs.forEach((r) => r.answer(result([])));
+    await flush();
+    runs = [];
+    useWorkbooks.getState().setWorkbookValue('t', 'Span', '1h', { now: true });
+    await flush();
+    expect(runs.map((r) => [r.params.tabId, r.params.options?.timespan])).toEqual([['t/h', 'PT1H']]);
+  });
+
   it('saving while editing makes a later discard return to what was saved', async () => {
     void useWorkbooks.getState().load('t', docOf([], [widget('a', 'users')]));
     await flush();

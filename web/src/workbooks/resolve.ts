@@ -10,6 +10,9 @@ export interface ViewValues {
   widgets: Record<string, Record<string, string>>;
 }
 
+/** `o[key]` when `o` has it as its own key; names come from query text, so `constructor` must not read Object's. */
+const at = <T>(o: Record<string, T> | undefined, key: string): T | undefined => (o && Object.hasOwn(o, key) ? o[key] : undefined);
+
 export interface ResolvedParam {
   name: string;
   type: string;
@@ -26,8 +29,8 @@ export function widgetParams(doc: WorkbookDoc, widget: Widget, values: ViewValue
   }
   const { query } = widget;
   return findParams(query.text).map((name) => {
-    const entry = widget.parameters[name];
-    const own = values.widgets[widget.id]?.[name];
+    const entry = at(widget.parameters, name);
+    const own = at(at(values.widgets, widget.id), name);
     const wb = doc.parameters.find((p) => p.name === name);
     const def = query.parameters.find((p) => p.name === name) ?? wb;
     const shape = { name, type: def?.type ?? 'text', required: def?.required ?? false };
@@ -39,7 +42,7 @@ export function widgetParams(doc: WorkbookDoc, widget: Widget, values: ViewValue
     }
     if (wb) {
       // The workbook parameter owns type and required for the widgets that take it (spec 6.2/6.3).
-      return { name, type: wb.type, required: wb.required, value: values.workbook[name] ?? wb.value, from: 'workbook' as const };
+      return { name, type: wb.type, required: wb.required, value: at(values.workbook, name) ?? wb.value, from: 'workbook' as const };
     }
     return { ...shape, value: own ?? def?.value ?? '', from: 'widget' as const };
   });
@@ -54,11 +57,17 @@ export function toParameterValues(params: ResolvedParam[]): ParameterValue[] {
   return params.map(({ name, type, value, required }) => ({ name, type, value, required }));
 }
 
-/** Widgets a change to workbook parameter `name` reruns: data widgets whose resolved `name` comes from the workbook. */
+/** Widgets a change to workbook parameter `name` reruns: data widgets whose resolved `name` comes from the workbook, and,
+ * for the huntingTimespan parameter, the hunting widgets that send its value as their timespan. */
 export function widgetsUsing(doc: WorkbookDoc, name: string): string[] {
   const none: ViewValues = { workbook: {}, widgets: {} };
+  const hunting = doc.parameters.find((p) => p.huntingTimespan)?.name === name;
   return doc.widgets
-    .filter((w) => widgetParams(doc, w, none).some((p) => p.name === name && p.from === 'workbook'))
+    .filter(
+      (w) =>
+        widgetParams(doc, w, none).some((p) => p.name === name && p.from === 'workbook') ||
+        (hunting && w.query?.source === 'hunting' && (at(w.parameters, name)?.from ?? 'workbook') === 'workbook'),
+    )
     .map((w) => w.id);
 }
 
@@ -69,14 +78,14 @@ export function widgetRunOptions(doc: WorkbookDoc, widget: Widget, values: ViewV
   }
   const hunting = widget.query.source === 'hunting' ? doc.parameters.find((p) => p.huntingTimespan) : undefined;
   if (hunting) {
-    const entry = widget.parameters[hunting.name];
+    const entry = at(widget.parameters, hunting.name);
     // A widget that sets the parameter itself (shown or fixed) overrides the workbook's value (spec 6.4).
     const value =
       entry?.from === 'fixed'
         ? entry.value
         : entry?.from === 'widget'
-          ? (values.widgets[widget.id]?.[hunting.name] ?? entry.value)
-          : (values.workbook[hunting.name] ?? hunting.value);
+          ? (at(at(values.widgets, widget.id), hunting.name) ?? entry.value)
+          : (at(values.workbook, hunting.name) ?? hunting.value);
     const timespan = isoTimespan(value.trim());
     return timespan ? { timespan, scope: null } : { problem: `${hunting.name}: at most 30 days for Defender hunting.` };
   }
