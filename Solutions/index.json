@@ -1,0 +1,140 @@
+{
+  "version": 1,
+  "solutions": [
+    {
+      "manifest": {
+        "version": 1,
+        "id": "entra-risky-users",
+        "name": "Entra risky users",
+        "solutionVersion": "1.0.0",
+        "description": "Risky users from Microsoft Entra ID Protection, with their recent sign-ins, and a weekly review workbook.",
+        "author": "Kustodian",
+        "support": "kustodian",
+        "categories": [
+          "Identity",
+          "Security"
+        ],
+        "sources": [
+          "graph"
+        ],
+        "minAppVersion": "1.0.0",
+        "requires": {
+          "graph": [
+            "IdentityRiskyUser.Read.All"
+          ],
+          "roles": null,
+          "licenses": [
+            "AAD_PREMIUM_P2"
+          ],
+          "azure": null
+        },
+        "content": {
+          "queries": [
+            "risky-users",
+            "risky-signins"
+          ],
+          "workbooks": [
+            "weekly-review"
+          ],
+          "tools": []
+        }
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "sha256": "4ec3374c19513650bfd967084828626437af02f88a4d0c821cc46660e99997f8",
+          "size": 499
+        },
+        {
+          "path": "queries/risky-signins.json",
+          "sha256": "9afaf88eb9f5a632dfe6547c0f7c9522e07c910b2ef50102db0a828588132905",
+          "size": 627
+        },
+        {
+          "path": "queries/risky-users.json",
+          "sha256": "f64fc8c82b065fa2ddb7dea024f802b519ffb8b1b1fade38e83be88c0db3a478",
+          "size": 412
+        },
+        {
+          "path": "solution.json",
+          "sha256": "c120e6f7aa4b3e359dd3acb6dcd54cfdfa756b438a7b57d6b7f54f94a82bd98a",
+          "size": 602
+        },
+        {
+          "path": "workbooks/weekly-review.json",
+          "sha256": "e0870055110d01c03a36ef738b9b7d8a52bb9ad00332cd14c13250ac295d4c67",
+          "size": 1981
+        }
+      ]
+    },
+    {
+      "manifest": {
+        "version": 1,
+        "id": "mfa-passkey-adoption",
+        "name": "MFA and passkey adoption",
+        "solutionVersion": "1.0.0",
+        "description": "Passkey and MFA registration by company: who has a passkey, who has only app or phone MFA, and who has none.",
+        "author": "Kustodian",
+        "support": "kustodian",
+        "categories": [
+          "Identity",
+          "Security"
+        ],
+        "sources": [
+          "graph"
+        ],
+        "minAppVersion": "1.0.0",
+        "requires": {
+          "graph": [
+            "AuditLog.Read.All",
+            "User.Read.All"
+          ],
+          "roles": [
+            "Reports Reader"
+          ],
+          "licenses": [
+            "AAD_PREMIUM"
+          ],
+          "azure": null
+        },
+        "content": {
+          "queries": [
+            "mfa-by-company",
+            "users-missing-passkey"
+          ],
+          "workbooks": [
+            "mfa-adoption"
+          ],
+          "tools": []
+        }
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "sha256": "aa08d1ed40fa244acae222b88cd510f80552276125ed65265a0fcd094a17d092",
+          "size": 1841
+        },
+        {
+          "path": "queries/mfa-by-company.json",
+          "sha256": "ad51e165d93f1de6c9eabc9146f1433a9d185e894a97b05c52353264b6c421ac",
+          "size": 1251
+        },
+        {
+          "path": "queries/users-missing-passkey.json",
+          "sha256": "83989ea82fec02d2a7b7e30bc14c3b4e619533ae85795c10ce552692e2424ba8",
+          "size": 896
+        },
+        {
+          "path": "solution.json",
+          "sha256": "93b09efb2477755964bddeb5c9f8df8ecb6372dfb666ae0cccf9015e102a0bbe",
+          "size": 755
+        },
+        {
+          "path": "workbooks/mfa-adoption.json",
+          "sha256": "4a5fec8365bd48e31317943ca0c5053907bf5769416ee963a9a0dd6790be095b",
+          "size": 15627
+        }
+      ]
+    }
+  ]
+}

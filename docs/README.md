@@ -8,6 +8,7 @@
   and how Kustodian leaves them out instead of failing.
 - [external-tools.md](external-tools.md): running your own commands on result rows from the Run tool menu.
 - [workbooks.md](workbooks.md): pages of chart, table, stat and Markdown widgets that share parameters.
+- [solutions.md](solutions.md): ready-made queries and workbooks to install from the Solutions panel, and how to add one.
 - [manual-checks.md](manual-checks.md): the manual verification checklist per platform, and its results.
 - [releasing.md](releasing.md): cutting a release, changelog entries, the deploy key and the rulesets.
 - [design/specs](design/specs): design specs. [2026-10-21-kustodian-design.md](design/specs/2026-10-21-kustodian-design.md) is

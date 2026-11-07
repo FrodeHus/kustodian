@@ -567,6 +567,34 @@ const entraAppCreated = {
 };
 
 /** The mock's one external tool. */
+const mockSolution = {
+  version: 1,
+  id: 'entra-risky-users',
+  name: 'Entra risky users',
+  solutionVersion: '1.2.0',
+  description: 'Weekly review of risky users and their sign-ins.',
+  author: 'frodehus',
+  support: 'kustodian',
+  categories: ['Identity'],
+  sources: ['graph', 'hunting'],
+  minAppVersion: '0.0.0',
+  requires: null,
+  content: { queries: ['risky-users', 'risky-sign-ins'], workbooks: ['weekly-review'], tools: [] },
+};
+const mockCommunitySolution = {
+  ...mockSolution,
+  id: 'vm-power-hygiene',
+  name: 'VM power hygiene',
+  description: 'VMs left running out of hours.',
+  author: 'someone',
+  support: 'community',
+  categories: ['Azure'],
+  sources: ['arg'],
+  minAppVersion: '9.0.0',
+  content: { queries: ['running-vms', 'idle-vms', 'vm-costs'], workbooks: ['vm-power'], tools: [] },
+};
+const mockSolutions = [mockSolution, mockCommunitySolution];
+
 const mockTool = { name: 'Echo the name', command: '/bin/echo', args: ['name={displayName}'], mode: 'each' };
 
 export function createMockTransport(): Transport {
@@ -844,6 +872,22 @@ export function createMockTransport(): Transport {
         userSnippets.delete(params?.id ?? '');
         reply(id, null);
         break;
+      case 'solution.list':
+        reply(id, {
+          solutions: mockSolutions.map((manifest) => ({ manifest, compatible: manifest.minAppVersion === '0.0.0', installedVersion: null })),
+          fetchedAt: new Date().toISOString(),
+          offline: false,
+        });
+        break;
+      case 'solution.get': {
+        const manifest = mockSolutions.find((s) => s.id === params?.id);
+        if (!manifest) {
+          fail(id, 'bad_request', 'That solution isn\'t in the catalog.');
+          break;
+        }
+        reply(id, { manifest, readme: `# ${manifest.name}\n\n${manifest.description}`, installed: null, modified: [] });
+        break;
+      }
       case 'tools.list':
         reply(id, toolList());
         break;

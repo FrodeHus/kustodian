@@ -436,7 +436,7 @@ describe('App', () => {
     await screen.findByRole('tab', { name: /Query 1/ });
     const rail = screen.getByRole('navigation', { name: 'Side panels' });
     const pressed = () => within(rail).getAllByRole('button', { pressed: true }).map((b) => b.getAttribute('aria-label'));
-    expect(within(rail).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual(['Schema', 'Saved queries', 'Recent runs', 'Snippets']);
+    expect(within(rail).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual(['Schema', 'Saved queries', 'Recent runs', 'Snippets', 'Solutions']);
     expect(pressed()).toEqual(['Schema']);
     expect(screen.getByRole('complementary', { name: 'Schema' })).toBeTruthy();
 
@@ -444,6 +444,10 @@ describe('App', () => {
     expect(pressed()).toEqual(['Recent runs']);
     expect(await screen.findByRole('complementary', { name: 'Recent' })).toBeTruthy();
     expect(screen.queryByRole('complementary', { name: 'Schema' })).toBeNull();
+
+    fireEvent.click(within(rail).getByRole('button', { name: 'Solutions' }));
+    expect(pressed()).toEqual(['Solutions']);
+    expect(await screen.findByRole('complementary', { name: 'Community Solutions' })).toBeTruthy();
 
     // The palette's commands show a panel too.
     fireEvent.keyDown(window, { key: 'k', code: 'KeyK', ctrlKey: true });

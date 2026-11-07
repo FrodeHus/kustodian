@@ -2,7 +2,7 @@
 
 A workbook is a page of widgets, each backed by a query, that share a few parameters. Use one for a review you repeat
 (risky users this week, VMs that should be off), where one query tab answers only one question. Open **+ ▸ New workbook** in
-the tab strip. It opens as a workbook tab next to your query tabs. Save it with Ctrl/⌘+S.
+the tab strip. It opens as a workbook tab next to your query tabs. Save it with Ctrl/⌘+S. For ready-made workbooks, see [Community Solutions](solutions.md).
 
 ## Widgets
 

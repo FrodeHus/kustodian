@@ -58,6 +58,24 @@ public sealed class LibraryServiceTests : IDisposable
 
         Assert.Equal(0, list.Skipped);
         Assert.Null(Assert.Single(list.Queries).Options);
+        Assert.Null(Assert.Single(list.Queries).Origin);
+    }
+
+    [Fact]
+    public async Task Origin_survives_a_plain_save_and_the_internal_save_clears_it()
+    {
+        var service = NewService();
+        var origin = new SolutionOrigin("entra-risky-users", "1.0.0", "risky-users", "up", "content");
+        var saved = await service.SaveAsync(Input(), origin, Ct);
+
+        await service.SaveAsync(Input(id: saved.Id, name: "Renamed"), Ct);
+
+        var listed = Assert.Single((await NewService().ListAsync(Ct)).Queries);
+        Assert.Equal("Renamed", listed.Name);
+        Assert.Equal(origin, listed.Origin);
+
+        await service.SaveAsync(Input(id: saved.Id), null, Ct);
+        Assert.Null(Assert.Single((await NewService().ListAsync(Ct)).Queries).Origin);
     }
 
     [Fact]

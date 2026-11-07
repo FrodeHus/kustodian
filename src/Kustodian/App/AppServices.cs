@@ -14,6 +14,7 @@ using Kustodian.Raw;
 using Kustodian.Sessions;
 using Kustodian.Settings;
 using Kustodian.Snippets;
+using Kustodian.Solutions;
 using Kustodian.Workbooks;
 using Kustodian.Sources;
 using Kustodian.Sources.Arg;
@@ -48,6 +49,7 @@ public sealed class AppServices : IAsyncDisposable
     private readonly RecentService _recent;
     private readonly WorkbookService _workbooks;
     private readonly HistoryStore _history;
+    private readonly SolutionService _solutions;
     private readonly SessionService _session;
     private readonly SnippetService _snippets;
     private readonly ExternalToolService _tools;
@@ -68,6 +70,7 @@ public sealed class AppServices : IAsyncDisposable
         _recent = new RecentService(store, new StderrLogger<RecentService>());
         _workbooks = new WorkbookService(store, time, new StderrLogger<WorkbookService>());
         _history = new HistoryStore(store.Root, time, new StderrLogger<HistoryStore>());
+        _solutions = new SolutionService(store, _github, _library, _workbooks, time, AppVersion.Text, new StderrLogger<SolutionService>());
         _session = new SessionService(store);
         _snippets = new SnippetService(store, new StderrLogger<SnippetService>());
         _tools = new ExternalToolService(store.Root);
@@ -140,6 +143,7 @@ public sealed class AppServices : IAsyncDisposable
         new LibraryHandler(_library, _recent).Register(bridge);
         new WorkbookHandler(_workbooks, _history).Register(bridge);
         new HistoryHandler(_history).Register(bridge);
+        new SolutionHandler(_solutions).Register(bridge);
         new SessionHandler(_session, _allowedFiles).Register(bridge);
         new SnippetHandler(_snippets).Register(bridge);
         var dialogs = new PhotinoFileDialogs(Window);

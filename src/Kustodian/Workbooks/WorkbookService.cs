@@ -90,9 +90,14 @@ public sealed class WorkbookService(JsonFileStore store, TimeProvider time, ILog
     public static string? Check(JsonObject workbook) => Problem(workbook)
         ?? (Encoding.UTF8.GetByteCount(workbook.ToJsonString()) > MaxBytes ? "The workbook can be at most 2 MB." : null);
 
-    /// <summary>Writes <paramref name="workbook"/> with <c>modifiedAt</c> set to now and returns what was written. Throws
-    /// <see cref="WorkbookRejectedException"/> for a value that isn't allowed, and writes nothing then.</summary>
-    public async Task<JsonObject> SaveAsync(JsonObject workbook, CancellationToken ct = default)
+    /// <summary>Writes <paramref name="workbook"/> with <c>modifiedAt</c> set to now and returns what was written; a workbook
+    /// without <c>origin</c> keeps the existing file's. Throws <see cref="WorkbookRejectedException"/> for a value that isn't
+    /// allowed, and writes nothing then.</summary>
+    public Task<JsonObject> SaveAsync(JsonObject workbook, CancellationToken ct = default) => SaveAsync(workbook, true, ct);
+
+    /// <summary>As <see cref="SaveAsync(JsonObject, CancellationToken)"/>; with <paramref name="keepOrigin"/> false the
+    /// workbook's <c>origin</c> is written as it is, or not at all.</summary>
+    internal async Task<JsonObject> SaveAsync(JsonObject workbook, bool keepOrigin, CancellationToken ct)
     {
         if (Problem(workbook) is { } problem)
         {
@@ -102,15 +107,21 @@ public sealed class WorkbookService(JsonFileStore store, TimeProvider time, ILog
         var saved = (JsonObject)workbook.DeepClone();
         saved["id"] = NormalizeId(saved["id"]!.GetValue<string>());
         saved["modifiedAt"] = time.GetUtcNow().ToString("O", CultureInfo.InvariantCulture);
-        if (Encoding.UTF8.GetByteCount(saved.ToJsonString()) > MaxBytes)
-        {
-            throw new WorkbookRejectedException("The workbook can be at most 2 MB.");
-        }
-
         await _gate.WaitAsync(ct);
         try
         {
-            await store.WriteAsync(RelativePath(Folder, saved["id"]!.GetValue<string>()), saved, ct);
+            var path = RelativePath(Folder, saved["id"]!.GetValue<string>());
+            if (keepOrigin && saved["origin"] is null && await ReadAsync(path, ct) is { } existing && existing["origin"] is { } origin)
+            {
+                saved["origin"] = origin.DeepClone();
+            }
+
+            if (Encoding.UTF8.GetByteCount(saved.ToJsonString()) > MaxBytes)
+            {
+                throw new WorkbookRejectedException("The workbook can be at most 2 MB.");
+            }
+
+            await store.WriteAsync(path, saved, ct);
             return saved;
         }
         finally

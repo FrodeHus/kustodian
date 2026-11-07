@@ -1,0 +1,63 @@
+{
+  "kind": "kustodian.workbook",
+  "version": 1,
+  "id": "3f6c2d9a-8b41-4e57-9c0d-5a7e1b2f4c60",
+  "name": "Entra risky users, weekly review",
+  "folder": null,
+  "parameters": [
+    {
+      "name": "RiskLevel",
+      "type": "list",
+      "value": "high",
+      "required": true,
+      "label": "Risk level",
+      "choices": ["high", "medium", "low"],
+      "multi": true,
+      "all": false,
+      "remember": false,
+      "huntingTimespan": false
+    }
+  ],
+  "widgets": [
+    {
+      "id": "w1a2b3c01",
+      "type": "markdown",
+      "title": "",
+      "layout": { "x": 0, "y": 0, "w": 9, "h": 6 },
+      "parameters": {},
+      "markdown": "## Risky users\nUsers Microsoft Entra ID Protection flags at the chosen risk levels. Review the high-risk ones first: confirm the sign-in activity is theirs, then dismiss the risk or require a password change."
+    },
+    {
+      "id": "w1a2b3c02",
+      "type": "stat",
+      "title": "Risky users",
+      "layout": { "x": 9, "y": 0, "w": 3, "h": 6 },
+      "parameters": {},
+      "query": {
+        "source": "graph",
+        "text": "riskyUsers\n| where riskLevel in ({RiskLevel})\n| summarize Users = count()",
+        "options": null,
+        "parameters": [],
+        "saved": null
+      }
+    },
+    {
+      "id": "w1a2b3c03",
+      "type": "table",
+      "title": "Risky users",
+      "layout": { "x": 0, "y": 6, "w": 12, "h": 14 },
+      "parameters": {},
+      "query": {
+        "source": "graph",
+        "text": "riskyUsers\n| where riskLevel in ({RiskLevel})\n| project userDisplayName, userPrincipalName, riskLevel, riskState, riskLastUpdatedDateTime\n| order by riskLastUpdatedDateTime desc",
+        "options": null,
+        "parameters": [
+          { "name": "RiskLevel", "type": "list", "value": "high", "required": true, "choices": ["high", "medium", "low"] }
+        ],
+        "saved": { "id": "risky-users", "name": "Entra / Risky users" }
+      },
+      "selection": "multi",
+      "tools": []
+    }
+  ]
+}

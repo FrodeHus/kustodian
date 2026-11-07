@@ -1,0 +1,7 @@
+{
+  "name": "MFA / Users missing a passkey",
+  "folder": "MFA",
+  "source": "graph",
+  "text": "let passkey = dynamic([\"passKeyDeviceBound\", \"passKeyDeviceBoundAuthenticator\"]);\nlet app = dynamic([\"microsoftAuthenticatorPush\", \"microsoftAuthenticatorPasswordless\", \"softwareOneTimePasscode\"]);\nreports_authenticationMethods_userRegistrationDetails\n| extend\n    hasHardwareKey = array_length(set_intersect(methodsRegistered, passkey)) > 0,\n    hasAuthenticatorApp = array_length(set_intersect(methodsRegistered, app)) > 0,\n    hasNoMFA = array_length(methodsRegistered) == 0\n| extend PRFMA = iif(hasHardwareKey, \"Passkey\", iif(hasNoMFA, \"No MFA\", \"Missing passkey\"))\n| where PRFMA <> \"Passkey\"\n| project userDisplayName, userPrincipalName, PRFMA, hasAuthenticatorApp, defaultMfaMethod, methodsRegistered\n| order by PRFMA asc, userDisplayName asc",
+  "parameters": []
+}
