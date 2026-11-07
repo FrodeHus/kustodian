@@ -78,9 +78,10 @@ export function newWorkbook(name: string): WorkbookDoc {
 
 const emptyQuery = (): WidgetQuery => ({ source: 'graph', text: '', options: null, parameters: [], saved: null });
 
+const newWidgetId = () => `w${crypto.randomUUID().replaceAll('-', '').slice(0, 8)}`;
+
 export function newWidget(type: WidgetType, layout: WidgetLayout): Widget {
-  const id = `w${crypto.randomUUID().replaceAll('-', '').slice(0, 8)}`;
-  const widget: Widget = { id, type, title: '', layout, parameters: {} };
+  const widget: Widget = { id: newWidgetId(), type, title: '', layout, parameters: {} };
   if (type !== 'markdown') {
     widget.query = emptyQuery();
   }
@@ -90,7 +91,25 @@ export function newWidget(type: WidgetType, layout: WidgetLayout): Widget {
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
 const str = (v: unknown, fallback: string) => (typeof v === 'string' ? v : fallback);
+const strOrNull = (v: unknown) => (typeof v === 'string' ? v : null);
 const bool = (v: unknown) => v === true;
+const choices = (v: unknown) => (Array.isArray(v) && v.every((c) => typeof c === 'string') ? v : null);
+const FROMS: unknown[] = ['workbook', 'widget', 'fixed'] satisfies ParamFrom[];
+
+/** A query's own parameter definition; null when it isn't one. */
+function parseParamDef(v: unknown): ParameterDef | null {
+  if (!isObj(v) || typeof v.name !== 'string' || typeof v.type !== 'string' || typeof v.value !== 'string' || typeof v.required !== 'boolean') {
+    return null;
+  }
+  return { ...v, name: v.name, type: v.type, value: v.value, required: v.required, choices: choices(v.choices) };
+}
+
+function parseWidgetParams(v: unknown): Record<string, WidgetParam> {
+  const entries = Object.entries(isObj(v) ? v : {}).filter(
+    (e): e is [string, WidgetParam] => isObj(e[1]) && FROMS.includes(e[1].from) && typeof e[1].value === 'string',
+  );
+  return Object.fromEntries(entries.map(([name, p]) => [name, { ...p, from: p.from, value: p.value }]));
+}
 
 function parseQuery(v: unknown): WidgetQuery | null | undefined {
   if (v === undefined || v === null) {
@@ -105,7 +124,7 @@ function parseQuery(v: unknown): WidgetQuery | null | undefined {
     source: v.source as WidgetQuery['source'],
     text: str(v.text, ''),
     options: isObj(v.options) ? (v.options as unknown as QueryOptions) : null,
-    parameters: Array.isArray(v.parameters) ? (v.parameters as ParameterDef[]) : [],
+    parameters: Array.isArray(v.parameters) ? v.parameters.flatMap((p) => parseParamDef(p) ?? []) : [],
     saved: saved ? { id: saved.id as string, name: str(saved.name, '') } : null,
   };
 }
@@ -135,20 +154,33 @@ function parseWidget(v: unknown): Widget | null {
   }
   // Data widgets always have a query, as newWidget makes them.
   const query = parsed ?? (type === 'markdown' ? undefined : emptyQuery());
-  const { query: _dropped, ...rest } = v;
+  const { query: _query, chart, stat, ...rest } = v;
   return {
     ...rest,
     id: v.id,
     type,
     title: str(v.title, ''),
     layout: clampLayout(type, v.layout),
-    parameters: isObj(v.parameters) ? (v.parameters as Record<string, WidgetParam>) : {},
+    parameters: parseWidgetParams(v.parameters),
     ...(query ? { query } : {}),
+    ...('markdown' in v ? { markdown: str(v.markdown, '') } : {}),
+    ...(isObj(chart) ? { chart: chart as Picked } : {}),
+    ...(isObj(stat) ? { stat: { ...stat, value: strOrNull(stat.value), compare: strOrNull(stat.compare) } } : {}),
   };
 }
 
 const overlaps = (a: WidgetLayout, b: WidgetLayout) =>
   a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+/** Gives each widget whose id an earlier one has a new id. */
+function uniqueIds(widgets: Widget[]): Widget[] {
+  const seen = new Set<string>();
+  return widgets.map((w) => {
+    const id = seen.has(w.id) ? newWidgetId() : w.id;
+    seen.add(id);
+    return id === w.id ? w : { ...w, id };
+  });
+}
 
 /** Moves each widget (in y, x order) below whatever it overlaps. */
 function repairOverlaps(widgets: Widget[]): Widget[] {
@@ -174,7 +206,8 @@ function parseParameter(v: unknown): WorkbookParameter | null {
     type: str(v.type, 'text'),
     value: str(v.value, ''),
     required: bool(v.required),
-    label: typeof v.label === 'string' ? v.label : null,
+    label: strOrNull(v.label),
+    choices: choices(v.choices),
     multi: bool(v.multi),
     all: bool(v.all),
     remember: bool(v.remember),
@@ -202,7 +235,7 @@ export function parseWorkbook(json: unknown): WorkbookDoc | string {
     name: json.name,
     folder: typeof json.folder === 'string' ? json.folder : null,
     parameters: list(json.parameters).flatMap((p) => parseParameter(p) ?? []),
-    widgets: repairOverlaps(list(json.widgets).flatMap((w) => parseWidget(w) ?? [])),
+    widgets: repairOverlaps(uniqueIds(list(json.widgets).flatMap((w) => parseWidget(w) ?? []))),
   };
 }
 

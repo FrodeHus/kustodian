@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTabs } from '../tabs/tab-store';
 import type { RunResult } from '../wire';
 import type { Widget, WidgetType, WorkbookDoc, WorkbookParameter } from './model';
-import { newWidget, newWorkbook } from './model';
+import { newWidget, newWorkbook, parseWorkbook } from './model';
 import type { WidgetRun, WorkbookState } from './workbook-store';
 import { useWorkbooks } from './workbook-store';
 import { WorkbookView } from './workbook-view';
@@ -106,6 +106,32 @@ describe('WorkbookView', () => {
     expect(screen.getByRole('combobox', { name: 'Environment' })).toBeTruthy();
     // The chart widget names the workbook parameter it uses.
     expect(within(frame('Sign-ins by day')).getByText('Env')).toBeTruthy();
+  });
+
+  it('shows a damaged workbook, as parsed, without failing', () => {
+    const parsed = parseWorkbook({
+      ...doc,
+      parameters: [{ name: 'Env', type: 'list', value: 7, required: true, choices: 'x' }],
+      widgets: [
+        { id: 'm', type: 'markdown', title: 'Notes', markdown: 5, layout: { x: 0, y: 0, w: 4, h: 4 } },
+        {
+          id: 'm',
+          type: 'stat',
+          title: 'Total',
+          layout: { x: 4, y: 0, w: 4, h: 8 },
+          parameters: { Top: { from: 'bogus', value: 1 } },
+          query: { source: 'graph', text: 'Users | take {Top} {Q}', parameters: [{ name: 'Q', type: 'text', value: 7, required: true }] },
+          stat: 'value',
+        },
+      ],
+    });
+    if (typeof parsed === 'string') {
+      throw new Error(parsed);
+    }
+    doc = parsed;
+    show({});
+    expect(frame('Notes')).toBeTruthy();
+    expect(frame('Total')).toBeTruthy();
   });
 
   it('sets a workbook value from the bar', () => {

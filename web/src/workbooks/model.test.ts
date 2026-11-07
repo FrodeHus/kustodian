@@ -105,6 +105,60 @@ describe('parseWorkbook', () => {
   });
 });
 
+/** A hand-edited or damaged file: every field the app reads has the wrong shape. */
+const damaged = () => ({
+  ...example(),
+  parameters: [
+    { name: 'Env', type: 'list', value: 7, required: true, choices: 'x', label: 3 },
+    { name: 'Days', type: 'list', value: 'a', choices: ['1', 2] },
+  ],
+  widgets: [
+    { id: 'm', type: 'markdown', markdown: 5, layout: { x: 0, y: 0, w: 4, h: 4 } },
+    {
+      id: 'm',
+      type: 'table',
+      layout: { x: 4, y: 0, w: 4, h: 8 },
+      parameters: { A: { from: 'bogus', value: 'x' }, B: { from: 'fixed', value: 1 }, C: 'x', D: { from: 'widget', value: 'd' } },
+      query: {
+        source: 'graph',
+        text: 'T {Q} {R}',
+        parameters: [{ name: 'Q', type: 'text', value: 7, required: true }, 'x', { name: 'R', type: 'text', value: 'r', required: false, choices: 'y' }],
+      },
+      chart: 'pie',
+      stat: [1],
+    },
+  ],
+});
+
+describe('parseWorkbook on a damaged file', () => {
+  const d = () => doc(damaged());
+
+  it('coerces parameter value, label and choices', () => {
+    expect(d().parameters[0]).toMatchObject({ value: '', label: null, choices: null, required: true });
+    expect(d().parameters[1]?.choices).toBeNull();
+  });
+
+  it('makes markdown a string and drops chart and stat that are not objects', () => {
+    const [m, t] = d().widgets;
+    expect(m?.markdown).toBe('');
+    expect(t && ('chart' in t || 'stat' in t)).toBe(false);
+  });
+
+  it('keeps only widget parameter entries with a known from and a string value', () => {
+    expect(d().widgets[1]?.parameters).toEqual({ D: { from: 'widget', value: 'd' } });
+  });
+
+  it('keeps only query parameters with a valid shape, choices a string list or null', () => {
+    expect(d().widgets[1]?.query?.parameters).toEqual([{ name: 'R', type: 'text', value: 'r', required: false, choices: null }]);
+  });
+
+  it('gives a later widget with a taken id a new one', () => {
+    const [a, b] = d().widgets;
+    expect(a?.id).toBe('m');
+    expect(b?.id).toMatch(/^w[0-9a-f]{8}$/);
+  });
+});
+
 describe('isoTimespan', () => {
   it.each([
     ['7d', 'P7D'],

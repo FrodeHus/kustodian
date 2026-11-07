@@ -21,6 +21,21 @@ vi.mock('./bridge', async (importOriginal) => ({
   },
 }));
 
+// A workbook view that fails to render, when a test says so.
+const workbookView = vi.hoisted(() => ({ crash: false }));
+vi.mock('./workbooks/workbook-view', async (importOriginal) => {
+  const real = await importOriginal<typeof import('./workbooks/workbook-view')>();
+  return {
+    ...real,
+    WorkbookView: (props: Parameters<typeof real.WorkbookView>[0]) => {
+      if (workbookView.crash) {
+        throw new Error('The workbook view broke.');
+      }
+      return <real.WorkbookView {...props} />;
+    },
+  };
+});
+
 /** Sends a host event to the page, as the bridge does. */
 /** Opens the title bar's account menu and chooses `item`. */
 const openFromAccountMenu = (item: string | RegExp) => {
@@ -112,6 +127,7 @@ function host(list: AccountList, run: RunResult | Promise<RunResult> = rows, ses
 }
 
 beforeEach(() => {
+  workbookView.crash = false;
   answers = {};
   bridge.call.mockReset();
   useTabs.setState({ tabs: [], activeId: null, cursors: {} });
@@ -538,6 +554,22 @@ describe('App', () => {
 
     expect((await screen.findByRole('alert')).textContent).toContain('Only .kql files can be opened; notes.txt isn’t one.');
     expect(useTabs.getState().tabs).toHaveLength(1);
+  });
+
+  it('a_workbook_view_that_fails_shows_the_error_in_its_tab_and_the_app_stays', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+    workbookView.crash = true;
+    answers['errors.report'] = () => ({ reportId: 'K7Q2M9XD' });
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    act(() => void useTabs.getState().openWorkbook());
+
+    expect(await screen.findByText('The workbook view broke.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('tab', { name: /Query 1/ }));
+    expect(await screen.findByRole('textbox', { name: 'KQL query' })).toBeTruthy();
+    vi.mocked(console.error).mockRestore();
   });
 
   it('toolbar_shows_parameter_count', async () => {

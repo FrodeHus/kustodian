@@ -24,7 +24,7 @@ import { ErrorReportsDialog } from './settings/error-reports';
 import { TelemetryDialog } from './settings/telemetry';
 import { bindGlobalKeys, registerCommands, runCommand, type Command } from './shell/commands';
 import { errorText } from './shell/errors';
-import { ErrorReportActions, type Shown } from './shell/error-report';
+import { ErrorBoundary, ErrorReportActions, type Shown } from './shell/error-report';
 import { reportIdOf } from './shell/report-id';
 import { MOD, SHIFT } from './shell/keys';
 import { Palette } from './shell/palette';
@@ -655,9 +655,12 @@ export function App() {
                     </EditorFailed>
                   </div>
                   {workbook ? (
-                    <Suspense fallback={<p className="faint m-0 p-4 text-[12px]">Loading the workbook…</p>}>
-                      <WorkbookView key={active.id} tabId={active.id} onSignIn={() => setAccountsOpen(true)} />
-                    </Suspense>
+                    // A workbook that breaks its view shows the error in its tab; the app and the other tabs stay.
+                    <ErrorBoundary key={active.id}>
+                      <Suspense fallback={<p className="faint m-0 p-4 text-[12px]">Loading the workbook…</p>}>
+                        <WorkbookView tabId={active.id} onSignIn={() => setAccountsOpen(true)} />
+                      </Suspense>
+                    </ErrorBoundary>
                   ) : raw ? (
                     <RawTab
                       key={active.id}
