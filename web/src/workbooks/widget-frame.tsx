@@ -373,7 +373,22 @@ export function WidgetFrame({
       e.currentTarget.setPointerCapture?.(e.pointerId);
       endGesture();
       const across = kind === 'move' && widget.type !== 'tabs';
+      const id = e.pointerId;
+      let armed = false;
       const onMove = (m: globalThis.PointerEvent) => {
+        if (m.pointerId !== id) {
+          return;
+        }
+        // Released where no pointerup reached us (outside the window, after a tab shown mid-drag hid this widget).
+        if (m.buttons === 0) {
+          endGesture();
+          return;
+        }
+        // Esc drops the drag once it has moved, so a press that doesn't move leaves Esc alone.
+        if (!armed) {
+          armed = true;
+          window.addEventListener('keydown', onKey, true);
+        }
         const s = steps(m);
         if (s) {
           setAway(across && follow(m));
@@ -381,18 +396,25 @@ export function WidgetFrame({
         }
       };
       const onUp = (u: globalThis.PointerEvent) => {
+        if (u.pointerId !== id) {
+          return;
+        }
         const s = steps(u);
         const over = gesture.current?.over;
         endGesture();
         const to = over && destinations(doc.widgets).find((d) => placeKey(d.to) === over.dataset.wbPlace);
-        if (over && to) {
+        if (over) {
+          // No destination when its tab went mid-drag: nothing moves.
+          if (!to) {
+            return;
+          }
           const r = over.getBoundingClientRect();
           editing?.onMoveTo(to.to, {
             x: Math.floor((u.clientX - r.left) / ((r.width + GAP_PX) / COLUMNS)),
             y: Math.floor((u.clientY - r.top) / (ROW_PX + GAP_PX)),
           });
         } else if (s && ref.current) {
-          // Not when a tab shown mid-drag hid this widget.
+          // Not when a tab shown mid-drag hid this widget: back over its home grid, that drop does nothing.
           commit(kind, s[0], s[1]);
         }
       };
@@ -408,7 +430,6 @@ export function WidgetFrame({
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp);
       window.addEventListener('pointercancel', endGesture);
-      window.addEventListener('keydown', onKey, true);
       const stop = () => {
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);

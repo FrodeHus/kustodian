@@ -193,7 +193,7 @@ describe('workbook edit mode', () => {
     grid.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, width: 1188, height: 600, right: 1188, bottom: 600, toJSON: () => ({}) });
     const g = grip('Users');
     fireEvent.pointerDown(g, { clientX: 10, clientY: 10, button: 0, pointerId: 1 });
-    fireEvent.pointerMove(g, { clientX: 10 + 2 * 100 + 30, clientY: 10 + 3 * 20 + 4, pointerId: 1 });
+    fireEvent.pointerMove(g, { clientX: 10 + 2 * 100 + 30, clientY: 10 + 3 * 20 + 4, pointerId: 1, buttons: 1 });
     const target = document.querySelector<HTMLElement>('.wb-drop')!;
     // Where it lands: column 3, and up to the top, as the grid reflows.
     expect(target.style.getPropertyValue('--x')).toBe('3');
@@ -212,7 +212,7 @@ describe('workbook edit mode', () => {
     const g = grip('Users');
     const before = layoutOf('a');
     fireEvent.pointerDown(g, { clientX: 10, clientY: 10, button: 0, pointerId: 1 });
-    fireEvent.pointerMove(g, { clientX: 230, clientY: 10, pointerId: 1 });
+    fireEvent.pointerMove(g, { clientX: 230, clientY: 10, pointerId: 1, buttons: 1 });
     expect(document.querySelector('.wb-drop')).not.toBeNull();
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(document.querySelector('.wb-drop')).toBeNull();
@@ -220,7 +220,7 @@ describe('workbook edit mode', () => {
     expect(layoutOf('a')).toEqual(before);
 
     fireEvent.pointerDown(g, { clientX: 10, clientY: 10, button: 0, pointerId: 2 });
-    fireEvent.pointerMove(g, { clientX: 230, clientY: 10, pointerId: 2 });
+    fireEvent.pointerMove(g, { clientX: 230, clientY: 10, pointerId: 2, buttons: 1 });
     fireEvent(g, new Event('lostpointercapture', { bubbles: true }));
     expect(document.querySelector('.wb-drop')).toBeNull();
     fireEvent.pointerUp(g, { clientX: 230, clientY: 10, pointerId: 2 });
@@ -260,7 +260,7 @@ describe('workbook edit mode', () => {
     fireEvent.focus(grip('Users'));
     const corner = document.querySelector('.wb-resize-corner')!;
     fireEvent.pointerDown(corner, { clientX: 0, clientY: 0, button: 0, pointerId: 1 });
-    fireEvent.pointerMove(corner, { clientX: 200, clientY: 40, pointerId: 1 });
+    fireEvent.pointerMove(corner, { clientX: 200, clientY: 40, pointerId: 1, buttons: 1 });
     fireEvent.pointerUp(corner, { clientX: 200, clientY: 40, pointerId: 1 });
     expect(layoutOf('a')).toMatchObject({ w: 6, h: 14 });
   });
@@ -608,7 +608,7 @@ describe('workbook edit mode', () => {
         pointAt(inner);
         const g = grip('Users');
         fireEvent.pointerDown(g, { clientX: 10, clientY: 10, button: 0, pointerId: 1 });
-        fireEvent.pointerMove(g, { clientX: 450, clientY: 300 + 25, pointerId: 1 });
+        fireEvent.pointerMove(g, { clientX: 450, clientY: 300 + 25, pointerId: 1, buttons: 1 });
         expect(inner.classList.contains('wb-drop')).toBe(true);
         // The source grid's drop target hides while the pointer is over another place.
         expect(document.querySelector('.wb-widget.wb-drop')).toBeNull();
@@ -619,7 +619,7 @@ describe('workbook edit mode', () => {
         expect(state().undo).toHaveLength(0);
 
         fireEvent.pointerDown(g, { clientX: 10, clientY: 10, button: 0, pointerId: 2 });
-        fireEvent.pointerMove(g, { clientX: 450, clientY: 325, pointerId: 2 });
+        fireEvent.pointerMove(g, { clientX: 450, clientY: 325, pointerId: 2, buttons: 1 });
         fireEvent.pointerUp(g, { clientX: 450, clientY: 325, pointerId: 2 });
         const moved = state().doc.widgets.find((w) => w.id === 'a')!;
         expect(moved.in).toEqual({ tabs: 'tw', tab: 't1' });
@@ -631,7 +631,7 @@ describe('workbook edit mode', () => {
         const sections = grip('Sections');
         pointAt(gridOf('tw/t1'));
         fireEvent.pointerDown(sections, { clientX: 10, clientY: 10, button: 0, pointerId: 3 });
-        fireEvent.pointerMove(sections, { clientX: 450, clientY: 325, pointerId: 3 });
+        fireEvent.pointerMove(sections, { clientX: 450, clientY: 325, pointerId: 3, buttons: 1 });
         expect(gridOf('tw/t1').classList.contains('wb-drop')).toBe(false);
         fireEvent.pointerUp(sections, { clientX: 450, clientY: 325, pointerId: 3 });
         expect(state().doc.widgets.find((w) => w.id === 'tw')?.in).toBeUndefined();
@@ -646,15 +646,15 @@ describe('workbook edit mode', () => {
         pointAt(two);
         const g = grip('Kid one');
         fireEvent.pointerDown(g, { clientX: 10, clientY: 10, button: 0, pointerId: 1 });
-        fireEvent.pointerMove(g, { clientX: 300, clientY: 280, pointerId: 1 });
+        fireEvent.pointerMove(g, { clientX: 300, clientY: 280, pointerId: 1, buttons: 1 });
         act(() => vi.advanceTimersByTime(300));
         // Leaving the tab cancels the wait.
         pointAt(document.body);
-        fireEvent.pointerMove(g, { clientX: 300, clientY: 400, pointerId: 1 });
+        fireEvent.pointerMove(g, { clientX: 300, clientY: 400, pointerId: 1, buttons: 1 });
         act(() => vi.advanceTimersByTime(500));
         expect(two.getAttribute('aria-selected')).toBe('false');
         pointAt(two);
-        fireEvent.pointerMove(g, { clientX: 300, clientY: 280, pointerId: 1 });
+        fireEvent.pointerMove(g, { clientX: 300, clientY: 280, pointerId: 1, buttons: 1 });
         act(() => vi.advanceTimersByTime(499));
         expect(two.getAttribute('aria-selected')).toBe('false');
         act(() => vi.advanceTimersByTime(1));
@@ -664,11 +664,47 @@ describe('workbook edit mode', () => {
         const inner = gridOf('tw/t2');
         inner.getBoundingClientRect = rect(300);
         pointAt(inner);
-        fireEvent.pointerMove(window, { clientX: 450, clientY: 325, pointerId: 1 });
+        fireEvent.pointerMove(window, { clientX: 450, clientY: 325, pointerId: 1, buttons: 1 });
         fireEvent.pointerUp(window, { clientX: 450, clientY: 325, pointerId: 1 });
         expect(state().doc.widgets.find((w) => w.id === 'k1')?.in).toEqual({ tabs: 'tw', tab: 't2' });
         expect(live().textContent).toBe('Moved to Two');
         expect(document.activeElement).toBe(grip('Kid one'));
+      });
+
+      it('a drag released outside the window after a hover switch ends at the next move without buttons', () => {
+        vi.useFakeTimers();
+        show();
+        gridOf('').getBoundingClientRect = rect(0);
+        gridOf('tw/t1').getBoundingClientRect = rect(300);
+        pointAt(screen.getByRole('tab', { name: /Two/ }));
+        fireEvent.pointerDown(grip('Kid one'), { clientX: 10, clientY: 10, button: 0, pointerId: 1 });
+        fireEvent.pointerMove(grip('Kid one'), { clientX: 300, clientY: 280, pointerId: 1, buttons: 1 });
+        act(() => vi.advanceTimersByTime(500));
+        expect(screen.queryByRole('button', { name: 'Move Kid one' })).toBeNull();
+        // Released outside the window: no pointerup. Back in, the pointer moves with no button down, then clicks over a grid.
+        const inner = gridOf('tw/t2');
+        inner.getBoundingClientRect = rect(300);
+        pointAt(inner);
+        fireEvent.pointerMove(window, { clientX: 450, clientY: 325, pointerId: 1, buttons: 0 });
+        expect(inner.classList.contains('wb-drop')).toBe(false);
+        fireEvent.pointerUp(window, { clientX: 450, clientY: 325, pointerId: 1 });
+        expect(state().undo).toHaveLength(0);
+      });
+
+      it('a press on the grip without a move leaves Esc alone, and another pointer’s events are ignored', () => {
+        show();
+        gridOf('').getBoundingClientRect = rect(0);
+        const g = grip('Users');
+        fireEvent.pointerDown(g, { clientX: 10, clientY: 10, button: 0, pointerId: 1 });
+        const esc = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+        window.dispatchEvent(esc);
+        expect(esc.defaultPrevented).toBe(false);
+        pointAt(gridOf('tw/t1'));
+        fireEvent.pointerMove(g, { clientX: 450, clientY: 325, pointerId: 2, buttons: 1 });
+        expect(gridOf('tw/t1').classList.contains('wb-drop')).toBe(false);
+        fireEvent.pointerUp(g, { clientX: 450, clientY: 325, pointerId: 2 });
+        expect(state().undo).toHaveLength(0);
+        fireEvent.pointerUp(g, { clientX: 10, clientY: 10, pointerId: 1 });
       });
 
       it('Undo after a move puts the widget back', () => {
