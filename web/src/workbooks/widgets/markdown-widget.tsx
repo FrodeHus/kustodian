@@ -1,5 +1,10 @@
 import { useMemo, useState } from 'react';
 import Markdown, { type Components } from 'react-markdown';
+import { gfmTableFromMarkdown } from 'mdast-util-gfm-table';
+import { gfmTable } from 'micromark-extension-gfm-table';
+// Type-only: brings in remark-parse's micromarkExtensions/fromMarkdownExtensions on unified's Data.
+import type {} from 'remark-parse';
+import type { Processor } from 'unified';
 import { call } from '../../bridge';
 import { errorText } from '../../shell/errors';
 import { withValues } from './with-values';
@@ -38,7 +43,17 @@ function linkComponents(onFailed: (message: string | null) => void): Components 
   };
 }
 
-/** A Markdown widget: CommonMark through react-markdown (raw HTML off, default urlTransform), parameters substituted first. */
+/** GFM tables only. Not all of remark-gfm: its autolinks would turn a bare URL in a parameter value into a link, past
+ * `withValues`' escaping. */
+function remarkTables(this: Processor) {
+  const data = this.data();
+  (data.micromarkExtensions ??= []).push(gfmTable());
+  (data.fromMarkdownExtensions ??= []).push(gfmTableFromMarkdown());
+}
+
+const remarkPlugins = [remarkTables];
+
+/** A Markdown widget: CommonMark plus GFM tables through react-markdown (raw HTML off, default urlTransform), parameters substituted first. */
 export function MarkdownWidget({ text, values }: { text: string; values: Record<string, string> }) {
   const [failed, setFailed] = useState<string | null>(null);
   const components = useMemo(() => linkComponents(setFailed), []);
@@ -49,7 +64,7 @@ export function MarkdownWidget({ text, values }: { text: string; values: Record<
           {failed}
         </p>
       )}
-      <Markdown components={components}>{withValues(text, values)}</Markdown>
+      <Markdown components={components} remarkPlugins={remarkPlugins}>{withValues(text, values)}</Markdown>
     </div>
   );
 }
