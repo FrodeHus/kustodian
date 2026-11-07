@@ -83,6 +83,9 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Markdown widgets show headings, lists, quotes and code as such: `## Test` is a heading again, not plain text. Any widget
+  can now hide its title bar outside edit mode (**Hide the title bar outside edit mode** in Edit widget); its ⋯ menu hides
+  with it.
 - A table widget's inspect button (the magnifier) opens the row in the row details sheet, as on the Rows tab, instead of
   ticking the row's checkbox.
 - Chart widgets can split by a column and stack again: the widget editor's Visualization tab has **Split by** (formerly
