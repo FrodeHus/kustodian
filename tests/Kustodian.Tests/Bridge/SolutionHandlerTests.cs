@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using Kustodian.History;
 using Kustodian.Library;
 using Kustodian.Messaging.Handlers;
 using Kustodian.Solutions;
@@ -19,6 +20,7 @@ public sealed class SolutionHandlerTests : IDisposable
     private readonly Messaging.Bridge _bridge = new(_ => { });
     private readonly LibraryService _library;
     private readonly WorkbookService _workbooks;
+    private readonly HistoryStore _history;
     private readonly FakeTimeProvider _time;
     private bool _down;
 
@@ -28,6 +30,7 @@ public sealed class SolutionHandlerTests : IDisposable
         var store = new JsonFileStore(_dir);
         _library = new LibraryService(store, time);
         _workbooks = new WorkbookService(store, time);
+        _history = new HistoryStore(_dir, time);
         var http = new HttpClient(new Fake(url =>
         {
             if (_down)
@@ -42,11 +45,12 @@ public sealed class SolutionHandlerTests : IDisposable
                 ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(File.ReadAllBytes(path)) }
                 : new HttpResponseMessage(HttpStatusCode.NotFound);
         }));
-        new SolutionHandler(new SolutionService(store, http, _library, _workbooks, time, "1.0.0")).Register(_bridge);
+        new SolutionHandler(new SolutionService(store, http, _library, _workbooks, _history, time, "1.0.0")).Register(_bridge);
     }
 
     public void Dispose()
     {
+        _history.Dispose();
         if (Directory.Exists(_dir))
         {
             Directory.Delete(_dir, recursive: true);

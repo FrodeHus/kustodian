@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Kustodian.History;
 using Kustodian.Library;
 using Kustodian.Solutions;
 using Kustodian.Storage;
@@ -16,11 +17,13 @@ public sealed class SolutionServiceFetchTests : IDisposable
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "kustodian-sol-" + Guid.NewGuid().ToString("N"));
     private readonly FakeTimeProvider _time = new(DateTimeOffset.Parse("2026-11-07T10:00:00Z", System.Globalization.CultureInfo.InvariantCulture));
     private readonly List<string> _requests = [];
+    private readonly List<HistoryStore> _histories = [];
     private Func<string, HttpResponseMessage> _answer = _ => new HttpResponseMessage(HttpStatusCode.NotFound);
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     public void Dispose()
     {
+        _histories.ForEach(h => h.Dispose());
         if (Directory.Exists(_dir))
         {
             Directory.Delete(_dir, true);
@@ -35,7 +38,10 @@ public sealed class SolutionServiceFetchTests : IDisposable
             _requests.Add(url);
             return _answer(url);
         }));
-        return new SolutionService(store, http, new LibraryService(store, _time), new WorkbookService(store, _time), _time, appVersion);
+        var history = new HistoryStore(_dir, _time);
+        _histories.Add(history);
+        return new SolutionService(store, http, new LibraryService(store, _time), new WorkbookService(store, _time), history, _time,
+            appVersion);
     }
 
     private static SolutionManifest Manifest(string id = "risky-signins", string min = "1.0.0") =>

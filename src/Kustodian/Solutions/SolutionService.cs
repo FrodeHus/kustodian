@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Kustodian.App;
+using Kustodian.History;
 using Kustodian.Library;
 using Kustodian.Storage;
 using Kustodian.Workbooks;
@@ -36,7 +37,7 @@ public sealed class SolutionRejectedException(string message) : Exception(messag
 /// deletes what it wrote when a write fails; each installed item carries a <see cref="SolutionOrigin"/>.
 /// </summary>
 public sealed class SolutionService(JsonFileStore store, HttpClient http, LibraryService library, WorkbookService workbooks,
-    TimeProvider time, string appVersion, ILogger<SolutionService>? logger = null)
+    HistoryStore history, TimeProvider time, string appVersion, ILogger<SolutionService>? logger = null)
 {
     public const string BaseUrl = "https://raw.githubusercontent.com/FrodeHus/kustodian/main/Solutions/";
 
@@ -280,7 +281,16 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
                 {
                     keep = keep || IsModified(wb);
                     wb.Remove("origin");
-                    await (keep ? _workbooks.SaveAsync(wb, false, ct) : _workbooks.DeleteAsync(item.LibraryId, ct));
+                    if (keep)
+                    {
+                        await _workbooks.SaveAsync(wb, false, ct);
+                    }
+                    else
+                    {
+                        await _workbooks.DeleteAsync(item.LibraryId, ct);
+                        // As WorkbookHandler's delete: the workbook's history goes with it, filed under the lowercase id.
+                        await history.DeleteWorkbookAsync(Guid.Parse(item.LibraryId).ToString("D"), ct);
+                    }
                 }
             }
 

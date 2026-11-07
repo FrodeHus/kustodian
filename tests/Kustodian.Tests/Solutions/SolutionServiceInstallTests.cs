@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Kustodian.History;
 using Kustodian.Library;
 using Kustodian.Solutions;
 using Kustodian.Storage;
@@ -23,6 +24,7 @@ public sealed class SolutionServiceInstallTests : IDisposable
     private readonly Dictionary<string, byte[]> _files;
     private readonly LibraryService _library;
     private readonly WorkbookService _workbooks;
+    private readonly HistoryStore _history;
     private SolutionIndexDoc _index;
     private byte[] _indexBytes;
     private bool _down;
@@ -40,10 +42,12 @@ public sealed class SolutionServiceInstallTests : IDisposable
         var store = new JsonFileStore(_dir);
         _library = new LibraryService(store, _time);
         _workbooks = new WorkbookService(store, _time);
+        _history = new HistoryStore(_dir, _time);
     }
 
     public void Dispose()
     {
+        _history.Dispose();
         if (Directory.Exists(_dir))
         {
             Directory.Delete(_dir, true);
@@ -80,7 +84,7 @@ public sealed class SolutionServiceInstallTests : IDisposable
                 ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) }
                 : new HttpResponseMessage(HttpStatusCode.NotFound);
         }));
-        return new SolutionService(new JsonFileStore(_dir), http, _library, _workbooks, _time, appVersion);
+        return new SolutionService(new JsonFileStore(_dir), http, _library, _workbooks, _history, _time, appVersion);
     }
 
     /// <summary>Changes a served file and the index with it, as a new upstream commit would.</summary>
@@ -255,6 +259,10 @@ public sealed class SolutionServiceInstallTests : IDisposable
         await svc.InstallAsync(Id, Set(), Ct);
         var edited = (await _library.ListAsync(Ct)).Queries.Single(q => q.Origin!.ItemId == "risky-users");
         await _library.SaveAsync(InputOf(edited) with { Text = edited.Text + "\n| take 10", Name = "Mine" }, Ct);
+        var workbookId = Assert.Single((await _workbooks.ListAsync(Ct)).Workbooks).Id;
+        await _history.RecordAsync(new RecordRequest(workbookId, "w1", new HistoryQuery("graph", "T", null, []),
+            new HistorySetting(HistoryMode.Values, HistoryInterval.Day, 30, []), "all", [new("id", "string")],
+            [[JsonSerializer.SerializeToElement("a")]]), Ct);
 
         var modified = await svc.ModifiedAsync(Id, Ct);
 
@@ -266,6 +274,7 @@ public sealed class SolutionServiceInstallTests : IDisposable
         Assert.Equal(edited.Id, kept.Id);
         Assert.Null(kept.Origin);
         Assert.Empty((await _workbooks.ListAsync(Ct)).Workbooks);
+        Assert.Empty(await _history.SeriesAsync(workbookId, "w1", Ct));
         var file = JsonNode.Parse(await File.ReadAllTextAsync(InstalledPath, Ct))!;
         Assert.Empty(file["installed"]!.AsArray());
         Assert.Null((await svc.ListAsync(false, Ct)).Solutions.Single(s => s.Manifest.Id == "entra-risky-users").InstalledVersion);
