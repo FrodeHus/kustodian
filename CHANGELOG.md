@@ -86,6 +86,7 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Markdown widgets and solution READMEs render pipe tables (`| a | b |`) as tables instead of one line of text.
 - Discarding a workbook edit (or undoing back to the start) reruns any widget that ran a draft query while editing, so it no
   longer shows, or runs tool buttons on, rows from a query the workbook doesn't have.
 - A raw Graph request's response no longer undoes header or version changes made while it was being sent.
