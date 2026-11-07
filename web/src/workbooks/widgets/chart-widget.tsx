@@ -1,4 +1,4 @@
-import { Suspense, lazy, useContext } from 'react';
+import { Suspense, lazy, useContext, useMemo } from 'react';
 import { ChartFailed } from '../../results/result-panel';
 import { HistoryData, withGaps } from '../history';
 import type { Widget } from '../model';
@@ -12,10 +12,17 @@ const ChartView = lazy(() => import('../../results/chart-view'));
  * history it plots every retained snapshot against a `Snapshot` axis, with a gap on each day that has none. */
 export function ChartWidget({ widget, run }: { widget: Widget; run: WidgetRun }) {
   const { values } = useContext(HistoryData);
+  const history = widget.history;
+  // Stable inputs, so the chart's own memo holds across the workbook's re-renders.
+  const gapped = useMemo(
+    () => (history?.mode === 'values' && values?.snapshots.length ? withGaps(values.snapshots, history.interval) : null),
+    [history, values],
+  );
+  const chart = widget.chart;
+  const picked = useMemo(() => (gapped ? { ...chart, x: 'Snapshot' } : (chart ?? {})), [gapped, chart]);
   if (run.state !== 'done') {
     return null;
   }
-  const gapped = widget.history?.mode === 'values' && values?.snapshots.length ? withGaps(values.snapshots, widget.history.interval) : null;
   const table = gapped ?? run.result;
   return (
     <ChartFailed>
@@ -24,7 +31,7 @@ export function ChartWidget({ widget, run }: { widget: Widget; run: WidgetRun })
           columns={table.columns}
           rows={table.rows}
           kql={widget.query?.text ?? ''}
-          picked={gapped ? { ...widget.chart, x: 'Snapshot' } : (widget.chart ?? {})}
+          picked={picked}
           controls={false}
         />
       </Suspense>

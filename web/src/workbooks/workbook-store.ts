@@ -100,7 +100,8 @@ const jobs = new Map<string, Job>();
 /** Saved queries by id, per tab; null when the library couldn't be read (linked widgets then run their last copy). */
 const libraries = new Map<string, Map<string, SavedQuery> | null>();
 /** The doc, dirty flag and undo stacks as they were when editing started, for a discard. */
-const editStarts = new Map<string, Pick<WorkbookState, 'doc' | 'dirty' | 'undo' | 'redo'>>();
+/** `ran` holds the widgets run while editing: their rows may be from a draft that a discard or undo then takes away. */
+const editStarts = new Map<string, Pick<WorkbookState, 'doc' | 'dirty' | 'undo' | 'redo'> & { ran?: Set<string> }>();
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 /** The current load of each tab; a read that finishes after an unload or a newer load is dropped. */
 const loads = new Map<string, symbol>();
@@ -173,6 +174,11 @@ export async function readLibrary(tabId: string) {
 /** The doc as it was when editing started (or as last saved since), while editing. */
 export function editStartDoc(tabId: string): WorkbookDoc | undefined {
   return editStarts.get(tabId)?.doc;
+}
+
+/** The widgets run since editing started (or since it was last saved), while editing. */
+export function editRanWidgets(tabId: string): string[] {
+  return [...(editStarts.get(tabId)?.ran ?? [])];
 }
 
 /** The widget as it runs: a linked one takes the library query's text, source, options and parameters (as last read for the
@@ -384,6 +390,10 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
       const own = get().byTab[tabId]?.doc.widgets.find((w) => w.id === widgetId);
       if (!own?.query) {
         return Promise.resolve();
+      }
+      const start = editStarts.get(tabId);
+      if (start) {
+        (start.ran ??= new Set()).add(widgetId);
       }
       return new Promise<void>((settle) => {
         const queued = queue(tabId, `${tabId}/${widgetId}`, own, opts?.refresh ?? false, {
