@@ -32,6 +32,7 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
     private const string CachePath = "solution-cache/index.json";
     private const long IndexLimit = 4L * 1024 * 1024;
     private static readonly TimeSpan CacheLife = TimeSpan.FromHours(1);
+    private static readonly TimeSpan ReadTimeout = TimeSpan.FromSeconds(30);
     private const string Unreachable = "Kustodian couldn't reach GitHub.";
     private const string Mismatch = "The download didn't match the catalog. Try again later.";
 
@@ -67,18 +68,21 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
     /// <summary>A solution's manifest and its README, the README checked against the index.</summary>
     public async Task<(SolutionManifest Manifest, string Readme)> GetAsync(string id, CancellationToken ct)
     {
+        IndexEntry entry;
         await _gate.WaitAsync(ct);
         try
         {
-            var entry = (await LoadAsync(false, ct)).Entries.FirstOrDefault(e => e.Manifest.Id == id)
+            entry = (await LoadAsync(false, ct)).Entries.FirstOrDefault(e => e.Manifest.Id == id)
                 ?? throw new SolutionRejectedException("That solution isn't in the catalog.");
-            var readme = entry.Files.First(f => f.Path == "README.md");
-            return (entry.Manifest, Encoding.UTF8.GetString(await FetchFileAsync(entry, readme, ct)));
         }
         finally
         {
             _gate.Release();
         }
+
+        // Downloaded outside the gate, which only protects the cache and solutions.json.
+        var readme = entry.Files.First(f => f.Path == "README.md");
+        return (entry.Manifest, Encoding.UTF8.GetString(await FetchFileAsync(entry, readme, ct)));
     }
 
     private async Task<Loaded> LoadAsync(bool refresh, CancellationToken ct)
@@ -110,8 +114,8 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
 
             return new Loaded(Valid(index), fetched, false);
         }
-        catch (Exception e) when (e is HttpRequestException or InvalidDataException or JsonException
-                                      or OperationCanceledException && !ct.IsCancellationRequested)
+        catch (Exception e) when (e is HttpRequestException or IOException or InvalidDataException or JsonException
+                                      || e is OperationCanceledException && !ct.IsCancellationRequested)
         {
             _log.LogWarning(e, "The solutions index could not be fetched.");
             return cache is null
@@ -161,7 +165,8 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
         {
             throw new SolutionRejectedException(Mismatch);
         }
-        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException && !ct.IsCancellationRequested)
+        catch (Exception ex) when (ex is HttpRequestException or IOException
+                                       || ex is OperationCanceledException && !ct.IsCancellationRequested)
         {
             _log.LogWarning(ex, "The solution file {Path} could not be fetched.", f.Path);
             throw new SolutionRejectedException(Unreachable);
@@ -174,6 +179,10 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
     /// trusting Content-Length.</summary>
     private async Task<byte[]> GetBytesAsync(string url, long limit, CancellationToken ct)
     {
+        // HttpClient.Timeout covers only the headers here; this bounds the whole read. Its cancellation is not the caller's.
+        using var limited = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limited.CancelAfter(ReadTimeout);
+        ct = limited.Token;
         using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
         response.EnsureSuccessStatusCode();
         await using var stream = await response.Content.ReadAsStreamAsync(ct);

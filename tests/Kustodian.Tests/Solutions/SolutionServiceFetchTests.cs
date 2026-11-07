@@ -88,6 +88,34 @@ public sealed class SolutionServiceFetchTests : IDisposable
         Assert.Single(catalog.Solutions);
     }
 
+    private static HttpResponseMessage Dropping() => new(HttpStatusCode.OK) { Content = new StreamContent(new DroppingStream()) };
+
+    [Fact]
+    public async Task ListWithADroppedBodyFallsBackToTheCache()
+    {
+        _answer = _ => Json(Doc(Entry(Manifest())));
+        var svc = Service();
+        await svc.ListAsync(false, Ct);
+        _answer = _ => Dropping();
+
+        var catalog = await svc.ListAsync(true, Ct);
+
+        Assert.True(catalog.Offline);
+        Assert.Single(catalog.Solutions);
+    }
+
+    [Fact]
+    public async Task ADroppedBodyIsUnreachable()
+    {
+        _answer = _ => Dropping();
+        var ex = await Assert.ThrowsAsync<SolutionRejectedException>(() => Service().ListAsync(false, Ct));
+        Assert.Equal("Kustodian couldn't reach GitHub.", ex.Message);
+
+        _answer = url => url == IndexUrl ? Json(Doc(Entry(Manifest()))) : Dropping();
+        ex = await Assert.ThrowsAsync<SolutionRejectedException>(() => Service().GetAsync("risky-signins", Ct));
+        Assert.Equal("Kustodian couldn't reach GitHub.", ex.Message);
+    }
+
     [Fact]
     public async Task ListOfflineWithoutCacheThrows()
     {
@@ -184,6 +212,33 @@ public sealed class SolutionServiceFetchTests : IDisposable
 
         Assert.Equal("The download didn't match the catalog. Try again later.", ex.Message);
         Assert.Equal(SolutionService.BaseUrl + "risky-signins/README.md", _requests[^1]);
+    }
+
+    private sealed class DroppingStream : Stream
+    {
+        private bool _first = true;
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw new IOException("connection dropped");
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (!_first)
+            {
+                throw new IOException("connection dropped");
+            }
+
+            _first = false;
+            buffer.Span[0] = (byte)'{';
+            return ValueTask.FromResult(1);
+        }
     }
 
     private sealed class Handler(Func<string, HttpResponseMessage> answer) : HttpMessageHandler
