@@ -182,6 +182,20 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
         }
     }
 
+    /// <summary>The installed solution with this id, or null when it isn't installed.</summary>
+    public async Task<InstalledSolution?> InstalledAsync(string id, CancellationToken ct)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            return (await ReadInstalledAsync(ct)).FirstOrDefault(s => s.Id == id);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     /// <summary>The installed solution's items that still exist and whose content no longer matches their origin's hash.</summary>
     public async Task<IReadOnlyList<InstalledItem>> ModifiedAsync(string id, CancellationToken ct)
     {
