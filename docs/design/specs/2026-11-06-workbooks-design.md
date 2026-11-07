@@ -89,7 +89,8 @@ tab**, next to query tabs, and survives restarts the way tabs do. It is saved in
 | Stat | 1 | One number from the first row, an optional comparison value and its change. Thresholds and colours are v2. |
 | Section | 2 | A titled, collapsible group of widgets; can be shown only when a parameter has a value. |
 | Parameter bar | 2 | A bar of workbook parameters placed inside the canvas, usually at the top of a section. |
-| Tabs, links to workbooks, map, "repeat for each value" | later | |
+| Tabs | 3 | A container widget with named tabs, each its own grid of widgets. Only the visible tab runs (§15). |
+| Links to workbooks, map, "repeat for each value" | later | |
 
 Every widget's header shows: source badge, title, its widget parameters (§6.2), which workbook parameters it uses (a link
 icon and the names), run time, and a ⋯ menu: Refresh, Open in query tab, Export (CSV, JSON, Markdown, reusing
@@ -352,7 +353,11 @@ inactive, or a user is deleted.
 - Import checks parameter values against the tenant.
 - Result history: Values over time and Row tracking (§10).
 
-**Later:** tabs, links between workbooks, maps, repeat-for-each-value. (Built-in template workbooks were dropped: Community Solutions ships ready-made workbooks.)
+**v3**
+
+- Tabs: a container widget whose tabs each hold widgets; only the visible tab runs; drag or "Move to…" between tabs (§15).
+
+**Later:** links between workbooks, maps, repeat-for-each-value. (Built-in template workbooks were dropped: Community Solutions ships ready-made workbooks.)
 
 ## 12. Code layout
 
@@ -383,3 +388,101 @@ inactive, or a user is deleted.
 - Concurrency limits per source, debounce timing, minimum widget sizes, the narrow-window breakpoint.
 - Whether workbooks share the library panel or get their own rail button.
 - Grid interaction details (keyboard move and resize must work; how is the builder's call).
+
+## 15. Tabs (v3)
+
+**Owner**: tabs group a workbook's data (for example MFA adoption with one tab per method) and only the visible tab's
+widgets run, so hidden widgets cost nothing. A tabs widget is a **container widget** that sits in the grid among plain
+widgets; a workbook can mix both. Moving widgets between tabs must be easy.
+
+### 15.1 What it is
+
+- A widget of type `tabs` with an ordered list of tabs, each `{id, name}`. It has a title like any widget (hidden by
+  default, **my call**: the tab bar already says what it is) and a ⋯ menu with Refresh (the visible tab only).
+- Each tab has its own 12-column grid with the same rules as the workbook grid (§5.2): reflow, minimum sizes, narrow
+  windows. The tabs widget's own height is set by the author like any widget; the active tab scrolls inside it if its
+  content is taller. **My call** (an auto-growing container would push the widgets below it around on every tab switch).
+- A workbook can have several tabs widgets. A tabs widget can't hold another tabs widget (**my call**: nested tab bars
+  are hard to read and to drop into).
+- Parameters stay workbook-wide: one parameter bar, every tab uses the same values. Widget parameters (§6.2) work inside
+  tabs as they do outside.
+- Sections (§5.3, not built) and tabs don't nest in each other; if sections are built later they live at the top level
+  only, and `in` (§15.4) stays tabs-specific. **My call.**
+- An empty tab shows "No widgets on this tab" (in edit mode: "Drag a widget here or use Move to…").
+
+### 15.2 Running (**Owner**)
+
+- Plain widgets outside a tabs widget run as today.
+- Inside a tabs widget, only the **visible** tab's widgets run. A tab's widgets run the first time it is shown; until then
+  the tab name carries a "not run" mark.
+- Going back to a tab that already ran shows what it had; it doesn't run again (**Owner**).
+- Leaving a tab doesn't cancel its runs: running and waiting widgets finish, and their results are there when the tab is
+  shown again. **My call** (cancelling would leave a half-run tab and waste the query already sent).
+- A stale widget keeps showing its old result, with the usual running state, while it reruns, as Refresh does today. That
+  rerun records history like any other run.
+- A workbook parameter change reruns the affected widgets (§6.5) that are visible; affected widgets on hidden tabs are
+  marked stale and rerun when their tab is shown. The tab name shows the stale mark too.
+- Refresh all reruns plain widgets and the visible tab of each tabs widget; hidden tabs are marked stale. A tool button's
+  "refresh workbook" (§8) does the same.
+- The visible tab isn't saved in the file or the library; a workbook opens on each tabs widget's first tab. **My call**
+  (the file holds the author's defaults, §5.2). It is kept while the workbook tab stays open; after a restart each tabs widget
+  opens on its first tab, as parameter values do (only the doc and its dirty flag are kept with the session).
+- History (§10) records only when a widget actually runs, so a tab never opened records nothing. A switch back to a tab
+  that shows its earlier result records nothing new.
+
+### 15.3 Editing and moving widgets (**Owner**: both ways)
+
+- **Add**: "Tabs" in the add-widget menu creates a tabs widget with one tab, "Tab 1". The tab bar in edit mode has a "+"
+  to add a tab; double-click (or Enter on a focused tab) renames; each tab has a small menu with Rename, Move left / right
+  and Delete. Tabs can also be reordered by dragging in the bar. The name is required, at most 40 characters (**my
+  call**), duplicates allowed.
+- Adding a widget while a tab is shown in edit mode, with that tab's grid selected (clicked), adds it to that tab;
+  otherwise to the top level. **My call.**
+- **Drag**: a widget's grip drags it anywhere: within a grid, out of a tabs widget to the top level, into a tabs widget's
+  grid. Hovering a tab name for about half a second while dragging switches to that tab so the widget can be dropped in
+  its grid. The drop keeps the widget's size (clamped to 12 columns) and the grid reflows.
+- **Move to…** in the widget's ⋯ menu (edit mode) lists "Top level" and each tabs widget's tabs by name, grouped under
+  the tabs widget's title (or "Tabs" when untitled), with the current place marked. The widget lands at the bottom of the
+  destination at its current size. It works from the keyboard. A tabs widget itself has no Move to… (it can only be at
+  the top level).
+- **Delete a tab**: if it holds widgets, a confirm says how many and offers "Move them to <neighbouring tab>" (default) or
+  "Delete them too". Deleting the last tab deletes the tabs widget, with the same confirm. **My call.**
+- **Remove the tabs widget**: the same confirm, offering "Move widgets to the top level" (default) or "Delete them too".
+- **Duplicate** a tabs widget copies its tabs and every widget in them with new ids. Duplicated widgets start without
+  history (as today).
+- Drag uses the existing pointer-based grid (no new dependency, §12): the drop lands where the pointer is in the
+  destination grid, as within one grid today.
+- Full screen, the row details sheet and tool buttons act on the widget they were opened from, which is always visible.
+- All of this (tabs added, renamed, moved, deleted; widgets moved) is in edit mode's undo/redo and makes the workbook dirty.
+  Switching the visible tab does neither; a remembered visible tab whose id no longer exists falls back to the first tab.
+- A widget keeps its id when moved, so its history (§10) stays with it.
+
+### 15.4 The file
+
+- Widgets stay one flat list (§9.2), so the 100-widget limit counts every widget, inside tabs or not. A widget inside a
+  tab carries `in: {tabs: "<tabs widget id>", tab: "<tab id>"}`; its `layout` is in that tab's grid. A top-level widget
+  has no `in`. The tabs widget carries `tabs: [{id, name}]`. **My call** (moving is a field change, ids and history stay
+  put).
+- `version` becomes **2** for a file with a tabs widget. A file without one is still written as version 1, so older apps
+  keep opening it. Older apps refuse a version 2 file with the existing "made with a newer Kustodian" message. The host's
+  version check accepts 1 and 2. **My call.**
+- Reading repairs, never refuses: a widget whose `in` points to a missing tabs widget or tab, or to a non-tabs widget,
+  goes to the top level at the bottom; a tabs widget with no tabs gets one "Tab 1"; tab ids that repeat are made unique;
+  a tabs widget with `in` is moved to the top level.
+- Export and import (§9.3) carry tabs as they are; the review counts widgets inside tabs like any other.
+- Solutions with a tabs workbook set `minAppVersion` to the first release with tabs.
+
+### 15.5 Not in v3
+
+- Tabs inside tabs; a tab shown only when a parameter has a value; a parameter bar per tab.
+- Remembering the visible tab in the file; a link that opens a workbook on a given tab.
+- Vertical tabs or a tab overflow menu beyond what horizontal scrolling of the tab bar gives.
+
+### 15.6 Testing
+
+- Unit: reading repairs (missing or wrong `in`, empty tabs, duplicate ids, nested tabs), version 1 written when there are
+  no tabs, move keeps id and history, delete-tab and remove-tabs confirms move or delete the right widgets, undo.
+- Running: opening runs only plain widgets and first tabs; switching to an unrun tab runs it; switching back doesn't rerun;
+  a parameter change reruns visible widgets and marks hidden ones stale; Refresh all and "refresh workbook" likewise.
+- UI: drag into, out of and between tabs (including the hover switch); Move to… from the keyboard.
+- Host: version 2 accepted, version 3 refused; the widget limit counts widgets inside tabs.
