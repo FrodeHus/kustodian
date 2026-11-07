@@ -352,7 +352,7 @@ inactive, or a user is deleted.
 - Import checks parameter values against the tenant.
 - Result history: Values over time and Row tracking (§10).
 
-**Later:** tabs, links between workbooks, maps, repeat-for-each-value, built-in template workbooks.
+**Later:** tabs, links between workbooks, maps, repeat-for-each-value. (Built-in template workbooks were dropped: Community Solutions ships ready-made workbooks.)
 
 ## 12. Code layout
 
