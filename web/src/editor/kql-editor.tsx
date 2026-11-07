@@ -188,6 +188,9 @@ const monacoTheme = ({ theme, resolved, glass }: { theme: Theme; resolved: 'dark
  * again keeps its version, and the cache's copy. */
 const versions = new WeakMap<SchemaView, number>();
 let lastVersion = 0;
+/** Bumped by every schema an editor gives the language service, which holds one for all editors (the window's and the widget
+ * editor's): an editor whose schema was replaced by another's gives its own again on its next change. */
+let schemaApplies = 0;
 function versionOf(view: SchemaView | undefined): number {
   if (!view) {
     return ++lastVersion;
@@ -214,11 +217,21 @@ export interface KqlEditorHandle {
   insert(text: string): boolean;
 }
 
+/** Text edited outside the tab store (the widget editor's query): one model, its own source, each change to `onChange`. */
+export interface KqlDraft {
+  id: string;
+  source: Exclude<Source, 'raw'>;
+  text: string;
+  onChange: (text: string) => void;
+}
+
 interface KqlEditorProps {
   /** Each source's schema, as far as it is read; the active tab's source's is the one the language service uses. */
   schemas: Partial<Record<Source, SchemaView>>;
   onRun: (mode: RunMode) => void;
   ref?: Ref<KqlEditorHandle>;
+  /** Edits this instead of the tab store's tabs. */
+  draft?: KqlDraft;
 }
 
 /**
@@ -226,22 +239,24 @@ interface KqlEditorProps {
  * on Graph tabs only, completion inside complex values from the host. One editor for the window, with a model per tab, so each tab keeps its own text, undo history
  * and scroll position. The tab store owns the text: the editor reports each change to it.
  */
-export default function KqlEditor({ schemas, onRun, ref }: KqlEditorProps) {
+export default function KqlEditor({ schemas, onRun, ref, draft }: KqlEditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const models = useRef(new Map<string, monaco.editor.ITextModel>());
   const views = useRef(new Map<string, monaco.editor.ICodeEditorViewState | null>());
   const current = useRef<string | null>(null);
   /** The schema the language service has: its source and view (undefined: the source's empty database). */
-  const appliedSchema = useRef<{ source: string; view: SchemaView | undefined } | null>(null);
+  const appliedSchema = useRef<{ source: string; view: SchemaView | undefined; n: number } | null>(null);
   const [schemaFailed, setSchemaFailed] = useState(false);
-  const latest = useRef({ onRun });
+  const latest = useRef({ onRun, draft });
   useEffect(() => {
-    latest.current = { onRun };
+    latest.current = { onRun, draft };
   });
   // Re-syncs the models whenever the store's tabs change.
   const tabsChanged = useTabs((s) => s.tabs);
-  const activeId = useTabs((s) => s.activeId);
+  const tabActiveId = useTabs((s) => s.activeId);
+  const activeId = draft ? draft.id : tabActiveId;
+  const draftId = draft?.id;
 
   useEffect(() => {
     const editor = monaco.editor.create(host.current!, {
@@ -278,8 +293,11 @@ export default function KqlEditor({ schemas, onRun, ref }: KqlEditorProps) {
     const runKeys = bindRunKeys(editor, { CtrlCmd: monaco.KeyMod.CtrlCmd, Shift: monaco.KeyMod.Shift, Enter: monaco.KeyCode.Enter }, (mode) =>
       latest.current.onRun(mode),
     );
-    // The window's commands (palette, tabs, run without cache ...) work while typing too.
-    const stopBinding = bindCommandKeys(editor, { KeyMod: monaco.KeyMod, KeyCode: monaco.KeyCode }, runKeys);
+    // The window's commands (palette, tabs, run without cache ...) work while typing too; not in a draft's editor, whose dialog
+    // covers the tab they would act on.
+    const stopBinding = latest.current.draft
+      ? () => undefined
+      : bindCommandKeys(editor, { KeyMod: monaco.KeyMod, KeyCode: monaco.KeyCode }, runKeys.taken);
     // Monaco's theme is global: it follows the window's.
     const stopTheme = useTheme.subscribe((t, previous) => {
       if (monacoTheme(t) !== monacoTheme(previous)) {
@@ -292,13 +310,18 @@ export default function KqlEditor({ schemas, onRun, ref }: KqlEditorProps) {
         const id = current.current;
         const model = editor.getModel();
         if (id && model) {
-          useTabs.getState().setText(id, model.getValue());
+          const own = latest.current.draft;
+          if (own) {
+            own.onChange(model.getValue());
+          } else {
+            useTabs.getState().setText(id, model.getValue());
+          }
         }
       }),
       editor.onDidChangeCursorSelection((e) => {
         const id = current.current;
         const model = editor.getModel();
-        if (id && model) {
+        if (id && model && !latest.current.draft) {
           useTabs.getState().setCursor(id, {
             line: e.selection.positionLineNumber,
             column: e.selection.positionColumn,
@@ -311,12 +334,17 @@ export default function KqlEditor({ schemas, onRun, ref }: KqlEditorProps) {
       // Providers are global to the language: this one answers for Graph tabs' models only.
       monaco.languages.registerCompletionItemProvider(
         'kusto',
-        createDotProvider(complete, (uri) => [...allModels.entries()].some(([id, m]) => m.uri.toString() === uri && isGraph(id))),
+        createDotProvider(complete, (uri) =>
+          [...allModels.entries()].some(
+            ([id, m]) => m.uri.toString() === uri && (latest.current.draft ? latest.current.draft.source === 'graph' : isGraph(id)),
+          ),
+        ),
       ),
     ];
 
     return () => {
       disposed = true;
+      runKeys.dispose();
       stopBinding();
       stopTheme();
       subscriptions.forEach((s) => s.dispose());
@@ -335,7 +363,8 @@ export default function KqlEditor({ schemas, onRun, ref }: KqlEditorProps) {
     if (!editor) {
       return;
     }
-    const { tabs } = useTabs.getState();
+    // A draft's text comes in once, with its model: after that the model is ahead of any render's copy of it.
+    const tabs = draftId !== undefined ? [{ id: draftId, text: latest.current.draft?.text ?? '' }] : useTabs.getState().tabs;
     const open = new Set(tabs.map((t) => t.id));
     for (const [id, model] of models.current) {
       if (!open.has(id)) {
@@ -348,7 +377,7 @@ export default function KqlEditor({ schemas, onRun, ref }: KqlEditorProps) {
       const model = models.current.get(tab.id);
       if (!model) {
         models.current.set(tab.id, monaco.editor.createModel(tab.text, 'kusto', uriOf(tab.id)));
-      } else if (model.getValue() !== tab.text) {
+      } else if (draftId === undefined && model.getValue() !== tab.text) {
         model.setValue(tab.text);
       }
     }
@@ -364,23 +393,25 @@ export default function KqlEditor({ schemas, onRun, ref }: KqlEditorProps) {
       if (view) {
         editor.restoreViewState(view);
       }
-      if (model) {
+      // A draft's dialog keeps focus where it put it (its Title).
+      if (model && draftId === undefined) {
         editor.focus();
       }
     }
-  }, [tabsChanged, activeId]);
+  }, [tabsChanged, activeId, draftId]);
 
   // The language service completes and checks against the active tab's source's schema (one at a time: it is the worker's).
   // Until that source's schema is read it has an empty database for it, so a hunting tab never completes Graph's tables.
-  const activeSource = tabsChanged.find((t) => t.id === activeId)?.source;
+  const activeSource = draft ? draft.source : tabsChanged.find((t) => t.id === activeId)?.source;
   const source = activeSource ? schemaSourceOf(activeSource) : undefined;
   const view = source ? schemas[source] : undefined;
   useEffect(() => {
     const model = activeId ? models.current.get(activeId) : undefined;
-    if (!source || !model || (appliedSchema.current?.source === source && appliedSchema.current.view === view)) {
+    const applied = appliedSchema.current;
+    if (!source || !model || (applied?.source === source && applied.view === view && applied.n === schemaApplies)) {
       return;
     }
-    appliedSchema.current = { source, view };
+    appliedSchema.current = { source, view, n: ++schemaApplies };
     void (async () => {
       const worker = await (await getKustoWorker())(model.uri);
       await worker.setSchema(toKustoSchema(view, source, versionOf(view)));

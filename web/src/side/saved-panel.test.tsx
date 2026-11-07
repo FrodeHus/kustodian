@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTabs } from '../tabs/tab-store';
-import type { LibraryList, SavedQuery } from '../wire';
+import type { LibraryList, SavedQuery, WorkbookList } from '../wire';
+import { newWorkbook } from '../workbooks/model';
 import { SavedPanel } from './saved-panel';
 
 const bridge = vi.hoisted(() => ({ call: vi.fn() }));
@@ -152,5 +153,40 @@ describe('SavedPanel', () => {
     view.rerender(<SavedPanel source="graph" />);
     expect(await screen.findByRole('button', { name: 'All apps' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'TOR sign-ins' })).toBeNull();
+  });
+
+  it('saved_lists_workbooks_opens_one_in_a_workbook_tab_and_deletes_after_asking', async () => {
+    const doc = { ...newWorkbook('Hygiene'), modifiedAt: '2026-11-01T00:00:00Z' };
+    const workbooks: WorkbookList = { workbooks: [{ id: doc.id, name: 'Hygiene', folder: null, modifiedAt: doc.modifiedAt, widgets: 0 }], folders: [], skipped: 0 };
+    const answer = bridge.call.getMockImplementation()!;
+    bridge.call.mockImplementation((method: string, params?: { id?: string }) => {
+      switch (method) {
+        case 'workbook.list':
+          return Promise.resolve(workbooks);
+        case 'workbook.get':
+          return Promise.resolve({ workbook: params?.id === doc.id ? doc : null });
+        case 'workbook.delete':
+          workbooks.workbooks = [];
+          return Promise.resolve(null);
+        default:
+          return answer(method, params);
+      }
+    });
+    render(<SavedPanel />);
+
+    expect(await screen.findByRole('button', { name: 'Workbooks', expanded: true })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Hygiene' }));
+    await waitFor(() => expect(useTabs.getState().tabs).toHaveLength(1));
+    expect(bridge.call).toHaveBeenCalledWith('workbook.get', { id: doc.id });
+    expect(useTabs.getState().tabs[0]).toMatchObject({ source: 'workbook', title: 'Hygiene', savedId: doc.id, workbook: doc, dirty: false });
+
+    fireEvent.click(screen.getByRole('button', { name: 'More for Hygiene' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    fireEvent.click(within(screen.getByRole('group', { name: 'Delete “Hygiene”?' })).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('workbook.delete', { id: doc.id }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Hygiene' })).toBeNull());
+    // The open tab stays, as an unsaved workbook: its next save asks for a name and folder instead of writing the file back.
+    expect(useTabs.getState().tabs[0]).toMatchObject({ source: 'workbook', title: 'Hygiene', dirty: true });
+    expect(useTabs.getState().tabs[0]?.savedId).toBeUndefined();
   });
 });

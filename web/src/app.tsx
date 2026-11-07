@@ -4,6 +4,8 @@ import { blockAt } from './editor/block-at';
 import type { KqlEditorHandle } from './editor/kql-editor';
 import { ExplainView, type ExplainRequest } from './explain/explain-view';
 import { SaveDialog } from './library/save-dialog';
+import { SaveWorkbookDialog } from './workbooks/save-workbook-dialog';
+import { saveWorkbook, startWorkbookTabs } from './workbooks/workbook-store';
 import { newerRelease } from './settings/update-check';
 import { UpdateDialog } from './settings/update-dialog';
 import { openDroppedFile, openKqlFile, save, saveToFile } from './library/saving';
@@ -22,7 +24,7 @@ import { ErrorReportsDialog } from './settings/error-reports';
 import { TelemetryDialog } from './settings/telemetry';
 import { bindGlobalKeys, registerCommands, runCommand, type Command } from './shell/commands';
 import { errorText } from './shell/errors';
-import { ErrorReportActions, type Shown } from './shell/error-report';
+import { ErrorBoundary, ErrorReportActions, type Shown } from './shell/error-report';
 import { reportIdOf } from './shell/report-id';
 import { MOD, SHIFT } from './shell/keys';
 import { Palette } from './shell/palette';
@@ -37,10 +39,11 @@ import { TabStrip } from './tabs/tab-strip';
 import { SaveButton } from './toolbar/save-button';
 import { ScopePicker } from './toolbar/scope-picker';
 import { TimespanPicker } from './toolbar/timespan-picker';
-import type { AccountList, QueryOptions, SchemaView, SettingsAnswer, Source, UpdateInfo } from './wire';
+import type { AccountList, QueryOptions, SchemaView, SettingsAnswer, Source, TabSource, UpdateInfo } from './wire';
 
 // Monaco and the Kusto language service are several megabytes: a chunk of their own, loaded after the window is up.
 const KqlEditor = lazy(() => import('./editor/kql-editor'));
+const WorkbookView = lazy(() => import('./workbooks/workbook-view').then((m) => ({ default: m.WorkbookView })));
 
 class EditorFailed extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -91,7 +94,7 @@ function schemaFooter(source: Source, view: SchemaView | undefined, resourceType
 }
 
 /** What the status bar calls the active tab's language. */
-const LANGUAGE: Record<Source, string> = { graph: 'KQL', hunting: 'KQL · advanced hunting', arg: 'KQL · Resource Graph', raw: 'Raw request' };
+const LANGUAGE: Record<TabSource, string> = { graph: 'KQL', hunting: 'KQL · advanced hunting', arg: 'KQL · Resource Graph', raw: 'Raw request', workbook: 'Workbook' };
 
 const activeTab = (): Tab | undefined => {
   const { tabs, activeId } = useTabs.getState();
@@ -219,6 +222,8 @@ export function App() {
 
   // The last session's tabs come back, or one empty Graph tab.
   useEffect(() => startSessionSync(setProblem, setLasting), [setProblem]);
+  // Workbook tabs load their workbook when they open and keep its unsaved changes in the tab.
+  useEffect(() => startWorkbookTabs(setProblem), [setProblem]);
   // Explain closes when its tab's source changes from Graph, so coming back to Graph doesn't explain the query again unasked.
   useEffect(
     () =>
@@ -256,7 +261,7 @@ export function App() {
     const fail = (what: string) => (e: unknown) => setProblem(`${what}: ${errorText(e)}`, reportIdOf(e));
     const runnable = () => {
       const tab = activeTab();
-      return !!tab && tab.source !== 'raw';
+      return !!tab && tab.source !== 'raw' && tab.source !== 'workbook';
     };
     const explainable = () => activeTab()?.source === 'graph';
     const withTab = (action: (tab: Tab) => void) => () => {
@@ -266,6 +271,16 @@ export function App() {
       }
     };
     const saveFailed = fail('The query couldn’t be saved');
+    // A workbook's first save asks its name and folder; later ones write it.
+    const saveTab = (tab: Tab) => {
+      if (tab.source !== 'workbook') {
+        void save(tab.id).then((r) => r === 'dialog' && setSaving(tab.id), saveFailed);
+      } else if (tab.savedId) {
+        void saveWorkbook(tab.id).catch(fail('The workbook couldn’t be saved'));
+      } else {
+        setSaving(tab.id);
+      }
+    };
     const panelCommands: Command[] = PANELS.map((p) => ({
       id: `panel.${p.name}`,
       title: `Show ${p.label}`,
@@ -316,6 +331,7 @@ export function App() {
       },
       { id: 'tab.new', title: 'New Microsoft Graph query', group: 'Tabs', shortcut: 'Mod+T', run: () => useTabs.getState().open('graph') },
       { id: 'tab.newRaw', title: 'New raw Graph request', group: 'Tabs', run: () => openRaw() },
+      { id: 'tab.newWorkbook', title: 'New workbook', group: 'Tabs', run: () => void useTabs.getState().openWorkbook() },
       {
         id: 'schema.refresh',
         title: 'Refresh schema',
@@ -374,8 +390,8 @@ export function App() {
         title: 'Save',
         group: 'File',
         shortcut: 'Mod+S',
-        run: withTab((tab) => void save(tab.id).then((r) => r === 'dialog' && setSaving(tab.id), saveFailed)),
-        enabled: runnable,
+        run: withTab(saveTab),
+        enabled: () => runnable() || activeTab()?.source === 'workbook',
       },
       { id: 'file.saveAs', title: 'Save as', group: 'File', shortcut: 'Mod+Shift+S', run: withTab((tab) => setSaving(tab.id)), enabled: runnable },
       { id: 'file.saveToFile', title: 'Save to file', group: 'File', run: withTab((tab) => void saveToFile(tab.id).catch(saveFailed)), enabled: runnable },
@@ -439,15 +455,29 @@ export function App() {
   });
   useEffect(() => bindGlobalKeys(() => shortcutsOn.current), []);
 
-  // A .kql file dropped on the window opens in a new tab. The page never lets the webview open a dropped file itself.
+  // A .kql file dropped on the window opens in a new tab. The page never lets the webview open a dropped file itself, nor
+  // navigate to a dropped link or URL text (the page has the bridge); text dropped into a text box still goes in.
   useEffect(() => {
     const hasFiles = (e: DragEvent) => !!e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+    const inTextBox = (e: DragEvent) =>
+      e.target instanceof Element && !!e.target.closest('input, textarea, [contenteditable]:not([contenteditable="false"]), .monaco-editor');
+    // A drag the page handles itself (the Parameters list) already called preventDefault.
+    const refuse = (e: DragEvent) => {
+      if (!e.defaultPrevented && !hasFiles(e) && !inTextBox(e)) {
+        e.preventDefault();
+        if (e.dataTransfer) {
+          e.dataTransfer.dropEffect = 'none';
+        }
+      }
+    };
     const onDragOver = (e: DragEvent) => {
       if (hasFiles(e)) {
         e.preventDefault();
       }
+      refuse(e);
     };
     const onDrop = (e: DragEvent) => {
+      refuse(e);
       const files = e.dataTransfer?.files;
       if (!files || files.length === 0) {
         return;
@@ -470,6 +500,7 @@ export function App() {
 
   const cursor = active ? cursors[active.id] : undefined;
   const raw = active?.source === 'raw';
+  const workbook = active?.source === 'workbook';
   const paramCount = active && !raw ? findParams(active.text).length : 0;
   // "Parameters" swaps the editor for the parameters view; the editor stays mounted (hidden), so its state and undo survive.
   const showingParams = paramsOpen && paramCount > 0;
@@ -492,7 +523,7 @@ export function App() {
   const explaining =
     active && active.source === 'graph' && explain?.tabId === active.id && explain.runId === active.run?.runId ? explain.request : null;
   // Schema and snippet text goes into the editor, never into a raw tab's path.
-  const insert = (text: string) => (raw ? false : (editor.current?.insert(text) ?? false));
+  const insert = (text: string) => (raw || workbook ? false : (editor.current?.insert(text) ?? false));
   const savingTab = tabs.find((t) => t.id === saving);
   const closeSettings = () => {
     setCreateAppOpen(false);
@@ -605,7 +636,7 @@ export function App() {
             <main className="workspace">
               {active ? (
                 <>
-                  {!raw && (
+                  {!raw && !workbook && (
                     <Toolbar
                       tab={active}
                       onRun={(mode) => runActive(mode)}
@@ -630,14 +661,21 @@ export function App() {
                       <ParamsForm tab={active} query={runText(active, cursor)} onRun={() => runActive('block')} />
                     </div>
                   )}
-                  <div className="relative min-h-[160px] shrink-0 basis-[38%] border-b border-line" hidden={raw || showingParams}>
+                  <div className="relative min-h-[160px] shrink-0 basis-[38%] border-b border-line" hidden={raw || workbook || showingParams}>
                     <EditorFailed>
                       <Suspense fallback={<p className="faint m-0 p-4 text-[12px]">Loading the editor…</p>}>
                         <KqlEditor ref={editor} schemas={schemas} onRun={(mode) => void useTabs.getState().run(active.id, mode)} />
                       </Suspense>
                     </EditorFailed>
                   </div>
-                  {raw ? (
+                  {workbook ? (
+                    // A workbook that breaks its view shows the error in its tab; the app and the other tabs stay.
+                    <ErrorBoundary key={active.id}>
+                      <Suspense fallback={<p className="faint m-0 p-4 text-[12px]">Loading the workbook…</p>}>
+                        <WorkbookView tabId={active.id} onSignIn={() => setAccountsOpen(true)} />
+                      </Suspense>
+                    </ErrorBoundary>
+                  ) : raw ? (
                     <RawTab
                       key={active.id}
                       tab={active}
@@ -700,7 +738,10 @@ export function App() {
           </footer>
         </div>
       </div>
-      {savingTab && (
+      {savingTab?.source === 'workbook' && (
+        <SaveWorkbookDialog tab={savingTab} onClose={() => setSaving(null)} />
+      )}
+      {savingTab && savingTab.source !== 'workbook' && (
         <SaveDialog
           tab={savingTab}
           onClose={() => {

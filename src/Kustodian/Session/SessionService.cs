@@ -12,9 +12,11 @@ namespace Kustodian.Sessions;
 /// <see cref="Dirty"/> says its text differs from the saved one.
 /// <see cref="FilePath"/> is the <c>.kql</c> file it was opened from or saved to, if any. <see cref="Raw"/> is a raw request
 /// tab's version and headers (its text is the path); null for other tabs. <see cref="Options"/> are the tab's timespan or scope,
-/// null for none.</summary>
+/// null for none. A <c>workbook</c> tab (empty text) keeps its whole document in <see cref="Workbook"/>, which the host never
+/// interprets.</summary>
 public sealed record SessionTab(string Id, string Source, string Title, string Text, bool Dirty, string? SavedId,
-    IReadOnlyList<ParameterDef> Parameters, string? FilePath = null, RawTabRequest? Raw = null, QueryOptions? Options = null);
+    IReadOnlyList<ParameterDef> Parameters, string? FilePath = null, RawTabRequest? Raw = null, QueryOptions? Options = null,
+    JsonObject? Workbook = null);
 
 /// <summary>A raw request tab's request: <see cref="Version"/> is <c>beta</c> or <c>v1.0</c>, or null for the settings'
 /// default; <see cref="Headers"/> are in the order the user typed them, only those the raw tab could send.</summary>
@@ -57,11 +59,12 @@ public sealed class SessionService(JsonFileStore store)
     public Task<UserDataRead<Session>> GetAsync(CancellationToken ct = default) => _file.ReadAsync(ct);
 
     /// <summary>Writes <paramref name="session"/> as version 1 without the tabs over a cap, and returns how many it left out.
-    /// A tab over the text cap is dropped; then the tabs after the first <see cref="MaxTabs"/> are. When the active tab is
+    /// A tab over the text cap (its workbook document included) is dropped; then the tabs after the first <see cref="MaxTabs"/> are. When the active tab is
     /// dropped nothing is active.</summary>
     public async Task<int> SaveAsync(Session session, CancellationToken ct = default)
     {
-        var kept = session.Tabs.Where(t => Encoding.UTF8.GetByteCount(t.Text) <= MaxTextBytes).Take(MaxTabs)
+        var kept = session.Tabs.Where(t => Encoding.UTF8.GetByteCount(t.Text) <= MaxTextBytes
+            && (t.Workbook is null || Encoding.UTF8.GetByteCount(t.Workbook.ToJsonString()) <= MaxTextBytes)).Take(MaxTabs)
             .Select(t => t.Raw is null ? t : t with { Raw = Sendable(t.Raw) }).ToList();
         var activeId = kept.Any(t => t.Id == session.ActiveId) ? session.ActiveId : null;
         await _file.WriteAsync(new Session(1, activeId, kept), ct);
@@ -157,5 +160,6 @@ public sealed class SessionService(JsonFileStore store)
         && session.Tabs.All(t => t is { Id: not null, Source: not null, Title: not null, Text: not null, Parameters: not null }
             && t.Parameters.All(p => p is { Name: not null, Type: not null, Value: not null })
             && (t.Raw is null || (t.Raw.Headers is not null && t.Raw.Headers.All(h => h is { Name: not null, Value: not null })))
-            && QueryOptionsDefaults.IsComplete(t.Options));
+            && QueryOptionsDefaults.IsComplete(t.Options)
+            && (t.Source != "workbook" || t.Workbook is not null));
 }

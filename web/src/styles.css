@@ -235,6 +235,22 @@ body {
   .chip.warn { background: var(--warn-soft); border-color: transparent; color: var(--warn); }
   .chip.bad { background: var(--bad-soft); border-color: transparent; color: var(--bad); }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  /* The workbook grid (layout.ts: 12 columns, 8 px rows, 12 px gaps). Each widget sits at its layout, given as --x --y --w --h;
+     below 900 px of grid width each takes the full width, in document order, which is (y, x). */
+  .wb-canvas { container-type: inline-size; }
+  .wb-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-auto-rows: 8px; gap: 12px; }
+  .wb-widget { grid-column: var(--x) / span var(--w); grid-row: var(--y) / span var(--h); }
+  @container (max-width: 899px) { .wb-widget { grid-column: 1 / -1; grid-row: auto / span var(--h); } }
+  /* A widget with its ⋯ menu open sits above the widgets after it (each is its own stacking context in the glass themes). */
+  .wb-widget:has(.menu) { z-index: 1; }
+  /* Edit mode: faint column guides behind the grid, the drop target, the grip and the selected widget's resize handles. */
+  .wb-editing { min-height: 100%; background-image: repeating-linear-gradient(to right, var(--accent-soft) 0 calc((100% - 132px) / 12), transparent 0 calc((100% + 12px) / 12)); }
+  .wb-drop { border: 2px dashed var(--accent); border-radius: 10px; background: var(--accent-soft); pointer-events: none; }
+  .wb-grip { cursor: grab; touch-action: none; padding: 0 6px; }
+  .wb-resize-right, .wb-resize-bottom, .wb-resize-corner { position: absolute; touch-action: none; }
+  .wb-resize-right { top: 0; right: -4px; bottom: 12px; width: 8px; cursor: ew-resize; }
+  .wb-resize-bottom { left: 0; right: 12px; bottom: -4px; height: 8px; cursor: ns-resize; }
+  .wb-resize-corner { right: -4px; bottom: -4px; width: 14px; height: 14px; cursor: nwse-resize; border-right: 2px solid var(--accent); border-bottom: 2px solid var(--accent); border-bottom-right-radius: 10px; }
   .field { display: flex; flex-direction: column; gap: 5px; }
   .field label { font-size: 12px; font-weight: 600; color: var(--muted); }
   .textbox { height: 32px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); padding: 0 10px; font: inherit; }
@@ -296,6 +312,9 @@ body {
   .theme-glass .datagrid th, .theme-glass .datagrid th.inspect-col { background: var(--glass-menu); }
   /* Side sheets (row details, a cell's JSON) sit over the grid: opaque, so the rows don't show through their text. */
   .theme-glass .sheet { background: rgb(22, 27, 40); }
+  /* The widget editor: no backdrop filter, which would make it the box Monaco places its fixed suggest and hover widgets in
+     (offset, and clipped by its scroll); opaque instead, as the sheets are. */
+  .theme-glass .wb-editor { backdrop-filter: none; background: rgb(22, 27, 40); }
   .theme-glass .btn.primary { background: linear-gradient(180deg, #8ad9ff, #4cb8f5); border-color: rgba(255, 255, 255, 0.5); box-shadow: 0 4px 18px rgba(76, 194, 255, 0.45); }
 
   /* Liquid glass: rounder, pill-shaped controls; the selected ones raised like drops. */

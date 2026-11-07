@@ -1,7 +1,12 @@
 /** The shapes the host sends over the bridge (camelCase, as its `BridgeJson` writes them). */
 
+import type { WorkbookDoc } from './workbooks/model';
+
 /** `raw` is the raw Graph request tab (Task 12); it never runs KQL. */
 export type Source = 'graph' | 'hunting' | 'arg' | 'raw';
+
+/** What a tab is: a query of a source, or a workbook (which runs its widgets' queries, never its own). */
+export type TabSource = Source | 'workbook';
 
 /** A column. `filterable`, `listable` and `complexType` are Graph's; other sources send null. */
 export interface SchemaColumn {
@@ -264,6 +269,8 @@ export interface QueryRunParams {
   parameters?: ParameterValue[];
   runId?: string;
   options?: QueryOptions | null;
+  /** False keeps the run out of Recent (workbook widgets). Omitted means true. */
+  addToRecent?: boolean;
 }
 
 /** A raw request header as the raw tab's editor holds it. */
@@ -281,10 +288,11 @@ export interface RawTabRequest {
 }
 
 /** A tab as `session.json` keeps it. The host nulls a `filePath` the user didn't choose. `raw` is a raw request tab's request,
- * and null (or left out) for other tabs. `options` are the tab's timespan or scope; null (or left out) for none. */
+ * and null (or left out) for other tabs. `options` are the tab's timespan or scope; null (or left out) for none. `workbook` is
+ * a workbook tab's whole document, unsaved edits included. */
 export interface SessionTab {
   id: string;
-  source: Source;
+  source: TabSource;
   title: string;
   text: string;
   dirty: boolean;
@@ -293,6 +301,7 @@ export interface SessionTab {
   filePath: string | null;
   raw?: RawTabRequest | null;
   options?: QueryOptions | null;
+  workbook?: WorkbookDoc | null;
 }
 
 export interface Session {
@@ -324,6 +333,22 @@ export interface SavedQuery {
 /** `library.list`'s answer. `skipped`: files that couldn't be read and were moved aside. */
 export interface LibraryList {
   queries: SavedQuery[];
+  folders: string[];
+  skipped: number;
+}
+
+/** One workbook in `workbook.list`; `widgets` is how many it holds. */
+export interface WorkbookSummary {
+  id: string;
+  name: string;
+  folder: string | null;
+  modifiedAt: string;
+  widgets: number;
+}
+
+/** `workbook.list`'s answer. `skipped`: files that couldn't be read and were moved aside. */
+export interface WorkbookList {
+  workbooks: WorkbookSummary[];
   folders: string[];
   skipped: number;
 }

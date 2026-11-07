@@ -2,9 +2,10 @@ import { allCommands, parseShortcut, runCommand, watchCommands, type Chord } fro
 import { IS_MAC } from '../shell/keys';
 import type { RunMode } from '../tabs/tab-store';
 
-/** The part of Monaco's editor the run keys need. */
+/** The part of Monaco's editor the run keys need. Keys go in as actions: `addCommand` binds a key for every editor, last one
+ * wins and disposing the editor doesn't remove it, while an action's key is its editor's own and goes with `dispose`. */
 export interface RunKeyEditor {
-  addCommand(keybinding: number, handler: () => void): unknown;
+  addAction(action: { id: string; label: string; keybindings: number[]; run: () => void }): { dispose(): void };
   getSelection(): { isEmpty(): boolean } | null;
 }
 
@@ -17,15 +18,26 @@ export interface RunKeyCodes {
 
 /**
  * Spec 6.2: Ctrl/Cmd+Enter runs the block at the cursor, or only the selection when there is one; Shift+Enter runs the whole tab.
- * Both replace what the keys would do in the editor (insert a line). Returns the keybindings it took.
+ * Both replace what the keys would do in the editor (insert a line). Returns the keybindings it took and what unbinds them.
  */
-export function bindRunKeys(editor: RunKeyEditor, keys: RunKeyCodes, onRun: (mode: RunMode) => void): number[] {
-  editor.addCommand(keys.CtrlCmd | keys.Enter, () => {
-    const selection = editor.getSelection();
-    onRun(selection && !selection.isEmpty() ? 'selection' : 'block');
+export function bindRunKeys(editor: RunKeyEditor, keys: RunKeyCodes, onRun: (mode: RunMode) => void): { taken: number[]; dispose: () => void } {
+  const block = editor.addAction({
+    id: 'kustodian.run.block',
+    label: 'Run the block',
+    keybindings: [keys.CtrlCmd | keys.Enter],
+    run: () => {
+      const selection = editor.getSelection();
+      onRun(selection && !selection.isEmpty() ? 'selection' : 'block');
+    },
   });
-  editor.addCommand(keys.Shift | keys.Enter, () => onRun('all'));
-  return [keys.CtrlCmd | keys.Enter, keys.Shift | keys.Enter];
+  const all = editor.addAction({ id: 'kustodian.run.all', label: 'Run all', keybindings: [keys.Shift | keys.Enter], run: () => onRun('all') });
+  return {
+    taken: [keys.CtrlCmd | keys.Enter, keys.Shift | keys.Enter],
+    dispose: () => {
+      block.dispose();
+      all.dispose();
+    },
+  };
 }
 
 /** Monaco's `KeyMod` and `KeyCode`, as far as command shortcuts need them. */
@@ -55,11 +67,12 @@ export function monacoKeybinding(chord: Chord, { KeyMod, KeyCode }: CommandKeyCo
 /**
  * Binds every registered command's shortcut in the editor, so it works there as it does in the rest of the window (where
  * `bindGlobalKeys` leaves keys typed in the editor to it), now and as commands are registered later. A key that `taken` holds
- * keeps what it does in the editor. Each binding runs whichever command has that shortcut when it is pressed. Returns the
- * function that stops binding new ones; Monaco can't remove a binding, and one whose command is gone does nothing.
+ * keeps what it does in the editor. Each binding runs whichever command has that shortcut when it is pressed; one whose command
+ * is gone does nothing. Returns the function that unbinds them all and stops binding new ones.
  */
-export function bindCommandKeys(editor: Pick<RunKeyEditor, 'addCommand'>, codes: CommandKeyCodes, taken: number[]): () => void {
+export function bindCommandKeys(editor: Pick<RunKeyEditor, 'addAction'>, codes: CommandKeyCodes, taken: number[]): () => void {
   const bound = new Set(taken);
+  const actions: { dispose(): void }[] = [];
   const commandFor = (keybinding: number) =>
     allCommands().find((c) => parseShortcut(c.shortcut).some((chord) => monacoKeybinding(chord, codes) === keybinding));
   const bindAll = () => {
@@ -68,16 +81,27 @@ export function bindCommandKeys(editor: Pick<RunKeyEditor, 'addCommand'>, codes:
         const keybinding = monacoKeybinding(chord, codes);
         if (keybinding !== null && !bound.has(keybinding)) {
           bound.add(keybinding);
-          editor.addCommand(keybinding, () => {
-            const current = commandFor(keybinding);
-            if (current) {
-              runCommand(current.id);
-            }
-          });
+          actions.push(
+            editor.addAction({
+              id: `kustodian.command.${keybinding}`,
+              label: cmd.title,
+              keybindings: [keybinding],
+              run: () => {
+                const current = commandFor(keybinding);
+                if (current) {
+                  runCommand(current.id);
+                }
+              },
+            }),
+          );
         }
       }
     }
   };
   bindAll();
-  return watchCommands(bindAll);
+  const stop = watchCommands(bindAll);
+  return () => {
+    stop();
+    actions.forEach((a) => a.dispose());
+  };
 }

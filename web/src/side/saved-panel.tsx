@@ -6,9 +6,11 @@ import { errorText } from '../shell/errors';
 import { ErrorReportActions, type Shown } from '../shell/error-report';
 import { reportIdOf } from '../shell/report-id';
 import { MOD } from '../shell/keys';
-import { SourceBadge } from '../tabs/source-badge';
+import { SourceBadge, WorkbookIcon } from '../tabs/source-badge';
 import { useTabs } from '../tabs/tab-store';
-import type { LibraryList, SavedQuery, Source } from '../wire';
+import type { LibraryList, SavedQuery, Source, WorkbookList, WorkbookSummary } from '../wire';
+import { parseWorkbook } from '../workbooks/model';
+import { useWorkbooks } from '../workbooks/workbook-store';
 import { PanelHeading } from './panel-heading';
 import { ConfirmDelete, RowMenu } from './row-menu';
 
@@ -19,7 +21,8 @@ function skippedText(n: number): string {
 /**
  * The Saved panel (spec 6.6): the library's folders as groups that fold, then the queries in no folder, with a search. It lists
  * the queries of the active tab's `source` (spec 6.1), or every source's with "All sources". A query opens on click; its menu
- * renames it or deletes it (after asking).
+ * renames it or deletes it (after asking). The workbooks, of every source, follow in a "Workbooks" group: one opens in a
+ * workbook tab on click, and its menu deletes it (after asking).
  */
 export function SavedPanel({ source = 'graph' }: { source?: Source }) {
   const revision = useRevisions((s) => s.library);
@@ -31,12 +34,18 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
   const [newName, setNewName] = useState('');
   const [deleting, setDeleting] = useState<string | null>(null);
   const [all, setAll] = useState(false);
+  const [workbooks, setWorkbooks] = useState<WorkbookList | null>(null);
+  const [workbooksFolded, setWorkbooksFolded] = useState(false);
 
   useEffect(() => {
     let live = true;
     call<LibraryList>('library.list').then(
       (l) => live && setList(l),
       (e: unknown) => live && setProblem({ text: `The saved queries couldn’t be read: ${errorText(e)}`, reportId: reportIdOf(e) }),
+    );
+    call<WorkbookList | null>('workbook.list').then(
+      (l) => live && setWorkbooks(l),
+      (e: unknown) => live && setProblem({ text: `The workbooks couldn’t be read: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
     return () => {
       live = false;
@@ -67,6 +76,36 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
     setDeleting(null);
     call('library.delete', { id: q.id }).then(
       () => {
+        setProblem(null);
+        changed();
+      },
+      (e: unknown) => setProblem({ text: `It couldn’t be deleted: ${errorText(e)}`, reportId: reportIdOf(e) }),
+    );
+  };
+
+  const openWorkbook = (w: WorkbookSummary) => {
+    call<{ workbook: unknown }>('workbook.get', { id: w.id }).then(
+      ({ workbook }) => {
+        const doc = workbook === null ? 'It no longer exists.' : parseWorkbook(workbook);
+        if (typeof doc === 'string') {
+          setProblem({ text: `${w.name} couldn’t be opened: ${doc}` });
+        } else {
+          useTabs.getState().openWorkbook(doc, { savedId: doc.id });
+        }
+      },
+      (e: unknown) => setProblem({ text: `${w.name} couldn’t be opened: ${errorText(e)}`, reportId: reportIdOf(e) }),
+    );
+  };
+
+  const removeWorkbook = (w: WorkbookSummary) => {
+    setDeleting(null);
+    call('workbook.delete', { id: w.id }).then(
+      () => {
+        // A tab it is open in stays, unsaved: Ctrl+S must not write the deleted file back.
+        for (const t of useTabs.getState().tabs.filter((t) => t.savedId === w.id)) {
+          useTabs.getState().forgetSaved(t.id);
+          useWorkbooks.getState().markUnsaved(t.id);
+        }
         setProblem(null);
         changed();
       },
@@ -132,6 +171,23 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
     );
   };
 
+  const workbookRow = (w: WorkbookSummary) =>
+    deleting === w.id ? (
+      <li key={w.id}>
+        <ConfirmDelete name={w.name} onDelete={() => removeWorkbook(w)} onCancel={() => setDeleting(null)} />
+      </li>
+    ) : (
+      <li key={w.id} className="side-item">
+        <button type="button" className="side-open" aria-label={w.name} onClick={() => openWorkbook(w)}>
+          <WorkbookIcon />
+          <span className="truncate">{w.name}</span>
+        </button>
+        <RowMenu name={w.name} actions={[{ label: 'Delete', run: () => setDeleting(w.id) }]} />
+      </li>
+    );
+  const shownWorkbooks = (workbooks?.workbooks ?? []).filter((w) => !needle || w.name.toLowerCase().includes(needle));
+  const workbooksOpen = needle !== '' || !workbooksFolded;
+
   const folders = (list?.folders ?? []).map((f) => ({ name: f, queries: queries.filter((q) => q.folder === f) })).filter((f) => f.queries.length > 0);
   const loose = queries.filter((q) => !q.folder || !list?.folders.includes(q.folder));
 
@@ -154,6 +210,11 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
           </p>
         )}
         {list && list.skipped > 0 && <p className="m-0 px-[14px] pb-2 text-[12px] text-warn">{skippedText(list.skipped)}</p>}
+        {workbooks && workbooks.skipped > 0 && (
+          <p className="m-0 px-[14px] pb-2 text-[12px] text-warn">
+            {workbooks.skipped === 1 ? '1 workbook couldn’t be read and was moved aside.' : `${workbooks.skipped} workbooks couldn’t be read and were moved aside.`}
+          </p>
+        )}
         {list && queries.length === 0 && (
           <p className="faint m-0 px-[14px] text-[12px]">
             {needle ? 'No saved query matches.' : `Nothing saved yet. Save a query with ${MOD} S.`}
@@ -183,6 +244,24 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
             );
           })}
           {loose.map(row)}
+          {shownWorkbooks.length > 0 && (
+            <li>
+              <button
+                type="button"
+                className="side-open folder"
+                aria-label="Workbooks"
+                aria-expanded={workbooksOpen}
+                onClick={() => setWorkbooksFolded(workbooksOpen)}
+              >
+                <span aria-hidden="true">{workbooksOpen ? '▾' : '▸'}</span>
+                <span className="truncate">Workbooks</span>
+                <span className="ty" aria-hidden="true">
+                  {shownWorkbooks.length}
+                </span>
+              </button>
+              {workbooksOpen && <ul className="side-list pl-3">{shownWorkbooks.map(workbookRow)}</ul>}
+            </li>
+          )}
         </ul>
       </div>
     </aside>

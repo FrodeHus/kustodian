@@ -10,12 +10,18 @@ import type { SchemaView } from '../wire';
 const fake = vi.hoisted(() => {
   const KeyMod = { CtrlCmd: 2048, Shift: 1024, Alt: 512, WinCtrl: 256 };
   const KeyCode = { Enter: 3, KeyK: 41, KeyP: 46, KeyT: 50, KeyW: 53 };
-  const commands = new Map<number, () => void>();
+  // Monaco's keybinding service is one for every editor, and the last binding of a key wins: `addCommand`'s holds for any
+  // editor and is never removed; an action's holds only in its editor and goes when disposed.
+  const bindings: { keybinding: number; editorId: number | null; run: () => void; gone: boolean }[] = [];
+  let editors = 0;
+  let focused = 0;
   const created = { options: null as unknown };
   const themes = { defined: [] as string[], set: [] as string[] };
   const fonts = { remeasured: 0 };
+  const focusCalls = { n: 0 };
   let selectionEmpty = true;
   const disposable = { dispose: () => undefined };
+  const live = { model: null as ReturnType<typeof model> | null, onContent: () => undefined as void };
   const model = (value: string, uri: { toString: () => string } = { toString: () => 'x' }) => {
     let text = value;
     return {
@@ -28,21 +34,29 @@ const fake = vi.hoisted(() => {
     };
   };
   const providers: { provideCompletionItems: (...args: unknown[]) => Promise<{ suggestions: unknown[] }> }[] = [];
-  const editor = {
+  const editorOf = (id: number) => ({
     addCommand: (keybinding: number, handler: () => void) => {
-      commands.set(keybinding, handler);
+      bindings.push({ keybinding, editorId: null, run: handler, gone: false });
       return null;
     },
+    addAction: ({ keybindings, run }: { keybindings: number[]; run: () => void }) => {
+      const added = keybindings.map((keybinding) => ({ keybinding, editorId: id, run, gone: false }));
+      bindings.push(...added);
+      return { dispose: () => added.forEach((b) => (b.gone = true)) };
+    },
     getSelection: () => ({ isEmpty: () => selectionEmpty }),
-    onDidChangeModelContent: () => disposable,
+    onDidChangeModelContent: (listener: () => void) => {
+      live.onContent = listener;
+      return disposable;
+    },
     onDidChangeCursorSelection: () => disposable,
-    setModel: () => undefined,
-    getModel: () => null,
+    setModel: (m: ReturnType<typeof model> | null) => (live.model = m),
+    getModel: () => live.model,
     saveViewState: () => null,
     restoreViewState: () => undefined,
-    focus: () => undefined,
+    focus: () => void focusCalls.n++,
     dispose: () => undefined,
-  };
+  });
   const monaco = {
     KeyMod,
     KeyCode,
@@ -50,7 +64,8 @@ const fake = vi.hoisted(() => {
     editor: {
       create: (_host: unknown, options: unknown) => {
         created.options = options;
-        return editor;
+        focused = ++editors;
+        return editorOf(focused);
       },
       createModel: (value: string, _language: string, uri: { toString: () => string }) => model(value, uri),
       defineTheme: (name: string) => themes.defined.push(name),
@@ -66,14 +81,23 @@ const fake = vi.hoisted(() => {
   };
   return {
     monaco,
-    commands,
+    bound: (keybinding: number) => bindings.some((b) => b.keybinding === keybinding && !b.gone && b.editorId === focused),
+    focus: (id: number) => (focused = id),
+    reset: () => {
+      bindings.length = 0;
+      editors = 0;
+      focused = 0;
+    },
     created,
     themes,
     fonts,
+    focusCalls,
     providers,
     model,
+    live,
     setSelectionEmpty: (empty: boolean) => (selectionEmpty = empty),
-    press: (keybinding: number) => commands.get(keybinding)?.(),
+    press: (keybinding: number) =>
+      bindings.findLast((b) => b.keybinding === keybinding && !b.gone && (b.editorId === null || b.editorId === focused))?.run(),
     kustoWorker: (): Promise<unknown> => new Promise(() => undefined),
   };
 });
@@ -106,13 +130,14 @@ const huntingView: SchemaView = {
 };
 
 beforeEach(() => {
-  fake.commands.clear();
+  fake.reset();
   fake.themes.set.length = 0;
   applyTheme('dark');
   fake.setSelectionEmpty(true);
   fake.kustoWorker = () => new Promise(() => undefined);
   fake.providers.length = 0;
   fake.fonts.remeasured = 0;
+  fake.focusCalls.n = 0;
   bridge.call.mockReset();
   bridge.call.mockResolvedValue([]);
   useTabs.setState({ tabs: [], activeId: null, cursors: {} });
@@ -233,7 +258,7 @@ describe('KqlEditor', () => {
     expect(close).toHaveBeenCalledTimes(1);
 
     // The run keys stay the editor's own (they know about the selection).
-    expect(fake.commands.has(KeyMod.CtrlCmd | KeyCode.Enter)).toBe(true);
+    expect(fake.bound(KeyMod.CtrlCmd | KeyCode.Enter)).toBe(true);
     unregisterClose();
     unregister();
   });
@@ -252,5 +277,74 @@ describe('KqlEditor', () => {
     expect(fake.themes.set.at(-1)).toBe('kustodian-light');
     act(() => applyTheme('dark'));
     expect(fake.themes.set.at(-1)).toBe('kustodian-dark');
+  });
+
+  it('a draft is edited in place of the tabs, with its own source’s schema', async () => {
+    const setSchema = vi.fn().mockResolvedValue(undefined);
+    fake.kustoWorker = () => Promise.resolve(() => Promise.resolve({ setSchema }));
+    const onChange = vi.fn();
+    const before = useTabs.getState().tabs;
+    render(
+      <KqlEditor
+        schemas={{ graph: schema as SchemaView, hunting: huntingView }}
+        onRun={() => undefined}
+        draft={{ id: 'widget-editor', source: 'hunting', text: 'DeviceInfo', onChange }}
+      />,
+    );
+    expect(fake.live.model?.getValue()).toBe('DeviceInfo');
+    await waitFor(() => expect(setSchema).toHaveBeenCalledTimes(1));
+    expect(setSchema.mock.calls[0]?.[0].database.tables.map((t: { name: string }) => t.name)).toEqual(['DeviceInfo']);
+
+    fake.live.model?.setValue('DeviceInfo | take 1');
+    fake.live.onContent();
+    expect(onChange).toHaveBeenCalledWith('DeviceInfo | take 1');
+    expect(useTabs.getState().tabs).toBe(before);
+  });
+
+  it('run keys stay each editor’s own after a second editor came and went', () => {
+    const onRun = vi.fn();
+    const onPreview = vi.fn();
+    render(<KqlEditor schemas={{}} onRun={onRun} />);
+    const second = render(<KqlEditor schemas={{}} onRun={onPreview} draft={{ id: 'widget-editor', source: 'graph', text: '', onChange: () => undefined }} />);
+    const { KeyMod, KeyCode } = fake.monaco;
+    fake.press(KeyMod.CtrlCmd | KeyCode.Enter);
+    expect(onPreview).toHaveBeenCalledTimes(1);
+
+    second.unmount();
+    fake.focus(1);
+    fake.press(KeyMod.CtrlCmd | KeyCode.Enter);
+    fake.press(KeyMod.Shift | KeyCode.Enter);
+    expect(onRun.mock.calls).toEqual([['block'], ['all']]);
+    expect(onPreview).toHaveBeenCalledTimes(1);
+  });
+
+  it('a draft’s text goes in with its model; a later render’s older copy never replaces what was typed', () => {
+    const onChange = vi.fn();
+    const draft = (text: string) => ({ id: 'widget-editor', source: 'graph' as const, text, onChange });
+    const view = render(<KqlEditor schemas={{}} onRun={() => undefined} draft={draft('users')} />);
+    expect(fake.live.model?.getValue()).toBe('users');
+    fake.live.model?.setValue('users | take 2');
+    view.rerender(<KqlEditor schemas={{}} onRun={() => undefined} draft={draft('users | take')} />);
+    expect(fake.live.model?.getValue()).toBe('users | take 2');
+  });
+
+  it('a draft editor leaves focus where it is when it loads (the dialog’s Title has it); a tab’s editor takes it', () => {
+    render(<KqlEditor schemas={{}} onRun={() => undefined} draft={{ id: 'widget-editor', source: 'graph', text: 'users', onChange: () => undefined }} />);
+    expect(fake.focusCalls.n).toBe(0);
+    useTabs.getState().open('graph');
+    render(<KqlEditor schemas={{}} onRun={() => undefined} />);
+    expect(fake.focusCalls.n).toBe(1);
+  });
+
+  it('a draft editor binds only its run keys, not the window’s command shortcuts (the tab under its dialog)', () => {
+    const close = vi.fn();
+    const unregister = registerCommands([{ id: 'tab.close', title: 'Close the tab', group: 'Tabs', shortcut: 'Mod+W', run: close }]);
+    render(<KqlEditor schemas={{}} onRun={() => undefined} draft={{ id: 'widget-editor', source: 'graph', text: '', onChange: () => undefined }} />);
+    const { KeyMod, KeyCode } = fake.monaco;
+    expect(fake.bound(KeyMod.CtrlCmd | KeyCode.KeyW)).toBe(false);
+    fake.press(KeyMod.CtrlCmd | KeyCode.KeyW);
+    expect(close).not.toHaveBeenCalled();
+    expect(fake.bound(KeyMod.CtrlCmd | KeyCode.Enter)).toBe(true);
+    unregister();
   });
 });

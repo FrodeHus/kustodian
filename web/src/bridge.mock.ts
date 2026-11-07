@@ -370,6 +370,14 @@ const builtInSnippet = {
 
 const RUN_DELAY_MS = 400;
 
+interface MockWorkbook {
+  id: string;
+  name: string;
+  folder?: string | null;
+  widgets: unknown[];
+  modifiedAt?: string;
+}
+
 interface MockRequest {
   id?: string;
   method?: string;
@@ -395,6 +403,8 @@ interface MockRequest {
     columns?: string[];
     rows?: unknown[][];
     mapping?: Record<string, string>;
+    workbook?: MockWorkbook;
+    values?: Record<string, string>;
   };
 }
 
@@ -540,6 +550,8 @@ export function createMockTransport(): Transport {
   });
 
   const saved = new Map<string, SavedQuery>();
+  const workbooks = new Map<string, MockWorkbook>();
+  const workbookValues = new Map<string, Record<string, string>>();
   let savedCounter = 0;
   let session: Record<string, unknown> = { version: 1, activeId: null, tabs: [] };
   const recent: Record<string, unknown>[] = [];
@@ -570,6 +582,7 @@ export function createMockTransport(): Transport {
         reply(id, { current: '0.0.0-mock', latest: '0.0.0', available: false });
         break;
       case 'app.openRelease':
+      case 'app.openLink':
         reply(id, null);
         break;
       case 'settings.get':
@@ -614,6 +627,39 @@ export function createMockTransport(): Transport {
       }
       case 'library.delete':
         saved.delete(params?.id ?? '');
+        reply(id, null);
+        break;
+      case 'workbook.list': {
+        const all = [...workbooks.values()].sort((a, b) => a.name.localeCompare(b.name));
+        const folders = [...new Set(all.map((w) => w.folder).filter((f): f is string => !!f))].sort();
+        const summaries = all.map((w) => ({ id: w.id, name: w.name, folder: w.folder ?? null, modifiedAt: w.modifiedAt, widgets: w.widgets.length }));
+        reply(id, { workbooks: summaries, folders, skipped: 0 });
+        break;
+      }
+      case 'workbook.get':
+        reply(id, { workbook: workbooks.get(params?.id ?? '') ?? null });
+        break;
+      case 'workbook.save': {
+        const input = params?.workbook;
+        if (!input) {
+          fail(id, 'bad_request', 'The request has no workbook.');
+          break;
+        }
+        const workbook = { ...input, modifiedAt: new Date().toISOString() };
+        workbooks.set(workbook.id, workbook);
+        reply(id, { workbook });
+        break;
+      }
+      case 'workbook.delete':
+        workbooks.delete(params?.id ?? '');
+        workbookValues.delete(params?.id ?? '');
+        reply(id, null);
+        break;
+      case 'workbook.values.get':
+        reply(id, { values: workbookValues.get(params?.id ?? '') ?? {} });
+        break;
+      case 'workbook.values.save':
+        workbookValues.set(params?.id ?? '', params?.values ?? {});
         reply(id, null);
         break;
       case 'session.get':

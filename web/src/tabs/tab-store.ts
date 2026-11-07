@@ -4,9 +4,10 @@ import { blockAt } from '../editor/block-at';
 import { findParams, mergeParameters } from '../params/find-params';
 import { reportIdOf } from '../shell/report-id';
 import { newId } from '../shell/ids';
-import type { ParameterDef, ParameterValue, QueryOptions, QueryRunParams, RawTabRequest, RunProgress, RunResult, Session, Source } from '../wire';
+import type { ParameterDef, ParameterValue, QueryOptions, QueryRunParams, RawTabRequest, RunProgress, RunResult, Session, Source, TabSource } from '../wire';
+import { newWorkbook, type WorkbookDoc } from '../workbooks/model';
 
-export type { Source } from '../wire';
+export type { Source, TabSource } from '../wire';
 
 export interface TabRun {
   state: 'running' | 'done';
@@ -78,7 +79,7 @@ export function runOptions(tab: Pick<Tab, 'source' | 'options'>): QueryOptions |
 
 export interface Tab {
   id: string;
-  source: Source;
+  source: TabSource;
   title: string;
   text: string;
   dirty: boolean;
@@ -97,6 +98,8 @@ export interface Tab {
   pinned?: RunResult;
   /** The tab's latest results, newest first, at most {@link HISTORY_SIZE}. */
   history: RunResult[];
+  /** A workbook tab's document as it is now (the workbook store's, mirrored); its `savedId` is the workbook's id once saved. */
+  workbook?: WorkbookDoc;
 }
 
 export const HISTORY_SIZE = 5;
@@ -134,6 +137,13 @@ interface TabsState {
   open(source: Source): string;
   /** Opens a new tab with this text and title, not dirty, makes it active and returns its id. */
   openWith(seed: TabSeed): string;
+  /** Opens a workbook in a tab, or goes to the tab it is already open in (by `doc.id`); returns the tab id. With no doc, a new
+   * unsaved workbook titled after the workbook tabs already open. */
+  openWorkbook(doc?: WorkbookDoc, opts?: { savedId?: string; dirty?: boolean }): string;
+  /** A workbook tab's document changed (the workbook store says whether it differs from the file). */
+  setWorkbook(id: string, doc: WorkbookDoc, dirty: boolean): void;
+  /** The tab's saved workbook was deleted: it stays open, unsaved, and its next save asks for a name and folder. */
+  forgetSaved(id: string): void;
   /** Replaces the open tabs with a saved session's, unsaved text included. */
   restore(session: Session): void;
   setTitle(id: string, title: string): void;
@@ -143,7 +153,7 @@ interface TabsState {
    */
   markSaved(id: string, saved: { savedId?: string | null; filePath?: string | null; title: string; text: string }): void;
   setParameters(id: string, parameters: ParameterDef[]): void;
-  /** Changes a query tab's source (the badge menu's "Change source"); a raw request tab keeps its own. A tab saved to the
+  /** Changes a query tab's source (the badge menu's "Change source"); a raw request or workbook tab keeps its own. A tab saved to the
    * library then has a change to save, since the library keeps the source. */
   setSource(id: string, source: Exclude<Source, 'raw'>): void;
   /** Sets a raw request tab's version and headers. */
@@ -171,7 +181,8 @@ interface TabsState {
 const controllers = new Map<string, AbortController>();
 let unsubscribeProgress: (() => void) | undefined;
 
-function failed(message: string, runId: string, reportId?: string): RunResult {
+/** A run that couldn't be sent or answered, as a result. */
+export function failed(message: string, runId: string, reportId?: string): RunResult {
   return { outcome: 'failed', message, reportId, error: null, columns: [], rows: [], total: 0, tables: [], durationMs: 0, droppedValues: 0, runId, diagnostics: [], permissions: [] };
 }
 
@@ -187,9 +198,9 @@ export const useTabs = create<TabsState>()((set, get) => {
     });
   };
 
-  /** Sends `kql` (which begins at `origin` in the editor) from the tab, with its parameters and options; resolves when the run
-   * has ended, however it ended. */
-  const send = async (tab: Tab, kql: string, origin: TabRun['origin'], refresh: boolean) => {
+  /** Sends `kql` (which begins at `origin` in the editor) from the tab to `source` (the tab's, as a query source), with its
+   * parameters and options; resolves when the run has ended, however it ended. */
+  const send = async (tab: Tab, source: Source, kql: string, origin: TabRun['origin'], refresh: boolean) => {
     if (kql.trim() === '') {
       return;
     }
@@ -201,7 +212,6 @@ export const useTabs = create<TabsState>()((set, get) => {
     const startedAt = Date.now();
     // Ruling 19: the page names the run, so progress for an older run of this tab can be told apart from the first event.
     const runId = newId();
-    const source = tab.source;
     const options = runOptions(tab);
     update(id, () => ({ run: { state: 'running', source, runId, startedAt, origin, kql, options } }));
     const parameters = runParameters(tab);
@@ -251,6 +261,32 @@ export const useTabs = create<TabsState>()((set, get) => {
       return id;
     },
 
+    openWorkbook(given, opts) {
+      const used = new Set(get().tabs.map((t) => t.title));
+      let n = 1;
+      while (!given && used.has(`Workbook ${n}`)) {
+        n++;
+      }
+      const doc = given ?? newWorkbook(`Workbook ${n}`);
+      const open = get().tabs.find((t) => t.workbook?.id === doc.id);
+      if (open) {
+        set({ activeId: open.id });
+        return open.id;
+      }
+      const id = newId();
+      const tab: Tab = { id, source: 'workbook', title: doc.name, text: '', dirty: opts?.dirty ?? false, savedId: opts?.savedId, parameters: [], workbook: doc, history: [] };
+      set((s) => ({ tabs: [...s.tabs, tab], activeId: id }));
+      return id;
+    },
+
+    setWorkbook(id, doc, dirty) {
+      update(id, (t) => (t.workbook === doc && t.dirty === dirty ? {} : { workbook: doc, dirty }));
+    },
+
+    forgetSaved(id) {
+      update(id, () => ({ savedId: undefined, dirty: true }));
+    },
+
     restore(session) {
       for (const id of controllers.keys()) {
         get().cancel(id);
@@ -266,6 +302,7 @@ export const useTabs = create<TabsState>()((set, get) => {
         parameters: t.parameters,
         raw: t.raw ?? undefined,
         options: t.options ?? undefined,
+        workbook: t.workbook ?? undefined,
         history: [],
       }));
       const activeId = tabs.some((t) => t.id === session.activeId) ? session.activeId : (tabs[0]?.id ?? null);
@@ -290,7 +327,7 @@ export const useTabs = create<TabsState>()((set, get) => {
     },
 
     setSource(id, source) {
-      update(id, (t) => (t.source === 'raw' || t.source === source ? {} : { source, dirty: t.dirty || t.savedId !== undefined }));
+      update(id, (t) => (t.source === 'raw' || t.source === 'workbook' || t.source === source ? {} : { source, dirty: t.dirty || t.savedId !== undefined }));
     },
 
     setRaw(id, raw) {
@@ -329,7 +366,7 @@ export const useTabs = create<TabsState>()((set, get) => {
 
     setText(id, text) {
       // A raw request tab can't be saved, so it never has unsaved changes to warn about.
-      update(id, (t) => (t.text === text ? {} : { text, dirty: t.source !== 'raw' }));
+      update(id, (t) => (t.text === text || t.source === 'workbook' ? {} : { text, dirty: t.source !== 'raw' }));
     },
 
     setCursor(id, cursor) {
@@ -338,12 +375,12 @@ export const useTabs = create<TabsState>()((set, get) => {
 
     async run(id, mode, opts) {
       const tab = get().tabs.find((t) => t.id === id);
-      // Ruling 1: a raw request tab sends its request through `raw.send`, never `query.run`.
-      if (!tab || tab.source === 'raw') {
+      // Ruling 1: a raw request tab sends its request through `raw.send`, never `query.run`; a workbook runs its widgets.
+      if (!tab || tab.source === 'raw' || tab.source === 'workbook') {
         return;
       }
       const { kql, origin } = sentText(tab, get().cursors[id], mode);
-      await send(tab, kql, origin, opts?.refresh ?? false);
+      await send(tab, tab.source, kql, origin, opts?.refresh ?? false);
     },
 
     async rerun(id) {
@@ -351,8 +388,8 @@ export const useTabs = create<TabsState>()((set, get) => {
       const last = tab?.run;
       // Ruling 6: only to the source the run went to; a tab whose source changed since isn't run (its text was another
       // source's query).
-      if (tab && tab.source !== 'raw' && last?.kql !== undefined && (last.source ?? 'graph') === tab.source) {
-        await send(tab, last.kql, last.origin, false);
+      if (tab && tab.source !== 'raw' && tab.source !== 'workbook' && last?.kql !== undefined && (last.source ?? 'graph') === tab.source) {
+        await send(tab, tab.source, last.kql, last.origin, false);
       }
     },
 

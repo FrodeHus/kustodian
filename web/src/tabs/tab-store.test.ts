@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BridgeError } from '../bridge';
 import type { RunResult } from '../wire';
+import { newWorkbook } from '../workbooks/model';
 import { useTabs } from './tab-store';
 
 const bridge = vi.hoisted(() => ({
@@ -369,5 +370,21 @@ describe('tab store', () => {
     const opened = useTabs.getState().openWith({ source: 'hunting', title: 'B', text: '', options });
     expect(useTabs.getState().tabs.map((t) => t.options)).toEqual([options, options]);
     expect(useTabs.getState().tabs.find((t) => t.id === opened)?.dirty).toBe(false);
+  });
+
+  it('openWorkbook_reuses_the_tab_with_the_same_workbook_and_setWorkbook_keeps_its_changes', () => {
+    const doc = newWorkbook('Hygiene');
+    const first = useTabs.getState().openWorkbook(doc, { savedId: doc.id });
+    const other = useTabs.getState().open('graph');
+    expect(useTabs.getState().activeId).toBe(other);
+
+    expect(useTabs.getState().openWorkbook({ ...doc, name: 'Again' })).toBe(first);
+    expect(useTabs.getState().activeId).toBe(first);
+    expect(useTabs.getState().tabs).toHaveLength(2);
+    expect(useTabs.getState().tabs[0]).toMatchObject({ source: 'workbook', title: 'Hygiene', workbook: doc, savedId: doc.id, dirty: false });
+
+    const changed = { ...doc, widgets: [] };
+    useTabs.getState().setWorkbook(first, changed, true);
+    expect(useTabs.getState().tabs[0]).toMatchObject({ workbook: changed, dirty: true });
   });
 });

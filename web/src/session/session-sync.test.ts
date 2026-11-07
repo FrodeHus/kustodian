@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BridgeError } from '../bridge';
 import { useTabs } from '../tabs/tab-store';
 import type { Session, SessionAnswer } from '../wire';
+import { newWorkbook } from '../workbooks/model';
 import { startSessionSync } from './session-sync';
 
 const bridge = vi.hoisted(() => ({ call: vi.fn() }));
@@ -310,5 +311,24 @@ describe('session sync', () => {
     const written = saves().at(-1)?.tabs;
     expect(written?.[0]?.options).toEqual({ timespan: null, scope });
     expect(written?.[1]?.options).toEqual({ timespan: 'P1D', scope: null });
+  });
+
+  it('a_workbook_tab_survives_a_restart_with_its_document_and_unsaved_changes', async () => {
+    vi.useFakeTimers();
+    host({ session: { ...saved, tabs: [] }, corrupt: false });
+    stop = startSessionSync();
+    await vi.waitFor(() => expect(useTabs.getState().tabs).toHaveLength(1));
+    const doc = newWorkbook('Hygiene');
+    const id = useTabs.getState().openWorkbook(doc, { dirty: true });
+    await vi.advanceTimersByTimeAsync(1000);
+    const written = saves().at(-1)!;
+    expect(written.tabs.find((t) => t.id === id)).toMatchObject({ source: 'workbook', workbook: doc, dirty: true });
+    stop();
+
+    useTabs.setState({ tabs: [], activeId: null, cursors: {} });
+    host({ session: written, corrupt: false });
+    stop = startSessionSync();
+    await vi.waitFor(() => expect(useTabs.getState().tabs).toHaveLength(2));
+    expect(useTabs.getState().tabs.find((t) => t.id === id)).toMatchObject({ source: 'workbook', title: 'Hygiene', workbook: doc, dirty: true });
   });
 });
