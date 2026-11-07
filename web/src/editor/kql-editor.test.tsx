@@ -18,6 +18,7 @@ const fake = vi.hoisted(() => {
   const created = { options: null as unknown };
   const themes = { defined: [] as string[], set: [] as string[] };
   const fonts = { remeasured: 0 };
+  const linkOpener = { open: null as ((uri: { scheme: string; toString: () => string }) => boolean) | null };
   const focusCalls = { n: 0 };
   let selectionEmpty = true;
   const disposable = { dispose: () => undefined };
@@ -71,6 +72,10 @@ const fake = vi.hoisted(() => {
       defineTheme: (name: string) => themes.defined.push(name),
       setTheme: (name: string) => themes.set.push(name),
       remeasureFonts: () => fonts.remeasured++,
+      registerLinkOpener: (opener: { open: (uri: { scheme: string; toString: () => string }) => boolean }) => {
+        linkOpener.open = opener.open;
+        return disposable;
+      },
     },
     languages: {
       registerCompletionItemProvider: (_language: string, provider: (typeof providers)[number]) => {
@@ -81,6 +86,7 @@ const fake = vi.hoisted(() => {
   };
   return {
     monaco,
+    linkOpener,
     bound: (keybinding: number) => bindings.some((b) => b.keybinding === keybinding && !b.gone && b.editorId === focused),
     focus: (id: number) => (focused = id),
     reset: () => {
@@ -145,6 +151,18 @@ beforeEach(() => {
 });
 
 describe('KqlEditor', () => {
+  it('a clicked https link opens through the host, and no link opens in the window', () => {
+    const uri = (scheme: string, text: string) => ({ scheme, toString: () => text });
+    expect(fake.linkOpener.open!(uri('https', 'https://learn.microsoft.com/kusto'))).toBe(true);
+    expect(bridge.call).toHaveBeenCalledWith('app.openLink', { url: 'https://learn.microsoft.com/kusto' });
+    bridge.call.mockClear();
+    expect(fake.linkOpener.open!(uri('http', 'http://evil.example'))).toBe(true);
+    expect(fake.linkOpener.open!(uri('javascript', 'javascript:alert(1)'))).toBe(true);
+    expect(bridge.call).not.toHaveBeenCalled();
+    // Monaco's own hover commands stay Monaco's.
+    expect(fake.linkOpener.open!(uri('command', 'command:editor.action.showHover'))).toBe(false);
+  });
+
   it('editor_remeasures_the_font_once_it_has_loaded', async () => {
     render(<KqlEditor schemas={{}} onRun={() => undefined} />);
     expect(fake.fonts.remeasured).toBe(0);

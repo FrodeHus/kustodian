@@ -42,7 +42,12 @@ export function SnippetPanel({ onInsert, source = 'graph' }: { onInsert: (text: 
   useEffect(() => {
     let live = true;
     call<{ snippets: Snippet[] }>('snippets.list').then(
-      (r) => live && setSnippets(r.snippets),
+      (r) => {
+        if (live) {
+          setSnippets(r.snippets);
+          setProblem(null);
+        }
+      },
       (e: unknown) => live && setProblem({ text: `The snippets couldn’t be read: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
     return () => {

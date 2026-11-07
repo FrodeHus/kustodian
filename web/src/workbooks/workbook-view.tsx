@@ -24,7 +24,7 @@ import { MarkdownWidget } from './widgets/markdown-widget';
 import { StatWidget } from './widgets/stat-widget';
 import { SheetHost } from './widgets/sheet-host';
 import { TableWidget } from './widgets/table-widget';
-import { editStartDoc, readLibrary, useWorkbooks } from './workbook-store';
+import { editRanWidgets, editStartDoc, readLibrary, useWorkbooks } from './workbook-store';
 
 const ALL = '\u0000all';
 
@@ -292,13 +292,18 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
   };
   const leave = (discard: boolean) => {
     const start = editStartDoc(tabId);
+    const ran = editRanWidgets(tabId);
     setSelected(null);
     store().setEditing(tabId, false, discard);
     focusNext.current = () => editRef.current;
     say(discard ? 'Changes discarded' : 'Done editing');
     const now = store().byTab[tabId]?.doc;
-    // Edits don't rerun widgets (the store's ruling); Done reruns once if the doc changed.
+    // Edits don't rerun widgets (the store's ruling); Done reruns once if the doc changed. Back at the starting doc (a discard,
+    // or undone all the way), a widget run on a draft reruns, so it doesn't keep that draft's rows.
     if (discard || !start || !now || start === now) {
+      for (const id of ran) {
+        void store().runWidget(tabId, id);
+      }
       return;
     }
     // A saved query linked since editing began may be newer than the tab's copy of the library.

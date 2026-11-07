@@ -58,7 +58,12 @@ export function RecentPanel({ source = 'graph' }: { source?: Source }) {
   useEffect(() => {
     let live = true;
     call<{ runs: RecentRun[] }>('recent.list').then(
-      (r) => live && setRuns(r.runs),
+      (r) => {
+        if (live) {
+          setRuns(r.runs);
+          setProblem(null);
+        }
+      },
       (e: unknown) => live && setProblem({ text: `Recent runs couldn’t be read: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
     return () => {

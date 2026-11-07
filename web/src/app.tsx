@@ -122,6 +122,16 @@ function runActive(mode: 'block' | 'all', refresh = false) {
   void useTabs.getState().run(tab.id, run, { refresh });
 }
 
+/** The status bar's line and column; its own subscriber, so a cursor move re-renders only this. */
+function CursorPosition({ tabId }: { tabId: string }) {
+  const cursor = useTabs((s) => s.cursors[tabId]);
+  return cursor ? (
+    <span>
+      Ln {cursor.line}, Col {cursor.column}
+    </span>
+  ) : null;
+}
+
 /** The text Run sends from the tab: the selection, or else the block at the cursor. */
 function runText(tab: Tab, cursor: TabCursor | undefined): string {
   return cursor?.selection ? cursor.selection : blockAt(tab.text, cursor?.line ?? 1).text;
@@ -204,8 +214,9 @@ export function App() {
 
   const tabs = useTabs((s) => s.tabs);
   const activeId = useTabs((s) => s.activeId);
-  const cursors = useTabs((s) => s.cursors);
   const active = tabs.find((t) => t.id === activeId);
+  // Selects the text Run would send, not the cursor: moving within a block doesn't re-render the app.
+  const runnableText = useTabs((s) => (active ? runText(active, s.cursors[active.id]) : ''));
 
   useEffect(() => {
     void readAccounts(setAccounts, setAccountsError);
@@ -515,7 +526,6 @@ export function App() {
     };
   }, [setProblem]);
 
-  const cursor = active ? cursors[active.id] : undefined;
   const raw = active?.source === 'raw';
   const workbook = active?.source === 'workbook';
   const paramCount = active && !raw ? findParams(active.text).length : 0;
@@ -680,7 +690,7 @@ export function App() {
                       place, at its size, so the results below keep theirs. */}
                   {showingParams && (
                     <div className="min-h-[160px] shrink-0 basis-[38%] overflow-y-auto border-b border-line">
-                      <ParamsForm tab={active} query={runText(active, cursor)} onRun={() => runActive('block')} />
+                      <ParamsForm tab={active} query={runnableText} onRun={() => runActive('block')} />
                     </div>
                   )}
                   <div className="relative min-h-[160px] shrink-0 basis-[38%] border-b border-line" hidden={raw || workbook || showingParams}>
@@ -748,11 +758,7 @@ export function App() {
             </main>
           </div>
           <footer className="statusbar">
-            {cursor && !raw && (
-              <span>
-                Ln {cursor.line}, Col {cursor.column}
-              </span>
-            )}
+            {active && !raw && <CursorPosition tabId={active.id} />}
             <span>{LANGUAGE[active?.source ?? 'graph']}</span>
             {footer && <span title={footerSource === 'graph' ? schemas.graph?.source : undefined}>{footer}</span>}
             <div className="grow" />
