@@ -482,7 +482,8 @@ export function WidgetFrame({
               {days !== null && ` · ${days} ${days === 1 ? 'day' : 'days'}`}
             </span>
             {recording?.skipped && <span className="text-warn">! {SKIP_TEXT[recording.skipped]}</span>}
-            {recording?.reset && <span className="text-warn">History was reset: its file was damaged.</span>}
+            {recording?.error && <span className="text-warn">! Not recorded: {recording.error}</span>}
+            {(recording?.reset || history.values?.reset || history.changes?.reset) && <span className="text-warn">History was reset: its file was damaged.</span>}
             {history.error && <span className="text-bad">Couldn’t read history: {history.error}</span>}
           </footer>
         )}

@@ -443,6 +443,16 @@ describe('WidgetEditor', () => {
       expect(screen.getByRole('button', { name: 'Row tracking' })).toHaveProperty('disabled', false);
     });
 
+    it('switching_to_values_drops_the_row_tracking_columns', () => {
+      seriesOf([]);
+      doc.widgets.push(widget('s', 'stat', { history: { ...defaultHistory('stat'), mode: 'rows', keys: ['name'], keep: ['id'] } }));
+      open('s', grid([['vm1', 'a']]));
+      tab('History');
+      fireEvent.click(screen.getByRole('button', { name: 'Values over time' }));
+      apply();
+      return vi.waitFor(() => expect(applied('s').history).toMatchObject({ mode: 'values', keys: [], keep: [] }));
+    });
+
     it('key_uniqueness_is_shown_from_the_preview', () => {
       doc.widgets[0] = { ...doc.widgets[0]!, history: { ...defaultHistory('table'), keys: ['name'] } };
       open('a', grid([['vm1', 'a'], ['vm1', 'b']]));

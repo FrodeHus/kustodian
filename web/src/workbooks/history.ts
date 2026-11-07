@@ -30,6 +30,9 @@ export function recordable(run: WidgetRun, dirty: boolean): SkipReason | null {
   return dirty ? 'unsaved' : null;
 }
 
+/** The setting as sent to the host; Values mode has no key columns (the host refuses keys the result lacks). */
+export const historySetting = (h: WidgetHistory) => ({ mode: h.mode, interval: h.interval, retentionDays: h.retentionDays, keys: h.mode === 'rows' ? h.keys : [] });
+
 /** What to send: the whole result (Values; the host refuses over 500 rows), or key columns then `keep` (Rows). */
 export function historyRows(result: RunResult, h: WidgetHistory): { columns: ResultColumn[]; rows: unknown[][] } | 'keysNotUnique' {
   if (h.mode === 'values') {
@@ -183,7 +186,7 @@ export function useHistory(tabId: string, widget: Widget, run: WidgetRun): Histo
       workbookId,
       widgetId: widget.id,
       query: entry.query,
-      setting: { mode: h.mode, interval: h.interval, retentionDays: h.retentionDays, keys: h.keys },
+      setting: historySetting(h),
     };
     const read: Promise<HistoryView> =
       h.mode === 'values'

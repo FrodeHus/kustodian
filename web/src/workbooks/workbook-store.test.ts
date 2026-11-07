@@ -596,12 +596,24 @@ describe('workbook store', () => {
       expect(records()).toHaveLength(0);
     });
 
-    it('a_record_failure_does_not_break_the_run', async () => {
+    it('a_record_failure_does_not_break_the_run_and_says_why', async () => {
       recordAnswer = null;
       await open(withHistory('a'));
       await answer(result([[1]]));
       expect(state('a')).toBe('done');
-      expect(tab().history.a).toEqual({ skipped: null, reset: false, recordedAt: null, query: expect.any(Object) });
+      expect(tab().history.a).toEqual({ skipped: null, reset: false, recordedAt: null, query: expect.any(Object), error: 'disk' });
+      // The next answer that records clears it.
+      recordAnswer = { recorded: true, skipped: null, reset: false };
+      void useWorkbooks.getState().runWidget('t', 'a');
+      await flush();
+      await answer(result([[1]]));
+      expect(tab().history.a?.error).toBeUndefined();
+    });
+
+    it('values_mode_sends_no_key_columns', async () => {
+      await open(withHistory('a', 'users', { mode: 'values', keys: ['n'] }));
+      await answer(result([[1]]));
+      expect((records()[0]![1] as HistoryRecordParams).setting.keys).toEqual([]);
     });
 
     it('host_skips_map_to_reasons', async () => {

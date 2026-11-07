@@ -221,6 +221,25 @@ describe('history in the widgets', () => {
     await act(async () => undefined);
   });
 
+  it('a_failed_record_is_said_in_the_footer', async () => {
+    show(widget('stat', {}), { state: 'done', result: result(n, [[412]]), finishedAt: 5 }, { error: 'disk full' });
+    const line = within(widgetFrame()).getByText('! Not recorded: disk full');
+    expect(line.classList.contains('text-warn')).toBe(true);
+    await act(async () => undefined);
+  });
+
+  it('a_values_read_sends_no_key_columns', async () => {
+    show(widget('stat', { keys: ['n'] }), { state: 'done', result: result(n, [[412]]), finishedAt: 5 });
+    await vi.waitFor(() => expect(sent('history.values')).toHaveLength(1));
+    expect(sent('history.values')[0]![1]).toMatchObject({ setting: { keys: [] } });
+  });
+
+  it('a_read_that_says_reset_is_said_in_the_footer', async () => {
+    call.mockImplementation((method: string) => Promise.resolve(method === 'history.values' ? { ...values, reset: true } : null));
+    show(widget('stat', {}), { state: 'done', result: result(n, [[412]]), finishedAt: 5 });
+    expect(await within(widgetFrame()).findByText('History was reset: its file was damaged.')).toBeTruthy();
+  });
+
   it('a_reset_database_is_said_once_per_widget', async () => {
     show(widget('stat', {}), { state: 'done', result: result(n, [[412]]), finishedAt: 5 }, { reset: true });
     expect(within(widgetFrame()).getAllByText('History was reset: its file was damaged.')).toHaveLength(1);

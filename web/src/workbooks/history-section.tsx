@@ -111,7 +111,7 @@ export function HistorySection({
                 aria-pressed={!rows}
                 disabled={draft.type === 'table'}
                 aria-describedby={draft.type === 'table' ? `${id}-values-hint` : undefined}
-                onClick={() => change({ mode: 'values' })}
+                onClick={() => change({ mode: 'values', keys: [], keep: [] })}
               >
                 Values over time
               </button>

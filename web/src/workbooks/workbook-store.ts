@@ -2,10 +2,11 @@ import type { StoreApi, UseBoundStore } from 'zustand';
 import { create } from 'zustand';
 import { call } from '../bridge';
 import { useRevisions } from '../library/saving';
+import { errorText } from '../shell/errors';
 import { newId } from '../shell/ids';
 import { useTabs } from '../tabs/tab-store';
 import type { HistoryQuery, HistoryRecordAnswer, HistoryRecordParams, LibraryList, QueryRunParams, RunResult, SavedQuery, Source } from '../wire';
-import { historyRows, recordable, seriesLabel } from './history';
+import { historyRows, historySetting, recordable, seriesLabel } from './history';
 import type { SkipReason } from './history';
 import type { Widget, WorkbookDoc } from './model';
 import { parseWorkbook } from './model';
@@ -44,6 +45,8 @@ export interface WidgetHistoryState {
   /** The history file was damaged and replaced; stays true for the session. */
   reset: boolean;
   recordedAt: number | null;
+  /** Why the last record failed, for the widget's footer only: never logged or reported. */
+  error?: string;
   /** What the last answered run sent: the widget reads its history by it, so it reads the series the record wrote. */
   query: HistoryQuery;
 }
@@ -296,7 +299,7 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
     });
 
   /** Sends a terminal answer of a history widget to the host, unless it mustn't be kept (Review Focus 1). Fire and forget:
-   * a failed record leaves the run as it is. `dirty` and the doc are read now, not when the run was queued. */
+   * a failed record leaves the run as it is and says why in the footer. `dirty` and the doc are read now, not when the run was queued. */
   const record = (tabId: string, widgetId: string, run: WidgetRun, sent: { query: HistoryQuery; label: string }) => {
     const s = get().byTab[tabId];
     const h = s?.doc.widgets.find((w) => w.id === widgetId)?.history;
@@ -306,16 +309,16 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
     const rows = run.state === 'done' ? historyRows(run.result, h) : null;
     const skipped = recordable(run, s.dirty) ?? (rows === 'keysNotUnique' ? rows : null);
     if (skipped || run.state !== 'done' || !rows || rows === 'keysNotUnique') {
-      setHistory(tabId, widgetId, sent.query, () => ({ skipped, query: sent.query }));
+      setHistory(tabId, widgetId, sent.query, () => ({ skipped, error: undefined, query: sent.query }));
       return;
     }
     // Set now, not on the record's answer: an older record answering late mustn't bring back its query.
-    setHistory(tabId, widgetId, sent.query, () => ({ query: sent.query }));
+    setHistory(tabId, widgetId, sent.query, () => ({ error: undefined, query: sent.query }));
     const params: HistoryRecordParams = {
       workbookId: s.doc.id,
       widgetId,
       ...sent,
-      setting: { mode: h.mode, interval: h.interval, retentionDays: h.retentionDays, keys: h.keys },
+      setting: historySetting(h),
       ...rows,
     };
     call<HistoryRecordAnswer>('history.record', params).then(
@@ -325,7 +328,7 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
           reset: was.reset || a.reset,
           recordedAt: a.recorded ? Date.now() : was.recordedAt,
         })),
-      () => setHistory(tabId, widgetId, sent.query, () => ({ skipped: null })),
+      (e: unknown) => setHistory(tabId, widgetId, sent.query, () => ({ skipped: null, error: errorText(e) })),
     );
   };
 
