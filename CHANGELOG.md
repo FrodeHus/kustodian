@@ -49,6 +49,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- The app's interface code now ships as two smaller files (app and libraries) instead of one large one. Nothing changes in
+  how it works.
 - Settings open as a wide side panel over the queries, which stay in view. In a narrow window they still fill it.
 - Row details show dynamic values as a property grid: a key and a value on each row, with nested objects and arrays to
   open and close. JSON text in a string column shows the same way. **Raw** shows the JSON as text.
