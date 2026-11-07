@@ -362,11 +362,11 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
     );
   };
 
-  /** Runs the data widgets `ids` that are visible; a hidden one that has run is marked stale, one that hasn't stays as it is. */
+  /** Runs the data widgets `ids` that are visible; a hidden one that isn't idle is marked stale (an in-flight run used the old value), an idle one stays as it is. */
   const runVisible = (tabId: string, ids: string[], opts?: { refresh?: boolean }) => {
     const s = get().byTab[tabId];
     const widgets = (s?.doc.widgets ?? []).filter((w) => w.query && ids.includes(w.id));
-    const hidden = widgets.filter((w) => !isVisible(s!, w) && ['done', 'failed', 'blocked'].includes(s!.runs[w.id]?.state ?? 'idle'));
+    const hidden = widgets.filter((w) => !isVisible(s!, w) && (s!.runs[w.id]?.state ?? 'idle') !== 'idle');
     if (hidden.length > 0) {
       update(tabId, (t) => ({ stale: { ...t.stale, ...Object.fromEntries(hidden.map((w) => [w.id, true as const])) } }));
     }

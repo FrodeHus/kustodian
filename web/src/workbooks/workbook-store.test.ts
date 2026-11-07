@@ -740,6 +740,27 @@ describe('tabs', () => {
     expect(tab().stale).toEqual({});
   });
 
+  it('a hidden widget running when a parameter changes stays stale after it finishes, and showTab reruns it once', async () => {
+    const doc = tabbedDoc([wbParam('N', 'x')], { p: 'Tp', a: 'Ta', b: 'T {N}' });
+    void useWorkbooks.getState().load('t', doc);
+    await flush();
+    await answerAll();
+    useWorkbooks.getState().showTab('t', 'T', 'two');
+    await flush();
+    useWorkbooks.getState().showTab('t', 'T', 'one');
+    expect(state('b')).toBe('running');
+    useWorkbooks.getState().setWorkbookValue('t', 'N', 'y', { now: true });
+    await flush();
+    expect(tab().stale).toEqual({ b: true });
+    await answerAll();
+    expect(state('b')).toBe('done');
+    expect(tab().stale).toEqual({ b: true });
+    useWorkbooks.getState().showTab('t', 'T', 'two');
+    await flush();
+    expect(runs.map((r) => [r.params.tabId, r.params.parameters?.[0]?.value])).toEqual([['t/b', 'y']]);
+    expect(tab().stale).toEqual({});
+  });
+
   it('Refresh all marks hidden tabs stale', async () => {
     void useWorkbooks.getState().load('t', tabbedDoc());
     await flush();
