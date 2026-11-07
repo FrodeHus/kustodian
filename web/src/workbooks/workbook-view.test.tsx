@@ -181,6 +181,21 @@ describe('WorkbookView', () => {
     expect(within(total).getByText('▲ 196 (18%)')).toBeTruthy();
   });
 
+  it('a stat with a null or empty cell has no number, and a null comparison no change line', () => {
+    const columns = [
+      { name: 'value', type: 'long' },
+      { name: 'previous', type: 'long' },
+    ];
+    for (const cell of [null, '', 'n/a']) {
+      const { unmount } = show({ s: { state: 'done', result: result(columns, [[cell, 5]]) } });
+      expect(within(frame('Total')).getByText('No number to show.')).toBeTruthy();
+      unmount();
+    }
+    show({ s: { state: 'done', result: result(columns, [[7, null]]) } });
+    expect(within(frame('Total')).getByText('7')).toBeTruthy();
+    expect(within(frame('Total')).queryByText(/▲|▼/)).toBeNull();
+  });
+
   it('keeps a chart pick made in view mode as view state', async () => {
     const setViewChart = vi.fn();
     const edit = vi.fn();
