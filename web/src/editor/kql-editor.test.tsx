@@ -18,6 +18,7 @@ const fake = vi.hoisted(() => {
   const created = { options: null as unknown };
   const themes = { defined: [] as string[], set: [] as string[] };
   const fonts = { remeasured: 0 };
+  const focusCalls = { n: 0 };
   let selectionEmpty = true;
   const disposable = { dispose: () => undefined };
   const live = { model: null as ReturnType<typeof model> | null, onContent: () => undefined as void };
@@ -53,7 +54,7 @@ const fake = vi.hoisted(() => {
     getModel: () => live.model,
     saveViewState: () => null,
     restoreViewState: () => undefined,
-    focus: () => undefined,
+    focus: () => void focusCalls.n++,
     dispose: () => undefined,
   });
   const monaco = {
@@ -90,6 +91,7 @@ const fake = vi.hoisted(() => {
     created,
     themes,
     fonts,
+    focusCalls,
     providers,
     model,
     live,
@@ -135,6 +137,7 @@ beforeEach(() => {
   fake.kustoWorker = () => new Promise(() => undefined);
   fake.providers.length = 0;
   fake.fonts.remeasured = 0;
+  fake.focusCalls.n = 0;
   bridge.call.mockReset();
   bridge.call.mockResolvedValue([]);
   useTabs.setState({ tabs: [], activeId: null, cursors: {} });
@@ -323,5 +326,25 @@ describe('KqlEditor', () => {
     fake.live.model?.setValue('users | take 2');
     view.rerender(<KqlEditor schemas={{}} onRun={() => undefined} draft={draft('users | take')} />);
     expect(fake.live.model?.getValue()).toBe('users | take 2');
+  });
+
+  it('a draft editor leaves focus where it is when it loads (the dialog’s Title has it); a tab’s editor takes it', () => {
+    render(<KqlEditor schemas={{}} onRun={() => undefined} draft={{ id: 'widget-editor', source: 'graph', text: 'users', onChange: () => undefined }} />);
+    expect(fake.focusCalls.n).toBe(0);
+    useTabs.getState().open('graph');
+    render(<KqlEditor schemas={{}} onRun={() => undefined} />);
+    expect(fake.focusCalls.n).toBe(1);
+  });
+
+  it('a draft editor binds only its run keys, not the window’s command shortcuts (the tab under its dialog)', () => {
+    const close = vi.fn();
+    const unregister = registerCommands([{ id: 'tab.close', title: 'Close the tab', group: 'Tabs', shortcut: 'Mod+W', run: close }]);
+    render(<KqlEditor schemas={{}} onRun={() => undefined} draft={{ id: 'widget-editor', source: 'graph', text: '', onChange: () => undefined }} />);
+    const { KeyMod, KeyCode } = fake.monaco;
+    expect(fake.bound(KeyMod.CtrlCmd | KeyCode.KeyW)).toBe(false);
+    fake.press(KeyMod.CtrlCmd | KeyCode.KeyW);
+    expect(close).not.toHaveBeenCalled();
+    expect(fake.bound(KeyMod.CtrlCmd | KeyCode.Enter)).toBe(true);
+    unregister();
   });
 });

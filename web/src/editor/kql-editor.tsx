@@ -293,8 +293,11 @@ export default function KqlEditor({ schemas, onRun, ref, draft }: KqlEditorProps
     const runKeys = bindRunKeys(editor, { CtrlCmd: monaco.KeyMod.CtrlCmd, Shift: monaco.KeyMod.Shift, Enter: monaco.KeyCode.Enter }, (mode) =>
       latest.current.onRun(mode),
     );
-    // The window's commands (palette, tabs, run without cache ...) work while typing too.
-    const stopBinding = bindCommandKeys(editor, { KeyMod: monaco.KeyMod, KeyCode: monaco.KeyCode }, runKeys.taken);
+    // The window's commands (palette, tabs, run without cache ...) work while typing too; not in a draft's editor, whose dialog
+    // covers the tab they would act on.
+    const stopBinding = latest.current.draft
+      ? () => undefined
+      : bindCommandKeys(editor, { KeyMod: monaco.KeyMod, KeyCode: monaco.KeyCode }, runKeys.taken);
     // Monaco's theme is global: it follows the window's.
     const stopTheme = useTheme.subscribe((t, previous) => {
       if (monacoTheme(t) !== monacoTheme(previous)) {
@@ -390,7 +393,8 @@ export default function KqlEditor({ schemas, onRun, ref, draft }: KqlEditorProps
       if (view) {
         editor.restoreViewState(view);
       }
-      if (model) {
+      // A draft's dialog keeps focus where it put it (its Title).
+      if (model && draftId === undefined) {
         editor.focus();
       }
     }
