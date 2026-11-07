@@ -28,6 +28,7 @@ beforeEach(() => {
         { installedVersion: '1.0.0' },
       ),
       solution({ id: 'ca-gaps', name: 'Conditional Access gaps', support: 'community', minAppVersion: '1.1.0' }, { compatible: false }),
+      solution({ id: 'old-one', name: 'Installed but outgrown', minAppVersion: '9.0.0' }, { compatible: false, installedVersion: '1.0.0' }),
     ],
     fetchedAt,
     offline: false,
@@ -49,6 +50,10 @@ describe('SolutionsPanel', () => {
     expect(vms.textContent).toContain('1 query');
     expect(vms.textContent).toContain('Installed');
     expect(screen.getByRole('button', { name: /Conditional Access gaps/ }).textContent).toContain('Needs Kustodian 1.1.0');
+    // Installed wins over incompatible: the user has it.
+    const outgrown = screen.getByRole('button', { name: /Installed but outgrown/ }).textContent;
+    expect(outgrown).toContain('Installed');
+    expect(outgrown).not.toContain('Needs Kustodian');
     expect(screen.getByText(`Catalog fetched ${when}`)).toBeTruthy();
     expect(bridge.call).toHaveBeenCalledWith('solution.list', { refresh: false });
   });

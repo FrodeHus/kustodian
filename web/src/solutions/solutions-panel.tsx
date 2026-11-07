@@ -84,10 +84,10 @@ export function SolutionsPanel() {
           <span className="flex flex-wrap items-center gap-1.5 text-[11.5px] text-faint">
             <SolutionSources sources={m.sources} />
             {counts.join(' · ')}
-            {!compatible ? (
-              <span className="ml-auto text-[11px] font-medium whitespace-nowrap">Needs Kustodian {m.minAppVersion}</span>
+            {installedVersion !== null ? (
+              <span className="ml-auto text-[11px] font-medium whitespace-nowrap text-ok">Installed</span>
             ) : (
-              installedVersion !== null && <span className="ml-auto text-[11px] font-medium whitespace-nowrap text-ok">Installed</span>
+              !compatible && <span className="ml-auto text-[11px] font-medium whitespace-nowrap">Needs Kustodian {m.minAppVersion}</span>
             )}
           </span>
         </button>

@@ -23,8 +23,6 @@ export function SolutionDialog() {
 function Dialog({ id, compatible }: { id: string; compatible: boolean }) {
   const [details, setDetails] = useState<SolutionDetails | null>(null);
   const [skip, setSkip] = useState<Set<string>>(() => new Set());
-  // Library ids of changed items the user keeps; filled with every changed item once the details arrive.
-  const [keep, setKeep] = useState<Set<string>>(() => new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Shown | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -43,7 +41,6 @@ function Dialog({ id, compatible }: { id: string; compatible: boolean }) {
       (d) => {
         if (live) {
           setDetails(d);
-          setKeep(new Set(d.modified));
         }
       },
       (e: unknown) => live && setError({ text: `The solution couldn’t be read: ${errorText(e)}`, reportId: reportIdOf(e) }),
@@ -94,6 +91,8 @@ function Dialog({ id, compatible }: { id: string; compatible: boolean }) {
 
   const m = details?.manifest;
   const installed = details?.installed ?? null;
+  // The host never deletes an item changed since install; they are listed so the user knows, and sent as keep.
+  const changed = installed?.items.filter((i) => details?.modified.includes(i.libraryId)) ?? [];
   const items = m ? [...m.content.queries.map((i) => ({ kind: 'query' as const, id: i })), ...m.content.workbooks.map((i) => ({ kind: 'workbook' as const, id: i }))] : [];
   const folder = m ? importFolder(m.name) : '';
 
@@ -147,25 +146,24 @@ function Dialog({ id, compatible }: { id: string; compatible: boolean }) {
                 <section className="flex flex-col gap-1">
                   <b className="text-[11px] tracking-[0.08em] text-faint uppercase">{`Installed into “${folder}”`}</b>
                   {installed.items.map((i) => (
-                    <div key={i.libraryId} className="flex flex-col">
-                      <span className="flex h-7 items-center gap-2">
-                        <span className="truncate">{i.itemId}</span>
-                        <span className="ml-auto text-[11px] text-faint">{i.kind}</span>
-                      </span>
-                      {details.modified.includes(i.libraryId) && (
-                        <label className="flex items-center gap-1.5 pb-1 pl-6 text-[12px] text-muted">
-                          <input
-                            type="checkbox"
-                            aria-label={`Keep my copy of ${i.itemId}`}
-                            checked={keep.has(i.libraryId)}
-                            onChange={() => setKeep((k) => toggle(k, i.libraryId))}
-                          />
-                          Keep my copy
-                        </label>
-                      )}
-                    </div>
+                    <span key={i.libraryId} className="flex h-7 items-center gap-2">
+                      <span className="truncate">{i.itemId}</span>
+                      <span className="ml-auto text-[11px] text-faint">{i.kind}</span>
+                    </span>
                   ))}
-                  {details.modified.length > 0 && <span className="text-[12px] text-muted">You changed these since install. Uninstall leaves the copies you keep in Saved.</span>}
+                  {changed.length > 0 && (
+                    <>
+                      <span className="mt-2 text-[12px] text-muted">These stay in Saved as your own.</span>
+                      <ul className="m-0 list-none p-0">
+                        {changed.map((i) => (
+                          <li key={i.libraryId} className="flex h-7 items-center gap-2">
+                            <span className="truncate">{i.itemId}</span>
+                            <span className="ml-auto text-[11px] text-faint">{i.kind}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
                 </section>
               ) : (
                 <>
@@ -199,7 +197,7 @@ function Dialog({ id, compatible }: { id: string; compatible: boolean }) {
             Cancel
           </button>
           {installed ? (
-            <button type="button" className="btn" disabled={busy} onClick={() => run('solution.uninstall', { id, keep: [...keep] })}>
+            <button type="button" className="btn" disabled={busy} onClick={() => run('solution.uninstall', { id, keep: details?.modified ?? [] })}>
               Uninstall
             </button>
           ) : (

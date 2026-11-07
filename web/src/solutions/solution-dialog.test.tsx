@@ -85,31 +85,42 @@ describe('SolutionDialog', () => {
     expect(screen.getByText('Needs Kustodian 1.0.0')).toBeTruthy();
   });
 
-  it('Uninstall lists the changed items with Keep my copy ticked and keeps the ticked ones', async () => {
-    details.installed = {
-      id: 'entra-risky-users',
-      solutionVersion: '1.2.0',
-      installedAt: '2026-11-01T00:00:00Z',
-      items: [
-        { kind: 'query', itemId: 'risky-users', libraryId: 'lib-1' },
-        { kind: 'query', itemId: 'risky-sign-ins', libraryId: 'lib-2' },
-        { kind: 'workbook', itemId: 'weekly-review', libraryId: 'lib-3' },
-      ],
-    };
+  const installedItems = () => ({
+    id: 'entra-risky-users',
+    solutionVersion: '1.2.0',
+    installedAt: '2026-11-01T00:00:00Z',
+    items: [
+      { kind: 'query' as const, itemId: 'risky-users', libraryId: 'lib-1' },
+      { kind: 'query' as const, itemId: 'risky-sign-ins', libraryId: 'lib-2' },
+      { kind: 'workbook' as const, itemId: 'weekly-review', libraryId: 'lib-3' },
+    ],
+  });
+
+  it('Uninstall lists the changed items as staying and sends every one as keep', async () => {
+    details.installed = installedItems();
     details.modified = ['lib-1', 'lib-3'];
     const before = useRevisions.getState().library;
     await open();
 
-    const keep = await screen.findAllByRole('checkbox', { name: /Keep my copy/ });
-    expect(keep).toHaveLength(2);
-    expect(keep.every((b) => (b as HTMLInputElement).checked)).toBe(true);
+    expect(await screen.findByText('These stay in Saved as your own.')).toBeTruthy();
+    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual(['risky-usersquery', 'weekly-reviewworkbook']);
+    expect(screen.queryByRole('checkbox')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Install' })).toBeNull();
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Keep my copy of weekly-review' }));
     fireEvent.click(screen.getByRole('button', { name: 'Uninstall' }));
 
-    expect(bridge.call).toHaveBeenCalledWith('solution.uninstall', { id: 'entra-risky-users', keep: ['lib-1'] });
+    expect(bridge.call).toHaveBeenCalledWith('solution.uninstall', { id: 'entra-risky-users', keep: ['lib-1', 'lib-3'] });
     await waitFor(() => expect(useSolutionDialog.getState().id).toBeNull());
     expect(useRevisions.getState().library).toBe(before + 1);
+  });
+
+  it('Uninstall with nothing changed has no staying line and keeps nothing', async () => {
+    details.installed = installedItems();
+    await open();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Uninstall' }));
+
+    expect(screen.queryByText('These stay in Saved as your own.')).toBeNull();
+    expect(bridge.call).toHaveBeenCalledWith('solution.uninstall', { id: 'entra-risky-users', keep: [] });
   });
 
   it('takes focus and gives it back on close', async () => {
