@@ -34,6 +34,25 @@ describe('readWorkbookFile', () => {
     expect(readWorkbookFile('{"kind":"x"}')).toBe("This isn't a Kustodian workbook.");
     expect(typeof readWorkbookFile(JSON.stringify(file()))).toBe('object');
   });
+  it('keeps only the fields Kustodian knows, at every level', () => {
+    const vms = linked('vms', 'Virtual machines', 'VMs');
+    const planted = file({
+      command: 'top',
+      parameters: [{ name: 'S', type: 'text', value: '', required: false, command: 'param' }],
+      widgets: [{
+        ...vms, command: 'widget', stat: { value: null, compare: null, command: 'stat' }, chart: { type: 'bar', command: 'chart' },
+        parameters: { P: { from: 'fixed', value: 'x', command: 'wparam' } },
+        query: { ...vms.query, command: 'query', options: { timespan: null, scope: null, command: 'opts' }, saved: { id: ID, name: 'VMs', command: 'saved' },
+          parameters: [{ name: 'P', type: 'text', value: '', required: false, command: 'qparam' }] },
+      }],
+    });
+    const out = readWorkbookFile(JSON.stringify(planted)) as WorkbookDoc;
+    expect(JSON.stringify(out)).not.toContain('command');
+    expect(out.widgets[0]).toMatchObject({ id: 'vms', title: 'Virtual machines', selection: 'multi', stat: { value: null }, chart: { type: 'bar' } });
+    expect(out.widgets[0]?.query).toMatchObject({ source: 'arg', text: 'resources | take 1', saved: { id: ID, name: 'VMs' } });
+    expect(out.parameters[0]).toMatchObject({ name: 'S', type: 'text' });
+    expect('modifiedAt' in out).toBe(false);
+  });
 });
 
 describe('importSummary', () => {
@@ -102,6 +121,20 @@ describe('applyImport', () => {
     expect(renamed.widgets[0]?.tools).toEqual([d.widgets[0]?.tools?.[0], { ...d.widgets[0]?.tools?.[1], tool: 'Deallocate VM' }]);
     expect(applyImport(d, { ...choices, tools: { 'Start VM': 'Start VM', 'Stop VM': null } }).widgets[0]?.tools).toHaveLength(1);
     expect(applyImport(d, { ...choices, tools: { 'Start VM': 'Start VM' } }).widgets[0]?.tools).toHaveLength(1);
+  });
+  it('looks up only own keys: "constructor" and "__proto__" find nothing unless added', () => {
+    const odd = doc({ widgets: [{ ...linked('vms', 'V', 'Q', [button('A', 'constructor'), button('B', '__proto__')]),
+      query: { ...linked('vms', 'V', 'Q').query, saved: { id: 'constructor', name: 'Q' } } }, linked('w2', 'W', 'R')] });
+    odd.widgets[1]!.query!.saved = { id: '__proto__', name: 'R' };
+    const none = applyImport(odd, { added: {}, tools: {}, id: 'x' });
+    expect(none.widgets.map((w) => w.query?.saved)).toEqual([null, null]);
+    expect(none.widgets[0]?.tools).toEqual([]);
+    // fromEntries makes own keys, as JSON.parse and saveImported's map do.
+    const added = Object.fromEntries([['constructor', { id: 'n1', name: 'Q' }], ['__proto__', { id: 'n2', name: 'R' }]]);
+    const tools = Object.fromEntries([['constructor', 'Start VM'], ['__proto__', 'Stop VM']]);
+    const out = applyImport(odd, { added, tools, id: 'x' });
+    expect(out.widgets.map((w) => w.query?.saved)).toEqual([{ id: 'n1', name: 'Q' }, { id: 'n2', name: 'R' }]);
+    expect(out.widgets[0]?.tools?.map((b) => b.tool)).toEqual(['Start VM', 'Stop VM']);
   });
   it('never carries a command', () => {
     expect(JSON.stringify(applyImport(doc(), { ...choices, tools: { 'Stop VM': 'Stop VM' } }))).not.toContain('"command"');

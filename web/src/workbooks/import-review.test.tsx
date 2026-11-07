@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BridgeError } from '../bridge';
 import { useRevisions } from '../library/saving';
@@ -6,7 +6,7 @@ import { useTabs } from '../tabs/tab-store';
 import type { SavedQuery } from '../wire';
 import { ImportReview } from './import-review';
 import { parseWorkbook, type WorkbookDoc } from './model';
-import { importWorkbook, useImportReview } from './sharing';
+import { importWorkbook, saveImported, useImportReview } from './sharing';
 
 const bridge = vi.hoisted(() => ({ call: vi.fn() }));
 vi.mock('../bridge', async (importOriginal) => ({
@@ -24,13 +24,13 @@ const button = (label: string, extra: object = {}) => ({
 // Spec §9.2's example, with a markdown widget, a second button and a command a crafted file might carry.
 const FILE = JSON.stringify(
   {
-    kind: 'kustodian.workbook', version: 1, id: WB_ID, name: 'VM hygiene', folder: 'Azure',
+    kind: 'kustodian.workbook', version: 1, id: WB_ID, name: 'VM hygiene', folder: 'Azure', command: '/bin/sh -c top',
     parameters: [{ name: 'Subscriptions', type: 'list', value: '', required: false, multi: true, all: true }],
     widgets: [
       { id: 'vms', type: 'table', title: 'Virtual machines', layout: { x: 0, y: 0, w: 12, h: 20 },
-        query: { saved: { id: SAVED_ID, name: 'Azure / VMs by power state' }, source: 'arg', text: 'resources | take 10', options: null },
-        parameters: { PowerState: { from: 'widget', value: 'any' } }, selection: 'multi',
-        tools: [button('Start VM'), button('Stop VM', { command: '/bin/sh -c evil' })] },
+        query: { saved: { id: SAVED_ID, name: 'Azure / VMs by power state' }, source: 'arg', text: 'resources | take 10', options: null, command: '/bin/sh -c query' },
+        parameters: { PowerState: { from: 'widget', value: 'any' } }, selection: 'multi', command: '/bin/sh -c widget',
+        tools: [button('Start VM'), button('Stop VM', { command: '/bin/sh -c evil' }), { ...button('Refresh'), tool: 'Delete VM' }] },
       { id: 'notes', type: 'markdown', title: 'Notes', layout: { x: 0, y: 20, w: 12, h: 4 }, markdown: 'Check weekly.', parameters: {} },
     ],
   },
@@ -44,6 +44,7 @@ const mine: SavedQuery = {
 let library: Map<string, SavedQuery>;
 let workbooks: Map<string, WorkbookDoc>;
 let refuseSave: boolean;
+let fileText: string;
 
 const sent = (method: string) => bridge.call.mock.calls.filter((c) => c[0] === method).map((c) => c[1] as Record<string, unknown>);
 const savedWorkbook = () => sent('workbook.save')[0]!.workbook as WorkbookDoc;
@@ -53,12 +54,13 @@ beforeEach(() => {
   library = new Map([[SAVED_ID, mine]]);
   workbooks = new Map();
   refuseSave = false;
+  fileText = FILE;
   let n = 0;
   bridge.call.mockReset();
   bridge.call.mockImplementation((method: string, params?: Record<string, unknown>) => {
     switch (method) {
       case 'file.open':
-        return Promise.resolve({ path: '/x/VM hygiene.kustodian-workbook.json', name: 'VM hygiene.kustodian-workbook.json', text: FILE });
+        return Promise.resolve({ path: '/x/VM hygiene.kustodian-workbook.json', name: 'VM hygiene.kustodian-workbook.json', text: fileText });
       case 'workbook.check':
         return Promise.resolve(null);
       case 'tools.list':
@@ -126,10 +128,56 @@ describe('ImportReview', () => {
   it('never shows or saves the file’s command and never touches tools.json', async () => {
     const dialog = await review();
     expect(dialog.textContent).not.toContain('/bin/sh');
+    expect(dialog.querySelector('pre.codeblock')?.textContent).not.toContain('"command"');
     fireEvent.click(screen.getByRole('button', { name: 'Save to my workbooks' }));
     await closed();
     expect(JSON.stringify(savedWorkbook())).not.toContain('/bin/sh');
+    expect(JSON.stringify(savedWorkbook())).not.toContain('"command"');
     neverSent('tools.save', 'tools.edit');
+  });
+
+  it('shows a button whose label is not its tool', async () => {
+    const dialog = await review();
+    expect(dialog.textContent).toContain('Refresh → Delete VM');
+    expect(dialog.textContent).not.toContain('Start VM → Start VM');
+  });
+
+  it('says what is in a markdown-only file without a dangling separator', async () => {
+    fileText = JSON.stringify({ ...(JSON.parse(FILE) as { widgets: unknown[] }), parameters: [], widgets: [(JSON.parse(FILE) as { widgets: unknown[] }).widgets[1]] });
+    const dialog = await review();
+    const line = within(dialog).getByText(/1 widget/);
+    expect(line.textContent?.trim()).toBe('1 widget · 0 workbook parameters');
+  });
+
+  it('a new pending import starts with fresh choices', async () => {
+    await review();
+    fireEvent.click(screen.getByRole('checkbox', { name: /Add them to my saved queries/ }));
+    expect(screen.getByRole('checkbox', { name: /Add them to my saved queries/ })).toHaveProperty('checked', false);
+    await act(() => importWorkbook());
+    expect(screen.getByRole('checkbox', { name: /Add them to my saved queries/ })).toHaveProperty('checked', true);
+  });
+
+  it('a retried Save adds the linked queries once', async () => {
+    refuseSave = true;
+    await review();
+    fireEvent.click(screen.getByRole('button', { name: 'Save to my workbooks' }));
+    await screen.findByRole('alert');
+    refuseSave = false;
+    fireEvent.click(screen.getByRole('button', { name: 'Save to my workbooks' }));
+    await closed();
+    expect(sent('library.save')).toHaveLength(1);
+    expect(library.size).toBe(2);
+    const [first, second] = sent('workbook.save').map((s) => (s.workbook as WorkbookDoc).widgets[0]!.query?.saved?.id);
+    expect(second).toBe(first);
+  });
+
+  it('Save relinks a saved id named "__proto__"', async () => {
+    fileText = FILE.replace(SAVED_ID, '__proto__');
+    await review();
+    fireEvent.click(screen.getByRole('button', { name: 'Save to my workbooks' }));
+    await closed();
+    const newId = [...library.keys()].find((k) => k !== SAVED_ID)!;
+    expect(savedWorkbook().widgets[0]!.query?.saved).toEqual({ id: newId, name: 'Azure / VMs by power state' });
   });
 
   it('Open without saving writes nothing and opens a dirty, unsaved tab with the queries copied in', async () => {
@@ -191,6 +239,15 @@ describe('ImportReview', () => {
       expect(workbooks.get(WB_ID)).toBe(before);
     });
 
+    it('Replace with Open without saving opens under a new id', async () => {
+      await review();
+      fireEvent.click(screen.getByRole('radio', { name: 'Replace it' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Open without saving' }));
+      await closed();
+      expect(useTabs.getState().tabs[0]!.workbook!.id).not.toBe(WB_ID);
+      expect(useTabs.getState().tabs[0]!.workbook!.id).toMatch(GUID);
+    });
+
     it('Replace saves under the file’s id', async () => {
       await review();
       fireEvent.click(screen.getByRole('radio', { name: 'Replace it' }));
@@ -212,6 +269,14 @@ describe('ImportReview', () => {
     expect(tabs).toHaveLength(2);
     expect(tabs[1]!.workbook!.id).not.toBe(WB_ID);
     expect(tabs[1]!.workbook!.id).toMatch(GUID);
+  });
+
+  it('Save with Replace while a tab holds the id still takes a new id', async () => {
+    act(() => void useTabs.getState().openWorkbook(myWorkbook(), { savedId: WB_ID }));
+    await importWorkbook();
+    await saveImported(useImportReview.getState().pending!, { addQueries: false, tools: {}, replace: true });
+    expect(savedWorkbook().id).not.toBe(WB_ID);
+    expect(savedWorkbook().id).toMatch(GUID);
   });
 
   it('shows a refused save in the dialog, which stays open; Cancel then closes it', async () => {

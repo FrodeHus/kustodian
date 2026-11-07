@@ -6,7 +6,7 @@ import { ExplainView, type ExplainRequest } from './explain/explain-view';
 import { SaveDialog } from './library/save-dialog';
 import { SaveWorkbookDialog } from './workbooks/save-workbook-dialog';
 import { ImportReview } from './workbooks/import-review';
-import { importWorkbook } from './workbooks/sharing';
+import { importWorkbook, useImportReview } from './workbooks/sharing';
 import { saveWorkbook, startWorkbookTabs } from './workbooks/workbook-store';
 import { newerRelease } from './settings/update-check';
 import { UpdateDialog } from './settings/update-dialog';
@@ -458,10 +458,12 @@ export function App() {
   const askErrorReports = settings?.settings.errorReports === null && !errorReportsClosed && !askTelemetry;
 
   // The window's shortcuts act on the workspace, so none fires while sign-in or settings covers it, or a dialog is open (the
-  // palette, the save dialog or the close confirmation, which handle their own keys, Esc included).
+  // palette, the save dialog, the close confirmation or a shared workbook's review, which handle their own keys, Esc included).
   const shortcutsOn = useRef(false);
+  const importOpen = useImportReview((s) => s.pending !== null);
   useEffect(() => {
-    shortcutsOn.current = !signingIn && !settingsOpen && !paletteOpen && saving === null && !confirming && !askTelemetry && !askErrorReports && !update;
+    shortcutsOn.current =
+      !signingIn && !settingsOpen && !paletteOpen && saving === null && !confirming && !askTelemetry && !askErrorReports && !update && !importOpen;
     paletteShown.current = paletteOpen;
     settingsShown.current = settingsOpen;
   });

@@ -5,14 +5,15 @@ import { reportIdOf } from '../shell/report-id';
 import { inSendDetails } from '../shell/send-details-marker';
 import { SourceBadge } from '../tabs/source-badge';
 import { importFolder, importSummary, matchTools } from './import';
-import { openImported, saveImported, useImportReview, type PendingImport, type ReviewChoices } from './sharing';
+import { noQueriesAdded, openImported, saveImported, useImportReview, type PendingImport, type ReviewChoices } from './sharing';
 
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** The review a shared workbook file gets before anything is saved or run (spec §9.3, screen 7). */
 export function ImportReview() {
   const pending = useImportReview((s) => s.pending);
-  return pending && <Review p={pending} />;
+  const shown = useImportReview((s) => s.shown);
+  return pending && <Review key={shown} p={pending} />;
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -28,6 +29,10 @@ function Review({ p }: { p: PendingImport }) {
   const summary = importSummary(p.doc);
   const matches = matchTools(p.doc, p.tools);
   const myTools = p.tools?.tools.map((t) => t.name) ?? [];
+  // A label can say something its tool doesn't do, so each one that differs is shown with its tool.
+  const relabelled = [...new Set(p.doc.widgets.flatMap((w) => w.tools ?? []).filter((b) => b.label !== b.tool).map((b) => `${b.label} → ${b.tool}`))];
+  // Kept across a failed Save, so a retry doesn't add the queries again.
+  const added = useRef(noQueriesAdded());
   const [choices, setChoices] = useState<ReviewChoices>(() => ({
     addQueries: true,
     tools: Object.fromEntries(matches.map((m) => [m.tool, m.mine ? m.tool : null])),
@@ -58,7 +63,7 @@ function Review({ p }: { p: PendingImport }) {
   const save = () => {
     setBusy(true);
     setError(null);
-    saveImported(p, choices).then(close, (err: unknown) => {
+    saveImported(p, choices, added.current).then(close, (err: unknown) => {
       setBusy(false);
       setError({ text: errorText(err), reportId: reportIdOf(err) });
     });
@@ -114,7 +119,8 @@ function Review({ p }: { p: PendingImport }) {
           <div className="flex min-h-0 flex-col gap-4 overflow-auto text-[12.5px]">
             <Section title="What's in it">
               <span className="flex flex-wrap items-center gap-1.5">
-                {count(summary.widgets, 'widget', 'widgets')} · {count(summary.parameters, 'workbook parameter', 'workbook parameters')} ·
+                {count(summary.widgets, 'widget', 'widgets')} · {count(summary.parameters, 'workbook parameter', 'workbook parameters')}
+                {summary.sources.length > 0 && ' ·'}
                 {summary.sources.map((s) => (
                   <SourceBadge key={s} source={s} titled />
                 ))}
@@ -164,6 +170,9 @@ function Review({ p }: { p: PendingImport }) {
                     </span>
                   ),
                 )}
+                {relabelled.map((r) => (
+                  <span key={r}>Button: {r}</span>
+                ))}
               </Section>
             )}
             {p.doc.parameters.length > 0 && (

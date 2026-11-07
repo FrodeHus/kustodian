@@ -31,7 +31,8 @@ export async function exportWorkbook(tabId: string): Promise<boolean> {
 
 export interface PendingImport {
   fileName: string;
-  /** What is shown under "The file": the parsed document, so nothing the import drops (a button's command) is ever shown. */
+  /** What is shown under "The file": the document as readWorkbookFile keeps it, only known fields, so nothing the import drops (a
+   * button's command, any unknown field) is ever shown. */
   text: string;
   doc: WorkbookDoc;
   /** null: tools.list failed. */
@@ -42,12 +43,20 @@ export interface PendingImport {
   openTabId: string | null;
 }
 
-export const useImportReview: UseBoundStore<StoreApi<{ pending: PendingImport | null; show(p: PendingImport): void; close(): void }>> =
-  create<{ pending: PendingImport | null; show(p: PendingImport): void; close(): void }>()((set) => ({
-    pending: null,
-    show: (pending) => set({ pending }),
-    close: () => set({ pending: null }),
-  }));
+interface ImportReviewState {
+  pending: PendingImport | null;
+  /** Counts shows, so each pending import gets a fresh review. */
+  shown: number;
+  show(p: PendingImport): void;
+  close(): void;
+}
+
+export const useImportReview: UseBoundStore<StoreApi<ImportReviewState>> = create<ImportReviewState>()((set) => ({
+  pending: null,
+  shown: 0,
+  show: (pending) => set((s) => ({ pending, shown: s.shown + 1 })),
+  close: () => set({ pending: null }),
+}));
 
 /** file.open → readWorkbookFile → workbook.check → tools.list and workbook.list → the review. Resolves without showing anything
  * when the dialog is cancelled. Rejects with the reason the file can't be imported. */
@@ -82,30 +91,38 @@ export interface ReviewChoices {
   replace: boolean;
 }
 
-/** Replace keeps the file's id; on a collision Keep both takes a new one; with no collision the file's id is kept. */
-const importId = (p: PendingImport, c: ReviewChoices) =>
-  !c.replace && (p.existing || p.openTabId) ? crypto.randomUUID() : p.doc.id;
+const collides = (p: PendingImport) => p.existing !== null || p.openTabId !== null;
 
-/** No library or workbook write: linked queries are copied in. Opens a dirty tab without a savedId. */
+/** Replace keeps the file's id, unless a tab holds it; on a collision Keep both takes a new one; with none the file's id is kept. */
+const saveId = (p: PendingImport, c: ReviewChoices) => (collides(p) && (!c.replace || p.openTabId) ? crypto.randomUUID() : p.doc.id);
+
+/** No library or workbook write: linked queries are copied in. Opens a dirty tab without a savedId, under a new id on a collision
+ * whatever Replace says: an unsaved tab with my workbook's id would save over it. */
 export function openImported(p: PendingImport, c: ReviewChoices): void {
-  useTabs.getState().openWorkbook(applyImport(p.doc, { added: null, tools: c.tools, id: importId(p, c) }), { dirty: true });
+  const id = collides(p) ? crypto.randomUUID() : p.doc.id;
+  useTabs.getState().openWorkbook(applyImport(p.doc, { added: null, tools: c.tools, id }), { dirty: true });
 }
 
+export type AddedQueries = Record<string, { id: string; name: string }>;
+
+/** A map for saveImported's added queries; no prototype, so a saved id such as "__proto__" is an ordinary key. */
+export const noQueriesAdded = (): AddedQueries => Object.create(null) as AddedQueries;
+
 /** library.save each linked query (new id, folder importFolder(doc.name)) when addQueries, then workbook.save, then opens the
- * saved workbook and bumps the library revision. Rejects with the first refusal; queries added before it stay in the library. */
-export async function saveImported(p: PendingImport, c: ReviewChoices): Promise<void> {
-  const added: Record<string, { id: string; name: string }> = {};
+ * saved workbook and bumps the library revision. Rejects with the first refusal; queries added before it stay in the library
+ * and in `added`, so a retry passing the same map reuses them. */
+export async function saveImported(p: PendingImport, c: ReviewChoices, added: AddedQueries = noQueriesAdded()): Promise<void> {
   try {
     if (c.addQueries) {
       const folder = importFolder(p.doc.name);
-      for (const q of linkedQueries(p.doc)) {
+      for (const q of linkedQueries(p.doc).filter((l) => !Object.hasOwn(added, l.savedId))) {
         const saved = await call<SavedQuery>('library.save', {
           query: { id: null, name: q.name, folder, source: q.source, text: q.text, parameters: q.parameters, options: q.options },
         });
         added[q.savedId] = { id: saved.id, name: saved.name };
       }
     }
-    const doc = applyImport(p.doc, { added: c.addQueries ? added : null, tools: c.tools, id: importId(p, c) });
+    const doc = applyImport(p.doc, { added: c.addQueries ? added : null, tools: c.tools, id: saveId(p, c) });
     const { workbook } = await call<{ workbook: WorkbookDoc }>('workbook.save', { workbook: doc });
     useTabs.getState().openWorkbook(workbook, { savedId: workbook.id });
   } finally {

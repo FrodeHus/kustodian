@@ -8,6 +8,7 @@ import { runCommand } from './shell/commands';
 import { applyTheme } from './shell/theme';
 import { useTabs } from './tabs/tab-store';
 import { newWorkbook } from './workbooks/model';
+import { useImportReview } from './workbooks/sharing';
 import type { AccountInfo, AccountList, RunResult, SavedQuery, SchemaView, Session, SettingsAnswer } from './wire';
 
 const bridge = vi.hoisted(() => ({ call: vi.fn(), handlers: new Map<string, Set<(data: unknown) => void>>() }));
@@ -133,6 +134,7 @@ beforeEach(() => {
   bridge.call.mockReset();
   useTabs.setState({ tabs: [], activeId: null, cursors: {} });
   useSchemas.getState().reset();
+  useImportReview.setState({ pending: null });
 });
 
 afterEach(() => applyTheme('dark'));
@@ -352,8 +354,15 @@ describe('App', () => {
     fireEvent.change(input, { target: { value: 'Import workbook' } });
     fireEvent.keyDown(input, { key: 'Enter' });
 
-    expect(await screen.findByRole('dialog', { name: 'Open a shared workbook' })).toBeTruthy();
+    const review = await screen.findByRole('dialog', { name: 'Open a shared workbook' });
     expect(bridge.call).toHaveBeenCalledWith('file.open', { filters: [{ name: 'Kustodian workbook', extensions: ['json'] }] });
+
+    // The review is a modal: the window's shortcuts wait until it closes.
+    fireEvent.keyDown(window, { key: 'k', code: 'KeyK', ctrlKey: true });
+    fireEvent.keyDown(window, { key: 't', code: 'KeyT', ctrlKey: true });
+    expect(screen.queryByRole('dialog', { name: 'Command palette' })).toBeNull();
+    expect(useTabs.getState().tabs).toHaveLength(1);
+    expect(review.isConnected).toBe(true);
   });
 
   it('app_ctrl_t_opens_a_graph_tab', async () => {

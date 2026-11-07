@@ -2,13 +2,53 @@ import { MAX_FOLDER_LENGTH, MAX_NAME_LENGTH } from '../library/saving';
 import type { ParameterDef, QueryOptions, Source, ToolList } from '../wire';
 import { parseWorkbook, type Widget, type WorkbookDoc } from './model';
 
-/** JSON.parse then parseWorkbook. A string is what is wrong. */
+/** JSON.parse, parseWorkbook, then only the fields Kustodian knows: what the review shows is all that is opened or saved. */
 export function readWorkbookFile(text: string): WorkbookDoc | string {
+  let json: unknown;
   try {
-    return parseWorkbook(JSON.parse(text));
+    json = JSON.parse(text);
   } catch {
     return "This file isn't JSON.";
   }
+  const doc = parseWorkbook(json);
+  return typeof doc === 'string' ? doc : known(doc);
+}
+
+/** The keys of o that are named and present. */
+const only = <T extends object>(o: T, keys: (keyof T)[]): T =>
+  Object.fromEntries(keys.filter((k) => k in o).map((k) => [k, o[k]])) as T;
+
+const PARAM_DEF: (keyof ParameterDef)[] = ['name', 'type', 'value', 'required', 'choices'];
+
+/** parseWorkbook keeps unknown fields, as a library or session load should; a shared file's are dropped (spec §4). */
+function known(doc: WorkbookDoc): WorkbookDoc {
+  return {
+    ...only(doc, ['kind', 'version', 'id', 'name', 'folder']),
+    parameters: doc.parameters.map((p) => only(p, [...PARAM_DEF, 'label', 'multi', 'all', 'remember', 'huntingTimespan'])),
+    widgets: doc.widgets.map((w) => {
+      const next = only(w, ['id', 'type', 'title', 'layout', 'markdown', 'query', 'parameters', 'chart', 'stat', 'selection', 'tools']);
+      next.parameters = Object.fromEntries(Object.entries(w.parameters).map(([name, p]) => [name, only(p, ['from', 'value'])]));
+      if (w.query) {
+        const { options } = w.query;
+        // options came from the file unchecked; the host's workbook.check judges the values.
+        next.query = {
+          ...only(w.query, ['source', 'text', 'saved']),
+          options: options && {
+            timespan: options.timespan,
+            scope: options.scope && typeof options.scope === 'object' ? only(options.scope, ['kind', 'ids']) : options.scope,
+          },
+          parameters: w.query.parameters.map((p) => only(p, PARAM_DEF)),
+        };
+      }
+      if (w.chart) {
+        next.chart = only(w.chart, ['type', 'x', 'series', 'split', 'stack']);
+      }
+      if (w.stat) {
+        next.stat = { value: w.stat.value, compare: w.stat.compare };
+      }
+      return next;
+    }),
+  };
 }
 
 export interface ImportSummary {

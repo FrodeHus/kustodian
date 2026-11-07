@@ -85,7 +85,7 @@ describe('exportWorkbook', () => {
     expect(typeof parsed).toBe('object');
     const { widgets, ...rest } = parsed as WorkbookDoc;
     const { modifiedAt: _m, widgets: _w, ...expected } = doc;
-    expect(rest).toMatchObject(expected);
+    expect(rest).toEqual(expected);
     expect(widgets[0]!.query!.text).toBe('fresh text');
     expect(widgets[0]!.query!.saved).toEqual({ id: linked.id, name: 'Fresh name' });
     expect(useWorkbooks.getState().byTab.t!.dirty).toBe(true);
