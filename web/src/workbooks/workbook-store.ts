@@ -9,7 +9,7 @@ import type { HistoryQuery, HistoryRecordAnswer, HistoryRecordParams, LibraryLis
 import { historyRows, historySetting, recordable, seriesLabel } from './history';
 import type { SkipReason } from './history';
 import type { Widget, WorkbookDoc } from './model';
-import { parseWorkbook } from './model';
+import { parseWorkbook, withFileVersion } from './model';
 import type { ResolvedParam, ViewValues } from './resolve';
 import { initialValues, missingRequired, toParameterValues, widgetParams, widgetRunOptions, widgetsUsing } from './resolve';
 import type { RowSelection } from './tool-buttons';
@@ -648,7 +648,7 @@ export async function saveWorkbook(tabId: string, as?: { name: string; folder: s
     throw new Error('The workbook is no longer open.');
   }
   const { widgets } = await withLinkedCopies(base);
-  const { workbook } = await call<{ workbook: WorkbookDoc }>('workbook.save', { workbook: { ...base, widgets, ...as } });
+  const { workbook } = await call<{ workbook: WorkbookDoc }>('workbook.save', { workbook: withFileVersion({ ...base, widgets, ...as }) });
   // An edit made while the save was out stays, unsaved.
   if (useWorkbooks.getState().byTab[tabId]?.doc === base) {
     useWorkbooks.getState().markSaved(tabId, workbook);
