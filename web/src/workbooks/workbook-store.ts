@@ -529,30 +529,35 @@ export function startWorkbookTabs(notify?: (message: string) => void): () => voi
 }
 
 /**
+ * Linked widgets take their saved query's current source, text, options, parameters and name, so the file works without the
+ * library entry (spec §9.2); a link the library no longer has (or an unreadable library) keeps its last copy.
+ */
+export async function withLinkedCopies(doc: WorkbookDoc): Promise<WorkbookDoc> {
+  const library = await call<LibraryList>('library.list').then(
+    (l) => new Map(l.queries.map((q) => [q.id, q])),
+    () => new Map<string, SavedQuery>(),
+  );
+  const widgets = doc.widgets.map((w) => {
+    const q = w.query?.saved ? library.get(w.query.saved.id) : undefined;
+    return w.query && q && q.source !== 'raw'
+      ? { ...w, query: { ...w.query, source: q.source, text: q.text, options: q.options ?? null, parameters: q.parameters, saved: { id: q.id, name: q.name } } }
+      : w;
+  });
+  return { ...doc, widgets };
+}
+
+/**
  * Saves a workbook tab's document. Linked widgets first take their saved query's current source, text, options, parameters
  * and name, so the file works without the library entry (spec §9.2); a link the library no longer has keeps its last copy.
  * `as` names the workbook and puts it in a folder (the first save's dialog). Rejects with the host's refusal (a bad name or
  * folder). Allowed while editing.
  */
 export async function saveWorkbook(tabId: string, as?: { name: string; folder: string | null }): Promise<void> {
-  if (!useWorkbooks.getState().byTab[tabId]) {
-    throw new Error('The workbook is no longer open.');
-  }
-  // Unreadable library: the widgets keep their last copies.
-  const library = await call<LibraryList>('library.list').then(
-    (l) => new Map(l.queries.map((q) => [q.id, q])),
-    () => new Map<string, SavedQuery>(),
-  );
   const base = useWorkbooks.getState().byTab[tabId]?.doc;
   if (!base) {
     throw new Error('The workbook is no longer open.');
   }
-  const widgets = base.widgets.map((w) => {
-    const q = w.query?.saved ? library.get(w.query.saved.id) : undefined;
-    return w.query && q && q.source !== 'raw'
-      ? { ...w, query: { ...w.query, source: q.source, text: q.text, options: q.options ?? null, parameters: q.parameters, saved: { id: q.id, name: q.name } } }
-      : w;
-  });
+  const { widgets } = await withLinkedCopies(base);
   const { workbook } = await call<{ workbook: WorkbookDoc }>('workbook.save', { workbook: { ...base, widgets, ...as } });
   // An edit made while the save was out stays, unsaved.
   if (useWorkbooks.getState().byTab[tabId]?.doc === base) {

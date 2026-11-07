@@ -7,6 +7,8 @@ import { useSchemas } from './schema/schema-store';
 import { runCommand } from './shell/commands';
 import { applyTheme } from './shell/theme';
 import { useTabs } from './tabs/tab-store';
+import { newWorkbook } from './workbooks/model';
+import { useImportReview } from './workbooks/sharing';
 import type { AccountInfo, AccountList, RunResult, SavedQuery, SchemaView, Session, SettingsAnswer } from './wire';
 
 const bridge = vi.hoisted(() => ({ call: vi.fn(), handlers: new Map<string, Set<(data: unknown) => void>>() }));
@@ -132,6 +134,7 @@ beforeEach(() => {
   bridge.call.mockReset();
   useTabs.setState({ tabs: [], activeId: null, cursors: {} });
   useSchemas.getState().reset();
+  useImportReview.setState({ pending: null });
 });
 
 afterEach(() => applyTheme('dark'));
@@ -334,6 +337,32 @@ describe('App', () => {
     expect(document.documentElement.classList.contains('theme-light')).toBe(true);
     expect(screen.getByRole('contentinfo').textContent).toContain('Light');
     await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('settings.set', { settings: { ...settings.settings, theme: 'light' } }));
+  });
+
+  it('app_palette_import_workbook_opens_the_review', async () => {
+    const doc = newWorkbook('Shared');
+    answers = {
+      'file.open': () => ({ path: '/x/s.json', name: 's.json', text: JSON.stringify(doc) }),
+      'workbook.list': () => ({ workbooks: [], folders: [], skipped: 0 }),
+    };
+    host({ accounts: [kari], cache: 'persistent' });
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+
+    fireEvent.keyDown(window, { key: 'k', code: 'KeyK', ctrlKey: true });
+    const input = screen.getByRole('combobox', { name: 'Type a command' });
+    fireEvent.change(input, { target: { value: 'Import workbook' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    const review = await screen.findByRole('dialog', { name: 'Open a shared workbook' });
+    expect(bridge.call).toHaveBeenCalledWith('file.open', { filters: [{ name: 'Kustodian workbook', extensions: ['json'] }] });
+
+    // The review is a modal: the window's shortcuts wait until it closes.
+    fireEvent.keyDown(window, { key: 'k', code: 'KeyK', ctrlKey: true });
+    fireEvent.keyDown(window, { key: 't', code: 'KeyT', ctrlKey: true });
+    expect(screen.queryByRole('dialog', { name: 'Command palette' })).toBeNull();
+    expect(useTabs.getState().tabs).toHaveLength(1);
+    expect(review.isConnected).toBe(true);
   });
 
   it('app_ctrl_t_opens_a_graph_tab', async () => {

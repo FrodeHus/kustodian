@@ -6,6 +6,7 @@ import { MenuButton } from '../results/result-grid';
 import { runCommand } from '../shell/commands';
 import { ErrorReportActions, type Shown } from '../shell/error-report';
 import { errorText } from '../shell/errors';
+import { exportWorkbook } from './sharing';
 import { reportIdOf } from '../shell/report-id';
 import { ConfirmDelete } from '../side/row-menu';
 import { inSendDetails } from '../shell/send-details-marker';
@@ -401,6 +402,16 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
             </button>
             <button type="button" role="menuitem" tabIndex={-1} onClick={() => store().saveValuesAsDefaults(tabId)}>
               Save current values as defaults
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              tabIndex={-1}
+              onClick={() =>
+                exportWorkbook(tabId).catch((e: unknown) => setProblem({ text: `The workbook couldn’t be exported: ${errorText(e)}`, reportId: reportIdOf(e) }))
+              }
+            >
+              Export…
             </button>
             <button type="button" role="menuitem" tabIndex={-1} disabled={!savedId} onClick={() => setDeleting(true)}>
               Delete
