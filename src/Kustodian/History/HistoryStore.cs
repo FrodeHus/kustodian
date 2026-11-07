@@ -376,7 +376,6 @@ public sealed class HistoryStore(string root, TimeProvider time, ILogger<History
     {
         _db?.Dispose();
         _db = null;
-        SqliteConnection.ClearAllPools();
         var suffix = ".damaged-" + time.GetLocalNow().ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
         foreach (var ext in new[] { "", "-wal", "-shm" })
         {
@@ -392,7 +391,8 @@ public sealed class HistoryStore(string root, TimeProvider time, ILogger<History
 
     private SqliteConnection Connect()
     {
-        var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = DbPath }.ToString());
+        // No pooling: the store keeps its one connection, and a pooled handle would keep the file open after Dispose/Reset (Windows can't move or delete it).
+        var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = DbPath, Pooling = false }.ToString());
         try
         {
             db.Open();

@@ -322,10 +322,20 @@ public sealed class HistoryStoreTests : IDisposable
         var s = NewStore();
         await Record(s, Rows, "A");
         File.Copy(Path.Combine(_dir, "history.db"), Path.Combine(_dir, "keep.db"), overwrite: true);
-        // Overwrite the pages under the open connection: the check passed long ago, the next read hits SQLITE_NOTADB.
-        foreach (var f in Directory.GetFiles(_dir, "history.db*"))
+        // Move everything into the main file (this also makes the open connection drop its page cache), then overwrite
+        // its pages under that connection: the check passed long ago, the next read hits SQLITE_NOTADB.
+        // Only the main file: SQLite byte-range-locks -shm on Windows.
+        var path = Path.Combine(_dir, "history.db");
+        using (var other = new SqliteConnection($"Data Source={path};Pooling=False"))
         {
-            using var fs = new FileStream(f, FileMode.Open, FileAccess.Write, FileShare.ReadWrite);
+            other.Open();
+            using var checkpoint = other.CreateCommand();
+            checkpoint.CommandText = "PRAGMA wal_checkpoint(TRUNCATE)";
+            checkpoint.ExecuteNonQuery();
+        }
+
+        using (var fs = new FileStream(path, FileMode.Open, FileAccess.Write, FileShare.ReadWrite))
+        {
             fs.Write(new byte[Math.Max(fs.Length, 8192)].Select((_, i) => (byte)(i * 31 + 7)).ToArray());
         }
 
