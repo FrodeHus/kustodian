@@ -456,6 +456,9 @@ describe('workbook edit mode', () => {
       const dialog = screen.getByRole('dialog', { name: 'Remove Tabs? It has 3 widgets.' });
       expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Move widgets to the top level' }));
       expect(within(dialog).getByRole('button', { name: 'Delete them too' })).toBeTruthy();
+      // Ctrl+Z in the confirm isn't the workbook's undo.
+      fireEvent.keyDown(within(dialog).getByRole('button', { name: 'Cancel' }), { key: 'z', ctrlKey: true });
+      expect(live().textContent).not.toBe('Undone');
       fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
       expect(state().doc.widgets).toBe(before);
       expect(document.activeElement).toBe(remove);

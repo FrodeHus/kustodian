@@ -10,7 +10,8 @@ export interface GridEditing {
   selected: string | null;
   onSelect: (w: Widget) => void;
   onEditWidget: (w: Widget, opener: HTMLElement) => void;
-  onRemove: (w: Widget) => void;
+  /** A tabs widget's `children` go to the top level ('move') or with it ('delete'); without it, the workbook asks. */
+  onRemove: (w: Widget, children?: 'move' | 'delete') => void;
   announce: (text: string) => void;
   /** The tab grid new widgets go into; null is the top level. */
   selectedPlace: Place | null;

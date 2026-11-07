@@ -335,6 +335,9 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
       setRemovingTabs({ widget: w, count });
       return;
     }
+    if (selected === w.id) {
+      setSelected(null);
+    }
     // Grips are in the widget's grid's (y, x) order; focus the next one, else the previous, else Undo.
     const grid = sheetHost?.querySelector(`[data-wb-place="${placeKey(placeOf(w))}"]`);
     const grips = [...(grid?.querySelectorAll<HTMLElement>(':scope > .wb-widget > header .wb-grip') ?? [])];
@@ -353,7 +356,7 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
     say('Redone');
   };
   const onKey = (e: KeyboardEvent) => {
-    if (!editing || editingWidget || parametersOpen || picking || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z' || inTextField(e.target)) {
+    if (!editing || editingWidget || parametersOpen || picking || removingTabs || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z' || inTextField(e.target)) {
       return;
     }
     e.preventDefault();

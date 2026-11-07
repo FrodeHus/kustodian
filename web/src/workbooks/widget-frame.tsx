@@ -296,8 +296,6 @@ export function WidgetFrame({
     }
     editing?.announce(kind === 'move' ? `Moved to column ${now.x + 1}, row ${now.y + 1}` : `Resized to ${now.w} × ${now.h}`);
   };
-  // Null when the copy (a tabs widget's with its widgets) would pass MAX_WIDGETS.
-  const duplicated = duplicateWidget(doc.widgets, widget.id);
   const duplicate = () => {
     edit(tabId, (d) => ({ ...d, widgets: duplicateWidget(d.widgets, widget.id) ?? d.widgets }));
     editing?.announce(`Duplicated ${title}`);
@@ -359,6 +357,8 @@ export function WidgetFrame({
   const used = params.filter((p) => p.from === 'workbook').map((p) => p.name);
 
   const selected = editing?.selected ?? false;
+  // Only the selected widget shows Duplicate; off when the copy (a tabs widget's with its widgets) would pass MAX_WIDGETS.
+  const canDuplicate = selected && duplicateWidget(doc.widgets, widget.id) !== null;
   const bare = !editing && widget.hideTitle === true;
   const refreshTab = (
     <button type="button" role="menuitem" tabIndex={-1} onClick={() => void useWorkbooks.getState().refreshTab(tabId, widget.id)}>
@@ -461,8 +461,8 @@ export function WidgetFrame({
                   <button
                     type="button"
                     className="btn ghost"
-                    disabled={!duplicated}
-                    title={duplicated ? undefined : `A workbook can have at most ${MAX_WIDGETS} widgets.`}
+                    disabled={!canDuplicate}
+                    title={canDuplicate ? undefined : `A workbook can have at most ${MAX_WIDGETS} widgets.`}
                     onClick={duplicate}
                   >
                     Duplicate

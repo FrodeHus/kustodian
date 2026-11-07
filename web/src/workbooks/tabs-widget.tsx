@@ -91,7 +91,8 @@ export function TabsWidget({
   // The tab button to focus once the next render is in (after a rename or a delete).
   const focusTab = useRef<string | null>(null);
   // A pointer press on a tab: where it started and whether it has moved far enough to be a drag; `dragged` eats the click after one.
-  const press = useRef<{ id: string; x: number; moved: boolean } | null>(null);
+  // `stop` removes its Esc listener.
+  const press = useRef<{ id: string; x: number; moved: boolean; stop: () => void } | null>(null);
   const dragged = useRef(false);
   useEffect(() => {
     if (focusTab.current) {
@@ -144,6 +145,11 @@ export function TabsWidget({
   };
   const removeTab = (tab: Tab, children: 'move' | 'delete') => {
     setDeleting(null);
+    // The last tab goes with its tabs widget, through the workbook's Remove (focus, announcement, selection).
+    if (tabs.length === 1) {
+      editing?.onRemove(widget, children);
+      return;
+    }
     const next = neighbour(tab);
     edit(tabId, (d) => ({ ...d, widgets: deleteTab(d.widgets, widget.id, tab.id, children) }));
     if (next) {
@@ -163,11 +169,26 @@ export function TabsWidget({
     edit(tabId, (d) => ({ ...d, widgets: change(d.widgets) }));
   };
   const askDelete = (tab: Tab) => (childrenOf(state.doc.widgets, widget.id, tab.id).length > 0 ? setDeleting(tab) : removeTab(tab, 'delete'));
+  const endPress = () => {
+    press.current?.stop();
+    press.current = null;
+  };
   const drag = {
     onPointerDown: (e: PointerEvent<HTMLButtonElement>, id: string) => {
       dragged.current = false;
       if (e.button === 0) {
-        press.current = { id, x: e.clientX, moved: false };
+        endPress();
+        // Esc drops the drag, and the click that ends it shows nothing.
+        const onEsc = (k: globalThis.KeyboardEvent) => {
+          if (k.key === 'Escape') {
+            k.preventDefault();
+            k.stopPropagation();
+            endPress();
+            dragged.current = true;
+          }
+        };
+        window.addEventListener('keydown', onEsc, true);
+        press.current = { id, x: e.clientX, moved: false, stop: () => window.removeEventListener('keydown', onEsc, true) };
         // Absent in jsdom; in a browser it keeps the gesture's events on the tab when the pointer leaves it.
         e.currentTarget.setPointerCapture?.(e.pointerId);
       }
@@ -181,7 +202,7 @@ export function TabsWidget({
     },
     onPointerUp: (e: PointerEvent<HTMLButtonElement>) => {
       const p = press.current;
-      press.current = null;
+      endPress();
       if (!p?.moved) {
         return;
       }
@@ -195,9 +216,9 @@ export function TabsWidget({
         reorder((w) => reorderTab(w, widget.id, p.id, to));
       }
     },
-    onPointerCancel: () => {
-      press.current = null;
-    },
+    onPointerCancel: endPress,
+    // Capture lost without a pointerup here (the window lost focus, say): drop the drag.
+    onLostPointerCapture: endPress,
   };
   const onKey = (e: KeyboardEvent, tab: string) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -284,6 +305,7 @@ export function TabsWidget({
                   onPointerMove: drag.onPointerMove,
                   onPointerUp: drag.onPointerUp,
                   onPointerCancel: drag.onPointerCancel,
+                  onLostPointerCapture: drag.onLostPointerCapture,
                 })}
               >
                 {t.name}

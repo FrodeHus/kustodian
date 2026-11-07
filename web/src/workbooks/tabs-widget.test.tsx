@@ -222,6 +222,34 @@ describe('TabsWidget', () => {
       expect(tabsOf()).toEqual(['Details', 'Empty', 'Overview']);
     });
 
+    it('Esc or a lost pointer capture drops a tab drag: nothing moves, and the click after Esc shows nothing', () => {
+      show({}, true);
+      screen.getAllByRole('tab').forEach((el, i) => (el.getBoundingClientRect = () => ({ left: i * 100, width: 100, right: i * 100 + 100 }) as DOMRect));
+      fireEvent.pointerDown(tab(/Details/), { button: 0, clientX: 150, pointerId: 1 });
+      fireEvent.pointerMove(tab(/Details/), { clientX: 260, pointerId: 1 });
+      fireEvent.keyDown(window, { key: 'Escape' });
+      fireEvent.pointerUp(tab(/Details/), { clientX: 260, pointerId: 1 });
+      fireEvent.click(tab(/Details/));
+      expect(showTab).not.toHaveBeenCalled();
+      fireEvent.pointerDown(tab(/Details/), { button: 0, clientX: 150, pointerId: 1 });
+      fireEvent.pointerMove(tab(/Details/), { clientX: 260, pointerId: 1 });
+      fireEvent.lostPointerCapture(tab(/Details/), { pointerId: 1 });
+      fireEvent.pointerUp(tab(/Details/), { clientX: 260, pointerId: 1 });
+      expect(tabsOf()).toEqual(['Overview', 'Details', 'Empty']);
+      expect(useWorkbooks.getState().byTab.t!.undo).toHaveLength(0);
+    });
+
+    it('deleting the last tab removes the tabs widget the way Remove does: focus to the next grip, and said', () => {
+      doc = { ...doc, widgets: doc.widgets.filter((w) => w.id !== 'b').map((w) => (w.id === 'tw' ? { ...w, tabs: [w.tabs![0]!] } : w)) };
+      show({}, true);
+      menu('Overview');
+      fireEvent.click(item('Delete'));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete them too' }));
+      expect(widgets().map((w) => w.id)).toEqual(['m']);
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Move Notes' }));
+      expect(document.querySelector('.wb-announce')!.textContent).toBe('Removed Untitled widget');
+    });
+
     it('deleting an empty tab asks nothing', () => {
       show({}, true);
       fireEvent.click(tab(/Empty/));
