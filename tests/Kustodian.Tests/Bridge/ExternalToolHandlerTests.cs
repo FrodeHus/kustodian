@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Kustodian.ExternalTools;
+using Kustodian.Files;
 using Kustodian.Messaging.Handlers;
 
 namespace Kustodian.Tests.Bridge;
@@ -10,11 +11,71 @@ public sealed class ExternalToolHandlerTests : IDisposable
     private readonly List<string> _events = [];
     private readonly List<string> _opened = [];
     private readonly Messaging.Bridge _bridge;
+    private readonly PickDialogs _dialogs = new();
 
     public ExternalToolHandlerTests()
     {
         _bridge = new(_events.Add);
-        new ExternalToolHandler(new ExternalToolService(_dir, _opened.Add)).Register(_bridge);
+        new ExternalToolHandler(new ExternalToolService(_dir, _opened.Add), _dialogs).Register(_bridge);
+    }
+
+    private sealed class PickDialogs : IFileDialogs
+    {
+        public string? Chosen { get; set; }
+
+        public Task<string?> OpenAsync(string title, IReadOnlyList<FileFilter> filters) => Task.FromResult(Chosen);
+
+        public Task<string?> SaveAsync(string title, string suggestedName, IReadOnlyList<FileFilter> filters) => throw new NotSupportedException();
+    }
+
+    private string ToolsPath => Path.Combine(_dir, ExternalToolService.FileName);
+
+    [Fact]
+    public async Task Save_writes_the_tools_in_order_and_names_a_command_that_is_no_file()
+    {
+        var real = typeof(ExternalToolHandlerTests).Assembly.Location;
+        var result = (await CallAsync("tools.save", $$"""
+            {"tools":[{"name":"b","command":{{JsonSerializer.Serialize(real)}},"args":["{id}"],"mode":"each"},
+                      {"name":"a","command":"pwsh","args":[],"mode":"batch"}]}
+            """)).GetProperty("result");
+
+        Assert.Equal(["b", "a"], result.GetProperty("tools").EnumerateArray().Select(t => t.GetProperty("name").GetString()));
+        Assert.Equal(["a"], result.GetProperty("missing").EnumerateArray().Select(t => t.GetString()));
+        var list = (await CallAsync("tools.list", "{}")).GetProperty("result");
+        Assert.Equal(2, list.GetProperty("tools").GetArrayLength());
+        Assert.Equal(JsonValueKind.Null, list.GetProperty("problem").ValueKind);
+    }
+
+    [Fact]
+    public async Task Save_refuses_a_tool_that_isnt_valid_and_writes_nothing()
+    {
+        var response = await CallAsync("tools.save", """{"tools":[{"name":"a","command":"x","args":["{id}"],"mode":"batch"}]}""");
+
+        Assert.Equal("bad_request", response.GetProperty("error").GetProperty("code").GetString());
+        Assert.Contains("batch mode", response.GetProperty("error").GetProperty("message").GetString());
+        Assert.False(File.Exists(ToolsPath));
+    }
+
+    [Fact]
+    public async Task Save_never_writes_over_a_file_that_isnt_valid()
+    {
+        WriteTools("""{"tools": """);
+
+        var response = await CallAsync("tools.save", """{"tools":[{"name":"a","command":"x","args":[],"mode":"each"}]}""");
+
+        Assert.Equal("bad_request", response.GetProperty("error").GetProperty("code").GetString());
+        Assert.Equal("""{"tools": """, File.ReadAllText(ToolsPath));
+    }
+
+    [Fact]
+    public async Task Pick_command_answers_the_chosen_path_or_null()
+    {
+        Assert.Equal(JsonValueKind.Null, (await CallAsync("tools.pickCommand", "{}")).GetProperty("result").ValueKind);
+
+        _dialogs.Chosen = "/opt/homebrew/bin/az";
+        var result = (await CallAsync("tools.pickCommand", "{}")).GetProperty("result");
+
+        Assert.Equal("/opt/homebrew/bin/az", result.GetProperty("path").GetString());
     }
 
     public void Dispose()
