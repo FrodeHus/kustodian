@@ -11,6 +11,7 @@ import { failed, useTabs } from '../tabs/tab-store';
 import type { ParameterDef, RunResult } from '../wire';
 import { COLUMNS, GAP_PX, nudge, place, resize, ROW_PX } from './layout';
 import { MAX_WIDGETS, newWidget, type ToolButton, type Widget, type WidgetLayout } from './model';
+import { placeOf, withinPlace } from './tabs';
 import { daysSince, HistoryData, SKIP_TEXT, useHistory, type HistoryFilter } from './history';
 import { ClearConfirm } from './history-section';
 import { widgetParams, widgetRunOptions, type ResolvedParam } from './resolve';
@@ -38,13 +39,16 @@ type Kind = 'move' | { w: boolean; h: boolean };
 
 const ARROWS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 
-/** The widgets after moving or resizing `id` by `dx` columns and `dy` rows, through layout.ts. */
+/** The widgets after moving or resizing `id` by `dx` columns and `dy` rows within its place, through layout.ts. */
 function shifted(widgets: Widget[], id: string, kind: Kind, dx: number, dy: number): Widget[] {
-  const l = widgets.find((w) => w.id === id)?.layout;
-  if (!l) {
+  const w = widgets.find((i) => i.id === id);
+  if (!w) {
     return widgets;
   }
-  return kind === 'move' ? nudge(widgets, id, dx, dy) : resize(widgets, id, l.w + (kind.w ? dx : 0), l.h + (kind.h ? dy : 0));
+  const l = w.layout;
+  return withinPlace(widgets, placeOf(w), (s) =>
+    kind === 'move' ? nudge(s, id, dx, dy) : resize(s, id, l.w + (kind.w ? dx : 0), l.h + (kind.h ? dy : 0)),
+  );
 }
 
 const cellVars = (l: WidgetLayout) => ({ '--x': l.x + 1, '--y': l.y + 1, '--w': l.w, '--h': l.h }) as CSSProperties;
@@ -354,6 +358,11 @@ export function WidgetFrame({
 
   const selected = editing?.selected ?? false;
   const bare = !editing && widget.hideTitle === true;
+  const refreshTab = (
+    <button type="button" role="menuitem" tabIndex={-1} onClick={() => void useWorkbooks.getState().refreshTab(tabId, widget.id)}>
+      Refresh
+    </button>
+  );
   return (
     <>
       <section
@@ -361,7 +370,8 @@ export function WidgetFrame({
         aria-label={title}
         style={cellVars(widget.layout)}
         className={`card wb-widget flex min-h-0 min-w-0 flex-col ${selected ? 'border-accent' : ''} ${full ? 'wb-full fixed inset-0 z-20 rounded-none' : 'relative'}`}
-        onPointerDown={editing?.onSelect}
+        // Not for a widget inside this one (in a tabs widget): that one selects itself.
+        onPointerDown={editing && ((e) => e.target instanceof Element && e.target.closest('.wb-widget') === e.currentTarget && editing.onSelect())}
       >
         {/* One row that never wraps (the title truncates, so it fits at the narrowest widget), then a row that wraps for the
             widget's own controls, the workbook parameters it uses and, in edit mode, its size and (selected) its actions. */}
@@ -387,6 +397,7 @@ export function WidgetFrame({
             <div className="flex shrink-0 items-center gap-2">
               {!editing && result && <span className="mono faint text-[11.5px]">{duration(result.durationMs)}</span>}
               <MenuButton label={`${title} menu`} icon="⋯">
+                {widget.type === 'tabs' && refreshTab}
                 {widget.query && (
                   <>
                     <button type="button" role="menuitem" tabIndex={-1} onClick={() => void useWorkbooks.getState().runWidget(tabId, widget.id, { refresh: true })}>
@@ -474,7 +485,18 @@ export function WidgetFrame({
           )}
         </header>
         {notice && <NoticeLine notice={notice} onDismiss={() => setNotice(null)} />}
-        <div className={`flex min-h-0 flex-1 flex-col overflow-hidden ${bare ? 'pt-3' : ''}`}>
+        {/* A tabs widget without its title bar keeps ⋯ at the end of its tab bar. */}
+        {bare && widget.type === 'tabs' && (
+          <div className="absolute top-1 right-2">
+            <MenuButton label={`${title} menu`} icon="⋯">
+              {refreshTab}
+              <button type="button" role="menuitem" tabIndex={-1} onClick={() => setFull(!full)}>
+                {full ? 'Exit full screen' : 'Full screen'}
+              </button>
+            </MenuButton>
+          </div>
+        )}
+        <div className={`flex min-h-0 flex-1 flex-col overflow-hidden ${bare && widget.type !== 'tabs' ? 'pt-3' : ''}`}>
           {(widget.query && runBody(tabId, widget, run, onSignIn)) ?? (
             <HistoryData.Provider value={{ ...history, filter, setFilter }}>
               {full ? <SheetHost.Provider value={null}>{children}</SheetHost.Provider> : children}

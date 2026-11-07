@@ -389,4 +389,50 @@ describe('workbook edit mode', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Notes menu' }));
     expect(screen.queryByRole('menuitem', { name: 'Clear history…' })).toBeNull();
   });
+
+  it('the add menu has Tabs, which adds a tabs widget with Tab 1', () => {
+    show();
+    fireEvent.click(screen.getByRole('button', { name: '+ Add widget' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Tabs' }));
+    const added = state().doc.widgets.at(-1)!;
+    expect(added.type).toBe('tabs');
+    expect(added.tabs?.map((t) => t.name)).toEqual(['Tab 1']);
+    expect(added.in).toBeUndefined();
+    expect(screen.getByRole('tab', { name: /Tab 1/ })).toBeTruthy();
+  });
+
+  it('a widget added while a tab’s grid is selected goes into that tab', () => {
+    const tabs = { ...widget('tw', 'tabs', '', 0, 12), tabs: [{ id: 't1', name: 'One' }], layout: { x: 0, y: 12, w: 12, h: 30 } };
+    doc = { ...doc, widgets: [...doc.widgets, tabs, { ...widget('in', 'markdown', 'Inside', 0, 0), in: { tabs: 'tw', tab: 't1' } }] };
+    show();
+    fireEvent.click(document.querySelector('[data-wb-place="tw/t1"]')!);
+    const inside = state().doc.widgets.filter((w) => w.in?.tab === 't1');
+    fireEvent.click(screen.getByRole('button', { name: '+ Add widget' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Chart' }));
+    const added = state().doc.widgets.at(-1)!;
+    expect(added.in).toEqual({ tabs: 'tw', tab: 't1' });
+    expect(added.layout).toEqual(place(inside, MIN_SIZE.chart.w, MIN_SIZE.chart.h * 2));
+    // A tabs widget always goes to the top level.
+    fireEvent.click(screen.getByRole('button', { name: '+ Add widget' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Tabs' }));
+    expect(state().doc.widgets.at(-1)!.in).toBeUndefined();
+    // Selecting a widget clears the selected place.
+    fireEvent.focus(grip('Notes'));
+    fireEvent.click(screen.getByRole('button', { name: '+ Add widget' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Stat' }));
+    expect(state().doc.widgets.at(-1)!.in).toBeUndefined();
+  });
+
+  it('Edit widget on a tabs widget shows only Title and Hide title', () => {
+    doc = { ...doc, widgets: [{ ...widget('tw', 'tabs', 'Sections', 0, 12), tabs: [{ id: 't1', name: 'One' }] }] };
+    show();
+    fireEvent.focus(grip('Sections'));
+    fireEvent.click(within(screen.getByRole('region', { name: 'Sections' })).getByRole('button', { name: 'Edit widget' }));
+    const dialog = screen.getByRole('dialog', { name: 'Edit widget' });
+    expect(within(dialog).getAllByRole('textbox').map((t) => t.getAttribute('aria-label') ?? (t.closest('label')?.textContent ?? ''))).toEqual(['Title']);
+    expect(within(dialog).getAllByRole('checkbox')).toHaveLength(1);
+    expect(within(dialog).getByRole('checkbox', { name: 'Hide the title bar outside edit mode' })).toBeTruthy();
+    expect(within(dialog).queryByRole('tablist')).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: 'Run preview' })).toBeNull();
+  });
 });

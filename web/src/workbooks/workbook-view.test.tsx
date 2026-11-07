@@ -256,4 +256,18 @@ describe('WorkbookView', () => {
     expect(opened?.source).toBe('graph');
     expect(opened?.parameters).toEqual([{ name: 'Env', type: 'list', value: 'prod', required: false, choices: ['prod', 'test'] }]);
   });
+
+  it('narrow: the tab’s grid stacks full width like the top level', () => {
+    doc.widgets = [
+      { ...widget('tw', 'tabs', ''), tabs: [{ id: 't1', name: 'One' }] },
+      widget('in', 'markdown', 'Inside', undefined, { markdown: 'x', in: { tabs: 'tw', tab: 't1' } }),
+    ];
+    show({});
+    const inner = document.querySelector('[data-wb-place="tw/t1"]')!;
+    expect(inner.classList.contains('wb-grid')).toBe(true);
+    expect(document.querySelector('[data-wb-place=""]')?.classList.contains('wb-grid')).toBe(true);
+    expect(within(inner as HTMLElement).getByRole('region', { name: 'Inside' }).classList.contains('wb-widget')).toBe(true);
+    // The container rule is on .wb-widget wherever it sits, under the one .wb-canvas container.
+    expect(styles).toMatch(/@container \(max-width: 899px\) \{ \.wb-widget \{ grid-column: 1 \/ -1;/);
+  });
 });

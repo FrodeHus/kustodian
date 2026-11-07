@@ -248,6 +248,7 @@ body {
   .wb-canvas:has(.wb-full) { container-type: normal; }
   /* Edit mode: faint column guides behind the grid, the drop target, the grip and the selected widget's resize handles. */
   .wb-editing { min-height: 100%; background-image: repeating-linear-gradient(to right, var(--accent-soft) 0 calc((100% - 132px) / 12), transparent 0 calc((100% + 12px) / 12)); }
+  .wb-grid[data-selected] { outline: 2px dashed var(--accent); outline-offset: 4px; }
   .wb-drop { border: 2px dashed var(--accent); border-radius: 10px; background: var(--accent-soft); pointer-events: none; }
   .wb-grip { cursor: grab; touch-action: none; padding: 0 6px; }
   .wb-resize-right, .wb-resize-bottom, .wb-resize-corner { position: absolute; touch-action: none; }
