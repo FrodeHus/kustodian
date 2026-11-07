@@ -38,8 +38,8 @@ public sealed class HistoryStore(string root, TimeProvider time, ILogger<History
 
     private const string Schema = """
         CREATE TABLE series (id INTEGER PRIMARY KEY, workbook_id TEXT NOT NULL, widget_id TEXT NOT NULL,
-          series_key TEXT NOT NULL, query_key TEXT NOT NULL, mode TEXT NOT NULL, label TEXT NOT NULL,
-          columns TEXT NOT NULL, UNIQUE (workbook_id, widget_id, series_key));
+          series_key TEXT NOT NULL, query_key TEXT NOT NULL, mode TEXT NOT NULL, interval TEXT NOT NULL,
+          label TEXT NOT NULL, columns TEXT NOT NULL, UNIQUE (workbook_id, widget_id, series_key));
         CREATE TABLE snapshots (series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
           taken_at INTEGER NOT NULL, result TEXT);
         CREATE INDEX snapshots_by_time ON snapshots (series_id, taken_at);
@@ -64,12 +64,10 @@ public sealed class HistoryStore(string root, TimeProvider time, ILogger<History
         _gate.Dispose();
     }
 
-    public async Task<RecordAnswer> RecordAsync(RecordRequest r, CancellationToken ct)
+    public Task<RecordAnswer> RecordAsync(RecordRequest r, CancellationToken ct)
     {
-        await _gate.WaitAsync(ct);
-        try
+        return Gated(db =>
         {
-            var db = Open();
             var setting = r.Setting;
             var rows = setting.Mode == HistoryMode.Values;
             if (rows && r.Rows.Count > MaxValueRows)
@@ -96,12 +94,12 @@ public sealed class HistoryStore(string root, TimeProvider time, ILogger<History
             Run(db, tx, "DELETE FROM series WHERE workbook_id = $w AND widget_id = $g AND query_key <> $q",
                 ("$w", r.WorkbookId), ("$g", r.WidgetId), ("$q", HistoryKeys.QueryKey(r.Query, setting)));
             var id = Scalar<long>(db, tx, """
-                INSERT INTO series (workbook_id, widget_id, series_key, query_key, mode, label, columns)
-                VALUES ($w, $g, $s, $q, $m, $l, $c)
-                ON CONFLICT (workbook_id, widget_id, series_key) DO UPDATE SET label = $l, columns = $c
+                INSERT INTO series (workbook_id, widget_id, series_key, query_key, mode, interval, label, columns)
+                VALUES ($w, $g, $s, $q, $m, $v, $l, $c)
+                ON CONFLICT (workbook_id, widget_id, series_key) DO UPDATE SET interval = $v, label = $l, columns = $c
                 RETURNING id
                 """, ("$w", r.WorkbookId), ("$g", r.WidgetId), ("$s", HistoryKeys.SeriesKey(r.Query, setting)),
-                ("$q", HistoryKeys.QueryKey(r.Query, setting)), ("$m", setting.Mode.ToString()), ("$l", r.Label),
+                ("$q", HistoryKeys.QueryKey(r.Query, setting)), ("$m", setting.Mode.ToString()), ("$v", setting.Interval.ToString()), ("$l", r.Label),
                 ("$c", JsonSerializer.Serialize(r.Columns)));
 
             if (keyed is null)
@@ -133,20 +131,14 @@ public sealed class HistoryStore(string root, TimeProvider time, ILogger<History
             Run(db, tx, "DELETE FROM tracked WHERE series_id = $i AND gone < $c", ("$i", id), ("$c", cutoff));
             tx.Commit();
             return new RecordAnswer(true, null, _reset);
-        }
-        finally
-        {
-            _gate.Release();
-        }
+        }, ct);
     }
 
-    public async Task<ValuesAnswer> ValuesAsync(string workbookId, string widgetId, HistoryQuery q, HistorySetting s,
+    public Task<ValuesAnswer> ValuesAsync(string workbookId, string widgetId, HistoryQuery q, HistorySetting s,
         CancellationToken ct)
     {
-        await _gate.WaitAsync(ct);
-        try
+        return Gated(db =>
         {
-            var db = Open();
             var snapshots = new List<Snapshot>();
             if (FindSeries(db, workbookId, widgetId, q, s) is { } found)
             {
@@ -161,22 +153,16 @@ public sealed class HistoryStore(string root, TimeProvider time, ILogger<History
             }
 
             return new ValuesAnswer(snapshots, _reset);
-        }
-        finally
-        {
-            _gate.Release();
-        }
+        }, ct);
     }
 
     /// <param name="since">"previous" (the snapshot before the latest) or an ISO 8601 instant. With no previous snapshot
     /// there is no lower bound, so every row counts as new.</param>
-    public async Task<ChangesAnswer> ChangesAsync(string workbookId, string widgetId, HistoryQuery q, HistorySetting s,
+    public Task<ChangesAnswer> ChangesAsync(string workbookId, string widgetId, HistoryQuery q, HistorySetting s,
         string since, CancellationToken ct)
     {
-        await _gate.WaitAsync(ct);
-        try
+        return Gated(db =>
         {
-            var db = Open();
             if (FindSeries(db, workbookId, widgetId, q, s) is not { } found)
             {
                 return new ChangesAnswer(null, [], [], 0, [], 0, 0, _reset);
@@ -200,33 +186,27 @@ public sealed class HistoryStore(string root, TimeProvider time, ILogger<History
             var open = Scalar<long>(db, null, "SELECT COUNT(*) FROM tracked WHERE series_id = $i AND gone IS NULL", ("$i", found.Id));
             return new ChangesAnswer(sinceMs is { } ms ? DateTimeOffset.FromUnixTimeMilliseconds(ms) : null, found.Columns,
                 added, addedCount, removed, removedCount, (int)open, _reset);
-        }
-        finally
-        {
-            _gate.Release();
-        }
+        }, ct);
     }
 
-    public async Task<IReadOnlyList<SeriesInfo>> SeriesAsync(string workbookId, string widgetId, CancellationToken ct)
+    public Task<IReadOnlyList<SeriesInfo>> SeriesAsync(string workbookId, string widgetId, CancellationToken ct)
     {
-        await _gate.WaitAsync(ct);
-        try
+        return Gated<IReadOnlyList<SeriesInfo>>(db =>
         {
-            var db = Open();
-            var found = new List<(long Id, string Label, string Mode)>();
-            using (var cmd = Command(db, null, "SELECT id, label, mode FROM series WHERE workbook_id = $w AND widget_id = $g ORDER BY id",
+            var found = new List<(long Id, string Label, string Mode, string Interval)>();
+            using (var cmd = Command(db, null, "SELECT id, label, mode, interval FROM series WHERE workbook_id = $w AND widget_id = $g ORDER BY id",
                 ("$w", workbookId), ("$g", widgetId)))
             using (var reader = cmd.ExecuteReader())
             {
                 while (reader.Read())
                 {
-                    found.Add((reader.GetInt64(0), reader.GetString(1), reader.GetString(2)));
+                    found.Add((reader.GetInt64(0), reader.GetString(1), reader.GetString(2), reader.GetString(3)));
                 }
             }
 
             var zone = time.LocalTimeZone;
             var infos = new List<SeriesInfo>();
-            foreach (var (id, label, mode) in found)
+            foreach (var (id, label, mode, interval) in found)
             {
                 var days = new SortedSet<DateTime>();
                 var count = 0;
@@ -242,8 +222,8 @@ public sealed class HistoryStore(string root, TimeProvider time, ILogger<History
                     }
                 }
 
-                // shortcut: gaps are counted in days whatever the interval, so a weekly series shows its skipped days; fine until the UI needs weeks.
-                var gaps = days.Count == 0 ? 0 : (days.Max - days.Min).Days + 1 - days.Count;
+                // Only a daily series has days to miss; per-run and weekly series report none.
+                var gaps = days.Count == 0 || interval != nameof(HistoryInterval.Day) ? 0 : (days.Max - days.Min).Days + 1 - days.Count;
                 var stored = mode == nameof(HistoryMode.Rows)
                     ? (int)Scalar<long>(db, null, "SELECT COUNT(*) FROM tracked WHERE series_id = $i", ("$i", id))
                     : count;
@@ -251,11 +231,7 @@ public sealed class HistoryStore(string root, TimeProvider time, ILogger<History
             }
 
             return infos;
-        }
-        finally
-        {
-            _gate.Release();
-        }
+        }, ct);
     }
 
     public Task ClearAsync(string workbookId, string widgetId, CancellationToken ct) =>
@@ -264,12 +240,29 @@ public sealed class HistoryStore(string root, TimeProvider time, ILogger<History
     public Task DeleteWorkbookAsync(string workbookId, CancellationToken ct) =>
         Delete("DELETE FROM series WHERE workbook_id = $w", ct, ("$w", workbookId));
 
-    private async Task Delete(string sql, CancellationToken ct, params (string, object)[] args)
+    private Task Delete(string sql, CancellationToken ct, params (string, object)[] args) =>
+        Gated(db =>
+        {
+            Run(db, null, sql, args);
+            return 0;
+        }, ct);
+
+    /// <summary>Runs one call under the gate. A file that passed its check but is corrupt or not a database (SQLite 11 or 26)
+    /// is replaced as at open and the call retried once, so a damaged history never fails a workbook.</summary>
+    private async Task<T> Gated<T>(Func<SqliteConnection, T> body, CancellationToken ct)
     {
         await _gate.WaitAsync(ct);
         try
         {
-            Run(Open(), null, sql, args);
+            try
+            {
+                return body(Open());
+            }
+            catch (SqliteException e) when (e.SqliteErrorCode is 11 or 26)
+            {
+                Reset();
+                return body(Open());
+            }
         }
         finally
         {
@@ -369,24 +362,30 @@ public sealed class HistoryStore(string root, TimeProvider time, ILogger<History
         }
         catch (SqliteException)
         {
-            _db?.Dispose();
-            _db = null;
-            SqliteConnection.ClearAllPools();
-            var suffix = ".damaged-" + time.GetLocalNow().ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
-            foreach (var ext in new[] { "", "-wal", "-shm" })
-            {
-                if (File.Exists(DbPath + ext))
-                {
-                    File.Move(DbPath + ext, DbPath + ext + suffix, overwrite: true);
-                }
-            }
-
-            _reset = true;
-            _log.LogWarning("The history database could not be read and was replaced by an empty one.");
+            Reset();
             _db = Connect();
         }
 
         return _db;
+    }
+
+    /// <summary>Moves the file (and its -wal/-shm) aside; the next <see cref="Open"/> starts a new one. Logs no contents.</summary>
+    private void Reset()
+    {
+        _db?.Dispose();
+        _db = null;
+        SqliteConnection.ClearAllPools();
+        var suffix = ".damaged-" + time.GetLocalNow().ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+        foreach (var ext in new[] { "", "-wal", "-shm" })
+        {
+            if (File.Exists(DbPath + ext))
+            {
+                File.Move(DbPath + ext, DbPath + ext + suffix, overwrite: true);
+            }
+        }
+
+        _reset = true;
+        _log.LogWarning("The history database could not be read and was replaced by an empty one.");
     }
 
     private SqliteConnection Connect()

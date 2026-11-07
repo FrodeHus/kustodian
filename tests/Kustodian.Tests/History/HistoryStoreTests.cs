@@ -283,4 +283,42 @@ public sealed class HistoryStoreTests : IDisposable
         var next = await NewStore().RecordAsync(Request(Rows, Ids("A")), Ct);
         Assert.False(next.Reset);
     }
+
+    [Fact]
+    public async Task a_weekly_series_reports_no_gaps()
+    {
+        var weekly = Values with { Interval = HistoryInterval.Week };
+        var s = NewStore();
+        foreach (var _ in new[] { 0, 1, 2 })
+        {
+            await s.RecordAsync(Request(weekly, [Row("x")]), Ct);
+            _time.Advance(TimeSpan.FromDays(7));
+        }
+
+        var info = Assert.Single(await s.SeriesAsync("wb", "w1", Ct));
+
+        Assert.Equal(3, info.Snapshots);
+        Assert.Equal(0, info.Gaps);
+    }
+
+    [Fact]
+    public async Task a_file_that_turns_corrupt_after_opening_is_replaced_and_the_call_retried()
+    {
+        var s = NewStore();
+        await Record(s, Rows, "A");
+        File.Copy(Path.Combine(_dir, "history.db"), Path.Combine(_dir, "keep.db"), overwrite: true);
+        // Overwrite the pages under the open connection: the check passed long ago, the next read hits SQLITE_NOTADB.
+        foreach (var f in Directory.GetFiles(_dir, "history.db*"))
+        {
+            using var fs = new FileStream(f, FileMode.Open, FileAccess.Write, FileShare.ReadWrite);
+            fs.Write(new byte[Math.Max(fs.Length, 8192)].Select((_, i) => (byte)(i * 31 + 7)).ToArray());
+        }
+
+        NextDay();
+        var answer = await Record(s, Rows, "B");
+
+        Assert.True(answer.Recorded);
+        Assert.True(answer.Reset);
+        Assert.Single(Directory.GetFiles(_dir, "history.db.damaged-*"), f => !f.Contains("-wal") && !f.Contains("-shm"));
+    }
 }
