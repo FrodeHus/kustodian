@@ -1,7 +1,7 @@
 name: solutions
 
-# version-bump runs on pull_request with a read-only token. tools-change runs on pull_request_target so it can label and
-# comment on fork PRs; it must never check out or execute the PR's code. It reads tools.json through the API at the head
+# version-bump runs on pull_request with a read-only token. tools-change and copilot-review run on pull_request_target so
+# they can label, comment and request reviewers on fork PRs; it must never check out or execute the PR's code. It reads tools.json through the API at the head
 # SHA and treats it as data only. version-bump runs on every PR so it can be a required check; when no solution folder
 # changed it passes at once.
 
@@ -65,6 +65,21 @@ jobs:
             fi
           done
           exit "$fail"
+
+  copilot-review:
+    name: Copilot review request
+    # Branch rulesets can't filter by path, so Copilot is asked here, only for PRs that change Solutions/.
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Request a Copilot review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: gh api -X POST "repos/$REPO/pulls/$PR/requested_reviewers" -f 'reviewers[]=copilot-pull-request-reviewer[bot]' >/dev/null
 
   tools-change:
     name: tools.json review notice

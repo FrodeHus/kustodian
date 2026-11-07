@@ -231,7 +231,8 @@ Missing requirements never block an install; the panel also shows as a badge on 
   it.
 - **Tool review**, when a PR adds or changes any `Solutions/*/tools.json` (**Owner**), on top of the owner review:
   - a job labels the PR `tools-change` and comments every new or changed tool's full command line;
-  - a branch ruleset requests a **Copilot code review** automatically, with a path-specific instruction file
+  - the `solutions` workflow requests a **Copilot code review** on PRs that change `Solutions/` (a branch ruleset
+    can't filter by path), with a path-specific instruction file
     (`.github/instructions/solution-tools.instructions.md`) telling it what to flag: shell interpreters as the command
     (`bash`, `sh`, `pwsh`, `cmd`), download or install commands, write or delete API calls, row values placed into URLs or
     scripts, `batch` tools sending rows to a network target. Copilot comments; it cannot approve or block, so the
