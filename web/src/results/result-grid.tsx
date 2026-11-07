@@ -693,7 +693,11 @@ export function ResultGrid({
                       title="Inspect row"
                       aria-expanded={isInspected}
                       aria-controls={isInspected ? inspectorId : undefined}
-                      onClick={() => onOpenRow?.(isInspected ? null : row.index)}
+                      onClick={(e) => {
+                        // Not the row's click too: that would select (or, with checkboxes, toggle) the row.
+                        e.stopPropagation();
+                        onOpenRow?.(isInspected ? null : row.index);
+                      }}
                     >
                       {inspectIcon}
                     </button>
