@@ -471,6 +471,23 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
             >
               Export…
             </button>
+            <button
+              type="button"
+              role="menuitem"
+              tabIndex={-1}
+              onClick={() => {
+                // The print styles show only the marked workbook; other workbook tabs stay mounted, hidden.
+                document.querySelector('.wb-printing')?.classList.remove('wb-printing');
+                sheetHost?.classList.add('wb-printing');
+                // The macOS web view ignores window.print(), so the host prints there and answers true.
+                call<boolean>('app.print').then(
+                  (native) => native || window.print(),
+                  (e: unknown) => setProblem({ text: `The workbook couldn’t be printed: ${errorText(e)}`, reportId: reportIdOf(e) }),
+                );
+              }}
+            >
+              Print or save as PDF…
+            </button>
             <button type="button" role="menuitem" tabIndex={-1} disabled={!savedId} onClick={() => setDeleting(true)}>
               Delete
             </button>

@@ -134,7 +134,7 @@ public sealed class AppServices : IAsyncDisposable
     /// <summary>Registers every bridge method.</summary>
     public void Register(Bridge bridge)
     {
-        new AppHandler(Objects, Probes, new UpdateCheck(_github, AppVersion.Text)).Register(bridge);
+        new AppHandler(Objects, Probes, new UpdateCheck(_github, AppVersion.Text), window: Window).Register(bridge);
         new SettingsHandler(_settings, _startup.Limits, Trail).Register(bridge);
         new ErrorHandler(Reporter, Trail).Register(bridge);
         new SchemaHandler(_schema, _huntingSchema, ActiveAccountAsync, Probes, _licenses).Register(bridge);

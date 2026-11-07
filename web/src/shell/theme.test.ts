@@ -86,11 +86,14 @@ describe('theme', () => {
   });
 
   it('palette_themes_set_the_tokens_and_other_themes_clear_them', () => {
-    const accent = () => document.documentElement.style.getPropertyValue('--accent');
+    const sheet = () => document.getElementById('palette-theme')?.textContent ?? '';
+    const accent = () => /--accent: ([^;]+);/.exec(sheet())?.[1] ?? '';
 
     applyTheme('dracula');
     expect(accent()).toBe('#bd93f9');
-    expect(document.documentElement.style.getPropertyValue('--accent-soft')).toContain('#bd93f9');
+    expect(/--accent-soft: ([^;]+);/.exec(sheet())?.[1]).toContain('#bd93f9');
+    // On screen only: print is always light.
+    expect(sheet()).toMatch(/^@media screen \{ :root \{/);
     expect(useTheme.getState()).toEqual({ theme: 'dracula', resolved: 'dark', glass: false });
 
     applyTheme('gruvbox-dark');

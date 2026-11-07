@@ -111,6 +111,26 @@ describe('WorkbookView', () => {
     expect(within(frame('Sign-ins by day')).getByText('Env')).toBeTruthy();
   });
 
+  it('Print marks this workbook for the print styles, and prints in the page unless the host printed it', async () => {
+    const print = vi.spyOn(window, 'print').mockImplementation(() => undefined);
+    call.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    const { container } = show({});
+    const open = () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Workbook menu' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Print or save as PDF…' }));
+    };
+    open();
+    await vi.waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+    expect(call).toHaveBeenCalledWith('app.print');
+    expect(container.querySelectorAll('.wb-printing')).toHaveLength(1);
+    open();
+    await vi.waitFor(() => expect(call).toHaveBeenCalledTimes(2));
+    await Promise.resolve();
+    expect(print).toHaveBeenCalledTimes(1);
+    expect(styles).toContain('.wb-printing');
+    print.mockRestore();
+  });
+
   it('offers a text parameter with choices as a select, and fills Markdown with a parameter added since opening', () => {
     // Region isn't in the view values (it was added after the workbook opened): its default stands in.
     doc.parameters = [...doc.parameters, { ...env, name: 'Region', type: 'text', value: 'eu', choices: ['eu', 'us'], label: null }];
