@@ -415,7 +415,7 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
             </p>
           ) : shown ? (
             draft.type === 'chart' ? (
-              <ChartWidget widget={live} run={shown} picked={picked} onChart={(chart) => set({ chart })} />
+              <ChartWidget widget={live} run={shown} />
             ) : draft.type === 'stat' ? (
               <StatWidget widget={live} run={shown} />
             ) : (

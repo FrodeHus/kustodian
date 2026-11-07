@@ -237,7 +237,7 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
   if (!state) {
     return <p className="faint m-0 p-4 text-[12px]">Opening the workbook…</p>;
   }
-  const { doc, values, runs, editing, viewCharts } = state;
+  const { doc, values, runs, editing } = state;
   const full = doc.widgets.length >= MAX_WIDGETS;
   const store = useWorkbooks.getState;
   const updatedAt = Math.max(0, ...Object.values(runs).map((r) => (r.state === 'done' || r.state === 'failed' ? (r.finishedAt ?? 0) : 0)));
@@ -341,19 +341,7 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
       case 'markdown':
         return <MarkdownWidget text={w.markdown ?? ''} values={workbookValues(doc, values)} />;
       case 'chart':
-        return (
-          <ChartWidget
-            widget={w}
-            run={run}
-            picked={viewCharts[w.id] ?? w.chart ?? {}}
-            // Ruling R3: a pick outside edit mode is view state; in edit mode it is the widget's.
-            onChart={(picked) =>
-              editing
-                ? store().edit(tabId, (d) => ({ ...d, widgets: d.widgets.map((x) => (x.id === w.id ? { ...x, chart: picked } : x)) }))
-                : store().setViewChart(tabId, w.id, picked)
-            }
-          />
-        );
+        return <ChartWidget widget={w} run={run} />;
       case 'table':
         return <TableWidget widget={w} run={run} />;
       case 'stat':

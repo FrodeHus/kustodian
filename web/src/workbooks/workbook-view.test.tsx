@@ -20,10 +20,10 @@ vi.mock('../bridge', async (importOriginal) => ({
 
 // Recharts can't lay out in jsdom; the chart's own tests cover it.
 vi.mock('../results/chart-view', () => ({
-  default: ({ picked, setPicked }: { picked: { type?: string }; setPicked: (p: { type?: string }) => void }) => (
-    <button type="button" onClick={() => setPicked({ type: 'pie' })}>
-      Chart type: {picked.type ?? 'auto'}
-    </button>
+  default: ({ picked, controls = true }: { picked: { type?: string }; controls?: boolean }) => (
+    <p>
+      Chart {picked.type ?? 'auto'}, {controls ? 'with pickers' : 'alone'}
+    </p>
   ),
 }));
 
@@ -73,7 +73,6 @@ function show(runs: Record<string, WidgetRun>, editing = false) {
     undo: [],
     redo: [],
     dirty: false,
-    viewCharts: {},
   };
   useWorkbooks.setState({ byTab: { t: state }, setWorkbookValue, setWidgetValue });
   return render(<WorkbookView tabId="t" />);
@@ -233,14 +232,17 @@ describe('WorkbookView', () => {
     expect(within(frame('Total')).queryByText(/▲|▼/)).toBeNull();
   });
 
-  it('keeps a chart pick made in view mode as view state', async () => {
-    const setViewChart = vi.fn();
-    const edit = vi.fn();
-    useWorkbooks.setState({ setViewChart, edit });
-    show({ c: { state: 'done', result: result([{ name: 'n', type: 'long' }], [[1]]) } });
-    fireEvent.click(await within(frame('Sign-ins by day')).findByRole('button', { name: 'Chart type: auto' }));
-    expect(setViewChart).toHaveBeenCalledWith('t', 'c', { type: 'pie' });
-    expect(edit).not.toHaveBeenCalled();
+  it('draws a chart widget alone, as its own settings say, in view mode, edit mode and full screen', async () => {
+    doc.widgets = doc.widgets.map((w) => (w.id === 'c' ? { ...w, chart: { type: 'bar' } } : w));
+    const shown = { c: { state: 'done', result: result([{ name: 'n', type: 'long' }], [[1]]) } } as const;
+    const view = show(shown);
+    expect(await within(frame('Sign-ins by day')).findByText('Chart bar, alone')).toBeTruthy();
+    fireEvent.click(within(frame('Sign-ins by day')).getByRole('button', { name: 'Sign-ins by day menu' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Full screen' }));
+    expect(within(frame('Sign-ins by day')).getByText('Chart bar, alone')).toBeTruthy();
+    view.unmount();
+    show(shown, true);
+    expect(await within(frame('Sign-ins by day')).findByText('Chart bar, alone')).toBeTruthy();
   });
 
   it('opens a widget in a query tab with the current values as its parameters', () => {

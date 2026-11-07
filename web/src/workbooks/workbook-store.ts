@@ -2,7 +2,6 @@ import type { StoreApi, UseBoundStore } from 'zustand';
 import { create } from 'zustand';
 import { call } from '../bridge';
 import { useRevisions } from '../library/saving';
-import type { Picked } from '../results/chart-view';
 import { newId } from '../shell/ids';
 import { useTabs } from '../tabs/tab-store';
 import type { LibraryList, QueryRunParams, RunResult, SavedQuery, Source } from '../wire';
@@ -29,8 +28,6 @@ export interface WorkbookState {
   redo: WorkbookDoc[];
   /** The doc differs from the file (Ruling R1); {@link startWorkbookTabs} mirrors it into the tab. */
   dirty: boolean;
-  /** Chart picks changed outside edit mode, by widget id: view state, never in the doc (Ruling R3). */
-  viewCharts: Record<string, Picked>;
 }
 
 export interface WorkbookActions {
@@ -52,7 +49,6 @@ export interface WorkbookActions {
   /** The workbook was saved as `doc`. */
   markSaved(tabId: string, doc: WorkbookDoc): void;
   markUnsaved(tabId: string): void; // its file was deleted: dirty, also after a discard
-  setViewChart(tabId: string, widgetId: string, picked: Picked): void;
 }
 
 type Store = { byTab: Record<string, WorkbookState> } & WorkbookActions;
@@ -263,7 +259,7 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
     byTab: {},
 
     async load(tabId, doc, opts) {
-      const fresh: WorkbookState = { doc, values: initialValues(doc, {}), runs: {}, editing: false, undo: [], redo: [], dirty: opts?.dirty ?? false, viewCharts: {} };
+      const fresh: WorkbookState = { doc, values: initialValues(doc, {}), runs: {}, editing: false, undo: [], redo: [], dirty: opts?.dirty ?? false };
       const token = Symbol(tabId);
       loads.set(tabId, token);
       set((st) => ({ byTab: { ...st.byTab, [tabId]: fresh } }));
@@ -448,10 +444,6 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
       if (s && editStarts.has(tabId)) {
         editStarts.set(tabId, { doc, dirty: false, undo: s.undo, redo: s.redo });
       }
-    },
-
-    setViewChart(tabId, widgetId, picked) {
-      update(tabId, (s) => ({ viewCharts: { ...s.viewCharts, [widgetId]: picked } }));
     },
   };
   return store;

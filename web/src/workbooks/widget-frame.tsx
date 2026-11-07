@@ -293,86 +293,98 @@ export function WidgetFrame({
         className={`card wb-widget flex min-h-0 min-w-0 flex-col ${selected ? 'border-accent' : ''} ${full ? 'wb-full fixed inset-0 z-20 rounded-none' : 'relative'}`}
         onPointerDown={editing?.onSelect}
       >
-        <header className="flex min-w-0 flex-wrap items-center gap-2 px-3 py-2 text-[12.5px]">
-          {editing && (
-            <button
-              type="button"
-              className="wb-grip btn ghost"
-              aria-label={`Move ${title}`}
-              title="Drag to move. Arrows move, Shift+arrows resize, Delete removes."
-              onFocus={editing.onSelect}
-              onKeyDown={onGripKey}
-              {...drag('move')}
-            >
-              <span aria-hidden="true">⠿</span>
-            </button>
-          )}
-          {live.query && <SourceBadge source={live.query.source} titled />}
-          <b className="min-w-0 truncate">{title}</b>
-          {params
-            .filter((p) => p.from === 'widget')
-            .map((p) => (
-              <ShownControl key={p.name} param={p} choices={choicesOf(live, p)} onChange={(v, now) => useWorkbooks.getState().setWidgetValue(tabId, widget.id, p.name, v, { now })} />
-            ))}
-          {used.length > 0 && (
-            <span className="faint flex items-center gap-1 text-[11.5px]" title="Workbook parameters it uses">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" />
-                <path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" />
-              </svg>
-              {used.map((name) => (
-                <span key={name} className="mono">
-                  {name}
-                </span>
-              ))}
-            </span>
-          )}
-          <div className="grow" />
-          {editing && (
-            <span className="mono faint text-[11.5px]">
-              {widget.layout.w} × {widget.layout.h}
-            </span>
-          )}
-          {selected && (
-            <>
-              <button type="button" className="btn ghost" onClick={(e) => editing?.onEditWidget(e.currentTarget)}>
-                Edit widget
-              </button>
+        {/* One row that never wraps (the title truncates, so it fits at the narrowest widget), then a row that wraps for the
+            widget's own controls, the workbook parameters it uses and, in edit mode, its size and (selected) its actions. */}
+        <header className="flex min-w-0 flex-col gap-1.5 px-3 py-2 text-[12.5px]">
+          <div className="flex min-w-0 items-center gap-2">
+            {editing && (
               <button
                 type="button"
-                className="btn ghost"
-                disabled={doc.widgets.length >= MAX_WIDGETS}
-                title={doc.widgets.length >= MAX_WIDGETS ? `A workbook can have at most ${MAX_WIDGETS} widgets.` : undefined}
-                onClick={duplicate}
+                className="wb-grip btn ghost"
+                aria-label={`Move ${title}`}
+                title="Drag to move. Arrows move, Shift+arrows resize, Delete removes."
+                onFocus={editing.onSelect}
+                onKeyDown={onGripKey}
+                {...drag('move')}
               >
-                Duplicate
+                <span aria-hidden="true">⠿</span>
               </button>
-              <button type="button" className="btn ghost" onClick={editing?.onRemove}>
-                Remove
-              </button>
-            </>
-          )}
-          {result && <span className="mono faint text-[11.5px]">{duration(result.durationMs)}</span>}
-          <MenuButton label={`${title} menu`} icon="⋯">
-            {widget.query && (
-              <>
-                <button type="button" role="menuitem" tabIndex={-1} onClick={() => void useWorkbooks.getState().runWidget(tabId, widget.id, { refresh: true })}>
-                  Refresh
-                </button>
-                <button type="button" role="menuitem" tabIndex={-1} onClick={openInTab}>
-                  Open in query tab
-                </button>
-                {FORMATS.map((format) => (
-                  <button key={format} type="button" role="menuitem" tabIndex={-1} disabled={!result} onClick={() => exportAs(format)}>
-                    Export {EXPORT_NAMES[format]}
-                  </button>
-                ))}
-              </>
             )}
-            <button type="button" role="menuitem" tabIndex={-1} onClick={() => setFull(!full)}>
-              {full ? 'Exit full screen' : 'Full screen'}
-            </button>
-          </MenuButton>
+            {live.query && <SourceBadge source={live.query.source} titled />}
+            <b className="min-w-0 flex-1 truncate" title={title}>
+              {title}
+            </b>
+            <div className="flex shrink-0 items-center gap-2">
+              {!editing && result && <span className="mono faint text-[11.5px]">{duration(result.durationMs)}</span>}
+              <MenuButton label={`${title} menu`} icon="⋯">
+                {widget.query && (
+                  <>
+                    <button type="button" role="menuitem" tabIndex={-1} onClick={() => void useWorkbooks.getState().runWidget(tabId, widget.id, { refresh: true })}>
+                      Refresh
+                    </button>
+                    <button type="button" role="menuitem" tabIndex={-1} onClick={openInTab}>
+                      Open in query tab
+                    </button>
+                    {FORMATS.map((format) => (
+                      <button key={format} type="button" role="menuitem" tabIndex={-1} disabled={!result} onClick={() => exportAs(format)}>
+                        Export {EXPORT_NAMES[format]}
+                      </button>
+                    ))}
+                  </>
+                )}
+                <button type="button" role="menuitem" tabIndex={-1} onClick={() => setFull(!full)}>
+                  {full ? 'Exit full screen' : 'Full screen'}
+                </button>
+              </MenuButton>
+            </div>
+          </div>
+          {(params.some((p) => p.from === 'widget') || used.length > 0 || editing) && (
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              {/* Edit mode's size sits here, not in the first row, so the title keeps room at the narrowest widget. */}
+              {editing && (
+                <span className="mono faint text-[11.5px]">
+                  {widget.layout.w} × {widget.layout.h}
+                </span>
+              )}
+              {params
+                .filter((p) => p.from === 'widget')
+                .map((p) => (
+                  <ShownControl key={p.name} param={p} choices={choicesOf(live, p)} onChange={(v, now) => useWorkbooks.getState().setWidgetValue(tabId, widget.id, p.name, v, { now })} />
+                ))}
+              {used.length > 0 && (
+                <span className="faint flex items-center gap-1 text-[11.5px]" title="Workbook parameters it uses">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                    <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" />
+                    <path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" />
+                  </svg>
+                  {used.map((name) => (
+                    <span key={name} className="mono">
+                      {name}
+                    </span>
+                  ))}
+                </span>
+              )}
+              {selected && (
+                <>
+                  <button type="button" className="btn ghost" onClick={(e) => editing?.onEditWidget(e.currentTarget)}>
+                    Edit widget
+                  </button>
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    disabled={doc.widgets.length >= MAX_WIDGETS}
+                    title={doc.widgets.length >= MAX_WIDGETS ? `A workbook can have at most ${MAX_WIDGETS} widgets.` : undefined}
+                    onClick={duplicate}
+                  >
+                    Duplicate
+                  </button>
+                  <button type="button" className="btn ghost" onClick={editing?.onRemove}>
+                    Remove
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </header>
         {notice && <NoticeLine notice={notice} onDismiss={() => setNotice(null)} />}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
