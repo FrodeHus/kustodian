@@ -16,7 +16,7 @@ overview is also on the [Solutions page](https://frodehus.github.io/kustodian/so
 ## The panel
 
 The panel lists each solution with its description, the sources it queries and how many queries and workbooks it holds.
-**Installed** marks one you have installed. Find a solution by name with the search box, or narrow the list by category,
+**Installed** marks one you have installed. Find a solution with the search box, which matches its name, description, author and category, or narrow the list by category,
 source, or **Show** (**All**, **Kustodian**, **Community** or **Installed**). Click a solution to open it: its README is on
 the left and its items on the right.
 
@@ -26,7 +26,7 @@ Each solution has a badge:
 - **Community**: written by someone else. The dialog adds **Not maintained by Kustodian. Review before running.** Read the
   queries before you run them.
 
-A solution that needs a newer app shows **Needs Kustodian x.y** and can't be installed until you update Kustodian.
+A solution that needs a newer app shows **Needs Kustodian x.y.z** and can't be installed until you update Kustodian.
 
 ## Install
 
@@ -39,14 +39,18 @@ them.
 Open an installed solution and click **Uninstall**. It removes what the solution added and you haven't changed. An item you
 changed stays in Saved as your own, and the dialog lists it under **These stay in Saved as your own.**
 
+Uninstalling works offline and after a solution is withdrawn from the catalog: Kustodian keeps a copy of the solution's
+manifest when it installs it, so an installed solution stays in the panel. When its README can't be loaded the dialog says
+**Kustodian couldn't load the README.** in its place.
+
 ## Offline and downloads
 
 The panel reads the catalog from `raw.githubusercontent.com`, refreshes it at most once an hour, and keeps the last one it
 got. **Refresh** reads it again at once. When GitHub can't be reached the panel still opens with the kept catalog and says
 **Showing the catalog from {time}. Kustodian couldn't reach GitHub.** Installing needs a connection.
 
-Every file Kustodian downloads is checked against the SHA-256 and size in the catalog. A file that doesn't match is
-refused.
+Every solution file Kustodian downloads is checked against the SHA-256 and size in the catalog, and a file that doesn't
+match is refused. The catalog index itself is read with a 4 MB limit.
 
 ## Not yet
 

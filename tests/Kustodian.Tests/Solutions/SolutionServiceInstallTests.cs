@@ -25,6 +25,7 @@ public sealed class SolutionServiceInstallTests : IDisposable
     private readonly WorkbookService _workbooks;
     private SolutionIndexDoc _index;
     private byte[] _indexBytes;
+    private bool _down;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -64,6 +65,11 @@ public sealed class SolutionServiceInstallTests : IDisposable
     {
         var http = new HttpClient(new Handler(url =>
         {
+            if (_down)
+            {
+                throw new HttpRequestException("down");
+            }
+
             if (url == IndexUrl)
             {
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(_indexBytes) };
@@ -335,6 +341,94 @@ public sealed class SolutionServiceInstallTests : IDisposable
 
         await svc.InstallAsync(Id, Set(), Ct);
         Assert.Equal("1.0.0", (await svc.ListAsync(false, Ct)).Solutions.Single(s => s.Manifest.Id == "entra-risky-users").InstalledVersion);
+    }
+
+    /// <summary>Takes the solution out of the index, as a withdrawal upstream would.</summary>
+    private void Withdraw()
+    {
+        _index = new SolutionIndexDoc(1, [.. _index.Solutions.Where(e => e.Manifest.Id != Id)]);
+        _indexBytes = JsonSerializer.SerializeToUtf8Bytes(_index, JsonFileStore.Options);
+    }
+
+    [Fact]
+    public async Task OfflineAnInstalledSolutionStillOpensAndUninstalls()
+    {
+        var svc = Service();
+        await svc.InstallAsync(Id, Set(), Ct);
+        _time.Advance(TimeSpan.FromHours(2));
+        _down = true;
+
+        var (manifest, readme) = await svc.GetAsync(Id, Ct);
+
+        Assert.Equal(Id, manifest.Id);
+        Assert.Equal("", readme);
+        await svc.UninstallAsync(Id, Set(), Ct);
+        Assert.Empty(SavedFiles());
+        Assert.Empty((await _workbooks.ListAsync(Ct)).Workbooks);
+    }
+
+    [Fact]
+    public async Task OfflineWithoutACacheAnInstalledSolutionStillOpens()
+    {
+        var svc = Service();
+        await svc.InstallAsync(Id, Set(), Ct);
+        File.Delete(Path.Combine(_dir, "solution-cache", "index.json"));
+        _down = true;
+
+        var (manifest, readme) = await svc.GetAsync(Id, Ct);
+
+        Assert.Equal("Entra risky users", manifest.Name);
+        Assert.Equal("", readme);
+    }
+
+    [Fact]
+    public async Task AWithdrawnSolutionIsListedFromItsSnapshotAndUninstalls()
+    {
+        var svc = Service();
+        await svc.InstallAsync(Id, Set(), Ct);
+        var snapshot = _index.Solutions.Single(e => e.Manifest.Id == Id).Manifest;
+        Withdraw();
+
+        var item = (await svc.ListAsync(true, Ct)).Solutions.Single(s => s.Manifest.Id == Id);
+        Assert.Equal(snapshot.Name, item.Manifest.Name);
+        Assert.Equal(snapshot.Content.Queries, item.Manifest.Content.Queries);
+        Assert.Equal("1.0.0", item.InstalledVersion);
+        Assert.True(item.Compatible);
+
+        var (manifest, readme) = await svc.GetAsync(Id, Ct);
+        Assert.Equal(snapshot.Description, manifest.Description);
+        Assert.Equal("", readme);
+
+        await svc.UninstallAsync(Id, Set(), Ct);
+        Assert.Empty(SavedFiles());
+        Assert.DoesNotContain((await svc.ListAsync(false, Ct)).Solutions, s => s.Manifest.Id == Id);
+        var ex = await Assert.ThrowsAsync<SolutionRejectedException>(() => svc.GetAsync(Id, Ct));
+        Assert.Equal("That solution isn't in the catalog.", ex.Message);
+    }
+
+    [Fact]
+    public async Task ASolutionsJsonWithoutSnapshotsStillReads()
+    {
+        Directory.CreateDirectory(_dir);
+        var libraryId = Guid.NewGuid().ToString("D");
+        await File.WriteAllTextAsync(InstalledPath, $$"""
+            {"version":1,"installed":[{"id":"{{Id}}","solutionVersion":"0.9.0","installedAt":"2026-11-01T00:00:00Z",
+              "items":[{"kind":"query","itemId":"risky-users","libraryId":"{{libraryId}}"}]}]}
+            """, Ct);
+        var svc = Service();
+
+        Assert.Equal("0.9.0", (await svc.ListAsync(false, Ct)).Solutions.Single(s => s.Manifest.Id == Id).InstalledVersion);
+
+        Withdraw();
+        var item = (await svc.ListAsync(true, Ct)).Solutions.Single(s => s.Manifest.Id == Id);
+        Assert.Equal(Id, item.Manifest.Name);
+        Assert.Equal(["risky-users"], item.Manifest.Content.Queries);
+        Assert.Equal("0.9.0", item.Manifest.SolutionVersion);
+        var (manifest, readme) = await svc.GetAsync(Id, Ct);
+        Assert.Equal(Id, manifest.Id);
+        Assert.Equal("", readme);
+        await svc.UninstallAsync(Id, Set(), Ct);
+        Assert.DoesNotContain((await svc.ListAsync(false, Ct)).Solutions, s => s.Manifest.Id == Id);
     }
 
     private sealed class Handler(Func<string, HttpResponseMessage> answer) : HttpMessageHandler

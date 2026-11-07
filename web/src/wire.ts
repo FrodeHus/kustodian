@@ -700,12 +700,13 @@ export interface InstalledItem {
   libraryId: string;
 }
 
-/** An installed solution; `installedAt` is an ISO date. */
+/** An installed solution; `installedAt` is an ISO date. `manifest`: the manifest as installed, missing for older installs. */
 export interface InstalledSolution {
   id: string;
   solutionVersion: string;
   installedAt: string;
   items: InstalledItem[];
+  manifest?: SolutionManifest | null;
 }
 
 /** `solution.get`'s answer. `modified`: library ids of installed items changed since install (empty when not installed). */

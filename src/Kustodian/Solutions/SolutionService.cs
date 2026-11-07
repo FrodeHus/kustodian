@@ -20,8 +20,10 @@ public sealed record Catalog(IReadOnlyList<CatalogItem> Solutions, DateTimeOffse
 /// solution and <see cref="LibraryId"/> the saved query's or workbook's id.</summary>
 public sealed record InstalledItem(string Kind, string ItemId, string LibraryId);
 
-/// <summary>An installed solution as <c>solutions.json</c> lists it.</summary>
-public sealed record InstalledSolution(string Id, string SolutionVersion, DateTimeOffset InstalledAt, IReadOnlyList<InstalledItem> Items);
+/// <summary>An installed solution as <c>solutions.json</c> lists it. <see cref="Manifest"/> is the manifest as installed, so the
+/// solution can be shown and uninstalled offline or after it leaves the catalog; null in files written before it was kept.</summary>
+public sealed record InstalledSolution(string Id, string SolutionVersion, DateTimeOffset InstalledAt, IReadOnlyList<InstalledItem> Items,
+    SolutionManifest? Manifest = null);
 
 /// <summary>Why a catalog request was refused; the message is meant for the user.</summary>
 public sealed class SolutionRejectedException(string message) : Exception(message);
@@ -77,6 +79,9 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
             var installed = await ReadInstalledAsync(ct);
             var items = loaded.Entries.Select(e => new CatalogItem(e.Manifest, Compatible(e.Manifest),
                 installed.FirstOrDefault(s => s.Id == e.Manifest.Id)?.SolutionVersion)).ToList();
+            // Installed solutions no longer in the catalog stay listed, so they can still be uninstalled.
+            items.AddRange(installed.Where(s => items.All(i => i.Manifest.Id != s.Id))
+                .Select(s => new CatalogItem(ManifestOf(s), true, s.SolutionVersion)));
             return new Catalog(items, loaded.FetchedAt, loaded.Offline);
         }
         finally
@@ -85,24 +90,46 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
         }
     }
 
-    /// <summary>A solution's manifest and its README, the README checked against the index.</summary>
+    /// <summary>A solution's manifest and its README, the README checked against the index. For an installed solution, a
+    /// catalog or README that can't be had is no error: the README is empty, and the manifest is its snapshot when the catalog
+    /// doesn't list it.</summary>
     public async Task<(SolutionManifest Manifest, string Readme)> GetAsync(string id, CancellationToken ct)
     {
-        IndexEntry entry;
+        IndexEntry? entry;
+        InstalledSolution? installed;
         await _gate.WaitAsync(ct);
         try
         {
-            entry = (await LoadAsync(false, ct)).Entries.FirstOrDefault(e => e.Manifest.Id == id)
-                ?? throw new SolutionRejectedException(NotInCatalog);
+            installed = (await ReadInstalledAsync(ct)).FirstOrDefault(s => s.Id == id);
+            try
+            {
+                entry = (await LoadAsync(false, ct)).Entries.FirstOrDefault(e => e.Manifest.Id == id);
+            }
+            catch (SolutionRejectedException) when (installed is not null)
+            {
+                entry = null;
+            }
         }
         finally
         {
             _gate.Release();
         }
 
+        if (entry is null)
+        {
+            return installed is null ? throw new SolutionRejectedException(NotInCatalog) : (ManifestOf(installed), "");
+        }
+
         // Downloaded outside the gate, which only protects the cache and solutions.json.
         var readme = entry.Files.First(f => f.Path == "README.md");
-        return (entry.Manifest, Encoding.UTF8.GetString(await FetchFileAsync(entry, readme, ct)));
+        try
+        {
+            return (entry.Manifest, Encoding.UTF8.GetString(await FetchFileAsync(entry, readme, ct)));
+        }
+        catch (SolutionRejectedException) when (installed is not null)
+        {
+            return (entry.Manifest, "");
+        }
     }
 
     /// <summary>Installs the solution's queries and workbooks, except the item ids in <paramref name="skip"/>, into a library
@@ -166,7 +193,7 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
                 [
                     .. queries.Select(q => new InstalledItem(QueryKind, q.ItemId, q.Input.Id!)),
                     .. workbooks.Select(w => new InstalledItem(WorkbookKind, w.ItemId, w.Doc["id"]!.GetValue<string>())),
-                ]);
+                ], entry.Manifest);
                 await store.WriteAsync(InstalledPath, new InstalledDoc(1, [.. installed, solution]), ct);
                 return solution;
             }
@@ -383,6 +410,13 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
         }
     }
 
+    /// <summary>The installed solution's snapshot, or for one installed before snapshots were kept, a manifest made from what
+    /// <c>solutions.json</c> has: its id as the name and its installed items as the content.</summary>
+    private static SolutionManifest ManifestOf(InstalledSolution s) => s.Manifest ?? new SolutionManifest(1, s.Id, s.Id,
+        s.SolutionVersion, "", "", "community", [], [], "0.0.0", null, new SolutionContent(
+            [.. s.Items.Where(i => i.Kind == QueryKind).Select(i => i.ItemId)],
+            [.. s.Items.Where(i => i.Kind == WorkbookKind).Select(i => i.ItemId)], []));
+
     private bool Compatible(SolutionManifest m)
     {
         var running = UpdateCheck.VersionOf(appVersion);
@@ -406,6 +440,7 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
 
         if (read.Value is { Version: 1, Installed: not null } doc && doc.Installed.All(s =>
                 s is { Id: not null, SolutionVersion: not null, Items: not null }
+                && (s.Manifest is null || HasNoNulls(new IndexEntry(s.Manifest, [])))
                 && s.Items.All(i => i is { Kind: QueryKind or WorkbookKind, ItemId: not null, LibraryId: not null }
                                     && Guid.TryParseExact(i.LibraryId, "D", out _))))
         {
@@ -440,7 +475,7 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
             {
                 await store.WriteAsync(CachePath, new Cache(fetched, index), ct);
             }
-            catch (IOException e)
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
                 _log.LogWarning(e, "The solutions cache could not be written.");
             }

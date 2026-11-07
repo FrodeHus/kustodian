@@ -19,15 +19,22 @@ public sealed class SolutionHandlerTests : IDisposable
     private readonly Messaging.Bridge _bridge = new(_ => { });
     private readonly LibraryService _library;
     private readonly WorkbookService _workbooks;
+    private readonly FakeTimeProvider _time;
+    private bool _down;
 
     public SolutionHandlerTests()
     {
-        var time = new FakeTimeProvider(DateTimeOffset.Parse("2026-11-07T10:00:00Z", System.Globalization.CultureInfo.InvariantCulture));
+        var time = _time = new FakeTimeProvider(DateTimeOffset.Parse("2026-11-07T10:00:00Z", System.Globalization.CultureInfo.InvariantCulture));
         var store = new JsonFileStore(_dir);
         _library = new LibraryService(store, time);
         _workbooks = new WorkbookService(store, time);
         var http = new HttpClient(new Fake(url =>
         {
+            if (_down)
+            {
+                throw new HttpRequestException("down");
+            }
+
             var path = url.StartsWith(SolutionService.BaseUrl, StringComparison.Ordinal)
                 ? Path.Combine(SolutionsDir, url[SolutionService.BaseUrl.Length..])
                 : "";
@@ -112,6 +119,23 @@ public sealed class SolutionHandlerTests : IDisposable
         Assert.Equal(JsonValueKind.Null, removed.GetProperty("result").ValueKind);
         var left = (await _library.ListAsync(TestContext.Current.CancellationToken)).Queries;
         Assert.Equal(libraryId, Assert.Single(left).Id);
+    }
+
+    [Fact]
+    public async Task Offline_an_installed_solution_still_opens_and_uninstalls()
+    {
+        await CallAsync("solution.install", $$"""{"id":"{{Id}}"}""");
+        _time.Advance(TimeSpan.FromHours(2));
+        _down = true;
+
+        var details = (await CallAsync("solution.get", $$"""{"id":"{{Id}}"}""")).GetProperty("result");
+        Assert.Equal(Id, details.GetProperty("manifest").GetProperty("id").GetString());
+        Assert.Equal("", details.GetProperty("readme").GetString());
+        Assert.Equal(Id, details.GetProperty("installed").GetProperty("id").GetString());
+
+        var removed = await CallAsync("solution.uninstall", $$"""{"id":"{{Id}}"}""");
+        Assert.Equal(JsonValueKind.Null, removed.GetProperty("result").ValueKind);
+        Assert.Empty((await _library.ListAsync(TestContext.Current.CancellationToken)).Queries);
     }
 
     [Fact]

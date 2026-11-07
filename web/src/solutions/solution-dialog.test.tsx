@@ -123,6 +123,16 @@ describe('SolutionDialog', () => {
     expect(bridge.call).toHaveBeenCalledWith('solution.uninstall', { id: 'entra-risky-users', keep: [] });
   });
 
+  it('an installed solution without its README says so and still uninstalls', async () => {
+    details.installed = installedItems();
+    details.readme = '';
+    await open();
+
+    expect(await screen.findByText('Kustodian couldn’t load the README.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Uninstall' }));
+    expect(bridge.call).toHaveBeenCalledWith('solution.uninstall', { id: 'entra-risky-users', keep: [] });
+  });
+
   it('takes focus and gives it back on close', async () => {
     render(
       <>

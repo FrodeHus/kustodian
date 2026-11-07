@@ -134,9 +134,13 @@ function Dialog({ id, compatible }: { id: string; compatible: boolean }) {
         {details && m && (
           <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_320px]">
             <div className="flex min-h-0 flex-col overflow-auto border-r border-line py-3.5 text-[13px] leading-5 text-muted [&_:is(h1,h2,h3,h4)]:mt-0 [&_:is(h1,h2,h3,h4)]:mb-1.5 [&_:is(h1,h2,h3,h4)]:text-[14px] [&_:is(h1,h2,h3,h4)]:font-semibold [&_:is(h1,h2,h3,h4)]:text-text [&_p]:mt-0 [&_p]:mb-2.5">
-              <Suspense fallback={null}>
-                <MarkdownWidget text={details.readme} values={{}} />
-              </Suspense>
+              {details.readme === '' && installed ? (
+                <p className="m-0 px-3">Kustodian couldn’t load the README.</p>
+              ) : (
+                <Suspense fallback={null}>
+                  <MarkdownWidget text={details.readme} values={{}} />
+                </Suspense>
+              )}
             </div>
             <div className="flex min-h-0 flex-col gap-4 overflow-auto px-[18px] py-4 text-[12.5px]">
               {m.support !== 'kustodian' && (
