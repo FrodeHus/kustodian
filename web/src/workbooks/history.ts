@@ -122,17 +122,19 @@ const numberText = (n: number) => n.toLocaleString('en-US');
 /** A cell as a number; NaN for null, '' and anything else that isn't one (Number would read null and '' as 0). */
 export const numberOf = (cell: unknown) => (cell === null || cell === undefined || (typeof cell === 'string' && cell.trim() === '') ? NaN : Number(cell));
 
-/** The latest snapshot's `valueColumn` against the snapshot at or before `since` (`'previous'`: the one before the latest). */
-export function statChange(h: HistoryValues, valueColumn: string, since: string, now: Date): { text: string; at: string } | null {
-  const snaps = [...h.snapshots].sort((a, b) => Date.parse(a.takenAt) - Date.parse(b.takenAt));
-  const latest = snaps.at(-1);
-  const point = since === 'previous' ? null : Date.parse(sinceInstant(since, now));
-  const old = point === null ? snaps.at(-2) : snaps.findLast((s) => Date.parse(s.takenAt) <= point);
-  if (!latest || !old || old === latest) {
+/** The live run's `live.value` against the last snapshot from before that run (taken before `live.at`, ms) that is on or before
+ * the since day, or (`'previous'`) the last one. Snapshots from `live.at` on are that run's own record. */
+export function statChange(h: HistoryValues, valueColumn: string, since: string, now: Date, live: { value: number; at: number }): { text: string; at: string } | null {
+  const snaps = [...h.snapshots].sort((a, b) => Date.parse(a.takenAt) - Date.parse(b.takenAt)).filter((s) => Date.parse(s.takenAt) < live.at);
+  const day = since === 'previous' ? null : new Date(sinceInstant(since, now));
+  // Any time on the since day counts: the bound is the next local midnight.
+  const end = day && new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1).getTime();
+  const old = end === null ? snaps.at(-1) : snaps.findLast((s) => Date.parse(s.takenAt) < end);
+  if (!old) {
     return null;
   }
-  const valueOf = (s: typeof latest) => numberOf(s.rows[0]?.[s.columns.findIndex((c) => c.name === valueColumn)]);
-  const [current, then] = [valueOf(latest), valueOf(old)];
+  const current = live.value;
+  const then = numberOf(old.rows[0]?.[old.columns.findIndex((c) => c.name === valueColumn)]);
   if (!Number.isFinite(current) || !Number.isFinite(then)) {
     return null;
   }

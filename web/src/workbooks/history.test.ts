@@ -124,20 +124,30 @@ describe('withGaps', () => {
 });
 
 describe('statChange', () => {
-  const h = { snapshots: [snap(local(10, 24), 375), snap(local(10, 28), 390), snap(local(11, 1), 412)], reset: false };
+  const h = { snapshots: [snap(local(10, 24), 375), snap(local(10, 25, 18), 380), snap(local(10, 28), 390), snap(local(11, 1), 412)], reset: false };
   const now = new Date(2026, 10, 1, 12);
-  it('stat_change_compares_with_the_snapshot_at_or_before_the_point', () => {
-    expect(statChange(h, 'n', 'P7D', now)).toEqual({ text: '▲ 37 vs 7 days ago (375)', at: local(10, 24) });
-    expect(statChange(h, 'n', 'previous', now)).toEqual({ text: '▲ 22 vs previous snapshot (390)', at: local(10, 28) });
-    expect(statChange(h, 'n', '2026-10-29', now)?.text).toBe('▲ 22 vs Oct 29 (390)');
+  // The live run is the latest snapshot here: it was recorded.
+  const live = (value: number, at = Date.parse(local(11, 1))) => ({ value, at });
+  it('stat_change_compares_with_the_last_snapshot_on_or_before_the_since_day', () => {
+    // 7 days ago is Oct 25: its own snapshot (taken that evening) is the one compared with, not Oct 24's.
+    expect(statChange(h, 'n', 'P7D', now, live(412))).toEqual({ text: '▲ 32 vs 7 days ago (380)', at: local(10, 25, 18) });
+    expect(statChange(h, 'n', 'previous', now, live(412))).toEqual({ text: '▲ 22 vs previous snapshot (390)', at: local(10, 28) });
+    expect(statChange(h, 'n', '2026-10-29', now, live(412))?.text).toBe('▲ 22 vs Oct 29 (390)');
+    expect(statChange(h, 'n', '2026-10-28', now, live(412))?.text).toBe('▲ 22 vs Oct 28 (390)');
     const fall = { ...h, snapshots: [snap(local(10, 24), 1500), snap(local(11, 1), 412)] };
-    expect(statChange(fall, 'n', 'P7D', now)?.text).toBe('▼ 1,088 vs 7 days ago (1,500)');
+    expect(statChange(fall, 'n', 'P7D', now, live(412))?.text).toBe('▼ 1,088 vs 7 days ago (1,500)');
     const same = { ...h, snapshots: [snap(local(10, 24), 412), snap(local(11, 1), 412)] };
-    expect(statChange(same, 'n', 'P7D', now)?.text).toBe('No change vs 7 days ago');
+    expect(statChange(same, 'n', 'P7D', now, live(412))?.text).toBe('No change vs 7 days ago');
+  });
+  it('stat_change_compares_the_live_value_when_the_run_was_not_recorded', () => {
+    // Not recorded (unsaved, cut off, in flight): the latest stored snapshot is the previous one, and the number is the run's.
+    const stored = { snapshots: h.snapshots.slice(0, 3), reset: false };
+    expect(statChange(stored, 'n', 'previous', now, live(412))).toEqual({ text: '▲ 22 vs previous snapshot (390)', at: local(10, 28) });
+    expect(statChange(stored, 'n', 'P7D', now, live(412))?.text).toBe('▲ 32 vs 7 days ago (380)');
   });
   it('stat_change_is_null_without_an_old_enough_snapshot', () => {
-    expect(statChange(h, 'n', 'P30D', now)).toBeNull();
-    expect(statChange({ snapshots: [snap(local(11, 1), 412)], reset: false }, 'n', 'previous', now)).toBeNull();
-    expect(statChange(h, 'missing', 'P7D', now)).toBeNull();
+    expect(statChange(h, 'n', 'P30D', now, live(412))).toBeNull();
+    expect(statChange({ snapshots: [snap(local(11, 1), 412)], reset: false }, 'n', 'previous', now, live(412))).toBeNull();
+    expect(statChange(h, 'missing', 'P7D', now, live(412))).toBeNull();
   });
 });

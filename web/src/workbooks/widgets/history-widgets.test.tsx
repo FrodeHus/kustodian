@@ -108,13 +108,23 @@ afterEach(() => {
 
 describe('history in the widgets', () => {
   it('a_stat_with_values_history_shows_the_change', async () => {
-    show(widget('stat', {}), { state: 'done', result: result(n, [[412]]), finishedAt: 5 });
+    // The run's own record is taken as it finishes.
+    show(widget('stat', {}), { state: 'done', result: result(n, [[412]]), finishedAt: Date.parse(daysAgo(0, 9)) });
     expect(await screen.findByText('▲ 37 vs 7 days ago (375)')).toBeTruthy();
     expect(within(widgetFrame()).getByText('412')).toBeTruthy();
     expect(within(widgetFrame()).getByText('Daily · 34 days')).toBeTruthy();
     expect(sent('history.values')).toEqual([
       ['history.values', { workbookId: expect.any(String), widgetId: 'w', query, setting: { mode: 'values', interval: 'day', retentionDays: 90, keys: [] } }],
     ]);
+  });
+
+  it('a_stat_whose_run_was_not_recorded_compares_the_number_it_shows', async () => {
+    call.mockImplementation((method: string) =>
+      Promise.resolve(method === 'history.values' ? { snapshots: [snap(daysAgo(8), 375), snap(daysAgo(1), 390)], reset: false } : null),
+    );
+    show(widget('stat', { since: 'previous' }), { state: 'done', result: result(n, [[412]]), finishedAt: NOW.getTime() }, { skipped: 'unsaved' });
+    expect(await screen.findByText('▲ 22 vs previous snapshot (390)')).toBeTruthy();
+    expect(within(widgetFrame()).getByText('412')).toBeTruthy();
   });
 
   it('a_stat_with_row_tracking_counts_new_and_gone', async () => {

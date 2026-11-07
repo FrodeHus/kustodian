@@ -28,7 +28,9 @@ export function StatWidget({ widget, run, tabId }: { widget: Widget; run: Widget
   } else if (valueAt < 0 || rows.length === 0 || !Number.isFinite(value)) {
     return <p className="faint m-0 p-4 text-[12px]">No number to show.</p>;
   } else if (h) {
-    change = values ? (statChange(values, columns[valueAt]!.name, h.since, new Date(readAt ?? 0))?.text ?? null) : null;
+    // The number shown is this run's, recorded or not; snapshots from its finish on are its own record.
+    const live = { value, at: run.finishedAt ?? readAt ?? 0 };
+    change = values ? (statChange(values, columns[valueAt]!.name, h.since, new Date(readAt ?? 0), live)?.text ?? null) : null;
   } else {
     const compareAt = at(widget.stat?.compare);
     const compare = compareAt < 0 ? NaN : numberOf(rows[0]?.[compareAt]);
