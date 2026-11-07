@@ -9,7 +9,7 @@ import { reportIdOf } from '../shell/report-id';
 import { SourceBadge } from '../tabs/source-badge';
 import { failed, useTabs } from '../tabs/tab-store';
 import type { ParameterDef, RunResult } from '../wire';
-import { COLUMNS, GAP_PX, move, place, resize, ROW_PX } from './layout';
+import { COLUMNS, GAP_PX, nudge, place, resize, ROW_PX } from './layout';
 import { MAX_WIDGETS, newWidget, type ToolButton, type Widget, type WidgetLayout } from './model';
 import { daysSince, HistoryData, SKIP_TEXT, useHistory, type HistoryFilter } from './history';
 import { ClearConfirm } from './history-section';
@@ -43,7 +43,7 @@ function shifted(widgets: Widget[], id: string, kind: Kind, dx: number, dy: numb
   if (!l) {
     return widgets;
   }
-  return kind === 'move' ? move(widgets, id, l.x + dx, l.y + dy) : resize(widgets, id, l.w + (kind.w ? dx : 0), l.h + (kind.h ? dy : 0));
+  return kind === 'move' ? nudge(widgets, id, dx, dy) : resize(widgets, id, l.w + (kind.w ? dx : 0), l.h + (kind.h ? dy : 0));
 }
 
 const cellVars = (l: WidgetLayout) => ({ '--x': l.x + 1, '--y': l.y + 1, '--w': l.w, '--h': l.h }) as CSSProperties;

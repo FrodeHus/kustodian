@@ -21,6 +21,21 @@ globalThis.MonacoEnvironment = {
   getWorker: (_id: string, label: string) => (label === 'kusto' ? new KustoWorker() : new EditorWorker()),
 };
 
+// Monaco opens a Ctrl/Cmd+clicked link with window.open, inside the webview that has the bridge. Https links go to the user's
+// browser through the host's allowlist instead, as the markdown widget's do; any other link opens nowhere. Monaco's own
+// `command:` links (in hovers) are left to it.
+monaco.editor.registerLinkOpener({
+  open(uri) {
+    if (uri.scheme === 'command') {
+      return false;
+    }
+    if (uri.scheme === 'https') {
+      call('app.openLink', { url: uri.toString() }).catch(() => undefined);
+    }
+    return true;
+  },
+});
+
 // The studio's dark tokens (styles.css); Monaco takes colours as hex, not CSS variables.
 const DARK: monaco.editor.IStandaloneThemeData = {
   base: 'vs-dark',
