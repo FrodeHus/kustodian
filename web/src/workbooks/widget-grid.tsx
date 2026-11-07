@@ -13,6 +13,7 @@ export interface GridEditing {
   /** A tabs widget's `children` go to the top level ('move') or with it ('delete'); without it, the workbook asks. */
   onRemove: (w: Widget, children?: 'move' | 'delete') => void;
   announce: (text: string) => void;
+  onMoveTo: (w: Widget, to: Place | null, at?: { x: number; y: number }) => void;
   /** The tab grid new widgets go into; null is the top level. */
   selectedPlace: Place | null;
   onSelectPlace: (p: Place | null) => void;
@@ -55,6 +56,7 @@ export function WidgetGrid({
               onEditWidget: (opener) => editing.onEditWidget(w, opener),
               onRemove: () => editing.onRemove(w),
               announce: editing.announce,
+              onMoveTo: (to, at) => editing.onMoveTo(w, to, at),
             }
           }
         >

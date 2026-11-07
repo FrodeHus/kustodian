@@ -17,7 +17,7 @@ import { narrowOrder, place } from './layout';
 import { MAX_WIDGETS, MIN_SIZE, newWidget, type Place, type Widget, type WidgetType, type WorkbookParameter } from './model';
 import { huntingTimespanProblem, workbookValues } from './resolve';
 import { ParametersDialog } from './parameters-dialog';
-import { childrenOf, placeKey, placeOf, removeTabs, siblings } from './tabs';
+import { childrenOf, moveTo, placeKey, placeOf, removeTabs, siblings } from './tabs';
 import { ChildrenConfirm, TabsWidget } from './tabs-widget';
 import { WidgetEditor } from './widget-editor';
 import { WidgetGrid, type GridEditing } from './widget-grid';
@@ -347,6 +347,16 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
     focusNext.current = () => next ?? undoRef.current;
     say(`Removed ${w.title || 'Untitled widget'}`);
   };
+  /** Moves `w` to `to`, at the cell `at` or else the bottom. A hidden tab it lands in is shown, so its grip can take focus. */
+  const moveWidget = (w: Widget, to: Place | null, at?: { x: number; y: number }) => {
+    store().edit(tabId, (d) => ({ ...d, widgets: moveTo(d.widgets, w.id, to, at) }));
+    const now = store().byTab[tabId];
+    if (to && now && visibleTab(now, to.tabs) !== to.tab) {
+      store().showTab(tabId, to.tabs, to.tab);
+    }
+    focusNext.current = () => [...(sheetHost?.querySelectorAll<HTMLElement>('[data-wb-grip]') ?? [])].find((g) => g.dataset.wbGrip === w.id);
+    say(to ? `Moved to ${doc.widgets.find((x) => x.id === to.tabs)?.tabs?.find((t) => t.id === to.tab)?.name ?? ''}` : 'Moved to the top level');
+  };
   const undo = () => {
     store().undoEdit(tabId);
     say('Undone');
@@ -392,6 +402,7 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
         onEditWidget: (w, opener) => setEditingWidget({ id: w.id, opener }),
         onRemove: removeWidget,
         announce: say,
+        onMoveTo: moveWidget,
         selectedPlace,
         onSelectPlace: setSelectedPlace,
       }
