@@ -148,6 +148,16 @@ describe('workbook edit mode', () => {
     expect(live().textContent).toBe('Changes discarded');
   });
 
+  it('Discard reruns a widget that ran on a draft, so it doesn’t keep the draft’s rows', () => {
+    show();
+    const runWidget = vi.spyOn(useWorkbooks.getState(), 'runWidget');
+    act(() => void useWorkbooks.getState().runWidget('t', 'a'));
+    runWidget.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    expect(runWidget.mock.calls).toEqual([['t', 'a']]);
+    expect(runAll).not.toHaveBeenCalled();
+  });
+
   it('Discard restores the doc from when editing began', () => {
     show();
     fireEvent.keyDown(grip('Notes'), { key: 'Delete' });

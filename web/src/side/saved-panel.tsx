@@ -19,6 +19,9 @@ function skippedText(n: number): string {
   return n === 1 ? '1 saved query couldn’t be read and was moved aside.' : `${n} saved queries couldn’t be read and were moved aside.`;
 }
 
+const LIST_FAILED = 'The saved queries couldn’t be read';
+const WORKBOOKS_FAILED = 'The workbooks couldn’t be read';
+
 /**
  * The Saved panel (spec 6.6): the library's folders as groups that fold, then the queries in no folder, with a search. It lists
  * the queries of the active tab's `source` (spec 6.1), or every source's with "All sources". A query opens on click; its menu
@@ -40,13 +43,25 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
 
   useEffect(() => {
     let live = true;
+    // A read that works clears its own earlier failure, not the other read's.
+    const cleared = (failed: string) => setProblem((p) => (p?.text.startsWith(failed) ? null : p));
     call<LibraryList>('library.list').then(
-      (l) => live && setList(l),
-      (e: unknown) => live && setProblem({ text: `The saved queries couldn’t be read: ${errorText(e)}`, reportId: reportIdOf(e) }),
+      (l) => {
+        if (live) {
+          setList(l);
+          cleared(LIST_FAILED);
+        }
+      },
+      (e: unknown) => live && setProblem({ text: `${LIST_FAILED}: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
     call<WorkbookList | null>('workbook.list').then(
-      (l) => live && setWorkbooks(l),
-      (e: unknown) => live && setProblem({ text: `The workbooks couldn’t be read: ${errorText(e)}`, reportId: reportIdOf(e) }),
+      (l) => {
+        if (live) {
+          setWorkbooks(l);
+          cleared(WORKBOOKS_FAILED);
+        }
+      },
+      (e: unknown) => live && setProblem({ text: `${WORKBOOKS_FAILED}: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
     return () => {
       live = false;
