@@ -88,6 +88,8 @@ follow [Semantic Versioning](https://semver.org/).
   with it.
 - A table widget's inspect button (the magnifier) opens the row in the row details sheet, as on the Rows tab, instead of
   ticking the row's checkbox.
+- A table widget's row details sheet opens over the whole workbook, full height on the right as in a query tab, instead of
+  inside the widget at its size. A widget in full screen keeps it inside.
 - Chart widgets can split by a column and stack again: the widget editor's Visualization tab has **Split by** (formerly
   "Series") and **Stacking** (None, Stacked, Stacked 100%) for column, bar and area charts.
 - Workbooks, after a look in the real app: a full-screen widget now fills the window. In the glass themes, completion and
