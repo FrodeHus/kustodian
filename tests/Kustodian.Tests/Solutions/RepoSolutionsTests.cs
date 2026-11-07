@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Kusto.Language;
 using Kustodian.Graph.Query;
+using Kustodian.Graph.Schema;
 using Kustodian.Library;
 using Kustodian.Solutions;
 using Kustodian.Storage;
@@ -148,6 +149,32 @@ public sealed partial class RepoSolutionsTests
             if (errors.Count > 0)
             {
                 Fail(folder, file, errors[0].Message);
+            }
+        }
+    }
+
+    /// <summary>Graph queries are bound against the app's own schema, as GraphCompletion does, and planned as a run would:
+    /// an unknown table or column, or a refusal, fails here rather than when a user runs the query.</summary>
+    [Fact]
+    public void GraphQueriesMatchTheSchema()
+    {
+        var globals = GraphGlobals.Typed(GraphSchemaCatalog.Beta);
+        foreach (var (folder, _, id, input) in Queries().Where(q => q.Input?.Source == "graph"))
+        {
+            var file = $"queries/{id}.json";
+            var values = input!.Parameters.Select(p => new ParameterValue(p.Name, p.Type, Sample(p), p.Required)).ToList();
+            var text = ParameterSubstitution.Apply(input.Text, values).Text!;
+
+            var errors = KustoCode.ParseAndAnalyze(text, globals).GetDiagnostics().Where(d => d.Severity == "Error").ToList();
+            if (errors.Count > 0)
+            {
+                Fail(folder, file, errors[0].Message);
+            }
+
+            var plan = GraphQueryPlanner.Plan(GraphSchemaCatalog.Beta, text, DateTimeOffset.UtcNow);
+            if (plan.Refusal is { } refusal || plan.Error is not null)
+            {
+                Fail(folder, file, plan.Refusal ?? plan.Error!.Message);
             }
         }
     }

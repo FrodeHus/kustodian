@@ -47,8 +47,8 @@
         },
         {
           "path": "queries/risky-signins.json",
-          "sha256": "fa0e0719b56ea4fcef783dcfd30c4b9ac7c7580cc84c7e410c6206ac5c9511d7",
-          "size": 617
+          "sha256": "9afaf88eb9f5a632dfe6547c0f7c9522e07c910b2ef50102db0a828588132905",
+          "size": 627
         },
         {
           "path": "queries/risky-users.json",

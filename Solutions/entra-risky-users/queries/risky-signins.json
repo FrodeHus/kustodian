@@ -2,7 +2,7 @@
   "name": "Entra / Sign-ins of risky users",
   "folder": "Entra",
   "source": "graph",
-  "text": "riskyUsers\n| where riskLevel in ({RiskLevel})\n| join kind=inner (signIns | where createdDateTime > ago({Lookback})) on $left.id == $right.userId\n| project createdDateTime, userDisplayName, userPrincipalName, appDisplayName, ipAddress, riskLevelDuringSignIn\n| order by createdDateTime desc",
+  "text": "riskyUsers\n| where riskLevel in ({RiskLevel})\n| join kind=inner (auditLogs_signIns | where createdDateTime > ago({Lookback})) on $left.id == $right.userId\n| project createdDateTime, userDisplayName, userPrincipalName, appDisplayName, ipAddress, riskLevelDuringSignIn\n| order by createdDateTime desc",
   "parameters": [
     { "name": "RiskLevel", "type": "list", "value": "high", "required": true, "choices": ["high", "medium", "low"] },
     { "name": "Lookback", "type": "timespan", "value": "7d", "required": true }
