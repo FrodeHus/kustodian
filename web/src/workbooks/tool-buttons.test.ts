@@ -50,7 +50,10 @@ describe('buttonName and effectiveSelection', () => {
 
   it('is empty while selection is off, whatever the store holds', () => {
     const stored = { selected: [1], shown: [0, 1] };
-    expect(effectiveSelection('none', stored)).toBe(NO_SELECTION);
+    expect(effectiveSelection('none', stored)).toEqual({ selected: [], shown: [0, 1] });
+    expect(effectiveSelection('none', undefined)).toEqual(NO_SELECTION);
+    const t = toolTarget('selectedOrAll', rows, effectiveSelection('none', stored));
+    expect([t.count, t.rows]).toEqual(['all 2', [[0], [1]]]);
     expect(effectiveSelection('multi', stored)).toBe(stored);
     expect(effectiveSelection('multi', undefined)).toBe(NO_SELECTION);
   });

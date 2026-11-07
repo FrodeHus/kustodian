@@ -32,9 +32,9 @@ export const NO_SELECTION: RowSelection = { selected: [], shown: null };
 /** What the button shows and the run dialog is titled: its label, else its tool's name. */
 export const buttonName = (b: ToolButton): string => b.label.trim() || b.tool;
 
-/** The stored selection, or none while the widget has selection off (the store keeps the old one until the rerun answers). */
+/** The stored selection, or none selected while the widget has selection off, keeping the filter's shown rows (the store keeps the old one until the rerun answers). */
 export const effectiveSelection = (selection: Widget['selection'], stored: RowSelection | undefined): RowSelection =>
-  selection === 'none' ? NO_SELECTION : (stored ?? NO_SELECTION);
+  selection === 'none' ? { selected: [], shown: stored?.shown ?? null } : (stored ?? NO_SELECTION);
 
 /** The run's result when it answered ok; buttons are off without one. */
 export const okResult = (run: WidgetRun | undefined): RunResult | null => (run?.state === 'done' && run.result.outcome === 'ok' ? run.result : null);

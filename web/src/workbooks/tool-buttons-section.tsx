@@ -60,7 +60,7 @@ export function ToolButtonsSection({ draft, columns, set }: { draft: Widget; col
     if (!button || !next) {
       return;
     }
-    const label = button.label === '' || button.label === button.tool ? next.name : button.label;
+    const label = button.label.trim() === '' || button.label === button.tool ? next.name : button.label;
     setButton({ tool: next.name, label, mapping: defaultMapping(next, columns) });
   };
   const add = () => {
