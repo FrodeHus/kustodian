@@ -49,6 +49,8 @@ export interface WidgetHistoryState {
   error?: string;
   /** What the last answered run sent: the widget reads its history by it, so it reads the series the record wrote. */
   query: HistoryQuery;
+  /** Records sent and not yet answered: history is read once they settle, not before and again after. */
+  pending?: number;
 }
 
 export interface WorkbookActions {
@@ -238,7 +240,7 @@ function queue(
       : [];
   const series = [...params, ...span];
   const sent = {
-    query: { source, text, options: widget.query.options ?? null, parameters: series.map(({ name, value }) => ({ name, value })) },
+    query: { source, text, options: widget.query.options ?? null, parameters: series.map(({ name, value, type }) => ({ name, value, type })) },
     label: seriesLabel(series),
   };
   const job: Job = {
@@ -313,7 +315,7 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
       return;
     }
     // Set now, not on the record's answer: an older record answering late mustn't bring back its query.
-    setHistory(tabId, widgetId, sent.query, () => ({ error: undefined, query: sent.query }));
+    setHistory(tabId, widgetId, sent.query, (was) => ({ error: undefined, query: sent.query, pending: (was.pending ?? 0) + 1 }));
     const params: HistoryRecordParams = {
       workbookId: s.doc.id,
       widgetId,
@@ -327,8 +329,9 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
           skipped: a.skipped === 'interval' ? null : a.skipped,
           reset: was.reset || a.reset,
           recordedAt: a.recorded ? Date.now() : was.recordedAt,
+          pending: (was.pending ?? 1) - 1,
         })),
-      (e: unknown) => setHistory(tabId, widgetId, sent.query, () => ({ skipped: null, error: errorText(e) })),
+      (e: unknown) => setHistory(tabId, widgetId, sent.query, (was) => ({ skipped: null, error: errorText(e), pending: (was.pending ?? 1) - 1 })),
     );
   };
 

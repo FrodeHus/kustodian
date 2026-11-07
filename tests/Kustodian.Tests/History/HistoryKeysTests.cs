@@ -25,6 +25,16 @@ public sealed class HistoryKeysTests
     }
 
     [Fact]
+    public void A_parameter_type_changes_the_series_key_only()
+    {
+        var text = new HistoryParameter("Top", "5", "text");
+        var number = text with { Type = "number" };
+
+        Assert.NotEqual(HistoryKeys.SeriesKey(Query(parameters: [text]), Setting), HistoryKeys.SeriesKey(Query(parameters: [number]), Setting));
+        Assert.Equal(HistoryKeys.QueryKey(Query(parameters: [text]), Setting), HistoryKeys.QueryKey(Query(parameters: [number]), Setting));
+    }
+
+    [Fact]
     public void Query_key_ignores_parameters_but_not_keys_or_mode()
     {
         var plain = HistoryKeys.QueryKey(Query(), Setting);

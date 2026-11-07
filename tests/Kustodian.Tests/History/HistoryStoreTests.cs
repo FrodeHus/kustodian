@@ -73,6 +73,46 @@ public sealed class HistoryStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task each_values_snapshot_keeps_its_own_columns()
+    {
+        var s = NewStore();
+        await s.RecordAsync(Request(Values, [Row("a", 1)]), Ct);
+        NextDay();
+        HistoryColumn[] swapped = [new("n", "long"), new("id", "string")];
+        await s.RecordAsync(Request(Values, [Row("b", 2).Reverse().ToArray()]) with { Columns = swapped }, Ct);
+
+        var answer = await s.ValuesAsync("wb", "w1", Query(), Values, Ct);
+
+        Assert.Equal(["id", "n"], answer.Snapshots[0].Columns.Select(c => c.Name));
+        Assert.Equal(["n", "id"], answer.Snapshots[1].Columns.Select(c => c.Name));
+    }
+
+    [Fact]
+    public async Task a_version_1_file_is_upgraded_and_its_snapshots_read_with_the_series_columns()
+    {
+        var s = NewStore();
+        await s.RecordAsync(Request(Values, [Row("a")]), Ct);
+        s.Dispose();
+        _stores.Remove(s);
+        using (var v1 = new SqliteConnection($"Data Source={Path.Combine(_dir, "history.db")};Pooling=False"))
+        {
+            v1.Open();
+            using var cmd = v1.CreateCommand();
+            cmd.CommandText = "ALTER TABLE snapshots DROP COLUMN columns; PRAGMA user_version = 1;";
+            cmd.ExecuteNonQuery();
+        }
+
+        var upgraded = NewStore();
+        NextDay();
+        await upgraded.RecordAsync(Request(Values, [Row("b")]), Ct);
+        var answer = await upgraded.ValuesAsync("wb", "w1", Query(), Values, Ct);
+
+        Assert.Equal(2, answer.Snapshots.Count);
+        Assert.All(answer.Snapshots, snap => Assert.Equal(["id", "n"], snap.Columns.Select(c => c.Name)));
+        Assert.False(answer.Reset);
+    }
+
+    [Fact]
     public async Task values_mode_refuses_more_than_500_rows()
     {
         var s = NewStore();

@@ -41,14 +41,20 @@ public sealed class HistoryStore(string root, TimeProvider time, ILogger<History
           series_key TEXT NOT NULL, query_key TEXT NOT NULL, mode TEXT NOT NULL, interval TEXT NOT NULL,
           label TEXT NOT NULL, columns TEXT NOT NULL, UNIQUE (workbook_id, widget_id, series_key));
         CREATE TABLE snapshots (series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
-          taken_at INTEGER NOT NULL, result TEXT);
+          taken_at INTEGER NOT NULL, result TEXT, columns TEXT);
         CREATE INDEX snapshots_by_time ON snapshots (series_id, taken_at);
         CREATE TABLE tracked (series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
           key TEXT NOT NULL, row TEXT NOT NULL, first_seen INTEGER NOT NULL, gone INTEGER);
         CREATE UNIQUE INDEX tracked_open ON tracked (series_id, key) WHERE gone IS NULL;
         CREATE INDEX tracked_first_seen ON tracked (series_id, first_seen);
         CREATE INDEX tracked_gone ON tracked (series_id, gone);
-        PRAGMA user_version = 1;
+        PRAGMA user_version = 2;
+        """;
+
+    // v1 read every snapshot with its series' latest columns; its snapshots keep a NULL here and still do.
+    private const string ToV2 = """
+        ALTER TABLE snapshots ADD COLUMN columns TEXT;
+        PRAGMA user_version = 2;
         """;
 
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -109,8 +115,9 @@ public sealed class HistoryStore(string root, TimeProvider time, ILogger<History
                     Run(db, tx, "DELETE FROM snapshots WHERE series_id = $i AND taken_at >= $t", ("$i", id), ("$t", from));
                 }
 
-                Run(db, tx, "INSERT INTO snapshots (series_id, taken_at, result) VALUES ($i, $t, $r)",
-                    ("$i", id), ("$t", now), ("$r", JsonSerializer.Serialize(r.Rows)));
+                // Each snapshot keeps its own columns: the same query can return them in another order or shape.
+                Run(db, tx, "INSERT INTO snapshots (series_id, taken_at, result, columns) VALUES ($i, $t, $r, $c)",
+                    ("$i", id), ("$t", now), ("$r", JsonSerializer.Serialize(r.Rows)), ("$c", JsonSerializer.Serialize(r.Columns)));
             }
             else
             {
@@ -143,12 +150,13 @@ public sealed class HistoryStore(string root, TimeProvider time, ILogger<History
             var snapshots = new List<Snapshot>();
             if (FindSeries(db, workbookId, widgetId, q, s) is { } found)
             {
-                using var cmd = Command(db, null, "SELECT taken_at, result FROM snapshots WHERE series_id = $i AND result IS NOT NULL ORDER BY taken_at",
+                using var cmd = Command(db, null, "SELECT taken_at, result, columns FROM snapshots WHERE series_id = $i AND result IS NOT NULL ORDER BY taken_at",
                     ("$i", found.Id));
                 using var reader = cmd.ExecuteReader();
                 while (reader.Read())
                 {
-                    snapshots.Add(new Snapshot(DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(0)), found.Columns,
+                    var columns = reader.IsDBNull(2) ? found.Columns : JsonSerializer.Deserialize<HistoryColumn[]>(reader.GetString(2)) ?? [];
+                    snapshots.Add(new Snapshot(DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(0)), columns,
                         JsonSerializer.Deserialize<JsonElement[][]>(reader.GetString(1)) ?? []));
                 }
             }
@@ -255,15 +263,19 @@ public sealed class HistoryStore(string root, TimeProvider time, ILogger<History
         await _gate.WaitAsync(ct);
         try
         {
-            try
+            // Off the caller's thread: the message pump starts the next handler only when this one first yields.
+            return await Task.Run(() =>
             {
-                return body(Open());
-            }
-            catch (SqliteException e) when (e.SqliteErrorCode is 11 or 26)
-            {
-                Reset();
-                return body(Open());
-            }
+                try
+                {
+                    return body(Open());
+                }
+                catch (SqliteException e) when (e.SqliteErrorCode is 11 or 26)
+                {
+                    Reset();
+                    return body(Open());
+                }
+            }, ct);
         }
         finally
         {
@@ -403,9 +415,13 @@ public sealed class HistoryStore(string root, TimeProvider time, ILogger<History
                 throw new SqliteException("quick_check failed", 11);
             }
 
-            if (Scalar<long>(db, null, "PRAGMA user_version") == 0)
+            var version = Scalar<long>(db, null, "PRAGMA user_version");
+            if (version < 2)
             {
-                Run(db, null, Schema);
+                // One transaction: a first open cut short leaves version 0 and no tables, so the next open starts over.
+                using var tx = db.BeginTransaction();
+                Run(db, tx, version == 0 ? Schema : ToV2);
+                tx.Commit();
             }
 
             return db;

@@ -113,6 +113,11 @@ export function withGaps(snapshots: HistoryValues['snapshots'], interval: Widget
       }
     }
     last = day;
+    if (s.rows.length === 0) {
+      // Nothing reported: a point of nulls, so the line breaks there instead of joining its neighbours.
+      rows.push([s.takenAt, ...columns.map(() => null)]);
+      continue;
+    }
     const at = columns.map((c) => s.columns.findIndex((sc) => sc.name === c.name));
     for (const r of s.rows) {
       rows.push([s.takenAt, ...at.map((i) => (i < 0 ? null : r[i]))]);
@@ -178,7 +183,7 @@ export function useHistory(tabId: string, widget: Widget, run: WidgetRun): Histo
   const [view, setView] = useState<HistoryView>({});
   const latest = useRef(0);
   useEffect(() => {
-    if (!h || !done || !entry || !workbookId || since === undefined) {
+    if (!h || !done || !entry || entry.pending || !workbookId || since === undefined) {
       return;
     }
     const n = ++latest.current;

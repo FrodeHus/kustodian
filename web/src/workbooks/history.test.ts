@@ -121,6 +121,11 @@ describe('withGaps', () => {
     expect(withGaps(snaps, 'run').rows).toEqual([[local(11, 1), 1], [local(11, 4), 4]]);
     expect(withGaps(snaps, 'week').rows).toHaveLength(2);
   });
+
+  it('an_empty_snapshot_is_a_null_point_so_the_line_breaks', () => {
+    const snaps = [snap(local(11, 1), 1), { ...snap(local(11, 2), 0), rows: [] }, snap(local(11, 3), 3)];
+    expect(withGaps(snaps, 'day').rows).toEqual([[local(11, 1), 1], [local(11, 2), null], [local(11, 3), 3]]);
+  });
 });
 
 describe('statChange', () => {

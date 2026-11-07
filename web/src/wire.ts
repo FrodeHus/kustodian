@@ -669,7 +669,8 @@ export interface HistoryQuery {
   source: 'graph' | 'hunting' | 'arg';
   text: string;
   options: QueryOptions | null;
-  parameters: { name: string; value: string }[];
+  /** `type` is part of the series: another type writes the value into the query differently. */
+  parameters: { name: string; value: string; type: string }[];
 }
 
 export interface HistoryRecordParams {
