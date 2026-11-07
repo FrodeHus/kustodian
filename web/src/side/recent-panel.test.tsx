@@ -99,6 +99,20 @@ describe('RecentPanel', () => {
     await waitFor(() => expect(calls()).toBe(before + 1));
   });
 
+  it('recent_read_that_works_after_one_that_failed_clears_the_problem', async () => {
+    bridge.call.mockRejectedValueOnce(new Error('busy'));
+    render(<RecentPanel />);
+    expect(await screen.findByText(/Recent runs couldn’t be read/)).toBeTruthy();
+    const id = useTabs.getState().open('graph');
+
+    useTabs.setState((s) => ({
+      tabs: s.tabs.map((t) => (t.id === id ? { ...t, run: { state: 'done', runId: 'x', startedAt: 0, origin: { line: 1, column: 1 } } } : t)),
+    }));
+
+    await screen.findAllByRole('button', { name: /^Open the run/ });
+    expect(screen.queryByText(/Recent runs couldn’t be read/)).toBeNull();
+  });
+
   it('recent_follows_active_source_with_all_toggle', async () => {
     listed = [...runs, { id: 'r3', source: 'arg', text: 'Resources | count', parameters: [], startedAt: '2026-10-21T11:00:00Z', durationMs: 900, rows: 1, outcome: 'ok' }];
     render(<RecentPanel source="arg" />);

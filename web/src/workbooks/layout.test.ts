@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compact, move, narrowOrder, overlaps, place, resize } from './layout';
+import { compact, move, narrowOrder, nudge, overlaps, place, resize } from './layout';
 import type { Widget, WidgetType } from './model';
 
 const w = (id: string, x: number, y: number, ww: number, h: number, type: WidgetType = 'table'): Widget => ({
@@ -17,6 +17,17 @@ describe('layout', () => {
   it('overlaps is false for touching edges', () => {
     expect(overlaps({ x: 0, y: 0, w: 4, h: 4 }, { x: 4, y: 0, w: 4, h: 4 })).toBe(false);
     expect(overlaps({ x: 0, y: 0, w: 4, h: 4 }, { x: 3, y: 3, w: 4, h: 4 })).toBe(true);
+  });
+
+  it('nudge down moves a widget past the one right below it, and one row where there is room', () => {
+    const out = nudge([w('a', 0, 0, 4, 12), w('b', 0, 12, 4, 6)], 'a', 0, 1);
+    expect(byId(out, 'b').y).toBe(0);
+    expect(byId(out, 'a').y).toBe(6);
+    expect(anyOverlap(out)).toBe(false);
+    // Nothing below: a plain one-row step, which packing floats back up.
+    expect(byId(nudge([w('a', 0, 0, 4, 12), w('b', 6, 12, 4, 6)], 'a', 0, 1), 'a').y).toBe(0);
+    // Up is a plain step.
+    expect(byId(nudge([w('a', 0, 0, 4, 6), w('b', 0, 6, 4, 6)], 'b', 0, -1), 'b').y).toBe(0);
   });
 
   it('compact separates overlapping widgets and keeps their order', () => {

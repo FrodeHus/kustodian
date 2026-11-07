@@ -326,6 +326,19 @@ describe('RawTab', () => {
     );
   });
 
+  it('raw_response_keeps_headers_and_version_edited_while_it_was_out', async () => {
+    let answer!: (r: RawResponse) => void;
+    bridge.call.mockReturnValue(new Promise<RawResponse>((resolve) => (answer = resolve)));
+    const id = openTab();
+    renderTab(id);
+    fireEvent.click(screen.getByRole('button', { name: /^Send/ }));
+    act(() => useTabs.getState().setRaw(id, { version: 'v1.0', headers: [{ name: 'Prefer', value: 'x' }] }));
+
+    await act(async () => answer(response({ value: [] })));
+
+    expect(rawRequest(useTabs.getState().tabs[0]!)).toEqual({ version: 'v1.0', headers: [{ name: 'Prefer', value: 'x' }] });
+  });
+
   it('raw_send_is_enabled_only_for_the_active_tab', () => {
     const id = openTab();
     renderTab(id);

@@ -83,6 +83,15 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Discarding a workbook edit (or undoing back to the start) reruns any widget that ran a draft query while editing, so it no
+  longer shows, or runs tool buttons on, rows from a query the workbook doesn't have.
+- A raw Graph request's response no longer undoes header or version changes made while it was being sent.
+- The Saved, Snippets and Recent panels drop a read error once a later read works.
+- Arrow Down on a widget's move grip moves it past the widget right below it; before, it was packed straight back.
+- A link Ctrl/Cmd+clicked in the query editor opens in your browser through the same allowlist as workbook links, never inside
+  the app window.
+- Moving the cursor in the editor no longer re-renders the whole window, and charts are shaped once per result instead of on
+  every re-render.
 - Markdown widgets show headings, lists, quotes and code as such: `## Test` is a heading again, not plain text. Any widget
   can now hide its title bar outside edit mode (**Hide the title bar outside edit mode** in Edit widget); its ⋯ menu hides
   with it.
