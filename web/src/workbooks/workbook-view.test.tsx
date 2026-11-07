@@ -73,7 +73,7 @@ function show(runs: Record<string, WidgetRun>, editing = false) {
     undo: [],
     redo: [],
     dirty: false,
-    selections: {}, history: {}, since: {},
+    selections: {}, history: {}, since: {}, activeTabs: {}, stale: {},
   };
   useWorkbooks.setState({ byTab: { t: state }, setWorkbookValue, setWidgetValue });
   return render(<WorkbookView tabId="t" />);

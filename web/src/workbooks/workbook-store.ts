@@ -38,7 +38,21 @@ export interface WorkbookState {
   history: Record<string, WidgetHistoryState>;
   /** The "since" each widget's history view chose, by widget id: view state, never in the doc. */
   since: Record<string, string>;
+  /** The tab each tabs widget shows, by widget id: view state, never in the doc; a missing entry means the first tab. */
+  activeTabs: Record<string, string>;
+  /** Widgets (on tabs not shown) whose shown result is out of date, by widget id: view state, never in the doc. */
+  stale: Record<string, true>;
 }
+
+/** The tab a tabs widget shows: the active one if it still exists, else the first. */
+export function visibleTab(s: WorkbookState, tabsId: string): string | undefined {
+  const tabs = s.doc.widgets.find((w) => w.id === tabsId)?.tabs;
+  const active = s.activeTabs[tabsId];
+  return tabs?.some((t) => t.id === active) ? active : tabs?.[0]?.id;
+}
+
+/** A widget at the top level, or on the tab its tabs widget shows. */
+export const isVisible = (s: WorkbookState, w: Widget): boolean => !w.in || visibleTab(s, w.in.tabs) === w.in.tab;
 
 export interface WidgetHistoryState {
   skipped: SkipReason | null;
@@ -60,7 +74,12 @@ export interface WorkbookActions {
   /** Runs a draft of a widget (the widget editor's preview) as `runWidget` would, under the run tab id `tab/preview`; only the
    * latest call answers, the others reject. Rejects with the reason when it can't run. Its result isn't kept in `runs`. */
   runDraft(tabId: string, widget: Widget): Promise<RunResult>;
+  /** Runs the visible data widgets; hidden ones that ran are marked stale. */
   runAll(tabId: string, opts?: { refresh?: boolean }): Promise<void>;
+  /** Shows a tab of a tabs widget and runs its widgets that haven't run or are stale. `tabId` is the workbook's tab. */
+  showTab(tabId: string, tabsId: string, tab: string): void;
+  /** Reruns the visible tab of a tabs widget, as Refresh does. */
+  refreshTab(tabId: string, tabsId: string): Promise<void>;
   setWorkbookValue(tabId: string, name: string, value: string, opts?: { now?: boolean }): void; // reruns widgetsUsing; a value typed (no choices) is debounced unless now
   setWidgetValue(tabId: string, widgetId: string, name: string, value: string, opts?: { now?: boolean }): void; // reruns that widget, debounced unless now
   edit(tabId: string, change: (doc: WorkbookDoc) => WorkbookDoc): void; // pushes undo, marks the tab dirty
@@ -105,6 +124,8 @@ const editStarts = new Map<string, Pick<WorkbookState, 'doc' | 'dirty' | 'undo' 
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 /** The current load of each tab; a read that finishes after an unload or a newer load is dropped. */
 const loads = new Map<string, symbol>();
+
+const omit = <T,>(o: Record<string, T>, key: string): Record<string, T> => Object.fromEntries(Object.entries(o).filter(([k]) => k !== key));
 
 const debounce = (key: string, fn: () => void) => {
   clearTimeout(timers.get(key));
@@ -341,11 +362,22 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
     );
   };
 
+  /** Runs the data widgets `ids` that are visible; a hidden one that has run is marked stale, one that hasn't stays as it is. */
+  const runVisible = (tabId: string, ids: string[], opts?: { refresh?: boolean }) => {
+    const s = get().byTab[tabId];
+    const widgets = (s?.doc.widgets ?? []).filter((w) => w.query && ids.includes(w.id));
+    const hidden = widgets.filter((w) => !isVisible(s!, w) && ['done', 'failed', 'blocked'].includes(s!.runs[w.id]?.state ?? 'idle'));
+    if (hidden.length > 0) {
+      update(tabId, (t) => ({ stale: { ...t.stale, ...Object.fromEntries(hidden.map((w) => [w.id, true as const])) } }));
+    }
+    return Promise.all(widgets.filter((w) => isVisible(s!, w)).map((w) => get().runWidget(tabId, w.id, opts))).then(() => undefined);
+  };
+
   const store: Store = {
     byTab: {},
 
     async load(tabId, doc, opts) {
-      const fresh: WorkbookState = { doc, values: initialValues(doc, {}), runs: {}, editing: false, undo: [], redo: [], dirty: opts?.dirty ?? false, selections: {}, history: {}, since: {} };
+      const fresh: WorkbookState = { doc, values: initialValues(doc, {}), runs: {}, editing: false, undo: [], redo: [], dirty: opts?.dirty ?? false, selections: {}, history: {}, since: {}, activeTabs: {}, stale: {} };
       const token = Symbol(tabId);
       loads.set(tabId, token);
       set((st) => ({ byTab: { ...st.byTab, [tabId]: fresh } }));
@@ -409,7 +441,7 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
           },
           onDropped: settle,
         });
-        setRun(tabId, widgetId, queued);
+        update(tabId, (s) => ({ runs: { ...s.runs, [widgetId]: queued }, stale: omit(s.stale, widgetId) }));
         pump();
         if (queued.state !== 'waiting') {
           settle();
@@ -435,8 +467,33 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
       if (opts?.refresh) {
         await readLibrary(tabId);
       }
-      const doc = get().byTab[tabId]?.doc;
-      await Promise.all((doc?.widgets ?? []).filter((w) => w.query).map((w) => get().runWidget(tabId, w.id, opts)));
+      await runVisible(
+        tabId,
+        (get().byTab[tabId]?.doc.widgets ?? []).map((w) => w.id),
+        opts,
+      );
+    },
+
+    showTab(tabId, tabsId, tab) {
+      update(tabId, (s) => ({ activeTabs: { ...s.activeTabs, [tabsId]: tab } }));
+      const s = get().byTab[tabId];
+      for (const w of s?.doc.widgets ?? []) {
+        const state = s!.runs[w.id]?.state ?? 'idle';
+        if (w.query && w.in?.tabs === tabsId && w.in.tab === tab && (state === 'idle' || s!.stale[w.id]) && state !== 'waiting' && state !== 'running') {
+          void get().runWidget(tabId, w.id);
+        }
+      }
+    },
+
+    async refreshTab(tabId, tabsId) {
+      await readLibrary(tabId);
+      const s = get().byTab[tabId];
+      const shown = s && visibleTab(s, tabsId);
+      await runVisible(
+        tabId,
+        (s?.doc.widgets ?? []).filter((w) => w.in?.tabs === tabsId && w.in.tab === shown).map((w) => w.id),
+        { refresh: true },
+      );
     },
 
     setWorkbookValue(tabId, name, value, opts) {
@@ -450,9 +507,7 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
         const doc = get().byTab[tabId]?.doc ?? s.doc;
         // A linked widget is rerun by what its library query uses, not its local copy.
         const running = { ...doc, widgets: doc.widgets.map((w) => effectiveWidget(tabId, w) ?? w) };
-        for (const id of widgetsUsing(running, name)) {
-          void get().runWidget(tabId, id);
-        }
+        void runVisible(tabId, widgetsUsing(running, name));
       };
       const key = `${tabId}:value:${name}`;
       // Any value typed, whatever its type, waits until typing stops; one picked from choices runs at once.

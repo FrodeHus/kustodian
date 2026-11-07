@@ -60,7 +60,7 @@ function show(tools: ToolButton[], more: Widget[] = []) {
         undo: [],
         redo: [],
         dirty: false,
-        selections: {}, history: {}, since: {},
+        selections: {}, history: {}, since: {}, activeTabs: {}, stale: {},
       },
     },
   });

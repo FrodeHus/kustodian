@@ -90,7 +90,7 @@ const vms: RunResult = {
 function open(widgetId: string, lastResult?: RunResult) {
   const runs = lastResult ? { [widgetId]: { state: 'done' as const, result: lastResult, finishedAt: 1 } } : {};
   useWorkbooks.setState({
-    byTab: { t: { doc, values: { workbook: { TimeRange: '1d' }, widgets: {} }, runs, editing: true, undo: [], redo: [], dirty: false, selections: {}, history: {}, since: {} } },
+    byTab: { t: { doc, values: { workbook: { TimeRange: '1d' }, widgets: {} }, runs, editing: true, undo: [], redo: [], dirty: false, selections: {}, history: {}, since: {}, activeTabs: {}, stale: {} } },
     runWidget,
   });
   render(<WidgetEditor tabId="t" widgetId={widgetId} onClose={onClose} />);
