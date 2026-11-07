@@ -2,11 +2,11 @@ name: solutions
 
 # version-bump runs on pull_request with a read-only token. tools-change runs on pull_request_target so it can label and
 # comment on fork PRs; it must never check out or execute the PR's code. It reads tools.json through the API at the head
-# SHA and treats it as data only.
+# SHA and treats it as data only. version-bump runs on every PR so it can be a required check; when no solution folder
+# changed it passes at once.
 
 on:
   pull_request:
-    paths: ['Solutions/**']
   pull_request_target:
     paths: ['Solutions/**']
 
@@ -38,6 +38,10 @@ jobs:
         run: |
           fail=0
           ids="$(git diff --name-only "origin/$BASE_REF...HEAD" -- 'Solutions/*/*' | cut -d/ -f2 | sort -u)"
+          if [[ -z "$ids" ]]; then
+            echo "No solution folders changed."
+            exit 0
+          fi
           for id in $ids; do
             dir="Solutions/$id"
             if [[ ! -f "$dir/solution.json" ]]; then

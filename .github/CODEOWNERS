@@ -1,1 +1,4 @@
 /Solutions/ @FrodeHus
+/.github/CODEOWNERS @FrodeHus
+/.github/workflows/solutions.yml @FrodeHus
+/.github/instructions/solution-tools.instructions.md @FrodeHus
