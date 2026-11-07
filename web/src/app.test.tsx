@@ -375,6 +375,32 @@ describe('App', () => {
     fireEvent.keyDown(input, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: 'Command palette' })).toBeNull();
   });
+  it('a_workbook_tab_has_no_side_panel_until_the_rail_opens_one', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+    const rail = screen.getByRole('navigation', { name: 'Side panels' });
+    const pressed = () => within(rail).queryAllByRole('button', { pressed: true }).map((b) => b.getAttribute('aria-label'));
+    expect(screen.getByRole('complementary', { name: 'Schema' })).toBeTruthy();
+
+    act(() => void useTabs.getState().openWorkbook());
+    await waitFor(() => expect(screen.queryByRole('complementary', { name: 'Schema' })).toBeNull());
+    expect(pressed()).toEqual([]);
+
+    fireEvent.click(within(rail).getByRole('button', { name: 'Saved queries' }));
+    expect(pressed()).toEqual(['Saved queries']);
+    expect(await screen.findByRole('complementary', { name: 'Saved' })).toBeTruthy();
+    // The same button again hides it.
+    fireEvent.click(within(rail).getByRole('button', { name: 'Saved queries' }));
+    expect(pressed()).toEqual([]);
+    expect(screen.queryByRole('complementary', { name: 'Saved' })).toBeNull();
+
+    // The query tab keeps its own panel.
+    fireEvent.click(screen.getByRole('tab', { name: /Query 1/ }));
+    expect(await screen.findByRole('complementary', { name: 'Schema' })).toBeTruthy();
+    expect(pressed()).toEqual(['Schema']);
+  });
+
   it('rail_switches_panels_and_marks_pressed', async () => {
     host({ accounts: [kari], cache: 'persistent' });
     render(<App />);

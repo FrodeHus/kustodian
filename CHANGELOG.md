@@ -9,7 +9,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 - **Workbooks**: a tab of Markdown, Chart, Table and Stat widgets on a grid, each running a query written in the widget or a
   linked saved one, on any source. Workbook parameters rerun only the widgets that use them, and widgets can show their own.
-  Edit mode (mouse or keyboard) arranges widgets, and workbooks save to the library and come back after a restart. See
+  Edit mode (mouse or keyboard) arranges widgets, and workbooks save to the library and come back after a restart. A
+  workbook tab gets the full width: the side panel stays closed until you open one from the rail. See
   [docs/workbooks.md](docs/workbooks.md).
 - A **Full screen** button on the Chart tab fills the app window with the chart; click it again or press Esc to go back.
 - Click a column, bar, pie slice or point in the Chart tab to see the rows behind it on the Rows tab. It filters the
