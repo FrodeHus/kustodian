@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Widget, WidgetType, WorkbookDoc } from './model';
-import { MIN_SIZE, newWidget, newWorkbook } from './model';
+import { MIN_SIZE, defaultHistory, newWidget, newWorkbook } from './model';
 import { place } from './layout';
 import { useWorkbooks } from './workbook-store';
 import { WorkbookView } from './workbook-view';
@@ -354,5 +354,25 @@ describe('workbook edit mode', () => {
     fireEvent.click(screen.getByRole('button', { name: '+ Add widget' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'From a saved query…' }));
     outside(screen.getByRole('dialog', { name: 'Add a saved query' }));
+  });
+
+  it('clear_history_in_the_widget_menu_asks_and_clears', async () => {
+    doc.widgets[0] = { ...doc.widgets[0]!, history: defaultHistory('table') };
+    doc.widgets[1] = { ...doc.widgets[1]!, type: 'table', query: doc.widgets[0]!.query };
+    doc.widgets[1] = { ...doc.widgets[1]!, history: undefined };
+    call.mockImplementation((method: string) => (method === 'history.clear' ? Promise.resolve(null) : new Promise(() => undefined)));
+    show();
+    fireEvent.click(screen.getByRole('button', { name: 'Users menu' }));
+    const item = screen.getByRole('menuitem', { name: 'Clear history…' });
+    fireEvent.click(item);
+    const ask = screen.getByRole('group', { name: "Clear this widget's history?" });
+    fireEvent.click(within(ask).getByRole('button', { name: 'Cancel' }));
+    expect(call).not.toHaveBeenCalledWith('history.clear', expect.anything());
+    fireEvent.click(screen.getByRole('button', { name: 'Users menu' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Clear history…' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    await vi.waitFor(() => expect(call).toHaveBeenCalledWith('history.clear', { workbookId: doc.id, widgetId: 'a' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Notes menu' }));
+    expect(screen.queryByRole('menuitem', { name: 'Clear history…' })).toBeNull();
   });
 });

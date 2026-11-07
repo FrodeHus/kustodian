@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as KeyEvent, type PointerEvent, type ReactNode } from 'react';
 import { EXPORT_NAMES, exportResult, type ExportFormat } from '../results/export';
+import { createPortal } from 'react-dom';
+import { call } from '../bridge';
 import { MenuButton, NoticeLine, type Notice } from '../results/result-grid';
 import { RunStatus } from '../results/run-status';
 import { errorText } from '../shell/errors';
@@ -9,6 +11,7 @@ import { failed, useTabs } from '../tabs/tab-store';
 import type { ParameterDef, RunResult } from '../wire';
 import { COLUMNS, GAP_PX, move, place, resize, ROW_PX } from './layout';
 import { MAX_WIDGETS, newWidget, type ToolButton, type Widget, type WidgetLayout } from './model';
+import { ClearConfirm } from './history-section';
 import { widgetParams, widgetRunOptions, type ResolvedParam } from './resolve';
 import { buttonName, effectiveSelection, okResult, toolTarget } from './tool-buttons';
 import { useToolRun } from './tool-run';
@@ -173,6 +176,7 @@ export function WidgetFrame({
   const run = useWorkbooks((s) => s.byTab[tabId]?.runs[widget.id]);
   const [full, setFull] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [clearing, setClearing] = useState(false);
   const selection = effectiveSelection(widget.selection, useWorkbooks((s) => s.byTab[tabId]?.selections[widget.id]));
   const tools = useToolRun(tabId, widget, setNotice);
   const ref = useRef<HTMLElement>(null);
@@ -251,6 +255,15 @@ export function WidgetFrame({
     void exportResult(format, title, result).then(
       (file) => file && setNotice({ tone: 'ok', text: `Exported to ${file.name}.` }),
       (e: unknown) => setNotice({ tone: 'bad', text: `Couldn’t export: ${errorText(e)}`, reportId: reportIdOf(e) }),
+    );
+  };
+
+  // The rerun drops the history the widget showed.
+  const clearHistory = () => {
+    setClearing(false);
+    call('history.clear', { workbookId: doc.id, widgetId: widget.id }).then(
+      () => void useWorkbooks.getState().runWidget(tabId, widget.id, { refresh: true }),
+      (e: unknown) => setNotice({ tone: 'bad', text: `Couldn’t clear history: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
   };
 
@@ -376,6 +389,11 @@ export function WidgetFrame({
                     {widget.type === 'table' && <ToolButtonItems tabId={tabId} widget={widget} placement="menu" onOpen={tools.open} />}
                   </>
                 )}
+                {widget.history && (
+                  <button type="button" role="menuitem" tabIndex={-1} onClick={() => setClearing(true)}>
+                    Clear history…
+                  </button>
+                )}
                 <button type="button" role="menuitem" tabIndex={-1} onClick={() => setFull(!full)}>
                   {full ? 'Exit full screen' : 'Full screen'}
                 </button>
@@ -457,6 +475,16 @@ export function WidgetFrame({
       {target && <div className="wb-widget wb-drop" style={cellVars(target)} aria-hidden="true" />}
       {/* Outside the widget's body, so a rerun's spinner doesn't unmount it (Review Focus 5). */}
       {tools.dialog}
+      {clearing &&
+        createPortal(
+          <div className="fixed inset-0 z-20" onKeyDown={(e) => e.key === 'Escape' && setClearing(false)}>
+            <div className="scrim" onClick={() => setClearing(false)} />
+            <div className="card absolute inset-x-0 top-[20vh] mx-auto w-[360px] max-w-[calc(100vw-32px)] p-3">
+              <ClearConfirm title="Clear this widget's history?" confirm="Clear" onConfirm={clearHistory} onCancel={() => setClearing(false)} />
+            </div>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
