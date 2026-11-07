@@ -49,6 +49,16 @@ export interface Widget {
   stat?: { value: string | null; compare: string | null };
   selection?: RowSelectionMode; // table widgets only
   tools?: ToolButton[]; // table widgets only
+  history?: WidgetHistory; // stat, chart and table widgets only
+}
+/** What the widget keeps between runs. `since` is `'previous'`, `'P1D'`, `'P7D'`, `'P30D'` or a `YYYY-MM-DD` date. */
+export interface WidgetHistory {
+  mode: 'values' | 'rows';
+  interval: 'run' | 'day' | 'week';
+  retentionDays: 30 | 90 | 365;
+  keys: string[];
+  keep: string[];
+  since: string;
 }
 export interface WorkbookParameter extends ParameterDef {
   label: string | null;
@@ -114,6 +124,15 @@ export const newToolButton = (): ToolButton => ({
   runsOn: 'selectedOrAll',
   after: 'refreshWidget',
   placement: 'header',
+});
+
+export const defaultHistory = (type: WidgetType): WidgetHistory => ({
+  mode: type === 'table' ? 'rows' : 'values',
+  interval: 'day',
+  retentionDays: 90,
+  keys: [],
+  keep: [],
+  since: 'P7D',
 });
 
 type Obj = Record<string, unknown>;
@@ -193,6 +212,21 @@ function parseToolButton(v: unknown): ToolButton | null {
   };
 }
 
+function parseHistory(v: unknown): WidgetHistory | null {
+  if (!isObj(v) || (v.mode !== 'values' && v.mode !== 'rows')) {
+    return null;
+  }
+  const names = (n: unknown) => (Array.isArray(n) ? n.filter((c): c is string => typeof c === 'string') : []);
+  return {
+    mode: v.mode,
+    interval: oneOf(v.interval, ['run', 'day', 'week'], 'day'),
+    retentionDays: [30, 90, 365].includes(v.retentionDays as number) ? (v.retentionDays as 30 | 90 | 365) : 90,
+    keys: names(v.keys),
+    keep: names(v.keep),
+    since: typeof v.since === 'string' && /^(previous|P1D|P7D|P30D|\d{4}-\d{2}-\d{2})$/.test(v.since) ? v.since : 'P7D',
+  };
+}
+
 function parseWidget(v: unknown): Widget | null {
   if (!isObj(v) || !WIDGET_TYPES.includes(v.type as WidgetType) || typeof v.id !== 'string') {
     return null;
@@ -204,7 +238,8 @@ function parseWidget(v: unknown): Widget | null {
   }
   // Data widgets always have a query, as newWidget makes them.
   const query = parsed ?? (type === 'markdown' ? undefined : emptyQuery());
-  const { query: _query, chart, stat, tools, selection, ...rest } = v;
+  const parsedHistory = type === 'markdown' ? null : parseHistory(v.history);
+  const { query: _query, chart, stat, tools, selection, history: _history, ...rest } = v;
   return {
     ...rest,
     id: v.id,
@@ -221,6 +256,7 @@ function parseWidget(v: unknown): Widget | null {
           tools: Array.isArray(tools) ? tools.flatMap((t) => parseToolButton(t) ?? []) : [],
         }
       : {}),
+    ...(parsedHistory ? { history: parsedHistory } : {}),
     ...(isObj(stat) ? { stat: { ...stat, value: strOrNull(stat.value), compare: strOrNull(stat.compare) } } : {}),
   };
 }

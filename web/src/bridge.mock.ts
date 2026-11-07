@@ -1,5 +1,5 @@
 import type { Transport } from './bridge';
-import type { QueryOptions } from './wire';
+import type { HistoryChanges, HistoryRecordParams, HistorySeries, HistorySnapshot, QueryOptions, TrackedRow } from './wire';
 import schema from './fixtures/graph-schema.json';
 
 /**
@@ -314,6 +314,7 @@ function serverRunResult(source: 'hunting' | 'arg') {
 }
 
 /** A `count()` query's answer: a text and a number column, so Chart and Stat widgets have something to show. */
+let countedRuns = 0;
 function countedResult<T extends typeof runResult>(base: T): T {
   return {
     ...base,
@@ -322,12 +323,24 @@ function countedResult<T extends typeof runResult>(base: T): T {
       { name: 'Count', type: 'long' },
     ],
     rows: [
-      ['Finance', 42],
+      ['Finance', 42 + countedRuns++], // rises each run, so a Stat on an every-run Values history shows a change
       ['Engineering', 128],
       ['Sales', 67],
     ],
     total: 3,
   };
+}
+
+let vulnRuns = 0;
+/** A `DeviceTvmSoftwareVulnerabilities` query's answer: 4 rows that rotate each run (one key leaves, one arrives), for Row tracking. */
+function vulnerabilityResult<T extends typeof runResult>(base: T): T {
+  const n = vulnRuns++;
+  const rows = [0, 1, 2, 3].map((i) => {
+    const k = n + i;
+    return [`dev-${k}`, `PC-${k}`, `CVE-2026-${1000 + k}`, k % 2 ? 'High' : 'Critical'];
+  });
+  const text = { type: 'string' };
+  return { ...base, columns: ['DeviceId', 'DeviceName', 'CveId', 'Severity'].map((name) => ({ name, ...text })), rows, total: rows.length };
 }
 
 /** Built-in hunting and Resource Graph snippets, so the Snippets panel has some for each source. */
@@ -574,6 +587,24 @@ export function createMockTransport(): Transport {
   const workbooks = new Map<string, MockWorkbook>();
   const workbookValues = new Map<string, Record<string, string>>();
   let savedCounter = 0;
+  // History, in memory: one series per workbook, widget and call (query text and parameters), as the host keeps it.
+  interface MockHistory {
+    label: string;
+    since: string;
+    columns: { name: string; type: string }[];
+    snapshots: HistorySnapshot[];
+    tracked: TrackedRow[];
+    keys: Set<string>;
+  }
+  const histories = new Map<string, Map<string, MockHistory>>();
+  const historyKey = (p: HistoryRecordParams) => JSON.stringify([p.query.text, p.query.parameters, p.setting.mode, p.setting.keys]);
+  const widgetHistory = (p: HistoryRecordParams) => {
+    const widget = `${p.workbookId}/${p.widgetId}`;
+    if (!histories.has(widget)) {
+      histories.set(widget, new Map());
+    }
+    return histories.get(widget)!;
+  };
   let session: Record<string, unknown> = { version: 1, activeId: null, tabs: [] };
   const recent: Record<string, unknown>[] = [];
   const userSnippets = new Map<string, Record<string, unknown>>();
@@ -680,7 +711,102 @@ export function createMockTransport(): Transport {
           reply(id, null);
         }
         break;
+      case 'history.record': {
+        const hp = params as unknown as HistoryRecordParams;
+        const series = widgetHistory(hp);
+        const key = historyKey(hp);
+        const now = new Date().toISOString();
+        const rows: unknown[][] = hp.rows ?? [];
+        const h = series.get(key) ?? { label: hp.label, since: now, columns: hp.columns, snapshots: [], tracked: [], keys: new Set() };
+        if (hp.setting.mode === 'values') {
+          if (rows.length > 500) {
+            reply(id, { recorded: false, skipped: 'tooManyRows', reset: false });
+            break;
+          }
+          // As the host: `run` appends; a day or week replaces the last snapshot when it is in the same local day or Monday-start week.
+          const period = (iso: string) => {
+            const d = new Date(iso);
+            d.setHours(0, 0, 0, 0);
+            if (hp.setting.interval === 'week') {
+              d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+            }
+            return d.getTime();
+          };
+          const last = h.snapshots.at(-1);
+          const replace = hp.setting.interval !== 'run' && last && period(last.takenAt) === period(now);
+          h.snapshots = [...(replace ? h.snapshots.slice(0, -1) : h.snapshots), { takenAt: now, columns: hp.columns, rows }];
+        } else {
+          const n = hp.setting.keys.length;
+          const keyOf = (row: unknown[]) => JSON.stringify(row.slice(0, n));
+          const current = new Map(rows.map((row) => [keyOf(row), row] as const));
+          if (current.size < rows.length) {
+            reply(id, { recorded: false, skipped: 'keysNotUnique', reset: false });
+            break;
+          }
+          for (const row of h.tracked) {
+            if (!row.gone && !current.has(keyOf(row.values))) {
+              row.gone = now;
+            }
+          }
+          for (const [k, row] of current) {
+            if (!h.keys.has(k)) {
+              h.tracked.push({ values: row, firstSeen: now, gone: null });
+            }
+          }
+          h.keys = new Set(current.keys());
+          h.snapshots.push({ takenAt: now, columns: hp.columns, rows: [] });
+        }
+        series.set(key, h);
+        reply(id, { recorded: true, skipped: null, reset: false });
+        break;
+      }
+      case 'history.values': {
+        const hp = params as unknown as HistoryRecordParams;
+        reply(id, { snapshots: widgetHistory(hp).get(historyKey(hp))?.snapshots ?? [], reset: false });
+        break;
+      }
+      case 'history.changes': {
+        const hp = params as unknown as HistoryRecordParams;
+        const h = widgetHistory(hp).get(historyKey(hp));
+        const added = h?.tracked.filter((r) => !r.gone && h.keys.size > 0 && r.firstSeen === h.snapshots.at(-1)?.takenAt) ?? [];
+        const gone = h?.tracked.filter((r) => r.gone === h.snapshots.at(-1)?.takenAt) ?? [];
+        const answer: HistoryChanges = {
+          since: h && h.snapshots.length > 1 ? h.snapshots.at(-2)!.takenAt : null,
+          columns: h?.columns ?? [],
+          new: added,
+          newCount: added.length,
+          gone,
+          goneCount: gone.length,
+          open: h?.keys.size ?? 0,
+          reset: false,
+        };
+        reply(id, answer);
+        break;
+      }
+      case 'history.series': {
+        const hp = params as unknown as HistoryRecordParams;
+        const all: HistorySeries[] = [...(histories.get(`${hp.workbookId}/${hp.widgetId}`)?.values() ?? [])].map((h) => ({
+          label: h.label,
+          since: h.since,
+          snapshots: h.snapshots.length,
+          gaps: 0,
+          stored: h.tracked.length || h.snapshots.length,
+        }));
+        reply(id, all);
+        break;
+      }
+      case 'history.clear': {
+        const hp = params as unknown as HistoryRecordParams;
+        histories.delete(`${hp.workbookId}/${hp.widgetId}`);
+        reply(id, null);
+        break;
+      }
       case 'workbook.delete':
+        for (const widget of histories.keys()) {
+          if (widget.startsWith(`${params?.id}/`)) {
+            histories.delete(widget);
+          }
+        }
         workbooks.delete(params?.id ?? '');
         workbookValues.delete(params?.id ?? '');
         reply(id, null);
@@ -871,7 +997,14 @@ export function createMockTransport(): Transport {
           runs.delete(tabId);
           const source = params?.source;
           const base = source === 'hunting' || source === 'arg' ? serverRunResult(source) : runResult;
-          const result = { ...(/\bcount\(\)/.test(params?.kql ?? '') ? countedResult(base) : base), runId };
+          const kql = params?.kql ?? '';
+          // `cutoff` in the query text: more rows exist than came back, so a history run is skipped as cut off.
+          const answer = kql.includes('DeviceTvmSoftwareVulnerabilities')
+            ? vulnerabilityResult(base)
+            : /\bcount\(\)/.test(kql)
+              ? countedResult(base)
+              : base;
+          const result = { ...answer, ...(kql.includes('cutoff') ? { total: answer.rows.length + 1000 } : {}), runId };
           // As the host's Recent: newest first, with the run's options, so "open again" brings them back.
           recent.unshift({
             id: runId,

@@ -21,6 +21,9 @@ follow [Semantic Versioning](https://semver.org/).
   palette, shows a review first: saved queries are added to your library or copied into the widgets, tool buttons are matched
   by name to your own `tools.json` (which import never changes), and a workbook you already have can be kept alongside or
   replaced. See [docs/workbooks.md](docs/workbooks.md#sharing).
+- **Widget history**: a workbook widget can keep its own history, off by default. Values over time stores small results so a Stat
+  shows its change and a Chart plots it. Row tracking follows rows by key columns so a Table shows what is new or no longer
+  reported since a date. Local only, in `history.db`, never exported. See [docs/workbooks.md](docs/workbooks.md#history).
 - A **Full screen** button on the Chart tab fills the app window with the chart; click it again or press Esc to go back.
 - Click a column, bar, pie slice or point in the Chart tab to see the rows behind it on the Rows tab. It filters the
   result you already have, without running the query again; a chip in the result bar shows the filter and clears it.

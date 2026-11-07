@@ -60,6 +60,71 @@ says "There's no tool named Stop VM in your tools.json." and offers **Edit tools
 A workbook stores only the tool's name and the column mapping, never a command. A workbook from someone else works only
 with a tool of the same name in your own `tools.json`, and what that tool does is up to you. Every run asks first.
 
+## History
+
+Graph, Resource Graph and some Defender tables (`DeviceTvmSoftwareVulnerabilities`, `DeviceTvmSoftwareInventory`,
+`DeviceTvmSecureConfigurationAssessment`) only hold the current state. A widget can keep its own history to show change over
+time. Turn on **Keep history for this widget** on the editor's **History** tab. Where the source already keeps history (most
+hunting tables, 30 days), put the comparison in the query instead.
+
+There are two modes. A Stat widget can use either, a Chart only Values over time, and a Table only Row tracking. New Stat
+and Chart widgets start with Values over time.
+
+- **Values over time** stores each run's whole result, for small summarised results of at most 500 rows. A Stat shows the
+  change since a chosen point, such as "vs yesterday". A Chart plots the snapshots over time, split by a column as usual. For
+  example, users with a device-bound passkey per day:
+  `userRegistrationDetails | mv-expand m = methodsRegistered | where m startswith "passKeyDeviceBound" | summarize count() by tostring(m)`.
+- **Row tracking** follows rows by **key columns**, one or more, for example `DeviceId` and `CveId`. After each run, a new key
+  gets *First seen* = now, a key that is missing gets *No longer reported* = now, and a key that comes back starts a new
+  *First seen*. Storage grows with distinct keys, not with days. A table can show **Open now**, **New since**,
+  **No longer reported since** or **Both**, since the previous snapshot, yesterday, 7 or 30 days ago, or a date. A Stat can
+  count either. Rows keep only the key columns and the ones you pick under **Also keep, to show rows that are gone**. Presence
+  works for state too: "users with a device-bound passkey", keyed on `id`, shows who added one and who no longer has one.
+
+The label is **No longer reported**, not "Patched" or "Removed": a row also disappears when a device is offboarded or goes
+inactive, or a user is deleted.
+
+### When a snapshot is taken
+
+There is no scheduler. A widget with history stores a snapshot when it runs and its last one is older than **Save at most**:
+once a day (the default), every run, or once a week. A day is your local calendar day and a week is the ISO week, starting
+Monday. In Values mode the latest run in an interval replaces earlier ones. Days nobody opened the workbook show as gaps.
+
+A run is recorded only when the workbook is saved and unchanged, and the run finished and was complete. These are never
+recorded, and the widget says why it skipped:
+
+- a run that failed or was cancelled, or was cut off at the row limit, since it would mark rows as gone or store a wrong count;
+- a Values result over 500 rows;
+- a Row tracking result whose key columns aren't unique;
+- a run of a workbook with unsaved changes, or one that was never saved.
+
+If the history file can't be written, the widget says "Not recorded:" and the reason.
+
+Selection and tool buttons apply only to the **Open now** filter.
+
+### What belongs to a history
+
+A history belongs to the workbook, the widget and the resolved query, source, options and parameter values. Each combination of
+parameter values has its own history, and so does each Defender hunting timespan: changing the workbook's timespan from 7 to 30
+days switches to the 30-day history and keeps the 7-day one. **Forget gone rows after** (Row tracking) and **Keep snapshots
+for** (Values) are 30, 90 or 365 days.
+
+Changing the widget's query, source, options, mode or key columns, or turning history off, asks "Clear this widget's history?"
+when history exists. Cancel keeps the editor open. Editing a linked saved query in the library doesn't ask: the widget's next
+run starts a new history and drops the old one, so an old snapshot is never compared with the new query.
+
+**Clear history…** in the widget's ⋯ menu deletes it by choice, and the widget reruns to take a first snapshot. Deleting a
+workbook deletes its history.
+
+### Where it is stored
+
+History is in `history.db` in Kustodian's data folder, on this computer only. It is never in an exported workbook, an error
+report or a log. The widget's history *setting* exports with the rest of the widget, but its data does not.
+
+If `history.db` is damaged (corrupt, not a database, or failing its integrity check), Kustodian renames it to `history.db.damaged-<time>` and starts a new one. Widgets then say
+"History was reset: its file was damaged." The app and your workbooks load as usual. Other errors, such as a full disk or a
+file that is in use, leave the file as it is: the widget says it couldn't read or record history.
+
 ## Parameters
 
 Queries use the same `{name}` placeholders as query tabs, and values are quoted for KQL the same way. In the widget editor
