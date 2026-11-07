@@ -312,9 +312,19 @@ inactive, or a user is deleted.
 
 ### 10.4 Storage and privacy
 
-- On disk under the data folder, `history/<workbookId>/<widgetId>/<hash>.json`, through `JsonFileStore`. **My call**: no
-  new dependency; a Rows file is rewritten at most once per interval. If a file gets large enough to matter, the builder
-  raises it with the owner before reaching for a database.
+- **Owner** (2026-11-07): one SQLite database, `history.db` in the data folder, through `Microsoft.Data.Sqlite` with its
+  bundled native SQLite (no system library; the single-file publish carries and extracts it like Photino's). Why not JSON
+  files: Row tracking on a TVM table holds hundreds of thousands of keys, and a file would be read and rewritten whole on
+  every save and every "new since" filter. One store for both modes, not one per mode.
+- Tables, roughly: a **series** per §10.3 key (workbook id, widget id, hash, mode); **snapshots** (series, taken at,
+  result as JSON, Values mode); **rows** (series, key, display columns as JSON, first seen, gone or null, Rows mode),
+  indexed on (series, key), (series, first seen) and (series, gone). A snapshot is written in one transaction, so a crash
+  never leaves half a diff. Schema version in `PRAGMA user_version`; WAL mode; only the host process writes.
+- **My call**: a database that can't be opened or fails its integrity check is renamed aside (`history.db.damaged-<time>`)
+  and a new one started; widgets with history say it was reset. It never stops the app or a workbook from loading.
+- Clear history, an edited query (§10.3) and a deleted workbook delete their series' rows; retention deletes old snapshots
+  and gone keys when a series is saved. Screen 9's Size column shows stored snapshots or rows instead of MB, and its
+  "Show history files" button is dropped (**my call**: the database isn't meant to be opened by hand).
 - Local only: never in an exported workbook, never in error reports. Deleting a workbook deletes its history.
 - Rows mode keeps only key and display columns, so what is stored is what the author chose to show.
 
