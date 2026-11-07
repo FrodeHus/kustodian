@@ -44,6 +44,8 @@ export interface WidgetHistoryState {
   /** The history file was damaged and replaced; stays true for the session. */
   reset: boolean;
   recordedAt: number | null;
+  /** What the last answered run sent: the widget reads its history by it, so it reads the series the record wrote. */
+  query: HistoryQuery;
 }
 
 export interface WorkbookActions {
@@ -278,9 +280,9 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
     });
   };
 
-  const setHistory = (tabId: string, widgetId: string, change: (was: WidgetHistoryState) => Partial<WidgetHistoryState>) =>
+  const setHistory = (tabId: string, widgetId: string, query: HistoryQuery, change: (was: WidgetHistoryState) => Partial<WidgetHistoryState>) =>
     update(tabId, (s) => {
-      const was = s.history[widgetId] ?? { skipped: null, reset: false, recordedAt: null };
+      const was = s.history[widgetId] ?? { skipped: null, reset: false, recordedAt: null, query };
       return { history: { ...s.history, [widgetId]: { ...was, ...change(was) } } };
     });
 
@@ -295,9 +297,11 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
     const rows = run.state === 'done' ? historyRows(run.result, h) : null;
     const skipped = recordable(run, s.dirty) ?? (rows === 'keysNotUnique' ? rows : null);
     if (skipped || run.state !== 'done' || !rows || rows === 'keysNotUnique') {
-      setHistory(tabId, widgetId, () => ({ skipped }));
+      setHistory(tabId, widgetId, sent.query, () => ({ skipped, query: sent.query }));
       return;
     }
+    // Set now, not on the record's answer: an older record answering late mustn't bring back its query.
+    setHistory(tabId, widgetId, sent.query, () => ({ query: sent.query }));
     const params: HistoryRecordParams = {
       workbookId: s.doc.id,
       widgetId,
@@ -307,12 +311,12 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
     };
     call<HistoryRecordAnswer>('history.record', params).then(
       (a) =>
-        setHistory(tabId, widgetId, (was) => ({
+        setHistory(tabId, widgetId, sent.query, (was) => ({
           skipped: a.skipped === 'interval' ? null : a.skipped,
           reset: was.reset || a.reset,
           recordedAt: a.recorded ? Date.now() : was.recordedAt,
         })),
-      () => setHistory(tabId, widgetId, () => ({ skipped: null })),
+      () => setHistory(tabId, widgetId, sent.query, () => ({ skipped: null })),
     );
   };
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RunResult } from '../wire';
-import { historyRows, recordable, seriesLabel, sinceInstant, sinceLabel, SKIP_TEXT } from './history';
+import { historyRows, recordable, seriesLabel, sinceInstant, sinceLabel, SKIP_TEXT, statChange, withGaps } from './history';
 import type { WidgetHistory } from './model';
 import type { ResolvedParam } from './resolve';
 import type { WidgetRun } from './workbook-store';
@@ -102,5 +102,42 @@ describe('since', () => {
     expect(sinceLabel('P7D', null)).toBe('7 days ago');
     expect(sinceLabel('P30D', null)).toBe('30 days ago');
     expect(sinceLabel('2026-10-30', null)).toBe('Oct 30');
+  });
+});
+
+const local = (m: number, d: number, h = 10) => new Date(2026, m - 1, d, h).toISOString();
+const snap = (takenAt: string, n: number) => ({ takenAt, columns: [{ name: 'n', type: 'long' }], rows: [[n]] });
+
+describe('withGaps', () => {
+  it('with_gaps_inserts_a_null_row_per_missing_day', () => {
+    const snaps = [snap(local(11, 1), 1), snap(local(11, 4), 4)];
+    expect(withGaps(snaps, 'day')).toEqual({
+      columns: [
+        { name: 'Snapshot', type: 'datetime' },
+        { name: 'n', type: 'long' },
+      ],
+      rows: [[local(11, 1), 1], [local(11, 2, 0), null], [local(11, 3, 0), null], [local(11, 4), 4]],
+    });
+    expect(withGaps(snaps, 'run').rows).toEqual([[local(11, 1), 1], [local(11, 4), 4]]);
+    expect(withGaps(snaps, 'week').rows).toHaveLength(2);
+  });
+});
+
+describe('statChange', () => {
+  const h = { snapshots: [snap(local(10, 24), 375), snap(local(10, 28), 390), snap(local(11, 1), 412)], reset: false };
+  const now = new Date(2026, 10, 1, 12);
+  it('stat_change_compares_with_the_snapshot_at_or_before_the_point', () => {
+    expect(statChange(h, 'n', 'P7D', now)).toEqual({ text: '▲ 37 vs 7 days ago (375)', at: local(10, 24) });
+    expect(statChange(h, 'n', 'previous', now)).toEqual({ text: '▲ 22 vs previous snapshot (390)', at: local(10, 28) });
+    expect(statChange(h, 'n', '2026-10-29', now)?.text).toBe('▲ 22 vs Oct 29 (390)');
+    const fall = { ...h, snapshots: [snap(local(10, 24), 1500), snap(local(11, 1), 412)] };
+    expect(statChange(fall, 'n', 'P7D', now)?.text).toBe('▼ 1,088 vs 7 days ago (1,500)');
+    const same = { ...h, snapshots: [snap(local(10, 24), 412), snap(local(11, 1), 412)] };
+    expect(statChange(same, 'n', 'P7D', now)?.text).toBe('No change vs 7 days ago');
+  });
+  it('stat_change_is_null_without_an_old_enough_snapshot', () => {
+    expect(statChange(h, 'n', 'P30D', now)).toBeNull();
+    expect(statChange({ snapshots: [snap(local(11, 1), 412)], reset: false }, 'n', 'previous', now)).toBeNull();
+    expect(statChange(h, 'missing', 'P7D', now)).toBeNull();
   });
 });

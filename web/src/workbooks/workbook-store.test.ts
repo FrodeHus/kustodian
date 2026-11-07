@@ -511,7 +511,14 @@ describe('workbook store', () => {
           } satisfies HistoryRecordParams,
         ],
       ]);
-      expect(tab().history.a).toEqual({ skipped: null, reset: false, recordedAt: expect.any(Number) });
+      // The resolved query of that run, so the widget reads the series the record wrote.
+      expect(tab().history.a).toEqual({ skipped: null, reset: false, recordedAt: expect.any(Number), query: records()[0]![1].query });
+    });
+
+    it('a_skipped_run_still_keeps_its_query', async () => {
+      await open(withHistory('a'), { dirty: true });
+      await answer(result([[1]]));
+      expect(tab().history.a?.query).toEqual({ source: 'graph', text: 'users', options: runs[0]!.params.options ?? null, parameters: [] });
     });
 
     it('a_cut_off_run_is_not_recorded_and_says_why', async () => {
@@ -577,7 +584,7 @@ describe('workbook store', () => {
       await open(withHistory('a'));
       await answer(result([[1]]));
       expect(state('a')).toBe('done');
-      expect(tab().history.a).toEqual({ skipped: null, reset: false, recordedAt: null });
+      expect(tab().history.a).toEqual({ skipped: null, reset: false, recordedAt: null, query: expect.any(Object) });
     });
 
     it('host_skips_map_to_reasons', async () => {
@@ -589,7 +596,7 @@ describe('workbook store', () => {
       void useWorkbooks.getState().runWidget('t', 'a');
       await flush();
       await answer(result([[1]]));
-      expect(tab().history.a).toEqual({ skipped: null, reset: false, recordedAt: null });
+      expect(tab().history.a).toEqual({ skipped: null, reset: false, recordedAt: null, query: expect.any(Object) });
     });
 
     it('reset_stays_for_the_session', async () => {

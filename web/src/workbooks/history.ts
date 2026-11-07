@@ -1,7 +1,10 @@
-import type { ResultColumn, RunResult } from '../wire';
-import type { WidgetHistory } from './model';
+import { createContext, useEffect, useRef, useState } from 'react';
+import { call } from '../bridge';
+import { errorText } from '../shell/errors';
+import type { HistoryChanges, HistoryValues, ResultColumn, RunResult } from '../wire';
+import type { Widget, WidgetHistory } from './model';
 import type { ResolvedParam } from './resolve';
-import type { WidgetRun } from './workbook-store';
+import { useWorkbooks, type WidgetRun } from './workbook-store';
 
 export type SkipReason = 'cutOff' | 'failed' | 'tooManyRows' | 'keysNotUnique' | 'unsaved';
 
@@ -73,10 +76,121 @@ export function sinceInstant(since: string, now: Date): string {
 const SINCE_LABELS: Record<string, string> = { previous: 'Previous snapshot', P1D: 'Yesterday', P7D: '7 days ago', P30D: '30 days ago' };
 const monthDay = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
 
+/** `since` inside a sentence: "vs 7 days ago", "since previous snapshot", "since Oct 30". */
+export function sinceWords(since: string): string {
+  return SINCE_LABELS[since]?.toLowerCase() ?? sinceLabel(since, null);
+}
+
 export function sinceLabel(since: string, _at: string | null): string {
   if (SINCE_LABELS[since]) {
     return SINCE_LABELS[since];
   }
   const [y, m, d] = since.split('-').map(Number) as [number, number, number];
   return monthDay.format(new Date(y, m - 1, d));
+}
+
+const DAY_MS = 86_400_000;
+const localDay = (iso: string) => {
+  const d = new Date(iso);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+};
+
+/** The snapshots as one table, oldest first, with a leading `Snapshot` column. For `day`, a row of nulls on each missing day,
+ * so the chart draws a gap there. Columns are the latest snapshot's; an older snapshot's are matched by name. */
+export function withGaps(snapshots: HistoryValues['snapshots'], interval: WidgetHistory['interval']): { columns: ResultColumn[]; rows: unknown[][] } {
+  const sorted = [...snapshots].sort((a, b) => Date.parse(a.takenAt) - Date.parse(b.takenAt));
+  const columns = sorted.at(-1)?.columns ?? [];
+  const rows: unknown[][] = [];
+  let last: Date | null = null;
+  for (const s of sorted) {
+    const day = localDay(s.takenAt);
+    if (interval === 'day' && last) {
+      for (let d = new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1); d < day; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+        rows.push([d.toISOString(), ...columns.map(() => null)]);
+      }
+    }
+    last = day;
+    const at = columns.map((c) => s.columns.findIndex((sc) => sc.name === c.name));
+    for (const r of s.rows) {
+      rows.push([s.takenAt, ...at.map((i) => (i < 0 ? null : r[i]))]);
+    }
+  }
+  return { columns: [{ name: 'Snapshot', type: 'datetime' }, ...columns], rows };
+}
+
+const numberText = (n: number) => n.toLocaleString('en-US');
+/** A cell as a number; NaN for null, '' and anything else that isn't one (Number would read null and '' as 0). */
+export const numberOf = (cell: unknown) => (cell === null || cell === undefined || (typeof cell === 'string' && cell.trim() === '') ? NaN : Number(cell));
+
+/** The latest snapshot's `valueColumn` against the snapshot at or before `since` (`'previous'`: the one before the latest). */
+export function statChange(h: HistoryValues, valueColumn: string, since: string, now: Date): { text: string; at: string } | null {
+  const snaps = [...h.snapshots].sort((a, b) => Date.parse(a.takenAt) - Date.parse(b.takenAt));
+  const latest = snaps.at(-1);
+  const point = since === 'previous' ? null : Date.parse(sinceInstant(since, now));
+  const old = point === null ? snaps.at(-2) : snaps.findLast((s) => Date.parse(s.takenAt) <= point);
+  if (!latest || !old || old === latest) {
+    return null;
+  }
+  const valueOf = (s: typeof latest) => numberOf(s.rows[0]?.[s.columns.findIndex((c) => c.name === valueColumn)]);
+  const [current, then] = [valueOf(latest), valueOf(old)];
+  if (!Number.isFinite(current) || !Number.isFinite(then)) {
+    return null;
+  }
+  const diff = current - then;
+  const vs = `vs ${sinceWords(since)}`;
+  return { text: diff === 0 ? `No change ${vs}` : `${diff < 0 ? '▼' : '▲'} ${numberText(Math.abs(diff))} ${vs} (${numberText(then)})`, at: old.takenAt };
+}
+
+/** Whole days from `from` to `now`. */
+export const daysSince = (from: string, now: Date) => Math.floor((now.getTime() - Date.parse(from)) / DAY_MS);
+
+export interface HistoryView {
+  values?: HistoryValues;
+  changes?: HistoryChanges;
+  error?: string;
+  /** When the answer arrived, ms: "now" for the change line and the footer's days, so rendering stays pure. */
+  readAt?: number;
+}
+
+/** What the widget frame read, for the widget inside it, and the tracked table's filter (the frame hides tools off Open now). */
+export const HistoryData = createContext<HistoryView & { filter: HistoryFilter; setFilter: (f: HistoryFilter) => void }>({
+  filter: 'open',
+  setFilter: () => undefined,
+});
+export type HistoryFilter = 'open' | 'new' | 'gone' | 'both';
+
+/** Reads the widget's history after each `done` run, once its record has answered (the store's entry changes then), and again
+ * when its Since changes. It reads by the query the last run sent, so it reads the series the record wrote. A late answer to an
+ * older request is dropped. Never records or logs. */
+export function useHistory(tabId: string, widget: Widget, run: WidgetRun): HistoryView {
+  const entry = useWorkbooks((s) => s.byTab[tabId]?.history[widget.id]);
+  const workbookId = useWorkbooks((s) => s.byTab[tabId]?.doc.id);
+  const chosen = useWorkbooks((s) => s.byTab[tabId]?.since[widget.id]);
+  const h = widget.history;
+  const since = chosen ?? h?.since;
+  const done = run.state === 'done';
+  const finishedAt = done ? run.finishedAt : undefined;
+  const [view, setView] = useState<HistoryView>({});
+  const latest = useRef(0);
+  useEffect(() => {
+    if (!h || !done || !entry || !workbookId || since === undefined) {
+      return;
+    }
+    const n = ++latest.current;
+    const params = {
+      workbookId,
+      widgetId: widget.id,
+      query: entry.query,
+      setting: { mode: h.mode, interval: h.interval, retentionDays: h.retentionDays, keys: h.keys },
+    };
+    const read: Promise<HistoryView> =
+      h.mode === 'values'
+        ? call<HistoryValues>('history.values', params).then((values) => ({ values, readAt: Date.now() }))
+        : call<HistoryChanges>('history.changes', { ...params, since: sinceInstant(since, new Date()) }).then((changes) => ({ changes, readAt: Date.now() }));
+    read.then(
+      (v) => n === latest.current && setView(v),
+      (e: unknown) => n === latest.current && setView({ error: errorText(e) }),
+    );
+  }, [h, done, entry, workbookId, since, finishedAt, widget.id]);
+  return view;
 }
