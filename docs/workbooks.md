@@ -24,6 +24,38 @@ that Kustodian can't open it.
 Widgets run in parallel, at most three at a time per source; the rest say "waiting". One that fails shows its own error and
 the others carry on. Widget runs are not added to Recent, and results are never saved with the workbook.
 
+## Tabs
+
+A **Tabs** widget groups other widgets, so a workbook can hold several views of one subject without one long page. Add one
+in edit mode with **Add widget**. It starts with one tab, "Tab 1", and its title bar is hidden. Tabs can't hold another Tabs
+widget, and the 100-widget limit counts the widgets inside tabs.
+
+Only the tab you are looking at runs its queries. The others wait until you show them, and a tab you have already run keeps
+its results, so going back shows the earlier result without a rerun. Marks on a tab name say what is waiting:
+
+- **not run**: the tab hasn't run yet.
+- **out of date**: a workbook parameter changed, or you used Refresh all, while the tab was hidden. It reruns when you show it.
+
+Which tab is shown is not part of the workbook. It isn't saved, doesn't mark the workbook as changed, and can't be undone.
+
+Arrow keys move between tabs, and Enter or Space shows the one that has focus.
+
+In edit mode:
+
+- **+** adds a tab. Double-click a tab, or press Enter on the shown tab, to rename it. A name is required and at most 40
+  characters; two tabs may share a name.
+- The shown tab's ⋯ menu has **Rename**, **Move left**, **Move right** and **Delete**. Dragging a tab in the bar reorders it.
+- Deleting a tab that has widgets asks first: move them to the neighbouring tab, delete them too, or cancel. Removing the
+  last tab removes the Tabs widget and asks the same way.
+- Move a widget to a tab by dragging its grip onto the tab bar: hold over a tab for about half a second and it is shown, so
+  you can drop the widget into it. Or open the widget's ⋯ menu and choose **Move to…**, then **Top level** or a tab. A
+  widget can be dragged out of a tab onto the grid the same way.
+- An empty tab says "No widgets on this tab", and in edit mode "Drag a widget here or use Move to…".
+
+A workbook file with tabs is saved as version 2 and needs this version of Kustodian or later; older versions say "This
+workbook needs a newer Kustodian." A file without tabs stays version 1. A solution that ships a workbook with tabs should
+set `minAppVersion` to the first release that has tabs.
+
 ## Queries
 
 A Chart, Table or Stat widget gets its query one of two ways, picked in the widget editor:
