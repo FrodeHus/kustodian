@@ -93,7 +93,7 @@ public sealed class WorkbookServiceTests : IDisposable
         switch (what)
         {
             case "kind": doc["kind"] = "other"; break;
-            case "version": doc["version"] = 2; break;
+            case "version": doc["version"] = 3; break;
             case "id": doc["id"] = "not-a-guid"; break;
             case "name-empty": doc["name"] = ""; break;
             case "name-long": doc["name"] = new string('n', 201); break;
@@ -117,6 +117,44 @@ public sealed class WorkbookServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Save_accepts_version_2()
+    {
+        var doc = Doc();
+        doc["version"] = 2;
+
+        var saved = await NewService().SaveAsync(doc, Ct);
+
+        Assert.Equal(2, saved["version"]!.GetValue<int>());
+    }
+
+    [Fact]
+    public async Task Save_refuses_version_3()
+    {
+        var doc = Doc();
+        doc["version"] = 3;
+
+        var ex = await Assert.ThrowsAsync<WorkbookRejectedException>(() => NewService().SaveAsync(doc, Ct));
+
+        Assert.Equal("This workbook needs a newer Kustodian.", ex.Message);
+    }
+
+    [Fact]
+    public void Check_counts_widgets_inside_tabs_toward_the_limit()
+    {
+        var doc = Doc();
+        doc["version"] = 2;
+        var widgets = new JsonArray(new JsonObject { ["type"] = "tabs", ["id"] = "t" });
+        for (var i = 0; i < WorkbookService.MaxWidgets; i++)
+        {
+            widgets.Add(new JsonObject { ["type"] = "markdown", ["in"] = new JsonObject { ["tabs"] = "t", ["tab"] = "a" } });
+        }
+
+        doc["widgets"] = widgets;
+
+        Assert.Equal($"A workbook can have at most {WorkbookService.MaxWidgets} widgets.", WorkbookService.Check(doc));
+    }
+
+    [Fact]
     public void Check_accepts_a_valid_workbook_and_writes_nothing()
     {
         Assert.Null(WorkbookService.Check(Doc()));
@@ -137,7 +175,7 @@ public sealed class WorkbookServiceTests : IDisposable
         switch (what)
         {
             case "kind": doc["kind"] = "x"; break;
-            case "version": doc["version"] = 2; break;
+            case "version": doc["version"] = 3; break;
             case "id": doc["id"] = "abc"; break;
             case "name-empty": doc["name"] = ""; break;
             case "name-long": doc["name"] = new string('n', 201); break;

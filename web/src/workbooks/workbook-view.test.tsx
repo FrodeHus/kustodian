@@ -73,7 +73,7 @@ function show(runs: Record<string, WidgetRun>, editing = false) {
     undo: [],
     redo: [],
     dirty: false,
-    selections: {}, history: {}, since: {},
+    selections: {}, history: {}, since: {}, activeTabs: {}, stale: {},
   };
   useWorkbooks.setState({ byTab: { t: state }, setWorkbookValue, setWidgetValue });
   return render(<WorkbookView tabId="t" />);
@@ -132,6 +132,20 @@ describe('WorkbookView', () => {
     // A container query container, or the glass workspace's backdrop filter, would be the box `fixed` resolves against.
     expect(styles).toContain('.wb-canvas:has(.wb-full) { container-type: normal; }');
     expect(styles).toContain('.theme-glass .workspace:has(.wb-full) { backdrop-filter: none; }');
+  });
+
+  it('Full screen on a widget inside a tab: the tabs widget around it neither holds it nor covers it', () => {
+    doc.widgets = [
+      { ...widget('tw', 'tabs', ''), tabs: [{ id: 't1', name: 'One' }] },
+      widget('in', 'markdown', 'Inside', undefined, { markdown: 'x', in: { tabs: 'tw', tab: 't1' } }),
+    ];
+    show({});
+    fireEvent.click(within(frame('Inside')).getByRole('button', { name: 'Inside menu' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Full screen' }));
+    expect(frame('Inside').classList.contains('wb-full')).toBe(true);
+    // The glass themes' .card backdrop filter would make the outer tabs widget the box `fixed` resolves against.
+    expect(styles).toContain('.theme-glass .wb-widget:has(.wb-full) { backdrop-filter: none; }');
+    expect(styles).toContain('.wb-widget:has(.wb-full) { z-index: 20; }');
   });
 
   it('in the glass themes, nothing in the widget editor has a backdrop filter, which would misplace Monaco’s suggest and hover', () => {
@@ -255,5 +269,19 @@ describe('WorkbookView', () => {
     expect(opened?.text).toBe('SignIns | where Env == {Env}');
     expect(opened?.source).toBe('graph');
     expect(opened?.parameters).toEqual([{ name: 'Env', type: 'list', value: 'prod', required: false, choices: ['prod', 'test'] }]);
+  });
+
+  it('narrow: the tab’s grid stacks full width like the top level', () => {
+    doc.widgets = [
+      { ...widget('tw', 'tabs', ''), tabs: [{ id: 't1', name: 'One' }] },
+      widget('in', 'markdown', 'Inside', undefined, { markdown: 'x', in: { tabs: 'tw', tab: 't1' } }),
+    ];
+    show({});
+    const inner = document.querySelector('[data-wb-place="tw/t1"]')!;
+    expect(inner.classList.contains('wb-grid')).toBe(true);
+    expect(document.querySelector('[data-wb-place=""]')?.classList.contains('wb-grid')).toBe(true);
+    expect(within(inner as HTMLElement).getByRole('region', { name: 'Inside' }).classList.contains('wb-widget')).toBe(true);
+    // The container rule is on .wb-widget wherever it sits, under the one .wb-canvas container.
+    expect(styles).toMatch(/@container \(max-width: 899px\) \{ \.wb-widget \{ grid-column: 1 \/ -1;/);
   });
 });

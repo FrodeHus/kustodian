@@ -3,7 +3,7 @@ import type { HistoryRecordAnswer, HistoryRecordParams, QueryRunParams, RunResul
 import type { Widget, WidgetParam, WidgetQuery, WorkbookDoc, WorkbookParameter } from './model';
 import { newWidget, newWorkbook } from './model';
 import { useTabs } from '../tabs/tab-store';
-import { saveWorkbook, startWorkbookTabs, useWorkbooks } from './workbook-store';
+import { saveWorkbook, startWorkbookTabs, useWorkbooks, visibleTab } from './workbook-store';
 
 const bridge = vi.hoisted(() => ({ call: vi.fn() }));
 
@@ -72,6 +72,23 @@ function widget(id: string, text: string, query: Partial<WidgetQuery> = {}, para
   const w = newWidget('table', { x: 0, y: 0, w: 3, h: 8 });
   return { ...w, id, parameters, query: { ...w.query!, text, ...query } };
 }
+
+/** A tabs widget `T` with tabs `one` and `two`, a plain widget `p`, and data widgets `a` (in one) and `b` (in two). */
+function tabbedDoc(parameters: WorkbookParameter[] = [], texts = { p: 'Tp', a: 'Ta', b: 'Tb' }): WorkbookDoc {
+  const tabs: Widget = { ...newWidget('tabs', { x: 0, y: 0, w: 4, h: 12 }), id: 'T', tabs: [{ id: 'one', name: 'One' }, { id: 'two', name: 'Two' }] };
+  return docOf(parameters, [
+    tabs,
+    widget('p', texts.p),
+    { ...widget('a', texts.a), in: { tabs: 'T', tab: 'one' } },
+    { ...widget('b', texts.b), in: { tabs: 'T', tab: 'two' } },
+  ]);
+}
+const ran = () => runs.map((r) => r.params.tabId);
+const answerAll = async () => {
+  runs.forEach((r) => r.answer(result([[1]])));
+  runs = [];
+  await flush();
+};
 
 const docOf = (parameters: WorkbookParameter[], widgets: Widget[]): WorkbookDoc => ({ ...newWorkbook('t'), parameters, widgets });
 const tab = () => useWorkbooks.getState().byTab.t!;
@@ -655,5 +672,181 @@ describe('workbook store', () => {
       expect(tab().since).toEqual({ a: 'P7D' });
       expect(runs.length).toBe(before);
     });
+  });
+});
+
+describe('tabs', () => {
+  it("load runs plain widgets and each tabs widget's first tab only", async () => {
+    void useWorkbooks.getState().load('t', tabbedDoc());
+    await flush();
+    expect(ran().sort()).toEqual(['t/a', 't/p']);
+    expect(state('b')).toBeUndefined();
+  });
+
+  it('showTab runs an unrun tab once', async () => {
+    void useWorkbooks.getState().load('t', tabbedDoc());
+    await flush();
+    await answerAll();
+    useWorkbooks.getState().showTab('t', 'T', 'two');
+    useWorkbooks.getState().showTab('t', 'T', 'two');
+    await flush();
+    expect(ran()).toEqual(['t/b']);
+    expect(tab().activeTabs).toEqual({ T: 'two' });
+  });
+
+  it("showTab back to a tab that ran doesn't rerun", async () => {
+    void useWorkbooks.getState().load('t', tabbedDoc());
+    await flush();
+    await answerAll();
+    useWorkbooks.getState().showTab('t', 'T', 'two');
+    await flush();
+    await answerAll();
+    useWorkbooks.getState().showTab('t', 'T', 'one');
+    await flush();
+    expect(runs).toHaveLength(0);
+  });
+
+  it('a parameter change reruns visible widgets and marks hidden ones that ran as stale', async () => {
+    const doc = tabbedDoc([wbParam('N', 'x')], { p: 'T {N}', a: 'T {N}', b: 'T {N}' });
+    doc.widgets.push({ ...widget('c', 'T {N}'), in: { tabs: 'T', tab: 'two' } }, { ...widget('d', 'Tfixed'), in: { tabs: 'T', tab: 'two' } });
+    void useWorkbooks.getState().load('t', doc);
+    await flush();
+    await answerAll();
+    useWorkbooks.getState().showTab('t', 'T', 'two');
+    await flush();
+    await answerAll();
+    useWorkbooks.getState().showTab('t', 'T', 'one');
+    useWorkbooks.getState().setWorkbookValue('t', 'N', 'y', { now: true });
+    await flush();
+    expect(ran().sort()).toEqual(['t/a', 't/p']);
+    expect(Object.keys(tab().stale).sort()).toEqual(['b', 'c']);
+  });
+
+  it('showTab on a stale tab reruns its stale widgets once with the new value, and clears stale', async () => {
+    const doc = tabbedDoc([wbParam('N', 'x')], { p: 'Tp', a: 'Ta', b: 'T {N}' });
+    void useWorkbooks.getState().load('t', doc);
+    await flush();
+    await answerAll();
+    useWorkbooks.getState().showTab('t', 'T', 'two');
+    await flush();
+    await answerAll();
+    useWorkbooks.getState().showTab('t', 'T', 'one');
+    useWorkbooks.getState().setWorkbookValue('t', 'N', 'y', { now: true });
+    await flush();
+    expect(tab().stale).toEqual({ b: true });
+    useWorkbooks.getState().showTab('t', 'T', 'two');
+    await flush();
+    expect(runs.map((r) => [r.params.tabId, r.params.parameters?.[0]?.value])).toEqual([['t/b', 'y']]);
+    expect(tab().stale).toEqual({});
+  });
+
+  it('a hidden widget running when a parameter changes stays stale after it finishes, and showTab reruns it once', async () => {
+    const doc = tabbedDoc([wbParam('N', 'x')], { p: 'Tp', a: 'Ta', b: 'T {N}' });
+    void useWorkbooks.getState().load('t', doc);
+    await flush();
+    await answerAll();
+    useWorkbooks.getState().showTab('t', 'T', 'two');
+    await flush();
+    useWorkbooks.getState().showTab('t', 'T', 'one');
+    expect(state('b')).toBe('running');
+    useWorkbooks.getState().setWorkbookValue('t', 'N', 'y', { now: true });
+    await flush();
+    expect(tab().stale).toEqual({ b: true });
+    await answerAll();
+    expect(state('b')).toBe('done');
+    expect(tab().stale).toEqual({ b: true });
+    useWorkbooks.getState().showTab('t', 'T', 'two');
+    await flush();
+    expect(runs.map((r) => [r.params.tabId, r.params.parameters?.[0]?.value])).toEqual([['t/b', 'y']]);
+    expect(tab().stale).toEqual({});
+  });
+
+  it('showTab reruns a stale widget whose old run is still pending, once, with the new value (R16)', async () => {
+    const doc = tabbedDoc([wbParam('N', 'x')], { p: 'Tp', a: 'Ta', b: 'T {N}' });
+    void useWorkbooks.getState().load('t', doc);
+    await flush();
+    await answerAll();
+    useWorkbooks.getState().showTab('t', 'T', 'two');
+    await flush();
+    const old = runs.find((r) => r.params.tabId === 't/b')!;
+    runs = [];
+    useWorkbooks.getState().showTab('t', 'T', 'one');
+    useWorkbooks.getState().setWorkbookValue('t', 'N', 'y', { now: true });
+    await flush();
+    expect(tab().stale).toEqual({ b: true });
+    useWorkbooks.getState().showTab('t', 'T', 'two');
+    await flush();
+    expect(runs.map((r) => [r.params.tabId, r.params.parameters?.[0]?.value])).toEqual([['t/b', 'y']]);
+    old.answer(result([[1]]));
+    await answerAll();
+    expect(state('b')).toBe('done');
+    expect(tab().stale).toEqual({});
+  });
+
+  it("showTab leaves a widget alone that is running and isn't stale", async () => {
+    void useWorkbooks.getState().load('t', tabbedDoc());
+    await flush();
+    await answerAll();
+    useWorkbooks.getState().showTab('t', 'T', 'two');
+    await flush();
+    runs = [];
+    useWorkbooks.getState().showTab('t', 'T', 'one');
+    useWorkbooks.getState().showTab('t', 'T', 'two');
+    await flush();
+    expect(runs).toHaveLength(0);
+  });
+
+  it('Refresh all marks hidden tabs stale', async () => {
+    void useWorkbooks.getState().load('t', tabbedDoc());
+    await flush();
+    await answerAll();
+    useWorkbooks.getState().showTab('t', 'T', 'two');
+    await flush();
+    await answerAll();
+    useWorkbooks.getState().showTab('t', 'T', 'one');
+    void useWorkbooks.getState().runAll('t', { refresh: true });
+    await flush();
+    expect(runs.map((r) => [r.params.tabId, r.params.refresh]).sort()).toEqual([['t/a', true], ['t/p', true]]);
+    expect(tab().stale).toEqual({ b: true });
+  });
+
+  it('refreshTab refreshes the visible tab only', async () => {
+    void useWorkbooks.getState().load('t', tabbedDoc());
+    await flush();
+    await answerAll();
+    void useWorkbooks.getState().refreshTab('t', 'T');
+    await flush();
+    expect(runs.map((r) => [r.params.tabId, r.params.refresh])).toEqual([['t/a', true]]);
+  });
+
+  it('leaving a tab mid-run lets the run finish and keeps its result', async () => {
+    void useWorkbooks.getState().load('t', tabbedDoc());
+    await flush();
+    const a = runs.find((r) => r.params.tabId === 't/a')!;
+    useWorkbooks.getState().showTab('t', 'T', 'two');
+    await flush();
+    expect(a.signal.aborted).toBe(false);
+    a.answer(result([[7]]));
+    await flush();
+    expect(state('a')).toBe('done');
+  });
+
+  it('visibleTab falls back to the first tab when the active one was deleted', async () => {
+    void useWorkbooks.getState().load('t', tabbedDoc());
+    await flush();
+    useWorkbooks.getState().showTab('t', 'T', 'two');
+    expect(visibleTab(tab(), 'T')).toBe('two');
+    useWorkbooks.getState().edit('t', (d) => ({ ...d, widgets: d.widgets.map((w) => (w.id === 'T' ? { ...w, tabs: [{ id: 'one', name: 'One' }] } : w)) }));
+    expect(visibleTab(tab(), 'T')).toBe('one');
+  });
+
+  it("activeTabs isn't in the doc and doesn't make it dirty", async () => {
+    const doc = tabbedDoc();
+    void useWorkbooks.getState().load('t', doc);
+    await flush();
+    useWorkbooks.getState().showTab('t', 'T', 'two');
+    expect(tab().doc).toBe(doc);
+    expect(tab().dirty).toBe(false);
+    expect(tab().undo).toEqual([]);
   });
 });

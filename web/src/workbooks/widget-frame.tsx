@@ -9,8 +9,9 @@ import { reportIdOf } from '../shell/report-id';
 import { SourceBadge } from '../tabs/source-badge';
 import { failed, useTabs } from '../tabs/tab-store';
 import type { ParameterDef, RunResult } from '../wire';
-import { COLUMNS, GAP_PX, nudge, place, resize, ROW_PX } from './layout';
-import { MAX_WIDGETS, newWidget, type ToolButton, type Widget, type WidgetLayout } from './model';
+import { COLUMNS, GAP_PX, nudge, resize, ROW_PX } from './layout';
+import { MAX_WIDGETS, type Place, type ToolButton, type Widget, type WidgetLayout } from './model';
+import { destinations, duplicateWidget, placeKey, placeOf, withinPlace } from './tabs';
 import { daysSince, HistoryData, SKIP_TEXT, useHistory, type HistoryFilter } from './history';
 import { ClearConfirm } from './history-section';
 import { widgetParams, widgetRunOptions, type ResolvedParam } from './resolve';
@@ -31,6 +32,8 @@ export interface WidgetEditing {
   onRemove: () => void;
   /** Said through the workbook's live region. */
   announce: (text: string) => void;
+  /** Moves the widget to another place: to the cell `at` (a drop), else the bottom (Move to…). The workbook says so and focuses it. */
+  onMoveTo: (to: Place | null, at?: { x: number; y: number }) => void;
 }
 
 /** A gesture: a move, or a resize by the right edge (w), the bottom edge (h) or the corner (both). */
@@ -38,13 +41,49 @@ type Kind = 'move' | { w: boolean; h: boolean };
 
 const ARROWS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 
-/** The widgets after moving or resizing `id` by `dx` columns and `dy` rows, through layout.ts. */
+/** The widgets after moving or resizing `id` by `dx` columns and `dy` rows within its place, through layout.ts. */
 function shifted(widgets: Widget[], id: string, kind: Kind, dx: number, dy: number): Widget[] {
-  const l = widgets.find((w) => w.id === id)?.layout;
-  if (!l) {
+  const w = widgets.find((i) => i.id === id);
+  if (!w) {
     return widgets;
   }
-  return kind === 'move' ? nudge(widgets, id, dx, dy) : resize(widgets, id, l.w + (kind.w ? dx : 0), l.h + (kind.h ? dy : 0));
+  const l = w.layout;
+  return withinPlace(widgets, placeOf(w), (s) =>
+    kind === 'move' ? nudge(s, id, dx, dy) : resize(s, id, l.w + (kind.w ? dx : 0), l.h + (kind.h ? dy : 0)),
+  );
+}
+
+/** Move to…'s entries in place of the ⋯ menu's: Top level, then each tabs widget's tabs in a group named by its title.
+ * `here`, the widget's place (a placeKey), is off. */
+function MoveToItems({ widgets, here, onMove }: { widgets: Widget[]; here: string; onMove: (to: Place | null) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  // The item that opened it was replaced, and focus went with it.
+  useEffect(() => {
+    ref.current?.querySelector<HTMLElement>('[role="menuitem"]:not(:disabled)')?.focus();
+  }, []);
+  const list = destinations(widgets);
+  const item = (d: (typeof list)[number]) => {
+    const on = placeKey(d.to) === here;
+    return (
+      <button key={placeKey(d.to)} type="button" role="menuitem" tabIndex={-1} disabled={on} onClick={() => onMove(d.to)}>
+        {on ? `${d.label} (here)` : d.label}
+      </button>
+    );
+  };
+  const groups = [...new Set(list.flatMap((d) => (d.to ? [d.to.tabs] : [])))].map((tabs) => list.filter((d) => d.to?.tabs === tabs));
+  return (
+    <div ref={ref} className="flex flex-col gap-0.5">
+      {list.filter((d) => !d.to).map(item)}
+      {groups.map((g) => (
+        <div key={g[0]!.to!.tabs} role="group" aria-label={g[0]!.group} className="flex flex-col gap-0.5">
+          <span className="faint px-2.5 pt-1.5 text-[11.5px]" aria-hidden="true">
+            {g[0]!.group}
+          </span>
+          {g.map(item)}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 const cellVars = (l: WidgetLayout) => ({ '--x': l.x + 1, '--y': l.y + 1, '--w': l.w, '--h': l.h }) as CSSProperties;
@@ -187,9 +226,23 @@ export function WidgetFrame({
   const selection = effectiveSelection(widget.selection, useWorkbooks((s) => s.byTab[tabId]?.selections[widget.id]));
   const tools = useToolRun(tabId, widget, setNotice);
   const ref = useRef<HTMLElement>(null);
-  // The pointer gesture under way: what it does, where it started, and the grid's measured column pitch.
-  const gesture = useRef<{ kind: Kind; x: number; y: number; column: number } | null>(null);
+  // The pointer gesture under way: what it does, where it started, the grid's measured column pitch, and `stop` removing its
+  // window listeners; in a move, also another place under the pointer (`over`: what is outlined, its place key, and whether the
+  // drop lands where the pointer is, in that grid, or at the bottom, for a tab name) and a hidden tab waiting to be shown.
+  const gesture = useRef<{
+    kind: Kind;
+    x: number;
+    y: number;
+    column: number;
+    stop: () => void;
+    over?: { el: HTMLElement; place: string; at: boolean };
+    hover?: { tab: HTMLElement; timer: ReturnType<typeof setTimeout> };
+  } | null>(null);
   const [target, setTarget] = useState<WidgetLayout | null>(null);
+  // The pointer is over another place's grid, which shows the drop instead of this one.
+  const [away, setAway] = useState(false);
+  // The ⋯ menu shows Move to…'s entries; it starts with its own each time it opens.
+  const [moving, setMoving] = useState(false);
   // Esc leaves full screen first, as on the Chart tab.
   useEffect(() => {
     if (!full) {
@@ -204,23 +257,6 @@ export function WidgetFrame({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [full]);
-  // Esc drops a drag under way: the widget stays where it was.
-  const dragging = target !== null;
-  useEffect(() => {
-    if (!dragging) {
-      return;
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-        gesture.current = null;
-        setTarget(null);
-      }
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [dragging]);
   if (!doc || !values) {
     return null;
   }
@@ -275,10 +311,44 @@ export function WidgetFrame({
   };
 
   const { edit } = useWorkbooks.getState();
-  function cancelGesture() {
+  /** Ends the gesture under way, if any, leaving no listener, outline or timer behind. */
+  function endGesture() {
+    const g = gesture.current;
     gesture.current = null;
+    g?.stop();
+    clearTimeout(g?.hover?.timer);
+    g?.over?.el.classList.remove('wb-drop');
     setTarget(null);
+    setAway(false);
   }
+  /** In a move, follows the pointer across grids: outlines another place's grid under it, and shows a hidden tab hovered for
+   * 500 ms. Over a tab name the place is that tab (its grid outlined if shown, else the tab); in a tab panel outside its grid,
+   * that grid (R17). True when it is over another place. */
+  const follow = (e: { clientX: number; clientY: number }) => {
+    const g = gesture.current!;
+    const under = document.elementFromPoint(e.clientX, e.clientY);
+    const tab = under?.closest<HTMLElement>('[data-wb-tab]') ?? undefined;
+    if (g.hover?.tab !== tab) {
+      clearTimeout(g.hover?.timer);
+      g.hover =
+        tab && tab.getAttribute('aria-selected') !== 'true'
+          ? { tab, timer: setTimeout(() => useWorkbooks.getState().showTab(tabId, tab.dataset.wbTabs!, tab.dataset.wbTab!), 500) }
+          : undefined;
+    }
+    // A tabs widget's panel holds its shown tab's grid; another widget's result panel holds none.
+    const gridIn = (panel: Element | null | undefined) => panel?.querySelector<HTMLElement>(':scope > [data-wb-place]') ?? undefined;
+    const grid = gridIn(under?.closest('[role=tabpanel]')) ?? under?.closest<HTMLElement>('[data-wb-place]') ?? undefined;
+    const place = tab ? placeKey({ tabs: tab.dataset.wbTabs!, tab: tab.dataset.wbTab! }) : grid?.dataset.wbPlace;
+    const shownGrid = tab?.getAttribute('aria-selected') === 'true' ? gridIn(document.getElementById(tab.getAttribute('aria-controls') ?? '')) : undefined;
+    const el = tab ? (shownGrid ?? tab) : grid;
+    const over = el && place !== undefined && place !== placeKey(placeOf(widget)) ? { el, place, at: !tab } : undefined;
+    if (g.over?.el !== over?.el) {
+      g.over?.el.classList.remove('wb-drop');
+      over?.el.classList.add('wb-drop');
+    }
+    g.over = over;
+    return over !== undefined;
+  };
   const steps = (e: { clientX: number; clientY: number }) => {
     const g = gesture.current;
     return g ? ([Math.round((e.clientX - g.x) / g.column), Math.round((e.clientY - g.y) / (ROW_PX + GAP_PX))] as const) : null;
@@ -293,10 +363,11 @@ export function WidgetFrame({
     editing?.announce(kind === 'move' ? `Moved to column ${now.x + 1}, row ${now.y + 1}` : `Resized to ${now.w} × ${now.h}`);
   };
   const duplicate = () => {
-    edit(tabId, (d) => ({ ...d, widgets: [...d.widgets, { ...widget, id: newWidget(widget.type, widget.layout).id, layout: place(d.widgets, widget.layout.w, widget.layout.h) }] }));
+    edit(tabId, (d) => ({ ...d, widgets: duplicateWidget(d.widgets, widget.id) ?? d.widgets }));
     editing?.announce(`Duplicated ${title}`);
   };
-  /** Pointer handlers for the grip or a resize handle: moves by whole cells, with the drop target showing where it lands. */
+  /** Pointer handlers for the grip or a resize handle: moves by whole cells, with the drop target showing where it lands. A move
+   * (of a widget other than a tabs widget, which stays at the top level) can also drop into another place's grid. */
   const drag = (kind: Kind) => ({
     onPointerDown: (e: PointerEvent<HTMLElement>) => {
       const grid = ref.current?.parentElement?.getBoundingClientRect();
@@ -307,26 +378,77 @@ export function WidgetFrame({
       e.stopPropagation();
       // Absent in jsdom; in a browser it keeps the gesture's events on the handle when the pointer leaves it.
       e.currentTarget.setPointerCapture?.(e.pointerId);
-      gesture.current = { kind, x: e.clientX, y: e.clientY, column: (grid.width + GAP_PX) / COLUMNS };
+      endGesture();
+      const across = kind === 'move' && widget.type !== 'tabs';
+      const id = e.pointerId;
+      let armed = false;
+      const onMove = (m: globalThis.PointerEvent) => {
+        if (m.pointerId !== id) {
+          return;
+        }
+        // Released where no pointerup reached us (outside the window, after a tab shown mid-drag hid this widget).
+        if (m.buttons === 0) {
+          endGesture();
+          return;
+        }
+        // Esc drops the drag once it has moved, so a press that doesn't move leaves Esc alone.
+        if (!armed) {
+          armed = true;
+          window.addEventListener('keydown', onKey, true);
+        }
+        const s = steps(m);
+        if (s) {
+          setAway(across && follow(m));
+          setTarget(shifted(doc.widgets, widget.id, kind, s[0], s[1]).find((w) => w.id === widget.id)?.layout ?? null);
+        }
+      };
+      const onUp = (u: globalThis.PointerEvent) => {
+        if (u.pointerId !== id) {
+          return;
+        }
+        const s = steps(u);
+        const over = gesture.current?.over;
+        endGesture();
+        const to = over && destinations(doc.widgets).find((d) => placeKey(d.to) === over.place);
+        if (over) {
+          // No destination when its tab went mid-drag: nothing moves.
+          if (!to) {
+            return;
+          }
+          // Dropped on a tab name: at the bottom of that tab.
+          const r = over.at ? over.el.getBoundingClientRect() : null;
+          editing?.onMoveTo(
+            to.to,
+            r ? { x: Math.floor((u.clientX - r.left) / ((r.width + GAP_PX) / COLUMNS)), y: Math.floor((u.clientY - r.top) / (ROW_PX + GAP_PX)) } : undefined,
+          );
+        } else if (s && ref.current) {
+          // Not when a tab shown mid-drag hid this widget: back over its home grid, that drop does nothing.
+          commit(kind, s[0], s[1]);
+        }
+      };
+      // Esc drops the drag: the widget stays where it was.
+      const onKey = (k: KeyboardEvent) => {
+        if (k.key === 'Escape') {
+          k.preventDefault();
+          k.stopPropagation();
+          endGesture();
+        }
+      };
+      // On the window, not the handle: showing a tab mid-drag can unmount this widget, and the drop must still land.
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', endGesture);
+      const stop = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', endGesture);
+        window.removeEventListener('keydown', onKey, true);
+      };
+      gesture.current = { kind, x: e.clientX, y: e.clientY, column: (grid.width + GAP_PX) / COLUMNS, stop };
       editing?.onSelect();
     },
-    onPointerMove: (e: PointerEvent<HTMLElement>) => {
-      const s = steps(e);
-      if (s) {
-        setTarget(shifted(doc.widgets, widget.id, kind, s[0], s[1]).find((w) => w.id === widget.id)?.layout ?? null);
-      }
-    },
-    onPointerUp: (e: PointerEvent<HTMLElement>) => {
-      const s = steps(e);
-      gesture.current = null;
-      setTarget(null);
-      if (s) {
-        commit(kind, s[0], s[1]);
-      }
-    },
-    onPointerCancel: cancelGesture,
     // Capture lost without a pointerup here (the window lost focus, say): drop the gesture rather than leave its target up.
-    onLostPointerCapture: cancelGesture,
+    onLostPointerCapture: endGesture,
   });
   const onGripKey = (e: KeyEvent) => {
     const arrow = ARROWS[e.key];
@@ -353,7 +475,14 @@ export function WidgetFrame({
   const used = params.filter((p) => p.from === 'workbook').map((p) => p.name);
 
   const selected = editing?.selected ?? false;
+  // Only the selected widget shows Duplicate; off when the copy (a tabs widget's with its widgets) would pass MAX_WIDGETS.
+  const canDuplicate = selected && duplicateWidget(doc.widgets, widget.id) !== null;
   const bare = !editing && widget.hideTitle === true;
+  const refreshTab = (
+    <button type="button" role="menuitem" tabIndex={-1} onClick={() => void useWorkbooks.getState().refreshTab(tabId, widget.id)}>
+      Refresh
+    </button>
+  );
   return (
     <>
       <section
@@ -361,7 +490,8 @@ export function WidgetFrame({
         aria-label={title}
         style={cellVars(widget.layout)}
         className={`card wb-widget flex min-h-0 min-w-0 flex-col ${selected ? 'border-accent' : ''} ${full ? 'wb-full fixed inset-0 z-20 rounded-none' : 'relative'}`}
-        onPointerDown={editing?.onSelect}
+        // Not for a widget inside this one (in a tabs widget): that one selects itself.
+        onPointerDown={editing && ((e) => e.target instanceof Element && e.target.closest('.wb-widget') === e.currentTarget && editing.onSelect())}
       >
         {/* One row that never wraps (the title truncates, so it fits at the narrowest widget), then a row that wraps for the
             widget's own controls, the workbook parameters it uses and, in edit mode, its size and (selected) its actions. */}
@@ -371,6 +501,7 @@ export function WidgetFrame({
               <button
                 type="button"
                 className="wb-grip btn ghost"
+                data-wb-grip={widget.id}
                 aria-label={`Move ${title}`}
                 title="Drag to move. Arrows move, Shift+arrows resize, Delete removes."
                 onFocus={editing.onSelect}
@@ -384,10 +515,13 @@ export function WidgetFrame({
             <b className="min-w-0 flex-1 truncate" title={title}>
               {title}
             </b>
-            <div className="flex shrink-0 items-center gap-2">
+            {/* Opening ⋯ (its button's click) starts it with its own items, not Move to…'s. */}
+            <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.target instanceof Element && e.target.closest('[aria-haspopup]') && setMoving(false)}>
               {!editing && result && <span className="mono faint text-[11.5px]">{duration(result.durationMs)}</span>}
               <MenuButton label={`${title} menu`} icon="⋯">
-                {widget.query && (
+                {moving && editing && <MoveToItems widgets={doc.widgets} here={placeKey(placeOf(widget))} onMove={(to) => editing.onMoveTo(to)} />}
+                {!moving && widget.type === 'tabs' && refreshTab}
+                {!moving && widget.query && (
                   <>
                     <button type="button" role="menuitem" tabIndex={-1} onClick={() => void useWorkbooks.getState().runWidget(tabId, widget.id, { refresh: true })}>
                       Refresh
@@ -403,14 +537,21 @@ export function WidgetFrame({
                     {toolsOn && <ToolButtonItems tabId={tabId} widget={widget} placement="menu" onOpen={tools.open} />}
                   </>
                 )}
-                {widget.history && (
+                {!moving && widget.history && (
                   <button type="button" role="menuitem" tabIndex={-1} onClick={() => setClearing(true)}>
                     Clear history…
                   </button>
                 )}
-                <button type="button" role="menuitem" tabIndex={-1} onClick={() => setFull(!full)}>
-                  {full ? 'Exit full screen' : 'Full screen'}
-                </button>
+                {!moving && (
+                  <button type="button" role="menuitem" tabIndex={-1} onClick={() => setFull(!full)}>
+                    {full ? 'Exit full screen' : 'Full screen'}
+                  </button>
+                )}
+                {!moving && editing && widget.type !== 'tabs' && (
+                  <button type="button" role="menuitem" tabIndex={-1} data-keep-open onClick={() => setMoving(true)}>
+                    Move to…
+                  </button>
+                )}
               </MenuButton>
             </div>
           </div>
@@ -448,8 +589,8 @@ export function WidgetFrame({
                   <button
                     type="button"
                     className="btn ghost"
-                    disabled={doc.widgets.length >= MAX_WIDGETS}
-                    title={doc.widgets.length >= MAX_WIDGETS ? `A workbook can have at most ${MAX_WIDGETS} widgets.` : undefined}
+                    disabled={!canDuplicate}
+                    title={canDuplicate ? undefined : `A workbook can have at most ${MAX_WIDGETS} widgets.`}
                     onClick={duplicate}
                   >
                     Duplicate
@@ -474,7 +615,18 @@ export function WidgetFrame({
           )}
         </header>
         {notice && <NoticeLine notice={notice} onDismiss={() => setNotice(null)} />}
-        <div className={`flex min-h-0 flex-1 flex-col overflow-hidden ${bare ? 'pt-3' : ''}`}>
+        {/* A tabs widget without its title bar keeps ⋯ at the end of its tab bar. */}
+        {bare && widget.type === 'tabs' && (
+          <div className="absolute top-1 right-2">
+            <MenuButton label={`${title} menu`} icon="⋯">
+              {refreshTab}
+              <button type="button" role="menuitem" tabIndex={-1} onClick={() => setFull(!full)}>
+                {full ? 'Exit full screen' : 'Full screen'}
+              </button>
+            </MenuButton>
+          </div>
+        )}
+        <div className={`flex min-h-0 flex-1 flex-col overflow-hidden ${bare && widget.type !== 'tabs' ? 'pt-3' : ''}`}>
           {(widget.query && runBody(tabId, widget, run, onSignIn)) ?? (
             <HistoryData.Provider value={{ ...history, filter, setFilter }}>
               {full ? <SheetHost.Provider value={null}>{children}</SheetHost.Provider> : children}
@@ -502,7 +654,7 @@ export function WidgetFrame({
           </>
         )}
       </section>
-      {target && <div className="wb-widget wb-drop" style={cellVars(target)} aria-hidden="true" />}
+      {target && !away && <div className="wb-widget wb-drop" style={cellVars(target)} aria-hidden="true" />}
       {/* Outside the widget's body, so a rerun's spinner doesn't unmount it (Review Focus 5). */}
       {tools.dialog}
       {clearing &&

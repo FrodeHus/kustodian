@@ -88,7 +88,7 @@ public sealed class WorkbookHandlerTests : IDisposable
 
     [Theory]
     [InlineData("""{}""", "The request has no workbook.")]
-    [InlineData("""{"workbook":{"kind":"kustodian.workbook","version":2}}""", "This workbook needs a newer Kustodian.")]
+    [InlineData("""{"workbook":{"kind":"kustodian.workbook","version":3}}""", "This workbook needs a newer Kustodian.")]
     public async Task Workbook_check_that_is_not_allowed_is_a_bad_request(string @params, string message)
     {
         var reply = await CallAsync("workbook.check", @params);

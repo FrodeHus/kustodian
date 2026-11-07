@@ -53,6 +53,17 @@ describe('readWorkbookFile', () => {
     expect(out.parameters[0]).toMatchObject({ name: 'S', type: 'text' });
     expect('modifiedAt' in out).toBe(false);
   });
+  it('keeps a tabs widget, its tabs, hideTitle and the place of the widgets in it (export and import carry tabs, spec §15.4)', () => {
+    const tabs = { id: 't', type: 'tabs', title: 'Views', hideTitle: true, layout: { x: 0, y: 0, w: 12, h: 12 }, parameters: {},
+      tabs: [{ id: 'a', name: 'A', command: 'tab' }, { id: 'b', name: 'B' }] };
+    const inB = { id: 'm', type: 'markdown', title: 'Note', markdown: 'hi', layout: { x: 0, y: 0, w: 4, h: 4 }, parameters: {},
+      in: { tabs: 't', tab: 'b', command: 'in' } };
+    const out = readWorkbookFile(JSON.stringify(file({ version: 2, widgets: [tabs, inB] }))) as WorkbookDoc;
+    expect(JSON.stringify(out)).not.toContain('command');
+    expect(out.widgets[0]).toMatchObject({ type: 'tabs', hideTitle: true, tabs: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }] });
+    expect(out.widgets[1]?.in).toEqual({ tabs: 't', tab: 'b' });
+    expect(parseWorkbook(JSON.parse(JSON.stringify(out)))).toEqual(out);
+  });
 });
 
 describe('importSummary', () => {

@@ -7,6 +7,9 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Workbook tabs**: workbooks can group widgets in tabs. Only the tab you're looking at runs its queries; the others show
+  "not run" or "out of date" until you open them. Widgets move between tabs by drag or **Move to…**. A workbook with tabs
+  needs this version or later. See [docs/workbooks.md](docs/workbooks.md#tabs).
 - **Community Solutions**: a **Solutions** panel in the rail lists ready-made queries and workbooks from the `Solutions/`
   folder of the Kustodian repository, with **Kustodian** and **Community** badges. Open one to read its README and tick the
   items to install into a library folder named after it, with new ids; nothing runs on install. Uninstall removes what you

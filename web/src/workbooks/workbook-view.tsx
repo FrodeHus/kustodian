@@ -14,17 +14,19 @@ import { SourceBadge } from '../tabs/source-badge';
 import { useTabs } from '../tabs/tab-store';
 import type { LibraryList, SavedQuery } from '../wire';
 import { narrowOrder, place } from './layout';
-import { MAX_WIDGETS, MIN_SIZE, newWidget, type Widget, type WidgetType, type WorkbookParameter } from './model';
+import { MAX_WIDGETS, MIN_SIZE, newWidget, type Place, type Widget, type WidgetType, type WorkbookParameter } from './model';
 import { huntingTimespanProblem, workbookValues } from './resolve';
 import { ParametersDialog } from './parameters-dialog';
+import { childrenOf, moveTo, placeKey, placeOf, removeTabs, siblings } from './tabs';
+import { ChildrenConfirm, TabsWidget } from './tabs-widget';
 import { WidgetEditor } from './widget-editor';
-import { WidgetFrame } from './widget-frame';
+import { WidgetGrid, type GridEditing } from './widget-grid';
 import { ChartWidget } from './widgets/chart-widget';
 import { MarkdownWidget } from './widgets/markdown-widget';
 import { StatWidget } from './widgets/stat-widget';
 import { SheetHost } from './widgets/sheet-host';
 import { TableWidget } from './widgets/table-widget';
-import { editRanWidgets, editStartDoc, readLibrary, useWorkbooks } from './workbook-store';
+import { editRanWidgets, editStartDoc, readLibrary, useWorkbooks, visibleTab } from './workbook-store';
 
 const ALL = '\u0000all';
 
@@ -102,6 +104,7 @@ const ADDABLE: [WidgetType, string][] = [
   ['chart', 'Chart'],
   ['table', 'Table'],
   ['stat', 'Stat'],
+  ['tabs', 'Tabs'],
 ];
 
 /** "From a saved query…": the library's saved queries (a raw request can't run in a widget), to pick one to link. */
@@ -217,10 +220,14 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
   const [deleting, setDeleting] = useState(false);
   const [problem, setProblem] = useState<Shown | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  // The tab grid (clicked in edit mode) new widgets go into; null is the top level.
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   // Each announcement is a fresh node (n), so saying the same thing twice is heard twice.
   const [said, setSaid] = useState({ text: '', n: 0 });
   const say = (text: string) => setSaid((s) => ({ text, n: s.n + 1 }));
   const [picking, setPicking] = useState(false);
+  // A tabs widget with widgets being removed: the confirm asks what happens to them.
+  const [removingTabs, setRemovingTabs] = useState<{ widget: Widget; count: number } | null>(null);
   // The widget open in the widget editor, and the Edit widget control focus goes back to when it closes.
   const [editingWidget, setEditingWidget] = useState<{ id: string; opener: HTMLElement } | null>(null);
   const [parametersOpen, setParametersOpen] = useState(false);
@@ -228,7 +235,6 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
   const editRef = useRef<HTMLButtonElement>(null);
   const editingBar = useRef<HTMLDivElement>(null);
   const undoRef = useRef<HTMLButtonElement>(null);
-  const gridRef = useRef<HTMLDivElement>(null);
   // Table widgets open their row details here, over the whole workbook, as a query tab's results do.
   const [sheetHost, setSheetHost] = useState<HTMLDivElement | null>(null);
   // Where focus goes once the next render is in (the toolbar swaps, a removed grip unmounts, Undo enables).
@@ -263,12 +269,18 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
   const add = (widget: Widget, what: string) => {
     store().edit(tabId, (d) => ({ ...d, widgets: [...d.widgets, widget] }));
     setSelected(widget.id);
-    say(`Added ${what} at column ${widget.layout.x + 1}, row ${widget.layout.y + 1}`);
+    const tab = widget.in && doc.widgets.find((w) => w.id === widget.in?.tabs)?.tabs?.find((t) => t.id === widget.in?.tab);
+    say(`Added ${what}${tab ? ` to ${tab.name}` : ''} at column ${widget.layout.x + 1}, row ${widget.layout.y + 1}`);
   };
-  const addNew = (type: WidgetType, name: string) => {
+  // Into the selected tab while it's the one shown; a tabs widget always goes to the top level.
+  const into = (type: WidgetType) => (type !== 'tabs' && selectedPlace && visibleTab(state, selectedPlace.tabs) === selectedPlace.tab ? selectedPlace : null);
+  const placed = (type: WidgetType) => {
+    const at = into(type);
     const min = MIN_SIZE[type];
-    add(newWidget(type, place(doc.widgets, min.w, min.h * 2)), `a ${name} widget`);
+    const w = newWidget(type, place(siblings(doc.widgets, at), min.w, min.h * 2));
+    return at ? { ...w, in: at } : w;
   };
+  const addNew = (type: WidgetType, name: string) => add(placed(type), `a ${name} widget`);
   // The picker opens from + Add widget, the editing bar's first button; focus goes back there when it closes.
   const closePicker = () => {
     setPicking(false);
@@ -279,8 +291,7 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
     if (q.source === 'raw') {
       return;
     }
-    const min = MIN_SIZE.table;
-    const widget = newWidget('table', place(doc.widgets, min.w, min.h * 2));
+    const widget = placed('table');
     widget.title = q.name;
     widget.query = { source: q.source, text: q.text, options: q.options ?? null, parameters: q.parameters, saved: { id: q.id, name: q.name } };
     add(widget, q.name);
@@ -294,6 +305,7 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
     const start = editStartDoc(tabId);
     const ran = editRanWidgets(tabId);
     setSelected(null);
+    setSelectedPlace(null);
     store().setEditing(tabId, false, discard);
     focusNext.current = () => editRef.current;
     say(discard ? 'Changes discarded' : 'Done editing');
@@ -315,14 +327,35 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
       void store().runAll(tabId);
     }
   };
-  const removeWidget = (w: Widget) => {
-    // Grips are in the grid's (y, x) order; focus the next one, else the previous, else Undo.
-    const grips = [...(gridRef.current?.querySelectorAll<HTMLElement>('.wb-grip') ?? [])];
-    const at = narrowOrder(doc.widgets).findIndex((x) => x.id === w.id);
+  /** Removes `w`; a tabs widget's widgets are moved to the top level or deleted too, as asked when it has any. */
+  const removeWidget = (w: Widget, children?: 'move' | 'delete') => {
+    setRemovingTabs(null);
+    const count = w.type === 'tabs' ? childrenOf(doc.widgets, w.id).length : 0;
+    if (count > 0 && !children) {
+      setRemovingTabs({ widget: w, count });
+      return;
+    }
+    if (selected === w.id) {
+      setSelected(null);
+    }
+    // Grips are in the widget's grid's (y, x) order; focus the next one, else the previous, else Undo.
+    const grid = sheetHost?.querySelector(`[data-wb-place="${placeKey(placeOf(w))}"]`);
+    const grips = [...(grid?.querySelectorAll<HTMLElement>(':scope > .wb-widget > header .wb-grip') ?? [])];
+    const at = narrowOrder(siblings(doc.widgets, placeOf(w))).findIndex((x) => x.id === w.id);
     const next = grips[at + 1] ?? grips[at - 1];
-    store().edit(tabId, (d) => ({ ...d, widgets: d.widgets.filter((x) => x.id !== w.id) }));
+    store().edit(tabId, (d) => ({ ...d, widgets: w.type === 'tabs' ? removeTabs(d.widgets, w.id, children ?? 'move') : d.widgets.filter((x) => x.id !== w.id) }));
     focusNext.current = () => next ?? undoRef.current;
     say(`Removed ${w.title || 'Untitled widget'}`);
+  };
+  /** Moves `w` to `to`, at the cell `at` or else the bottom. A hidden tab it lands in is shown, so its grip can take focus. */
+  const moveWidget = (w: Widget, to: Place | null, at?: { x: number; y: number }) => {
+    store().edit(tabId, (d) => ({ ...d, widgets: moveTo(d.widgets, w.id, to, at) }));
+    const now = store().byTab[tabId];
+    if (to && now && visibleTab(now, to.tabs) !== to.tab) {
+      store().showTab(tabId, to.tabs, to.tab);
+    }
+    focusNext.current = () => [...(sheetHost?.querySelectorAll<HTMLElement>('[data-wb-grip]') ?? [])].find((g) => g.dataset.wbGrip === w.id);
+    say(to ? `Moved to ${doc.widgets.find((x) => x.id === to.tabs)?.tabs?.find((t) => t.id === to.tab)?.name ?? ''}` : 'Moved to the top level');
   };
   const undo = () => {
     store().undoEdit(tabId);
@@ -333,7 +366,7 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
     say('Redone');
   };
   const onKey = (e: KeyboardEvent) => {
-    if (!editing || editingWidget || parametersOpen || picking || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z' || inTextField(e.target)) {
+    if (!editing || editingWidget || parametersOpen || picking || removingTabs || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z' || inTextField(e.target)) {
       return;
     }
     e.preventDefault();
@@ -355,8 +388,25 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
         return <TableWidget widget={w} run={run} tabId={tabId} />;
       case 'stat':
         return <StatWidget widget={w} run={run} tabId={tabId} />;
+      case 'tabs':
+        return <TabsWidget tabId={tabId} widget={w} editing={gridEditing} body={body} onSignIn={onSignIn} />;
     }
   };
+  const gridEditing: GridEditing | undefined = editing
+    ? {
+        selected,
+        onSelect: (w) => {
+          setSelected(w.id);
+          setSelectedPlace(null);
+        },
+        onEditWidget: (w, opener) => setEditingWidget({ id: w.id, opener }),
+        onRemove: removeWidget,
+        announce: say,
+        onMoveTo: moveWidget,
+        selectedPlace,
+        onSelectPlace: setSelectedPlace,
+      }
+    : undefined;
 
   return (
     <div ref={setSheetHost} className="relative flex min-h-0 flex-1 flex-col" onKeyDown={onKey}>
@@ -432,6 +482,15 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
       </p>
       {/* The dialogs go on the body: a glass theme's workspace (backdrop-filter) would hold a fixed overlay inside it and leave
           the tab strip clickable. React events still come up through this tree, so onKey sees them. */}
+      {removingTabs && (
+        <ChildrenConfirm
+          question={`Remove ${removingTabs.widget.title || 'Tabs'}?`}
+          count={removingTabs.count}
+          move="Move widgets to the top level"
+          onChoose={(children) => removeWidget(removingTabs.widget, children)}
+          onCancel={() => setRemovingTabs(null)}
+        />
+      )}
       {editingWidget &&
         createPortal(
           <WidgetEditor
@@ -475,23 +534,7 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
           {doc.widgets.length === 0 && !editing ? (
             <p className="faint m-0 text-[12px]">No widgets yet. Edit the workbook to add some.</p>
           ) : (
-            <div ref={gridRef} className={editing ? 'wb-grid wb-editing' : 'wb-grid'}>
-              {narrowOrder(doc.widgets).map((w) => (
-                <WidgetFrame
-                  key={w.id}
-                  tabId={tabId}
-                  widget={w}
-                  onSignIn={onSignIn}
-                  editing={
-                    editing
-                      ? { selected: selected === w.id, onSelect: () => setSelected(w.id), onEditWidget: (opener) => setEditingWidget({ id: w.id, opener }), onRemove: () => removeWidget(w), announce: say }
-                      : undefined
-                  }
-                >
-                  {body(w)}
-                </WidgetFrame>
-              ))}
-            </div>
+            <WidgetGrid tabId={tabId} place={null} editing={gridEditing} body={body} onSignIn={onSignIn} />
           )}
         </div>
       </SheetHost.Provider>

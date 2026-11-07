@@ -134,7 +134,7 @@ describe('importWorkbook', () => {
 
   it.each([
     ['{', "This file isn't JSON."],
-    [file({ version: 2 }), 'This workbook needs a newer Kustodian.'],
+    [file({ version: 3 }), 'This workbook needs a newer Kustodian.'],
     [file({ name: 'x'.repeat(300) }), 'The name is over 200 characters.'],
   ])('stops with the reason and shows nothing: %#', async (given, message) => {
     text = given;
