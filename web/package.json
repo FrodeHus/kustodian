@@ -14,9 +14,9 @@
     "@fontsource/inter": "^5.2.8",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@kusto/monaco-kusto": "15.0.2",
-    "@tailwindcss/vite": "^4.3.3",
+    "@tailwindcss/vite": "^4.3.4",
     "@tanstack/react-table": "^9.3.1",
-    "@tanstack/react-virtual": "^3.14.24",
+    "@tanstack/react-virtual": "^3.14.26",
     "dompurify": "^3.4.17",
     "monaco-editor": "~0.55.1",
     "react": "^19.2.8",
@@ -33,12 +33,12 @@
     "@testing-library/user-event": "^14.6.8",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
-    "@vitejs/plugin-react": "^6.1.1",
+    "@vitejs/plugin-react": "^6.2.1",
     "jsdom": "^30.1.3",
-    "oxlint": "^1.90.0",
+    "oxlint": "^1.91.0",
     "typescript": "~7.0.2",
     "vite": "^8.3.4",
-    "vitest": "^5.0.1"
+    "vitest": "^5.1.0"
   },
   "overrides": {
     "monaco-editor": {
