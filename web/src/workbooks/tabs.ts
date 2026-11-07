@@ -94,10 +94,7 @@ export function deleteTab(widgets: Widget[], tabsId: string, tabId: string, chil
   return editTabs(kept, tabsId, (t) => t.filter((x) => x.id !== tabId));
 }
 
-const fresh = (w: Widget): Widget => {
-  const { history: _history, ...rest } = w;
-  return { ...rest, id: newWidget(w.type, w.layout).id };
-};
+const fresh = (w: Widget): Widget => ({ ...w, id: newWidget(w.type, w.layout).id });
 
 export function duplicateWidget(widgets: Widget[], id: string): Widget[] | null {
   const w = widgets.find((i) => i.id === id);

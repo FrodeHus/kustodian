@@ -128,12 +128,12 @@ describe('tab edits', () => {
 });
 
 describe('duplicateWidget', () => {
-  it('copies a plain widget without history, placed among siblings', () => {
+  it('copies a plain widget keeping its history config, placed among siblings', () => {
     const l = [w('a', 0, { history: { mode: 'values', interval: 'run', retentionDays: 30, keys: [], keep: [], since: 'previous' } })];
     const out = duplicateWidget(l, 'a')!;
     expect(out).toHaveLength(2);
     expect(out[1]!.id).not.toBe('a');
-    expect(out[1]!.history).toBeUndefined();
+    expect(out[1]!.history).toEqual(l[0]!.history);
     expect(out[1]!.layout.x).toBe(6);
   });
   it('copies a tabs widget with new tab and widget ids and remapped in', () => {
