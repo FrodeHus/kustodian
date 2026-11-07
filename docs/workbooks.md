@@ -6,7 +6,7 @@ the tab strip. It opens as a workbook tab next to your query tabs. Save it with 
 
 ## Widgets
 
-Widgets sit on a 12-column grid. Each has a header with its title, the source, the parameters it shows, which workbook
+Widgets sit on a 12-column grid, at most 100 in a workbook. Each has a header with its title, the source, the parameters it shows, which workbook
 parameters it uses, and how long its last run took. The ⋯ menu has Refresh, Open in query tab, Export (CSV, JSON or
 Markdown) and Full screen.
 
@@ -33,6 +33,32 @@ A Chart, Table or Stat widget gets its query one of two ways, picked in the widg
   editing the saved query changes every widget that uses it. **Open in tab** opens it; **Copy into widget** turns the widget
   into the first kind. The workbook keeps a copy of a linked query's last text, so a deleted saved query leaves the widget
   with an error and that copy to copy in.
+
+## Selection and tool buttons
+
+A table widget can have a checkbox column and tool buttons that run one of your external tools (see
+[external-tools.md](external-tools.md)) on its rows. In the widget editor, **Rows can be selected** turns the checkboxes on
+or off, and with **Several rows at once** off, only one row at a time can be selected. The widget header shows "2 of 14 selected", and select-all ticks
+the rows the filter shows.
+
+Tool buttons are set up on the editor's **Tool buttons** tab. Each button has:
+
+- a label, and a placement: the widget header or the ⋯ menu;
+- a **tool**, chosen from your `tools.json` by name. The editor shows its command line for reading;
+- a **column mapping** for each `{parameter}` in the tool's arguments. It starts with the column of the same name, ignoring
+  case. Only result columns can fill an argument;
+- **runs on**: the selected rows, or all rows the filter shows when none are selected (the default), or only the selected
+  rows, which leaves the button off while none are selected;
+- **after it runs**: refresh this widget (the default), refresh the whole workbook, or nothing.
+
+The label carries the count: `Stop VM · 2` with two rows selected, `Stop VM · all 14` when it will run on every row the
+filter shows. Clicking it opens the same dialog as the Rows tab's **Run tool**, titled for example "Stop VM on 2 selected
+rows": the mapping, the command line for the first row, and the row count, then Run. That confirmation can't be turned off.
+`each` and `batch` tools both work; a `batch` tool gets the rows on stdin. If the tool isn't in your `tools.json` the button
+says "There's no tool named Stop VM in your tools.json." and offers **Edit tools…**.
+
+A workbook stores only the tool's name and the column mapping, never a command. A workbook from someone else works only
+with a tool of the same name in your own `tools.json`, and what that tool does is up to you. Every run asks first.
 
 ## Parameters
 
@@ -75,8 +101,28 @@ they stack full width, in top-to-bottom, left-to-right order.
 ## Saving and restoring
 
 The first Save asks for a name and a folder. Later saves write straight away. Workbooks are listed under **Workbooks** in the
-side panel next to saved queries, where a click opens one and its menu deletes it. A dot on the tab means unsaved changes, and
+side panel next to saved queries, in their folders, where a click opens one and its menu deletes it. A dot on the tab means unsaved changes, and
 closing such a tab asks first, as a query tab does.
 
 Unsaved workbooks, edits included, come back after a restart like unsaved query tabs do. If the saved copy was deleted in the
 meantime, the tab stays open as unsaved.
+
+## Sharing
+
+**Export…** in a workbook's ⋯ menu writes one `.kustodian-workbook.json` file: the workbook's layout, queries, parameters
+with their defaults, and tool-button settings. Linked saved queries carry their text. It never holds results, tokens or
+remembered values.
+
+**Import…** in the Workbooks group of the Saved panel, or **Import workbook…** in the command palette, opens a file and shows
+a review first. Nothing runs, and nothing is saved, until you choose. The review shows:
+
+- **What's in it**: the widgets, parameters and buttons.
+- **Saved queries**: they are added to your library with new ids, in a folder named after the workbook, or copied into the
+  widgets. **Open without saving** always copies them and saves nothing.
+- **Tool buttons**: each is matched by name to a tool in your own `tools.json`. Import never changes `tools.json`. A button
+  with no match is left off, unless you choose one of your tools for it.
+- **Parameter values**: the defaults are listed. They aren't checked against your tenant yet.
+- **The file**: shown as Kustodian read it.
+
+If you already have a workbook with the same id, the review asks: **Keep both** (the default, with a new id) or **Replace**.
+Replace is off while that workbook is open in a tab.

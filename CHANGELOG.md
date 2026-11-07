@@ -9,8 +9,18 @@ follow [Semantic Versioning](https://semver.org/).
 
 - **Workbooks**: a tab of Markdown, Chart, Table and Stat widgets on a grid, each running a query written in the widget or a
   linked saved one, on any source. Workbook parameters rerun only the widgets that use them, and widgets can show their own.
-  Edit mode (mouse or keyboard) arranges widgets, and workbooks save to the library and come back after a restart. See
+  Edit mode (mouse or keyboard) arranges widgets, and workbooks save to the library and come back after a restart. A
+  workbook tab gets the full width: the side panel stays closed until you open one from the rail. See
   [docs/workbooks.md](docs/workbooks.md).
+- **Tool buttons on table widgets**: tick rows in a table widget and run one of your external tools on them with a button
+  such as `Stop VM · 2`. The button names a tool in your `tools.json` and maps its parameters to columns; it runs on the
+  selected rows, or on all rows the filter shows when none are selected, and always asks first. See
+  [docs/workbooks.md](docs/workbooks.md#selection-and-tool-buttons).
+- **Share workbooks**: Export… in a workbook's ⋯ menu writes a `.kustodian-workbook.json` file with its layout, queries,
+  parameter defaults and tool-button settings, never results or tokens. Import… in the Saved panel, or Import workbook… in the
+  palette, shows a review first: saved queries are added to your library or copied into the widgets, tool buttons are matched
+  by name to your own `tools.json` (which import never changes), and a workbook you already have can be kept alongside or
+  replaced. See [docs/workbooks.md](docs/workbooks.md#sharing).
 - A **Full screen** button on the Chart tab fills the app window with the chart; click it again or press Esc to go back.
 - Click a column, bar, pie slice or point in the Chart tab to see the rows behind it on the Rows tab. It filters the
   result you already have, without running the query again; a chip in the result bar shows the filter and clears it.
@@ -18,8 +28,9 @@ follow [Semantic Versioning](https://semver.org/).
   pill-shaped controls. Pick one in Settings or the command palette.
 - Ten themes from the most used editor themes: GitHub Dark, One Dark, Dracula, Material, Monokai, Ayu Dark, Night Owl,
   Tokyo Night, Catppuccin Mocha and Gruvbox Dark. Each colours the window and the KQL editor.
-- A **Run tool** menu on the Rows tab runs your own commands, set up in `tools.json`, on the selected rows: once per row
-  with `{column}` values as arguments, or once with the rows as JSON on stdin. See [docs/external-tools.md](docs/external-tools.md).
+- A **Run tool** menu on the Rows tab runs your own commands on the selected rows: once per row with `{column}` values as
+  arguments, or once with the rows as JSON on stdin. Set them up in **Settings › External tools**, one box per argument,
+  or by hand in `tools.json`. See [docs/external-tools.md](docs/external-tools.md).
 - Error reports, off until you opt in: when Kustodian fails in a way it shouldn't, it sends the error's types, where in
   Kustodian's code it happened, the recent steps before it as codes, the app version and the OS. Never your tenant,
   account, queries, values, results or error messages. See [what is sent](https://frodehus.github.io/kustodian/telemetry.html).
@@ -38,6 +49,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- The app's interface code now ships as two smaller files (app and libraries) instead of one large one. Nothing changes in
+  how it works.
 - Settings open as a wide side panel over the queries, which stay in view. In a narrow window they still fill it.
 - Row details show dynamic values as a property grid: a key and a value on each row, with nested objects and arrays to
   open and close. JSON text in a string column shows the same way. **Raw** shows the JSON as text.
@@ -60,6 +73,12 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Chart widgets can split by a column and stack again: the widget editor's Visualization tab has **Split by** (formerly
+  "Series") and **Stacking** (None, Stacked, Stacked 100%) for column, bar and area charts.
+- Workbooks, after a look in the real app: a full-screen widget now fills the window. In the glass themes, completion and
+  hover in the widget editor sit at the cursor. Chart widgets show only the chart, and are set up in the widget editor.
+  Markdown fills in parameters added since the workbook opened. Widget headers fit in the narrowest widgets. Workbook
+  folders show in the Saved panel. A hunting timespan that can't be used says so on the parameter.
 - The Chart tab keeps its type, X axis, split, stacking and values when you switch to another result tab and back.
 - On the glass themes, row details were see-through, so the rows behind showed through their text.
 - A chart with many series, such as bars split by a column with dozens of values, no longer draws its legend over the

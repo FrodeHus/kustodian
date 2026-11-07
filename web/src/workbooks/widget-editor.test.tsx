@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SavedQuery } from '../wire';
-import type { Widget, WidgetType, WorkbookDoc, WorkbookParameter } from './model';
+import type { ExternalTool, RunResult, SavedQuery } from '../wire';
+import type { ToolButton, Widget, WidgetType, WorkbookDoc, WorkbookParameter } from './model';
 import { newWidget, newWorkbook } from './model';
 import { WidgetEditor } from './widget-editor';
 import { useWorkbooks } from './workbook-store';
@@ -20,7 +20,18 @@ vi.mock('../editor/kql-editor', () => ({
   ),
 }));
 // Recharts can't lay out in jsdom; the chart's own tests cover it.
-vi.mock('../results/chart-view', () => ({ default: () => null }));
+vi.mock('../results/chart-view', () => ({
+  default: ({ picked, controls = true }: { picked: { type?: string; split?: string | null; stack?: string }; controls?: boolean }) => (
+    <>
+      <p>
+        Chart {picked.type ?? 'auto'}, {controls ? 'with pickers' : 'alone'}
+      </p>
+      <p>
+        Split {picked.split === undefined ? 'auto' : (picked.split ?? 'none')}, stack {picked.stack ?? 'auto'}
+      </p>
+    </>
+  ),
+}));
 
 const risky: SavedQuery = {
   version: 1,
@@ -57,9 +68,29 @@ let doc: WorkbookDoc;
 const runWidget = vi.fn(() => Promise.resolve());
 const onClose = vi.fn();
 
-function open(widgetId: string) {
+const stopVm: ExternalTool = { name: 'Stop VM', command: 'az', args: ['vm', 'stop', '--ids', '{id}'], mode: 'each' };
+const vms: RunResult = {
+  outcome: 'ok',
+  message: null,
+  error: null,
+  columns: [
+    { name: 'name', type: 'string' },
+    { name: 'id', type: 'string' },
+  ],
+  rows: [['vm1', '/subscriptions/s/vm1']],
+  total: 1,
+  tables: [],
+  durationMs: 1,
+  droppedValues: 0,
+  runId: 'r',
+  diagnostics: [],
+  permissions: [],
+};
+
+function open(widgetId: string, lastResult?: RunResult) {
+  const runs = lastResult ? { [widgetId]: { state: 'done' as const, result: lastResult, finishedAt: 1 } } : {};
   useWorkbooks.setState({
-    byTab: { t: { doc, values: { workbook: { TimeRange: '1d' }, widgets: {} }, runs: {}, editing: true, undo: [], redo: [], dirty: false, viewCharts: {} } },
+    byTab: { t: { doc, values: { workbook: { TimeRange: '1d' }, widgets: {} }, runs, editing: true, undo: [], redo: [], dirty: false, selections: {} } },
     runWidget,
   });
   render(<WidgetEditor tabId="t" widgetId={widgetId} onClose={onClose} />);
@@ -73,7 +104,11 @@ const tab = (name: string) => fireEvent.click(screen.getByRole('tab', { name }))
 beforeEach(() => {
   call.mockReset();
   call.mockImplementation((method: string) =>
-    method === 'library.list' ? Promise.resolve({ queries: [risky], folders: [], skipped: 0 }) : new Promise(() => undefined),
+    method === 'library.list'
+      ? Promise.resolve({ queries: [risky], folders: [], skipped: 0 })
+      : method === 'tools.list'
+        ? Promise.resolve({ tools: [stopVm], problem: null, path: '/tools.json', missing: [] })
+        : new Promise(() => undefined),
   );
   runWidget.mockClear();
   onClose.mockReset();
@@ -181,6 +216,93 @@ describe('WidgetEditor', () => {
     expect(applied().chart).toMatchObject({ type: 'line' });
   });
 
+  it('the preview draws the chart alone, as the Visualization tab sets it', async () => {
+    const result = { outcome: 'ok', message: null, error: null, columns: [{ name: 'n', type: 'long' }], rows: [[1]], total: 1, tables: [], durationMs: 1, droppedValues: 0, runId: 'r', diagnostics: [], permissions: [] };
+    call.mockImplementation((method: string) =>
+      method === 'library.list' ? Promise.resolve({ queries: [], folders: [], skipped: 0 }) : method === 'query.run' ? Promise.resolve(result) : new Promise(() => undefined),
+    );
+    doc.widgets[0] = { ...doc.widgets[0]!, type: 'chart' };
+    open('a');
+    tab('Visualization');
+    fireEvent.click(screen.getByRole('button', { name: 'Bar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run preview' }));
+    expect(await screen.findByText('Chart bar, alone')).toBeTruthy();
+  });
+
+  describe('Split by and Stacking', () => {
+    const result = {
+      outcome: 'ok',
+      message: null,
+      error: null,
+      columns: [
+        { name: 'day', type: 'datetime' },
+        { name: 'state', type: 'string' },
+        { name: 'n', type: 'long' },
+      ],
+      rows: [['2026-11-01T00:00:00Z', 'open', 1]],
+      total: 1,
+      tables: [],
+      durationMs: 1,
+      droppedValues: 0,
+      runId: 'r',
+      diagnostics: [],
+      permissions: [],
+    } as unknown as RunResult;
+    const select = (name: string) => screen.getByRole('combobox', { name }) as HTMLSelectElement;
+
+    it('Split by offers Automatic, None and the text columns, and writes widget.chart.split', () => {
+      doc.widgets[0] = { ...doc.widgets[0]!, type: 'chart', chart: { type: 'column' } };
+      open('a', result);
+      tab('Visualization');
+      expect(screen.queryByRole('combobox', { name: 'Series' })).toBeNull();
+      expect([...select('Split by').options].map((o) => o.text)).toEqual(['Automatic', 'None', 'state']);
+      fireEvent.change(select('Split by'), { target: { value: 'col:state' } });
+      apply();
+      expect(applied().chart).toMatchObject({ split: 'state' });
+    });
+
+    it('Split by None writes null, so the chart doesn’t split', () => {
+      doc.widgets[0] = { ...doc.widgets[0]!, type: 'chart', chart: { type: 'column' } };
+      open('a', result);
+      tab('Visualization');
+      fireEvent.change(select('Split by'), { target: { value: 'none' } });
+      apply();
+      expect(applied().chart?.split).toBeNull();
+    });
+
+    it('Stacking writes widget.chart.stack, and the preview chart gets the split and the stacking', async () => {
+      call.mockImplementation((method: string) =>
+        method === 'library.list' ? Promise.resolve({ queries: [], folders: [], skipped: 0 }) : method === 'query.run' ? Promise.resolve(result) : new Promise(() => undefined),
+      );
+      doc.widgets[0] = { ...doc.widgets[0]!, type: 'chart', chart: { type: 'bar' } };
+      open('a', result);
+      tab('Visualization');
+      expect([...select('Stacking').options].map((o) => o.text)).toEqual(['None', 'Stacked', 'Stacked 100%']);
+      fireEvent.change(select('Split by'), { target: { value: 'col:state' } });
+      fireEvent.change(select('Stacking'), { target: { value: 'stacked100' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Run preview' }));
+      expect(await screen.findByText('Split state, stack stacked100')).toBeTruthy();
+      apply();
+      expect(applied().chart).toMatchObject({ type: 'bar', split: 'state', stack: 'stacked100' });
+    });
+
+    it('Stacking is offered for column, bar and area charts only', () => {
+      doc.widgets[0] = { ...doc.widgets[0]!, type: 'chart', chart: { type: 'column' } };
+      open('a', result);
+      tab('Visualization');
+      for (const [name, shown] of [
+        ['Area', true],
+        ['Line', false],
+        ['Pie', false],
+        ['Time chart', false],
+        ['Bar', true],
+      ] as const) {
+        fireEvent.click(screen.getByRole('button', { name }));
+        expect(screen.queryByRole('combobox', { name: 'Stacking' }) !== null).toBe(shown);
+      }
+    });
+  });
+
   it('a Markdown widget has a text area and a rendered preview, no tabs', () => {
     open('m');
     expect(screen.queryByRole('tab')).toBeNull();
@@ -188,5 +310,88 @@ describe('WidgetEditor', () => {
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Range 1d');
     apply();
     expect(applied('m').markdown).toBe('## Range {TimeRange}');
+  });
+
+  describe('Tool buttons', () => {
+    const button = (extra: Partial<ToolButton> = {}): ToolButton => ({
+      label: 'Gone tool',
+      tool: 'Gone tool',
+      mapping: {},
+      runsOn: 'selected',
+      after: 'refreshWidget',
+      placement: 'header',
+      ...extra,
+    });
+
+    it('a table widget has a Tool buttons tab; a chart widget doesn’t', () => {
+      open('a');
+      expect(screen.getByRole('tab', { name: 'Tool buttons' })).toBeTruthy();
+      cleanup();
+      doc.widgets[0] = { ...doc.widgets[0]!, type: 'chart' };
+      open('a');
+      expect(screen.queryByRole('tab', { name: 'Tool buttons' })).toBeNull();
+    });
+
+    it('adding a button and choosing a tool names it, shows the command and maps from the last result, in one undo step', async () => {
+      open('a', vms);
+      tab('Tool buttons');
+      fireEvent.click(screen.getByRole('button', { name: '+ Add tool button' }));
+      const tool = screen.getByRole('combobox', { name: 'Tool' });
+      await screen.findByRole('option', { name: 'Stop VM · once per row' });
+      fireEvent.change(tool, { target: { value: 'Stop VM' } });
+
+      expect((screen.getByRole('textbox', { name: 'Button label' }) as HTMLInputElement).value).toBe('Stop VM');
+      expect(screen.getByText("az vm stop --ids '{id}'")).toBeTruthy();
+      expect((screen.getByRole('combobox', { name: '{id}' }) as HTMLSelectElement).value).toBe('id');
+      apply();
+      expect(applied().tools).toEqual([
+        { label: 'Stop VM', tool: 'Stop VM', mapping: { id: 'id' }, runsOn: 'selectedOrAll', after: 'refreshWidget', placement: 'header' },
+      ]);
+      expect(state().undo).toEqual([doc]);
+    });
+
+    it('lists a saved mapping column that the result lacks, instead of showing Automatic', async () => {
+      doc.widgets[0] = { ...doc.widgets[0]!, tools: [button({ tool: 'Stop VM', label: 'Stop VM', mapping: { id: 'resourceId' } })] };
+      open('a');
+      tab('Tool buttons');
+      await screen.findByRole('option', { name: 'Stop VM · once per row' });
+      expect((screen.getByRole('combobox', { name: '{id}' }) as HTMLSelectElement).value).toBe('resourceId');
+    });
+
+    it('a tool that isn’t in tools.json stays chosen, and Apply keeps it', async () => {
+      doc.widgets[0] = { ...doc.widgets[0]!, tools: [button()] };
+      open('a');
+      tab('Tool buttons');
+      const option = (await screen.findByRole('option', { name: 'Gone tool (not in your tools.json)' })) as HTMLOptionElement;
+      expect(option.selected).toBe(true);
+      fireEvent.change(screen.getByRole('textbox', { name: 'Title' }), { target: { value: 'Renamed' } });
+      apply();
+      expect(applied().tools).toEqual([button()]);
+    });
+
+    it('unticking Rows can be selected turns selection off, disables Only selected rows and resets the buttons', () => {
+      doc.widgets[0] = { ...doc.widgets[0]!, selection: 'multi', tools: [button()] };
+      open('a');
+      tab('Tool buttons');
+      const only = () => screen.getByRole('radio', { name: /^Only selected rows/ }) as HTMLInputElement;
+      expect(only().checked).toBe(true);
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Rows can be selected' }));
+
+      expect(only().disabled).toBe(true);
+      expect(screen.getByRole('checkbox', { name: 'Several rows at once' })).toHaveProperty('disabled', true);
+      apply();
+      expect(applied().selection).toBe('none');
+      expect(applied().tools?.[0]?.runsOn).toBe('selectedOrAll');
+    });
+
+    it('a button with no tool keeps Apply off with a hint; Cancel writes nothing', () => {
+      open('a');
+      tab('Tool buttons');
+      fireEvent.click(screen.getByRole('button', { name: '+ Add tool button' }));
+      expect(screen.getByRole('button', { name: 'Apply' })).toHaveProperty('disabled', true);
+      expect(screen.getByText('Choose a tool for each button.')).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(state().doc).toBe(doc);
+    });
   });
 });

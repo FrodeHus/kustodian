@@ -1,8 +1,19 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import type { ExternalTool } from '../wire';
 import { RunToolDialog, ToolItems } from './run-tool';
-import { commandLine, defaultMapping, fillArgs, toolColumns } from './tool-args';
+import { commandLine, defaultMapping, fillArgs, startMapping, toolColumns } from './tool-args';
+
+// A test can make tools.run reject; every other call, and tools.run by default, goes to the dev mock as before.
+const failRun = vi.hoisted(() => ({ on: false }));
+vi.mock('../bridge', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../bridge')>();
+  return {
+    ...real,
+    call: (method: string, params?: unknown, signal?: AbortSignal) =>
+      failRun.on && method === 'tools.run' ? Promise.reject(new Error('boom')) : real.call(method, params, signal),
+  };
+});
 
 const columns = [
   { name: 'displayName', type: 'string' },
@@ -76,5 +87,64 @@ describe('run tool', () => {
 
     const output = await screen.findByLabelText('Output');
     expect(output.textContent).toContain('name=Portal');
+  });
+
+  describe('start_from_a_saved_mapping', () => {
+    const idTool: ExternalTool = { name: 'Open', command: '/bin/echo', args: ['{id}'], mode: 'each' };
+    const cols = [
+      { name: 'id', type: 'string' },
+      { name: 'resourceId', type: 'string' },
+    ];
+
+    it('uses_a_saved_column_the_result_has', () => {
+      expect(startMapping(idTool, cols, { id: 'resourceId' })).toEqual({ id: 'resourceId' });
+    });
+
+    it('never_keeps_a_saved_column_the_result_lacks', () => {
+      expect(startMapping(idTool, [{ name: 'id', type: 'string' }], { id: 'gone' })).toEqual({ id: 'id' });
+      expect(startMapping(idTool, [{ name: 'other', type: 'string' }], { id: 'gone' })).toEqual({ id: '' });
+    });
+
+    it('leaves_out_a_saved_key_the_tool_no_longer_has', () => {
+      expect(startMapping(idTool, cols, { id: 'id', old: 'resourceId' })).toEqual({ id: 'id' });
+    });
+
+    it('keeps_run_disabled_while_the_saved_column_is_gone', () => {
+      const other = [{ name: 'other', type: 'string' }];
+      render(<RunToolDialog tool={idTool} columns={other} rows={[['x']]} initialMapping={startMapping(idTool, other, { id: 'gone' })} onClose={() => undefined} />);
+      expect((screen.getByRole('button', { name: 'Run' }) as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it('takes_a_title', () => {
+      render(<RunToolDialog tool={idTool} columns={cols} rows={[['x', 'y']]} title="Open it" onClose={() => undefined} />);
+      expect(screen.getByRole('dialog', { name: 'Open it' })).toBeTruthy();
+    });
+
+    it('reports_once_when_a_run_is_answered_and_not_on_cancel', async () => {
+      const onRan = vi.fn();
+      const { unmount } = render(<RunToolDialog tool={echo} columns={columns} rows={[['u1', null]]} onRan={onRan} onClose={() => undefined} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(onRan).not.toHaveBeenCalled();
+      unmount();
+
+      const ran = vi.fn();
+      render(<RunToolDialog tool={echo} columns={columns} rows={[['u1', null]]} onRan={ran} onClose={() => undefined} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Run' }));
+      await screen.findByLabelText('Output');
+      expect(ran).toHaveBeenCalledTimes(1);
+    });
+
+    it('reports_once_when_a_run_fails', async () => {
+      failRun.on = true;
+      try {
+        const onRan = vi.fn();
+        render(<RunToolDialog tool={echo} columns={columns} rows={[['u1', null]]} onRan={onRan} onClose={() => undefined} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Run' }));
+        await screen.findByRole('alert');
+        await waitFor(() => expect(onRan).toHaveBeenCalledTimes(1));
+      } finally {
+        failRun.on = false;
+      }
+    });
   });
 });

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kustodian · Edit external tool</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="studio.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}a{color:#4CC2FF}
+.btn.icon{width:28px;padding:0;justify-content:center}.btn.danger{color:var(--bad)}
+.chip.acc{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.field .lbl{font-size:12px;font-weight:600;color:var(--muted)}
+.param{color:var(--col)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;padding:2px;background:var(--panel2);gap:2px}
+.seg label{display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;border-radius:6px;font-size:12.5px;cursor:pointer;color:var(--muted)}
+.seg label.on{background:var(--raise);color:var(--text)}
+.seg input{accent-color:var(--accent);margin:0}
+.arg{display:flex;align-items:center;gap:6px}
+.arg .n{width:20px;text-align:right;font-size:11px;color:var(--faint);font-family:"JetBrains Mono",monospace}
+.arg .input{flex:1;font-family:"JetBrains Mono",monospace;font-size:12px}
+</style>
+</helmet>
+<div class="studio" style="width: 1440px; height: 1060px; display: flex; flex-direction: column; position: relative;">
+<div class="titlebar"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><span class="brand">Kustodian</span><div style="flex-grow: 1;"></div><span class="pill"><span class="dot-ok"></span><b>kari@contoso.com</b> · Contoso Ltd</span></div>
+<div style="flex: 1; padding: 32px; display: flex; flex-direction: column; gap: 16px; filter: blur(1px); opacity: .5;">
+<div style="height: 28px; width: 150px;" class="card"></div>
+<div style="max-width: 880px; display: flex; flex-direction: column; gap: 16px;"><div class="card" style="height: 56px;"></div><div class="card" style="height: 56px;"></div><div class="card" style="height: 300px;"></div><div class="card" style="height: 56px;"></div></div>
+</div>
+<div class="overlay"></div>
+
+<section class="card" role="dialog" aria-label="Edit tool" style="position: absolute; left: 340px; top: 80px; width: 760px; display: flex; flex-direction: column; box-shadow: 0 24px 60px rgba(0,0,0,.5);">
+<div style="padding: 20px 24px 14px; border-bottom: 1px solid var(--line);"><h1 style="margin: 0; font-size: 18px; font-weight: 600;">Edit tool</h1></div>
+
+<div style="padding: 18px 24px; display: flex; flex-direction: column; gap: 16px;">
+<div class="field"><label for="t-name">Name</label><input id="t-name" class="input" value="Revoke sessions"><span class="faint" style="font-size: 12px;">As the Run tool menu shows it.</span></div>
+
+<div class="field"><label for="t-cmd">Command</label>
+<div style="display: flex; gap: 8px;"><input id="t-cmd" class="input mono" style="flex: 1; font-size: 12px;" value="/opt/homebrew/bin/az"><button type="button" class="btn" style="height: 32px;">Browse…</button></div>
+<span class="faint" style="font-size: 12px;">A full path: an app started from the Finder doesn’t get your shell’s PATH.</span></div>
+
+<div class="field"><span class="lbl" id="t-mode">Runs</span>
+<div class="seg" role="radiogroup" aria-labelledby="t-mode" style="align-self: flex-start;">
+<label class="on"><input type="radio" name="mode" checked="">Once per row</label>
+<label><input type="radio" name="mode">Once, rows as JSON on stdin</label>
+</div></div>
+
+<div class="field"><span class="lbl">Arguments</span>
+<span class="faint" style="font-size: 12px;">Each box is exactly one argument, never split by spaces. <span class="mono param">{name}</span> becomes that row’s value.</span>
+<div style="display: flex; flex-direction: column; gap: 6px; margin-top: 2px;">
+<div class="arg"><span class="n">1</span><input class="input" aria-label="Argument 1" value="rest"><button type="button" class="btn icon ghost" aria-label="Remove argument 1">×</button></div>
+<div class="arg"><span class="n">2</span><input class="input" aria-label="Argument 2" value="--method"><button type="button" class="btn icon ghost" aria-label="Remove argument 2">×</button></div>
+<div class="arg"><span class="n">3</span><input class="input" aria-label="Argument 3" value="post"><button type="button" class="btn icon ghost" aria-label="Remove argument 3">×</button></div>
+<div class="arg"><span class="n">4</span><input class="input" aria-label="Argument 4" value="--url"><button type="button" class="btn icon ghost" aria-label="Remove argument 4">×</button></div>
+<div class="arg"><span class="n">5</span><input class="input" aria-label="Argument 5" value="https://graph.microsoft.com/v1.0/users/{id}/revokeSignInSessions"><button type="button" class="btn icon ghost" aria-label="Remove argument 5">×</button></div>
+</div>
+<div style="display: flex; gap: 8px; margin-top: 2px;"><button type="button" class="btn">+ Add argument</button><button type="button" class="btn ghost">Paste a command line…</button></div>
+</div>
+
+<div style="display: flex; align-items: center; gap: 8px;"><span class="lbl" style="font-size: 12px; font-weight: 600; color: var(--muted);">Parameters</span><span class="chip acc mono">{id}</span><span class="faint" style="font-size: 12px;">Mapped to a result column each time it runs.</span></div>
+
+<div class="field"><span class="lbl">Command line, for a row with id = 3f2b8c71-…</span>
+<div class="code">/opt/homebrew/bin/az rest --method post --url "https://graph.microsoft.com/v1.0/users/<span class="param">3f2b8c71-9a4e-4b1d-a2c7-2c7e44d1a90b</span>/revokeSignInSessions"</div></div>
+
+<div class="card" role="note" style="padding: 10px 14px; border-color: var(--bad); background: var(--bad-soft); font-size: 12.5px;">
+<b style="color: var(--bad);">Another case:</b> switched to “Once, rows as JSON on stdin”, argument 5 shows <span class="mono">{id}</span> in red: a batch tool’s arguments can’t have parameters. Save stays off until it’s gone.
+</div>
+</div>
+
+<div style="padding: 14px 24px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 8px;">
+<button type="button" class="btn ghost danger">Delete tool</button>
+<div style="flex-grow: 1;"></div>
+<button type="button" class="btn">Cancel</button>
+<button type="button" class="btn primary">Save tool</button>
+</div>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1060}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

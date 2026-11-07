@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { call } from '../bridge';
 import { openSaved } from '../library/open-library';
 import { MAX_NAME_LENGTH, useRevisions } from '../library/saving';
@@ -10,6 +10,7 @@ import { SourceBadge, WorkbookIcon } from '../tabs/source-badge';
 import { useTabs } from '../tabs/tab-store';
 import type { LibraryList, SavedQuery, Source, WorkbookList, WorkbookSummary } from '../wire';
 import { parseWorkbook } from '../workbooks/model';
+import { importWorkbook } from '../workbooks/sharing';
 import { useWorkbooks } from '../workbooks/workbook-store';
 import { PanelHeading } from './panel-heading';
 import { ConfirmDelete, RowMenu } from './row-menu';
@@ -96,6 +97,12 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
       (e: unknown) => setProblem({ text: `${w.name} couldn’t be opened: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
   };
+
+  const importFile = () =>
+    importWorkbook().then(
+      () => setProblem(null),
+      (e: unknown) => setProblem({ text: `The workbook couldn’t be imported: ${errorText(e)}`, reportId: reportIdOf(e) }),
+    );
 
   const removeWorkbook = (w: WorkbookSummary) => {
     setDeleting(null);
@@ -187,7 +194,28 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
     );
   const shownWorkbooks = (workbooks?.workbooks ?? []).filter((w) => !needle || w.name.toLowerCase().includes(needle));
   const workbooksOpen = needle !== '' || !workbooksFolded;
+  // Workbook folders fold as query folders do, keyed apart from them (a query folder and a workbook folder can share a name).
+  const workbookFolders = (workbooks?.folders ?? [])
+    .map((f) => ({ name: f, key: `workbooks/${f}`, items: shownWorkbooks.filter((w) => w.folder === f) }))
+    .filter((f) => f.items.length > 0);
+  const looseWorkbooks = shownWorkbooks.filter((w) => !w.folder || !workbooks?.folders.includes(w.folder));
 
+  /** A folder that folds, under `key` in the folded state; a search shows its matches in every folder. */
+  const folder = (key: string, name: string, rows: ReactNode[]) => {
+    const open = needle !== '' || !folded[key];
+    return (
+      <li key={`folder:${key}`}>
+        <button type="button" className="side-open folder" aria-label={name} aria-expanded={open} onClick={() => setFolded((s) => ({ ...s, [key]: open }))}>
+          <span aria-hidden="true">{open ? '▾' : '▸'}</span>
+          <span className="truncate">{name}</span>
+          <span className="ty" aria-hidden="true">
+            {rows.length}
+          </span>
+        </button>
+        {open && <ul className="side-list pl-3">{rows}</ul>}
+      </li>
+    );
+  };
   const folders = (list?.folders ?? []).map((f) => ({ name: f, queries: queries.filter((q) => q.folder === f) })).filter((f) => f.queries.length > 0);
   const loose = queries.filter((q) => !q.folder || !list?.folders.includes(q.folder));
 
@@ -215,36 +243,15 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
             {workbooks.skipped === 1 ? '1 workbook couldn’t be read and was moved aside.' : `${workbooks.skipped} workbooks couldn’t be read and were moved aside.`}
           </p>
         )}
-        {list && queries.length === 0 && (
+        {list && queries.length === 0 && shownWorkbooks.length === 0 && (
           <p className="faint m-0 px-[14px] text-[12px]">
             {needle ? 'No saved query matches.' : `Nothing saved yet. Save a query with ${MOD} S.`}
           </p>
         )}
         <ul className="side-list">
-          {folders.map((f) => {
-            // A search shows its matches in every folder.
-            const open = needle !== '' || !folded[f.name];
-            return (
-              <li key={`folder:${f.name}`}>
-                <button
-                  type="button"
-                  className="side-open folder"
-                  aria-label={f.name}
-                  aria-expanded={open}
-                  onClick={() => setFolded((s) => ({ ...s, [f.name]: open }))}
-                >
-                  <span aria-hidden="true">{open ? '▾' : '▸'}</span>
-                  <span className="truncate">{f.name}</span>
-                  <span className="ty" aria-hidden="true">
-                    {f.queries.length}
-                  </span>
-                </button>
-                {open && <ul className="side-list pl-3">{f.queries.map(row)}</ul>}
-              </li>
-            );
-          })}
+          {folders.map((f) => folder(f.name, f.name, f.queries.map(row)))}
           {loose.map(row)}
-          {shownWorkbooks.length > 0 && (
+          {(needle === '' || shownWorkbooks.length > 0) && (
             <li>
               <button
                 type="button"
@@ -259,7 +266,17 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
                   {shownWorkbooks.length}
                 </span>
               </button>
-              {workbooksOpen && <ul className="side-list pl-3">{shownWorkbooks.map(workbookRow)}</ul>}
+              {workbooksOpen && (
+                <ul className="side-list pl-3">
+                  <li>
+                    <button type="button" className="side-open" onClick={() => void importFile()}>
+                      Import…
+                    </button>
+                  </li>
+                  {workbookFolders.map((f) => folder(f.key, f.name, f.items.map(workbookRow)))}
+                  {looseWorkbooks.map(workbookRow)}
+                </ul>
+              )}
             </li>
           )}
         </ul>

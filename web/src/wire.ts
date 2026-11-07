@@ -373,11 +373,13 @@ export interface ExternalTool {
   mode: 'each' | 'batch';
 }
 
-/** `tools.list`: the tools, or none and what is wrong with `tools.json`. */
+/** `tools.list` and `tools.save`: the tools, or none and what is wrong with `tools.json`; `missing` names the tools whose
+ * command is no file. */
 export interface ToolList {
   tools: ExternalTool[];
   problem: string | null;
   path: string;
+  missing: string[];
 }
 
 /** One run of a tool's command: the arguments it got, its exit code and what it wrote. */

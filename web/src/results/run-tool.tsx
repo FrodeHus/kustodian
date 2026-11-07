@@ -61,13 +61,32 @@ export function ToolItems({
  * them) and seen what will run: the command line for the first row (or the one batch run) and how many rows. While it runs it shows how far it got and can be stopped; then it shows each run's command line and output.
  * Closing it stops a run still going.
  */
-export function RunToolDialog({ tool, columns, rows, onClose }: { tool: ExternalTool; columns: ResultColumn[]; rows: Row[]; onClose: () => void }) {
+export function RunToolDialog({
+  tool,
+  columns,
+  rows,
+  title,
+  initialMapping,
+  onRan,
+  onClose,
+}: {
+  tool: ExternalTool;
+  columns: ResultColumn[];
+  rows: Row[];
+  /** The heading; `Run ${tool.name}` without it. */
+  title?: string;
+  /** The columns to start from; what defaultMapping picks without it. */
+  initialMapping?: ColumnMapping;
+  /** Called once when a started run ends: answered, failed or stopped. Not on Cancel. */
+  onRan?: () => void;
+  onClose: () => void;
+}) {
   const id = useId();
   const [stage, setStage] = useState<'confirm' | 'running' | 'done'>('confirm');
   const [done, setDone] = useState(0);
   const [outcomes, setOutcomes] = useState<ToolOutcome[]>([]);
   const [error, setError] = useState<Shown | null>(null);
-  const [mapping, setMapping] = useState<ColumnMapping>(() => defaultMapping(tool, columns));
+  const [mapping, setMapping] = useState<ColumnMapping>(() => initialMapping ?? defaultMapping(tool, columns));
   const abort = useRef<AbortController | null>(null);
   useEffect(() => () => abort.current?.abort(), []);
 
@@ -97,6 +116,7 @@ export function RunToolDialog({ tool, columns, rows, onClose }: { tool: External
         off();
         abort.current = null;
         setStage('done');
+        onRan?.();
       });
   };
 
@@ -129,7 +149,7 @@ export function RunToolDialog({ tool, columns, rows, onClose }: { tool: External
         }}
       >
         <b id={`${id}-title`} className="text-[14px]">
-          Run {tool.name}
+          {title ?? `Run ${tool.name}`}
         </b>
         {!batch && parameters.length > 0 && (
           <fieldset className="m-0 flex flex-col gap-2 border-0 p-0" disabled={stage !== 'confirm'}>

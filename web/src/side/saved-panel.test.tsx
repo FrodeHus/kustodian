@@ -189,4 +189,39 @@ describe('SavedPanel', () => {
     expect(useTabs.getState().tabs[0]).toMatchObject({ source: 'workbook', title: 'Hygiene', dirty: true });
     expect(useTabs.getState().tabs[0]?.savedId).toBeUndefined();
   });
+
+  it('saved_groups_workbooks_by_their_folder_and_with_only_workbooks_doesnt_say_nothing_saved', async () => {
+    library = { queries: [], folders: [], skipped: 0 };
+    const summary = (id: string, name: string, folder: string | null) => ({ id, name, folder, modifiedAt: '2026-11-01T00:00:00Z', widgets: 0 });
+    // "Identity" is also a query folder name elsewhere; the workbook folder folds on its own.
+    const workbooks: WorkbookList = { workbooks: [summary('w1', 'Hygiene', 'Identity'), summary('w2', 'Costs', null)], folders: ['Identity'], skipped: 0 };
+    const answer = bridge.call.getMockImplementation()!;
+    bridge.call.mockImplementation((method: string, params?: { id?: string }) => (method === 'workbook.list' ? Promise.resolve(workbooks) : answer(method, params)));
+    render(<SavedPanel />);
+
+    const group = await screen.findByRole('button', { name: 'Identity', expanded: true });
+    const folderList = group.nextElementSibling as HTMLElement;
+    expect(within(folderList).getByRole('button', { name: 'Hygiene' })).toBeTruthy();
+    expect(within(folderList).queryByRole('button', { name: 'Costs' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Costs' })).toBeTruthy();
+    expect(screen.queryByText(/Nothing saved yet/)).toBeNull();
+
+    fireEvent.click(group);
+    expect(screen.getByRole('button', { name: 'Identity', expanded: false })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Hygiene' })).toBeNull();
+  });
+
+  it('saved_import_button_asks_for_a_workbook_file_and_shows_a_refusal', async () => {
+    library = { queries: [], folders: [], skipped: 0 };
+    const answer = bridge.call.getMockImplementation()!;
+    bridge.call.mockImplementation((method: string, params?: { id?: string }) =>
+      method === 'file.open' ? Promise.resolve({ path: '/x/a.json', name: 'a.json', text: 'not json' }) : answer(method, params),
+    );
+    render(<SavedPanel />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Import…' }));
+
+    expect(bridge.call).toHaveBeenCalledWith('file.open', { filters: [{ name: 'Kustodian workbook', extensions: ['json'] }] });
+    expect((await screen.findByRole('alert')).textContent).toContain('The workbook couldn’t be imported: ');
+  });
 });

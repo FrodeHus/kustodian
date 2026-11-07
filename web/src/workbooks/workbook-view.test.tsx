@@ -8,6 +8,9 @@ import type { WidgetRun, WorkbookState } from './workbook-store';
 import { useWorkbooks } from './workbook-store';
 import { WorkbookView } from './workbook-view';
 
+// By glob: the test runner hands a plain `?raw` import of a stylesheet back empty.
+const styles = Object.values(import.meta.glob<string>('../styles.css', { query: '?raw', import: 'default', eager: true }))[0] ?? '';
+
 const call = vi.hoisted(() => vi.fn());
 vi.mock('../bridge', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../bridge')>()),
@@ -17,10 +20,10 @@ vi.mock('../bridge', async (importOriginal) => ({
 
 // Recharts can't lay out in jsdom; the chart's own tests cover it.
 vi.mock('../results/chart-view', () => ({
-  default: ({ picked, setPicked }: { picked: { type?: string }; setPicked: (p: { type?: string }) => void }) => (
-    <button type="button" onClick={() => setPicked({ type: 'pie' })}>
-      Chart type: {picked.type ?? 'auto'}
-    </button>
+  default: ({ picked, controls = true }: { picked: { type?: string }; controls?: boolean }) => (
+    <p>
+      Chart {picked.type ?? 'auto'}, {controls ? 'with pickers' : 'alone'}
+    </p>
   ),
 }));
 
@@ -70,7 +73,7 @@ function show(runs: Record<string, WidgetRun>, editing = false) {
     undo: [],
     redo: [],
     dirty: false,
-    viewCharts: {},
+    selections: {},
   };
   useWorkbooks.setState({ byTab: { t: state }, setWorkbookValue, setWidgetValue });
   return render(<WorkbookView tabId="t" />);
@@ -106,6 +109,40 @@ describe('WorkbookView', () => {
     expect(screen.getByRole('combobox', { name: 'Environment' })).toBeTruthy();
     // The chart widget names the workbook parameter it uses.
     expect(within(frame('Sign-ins by day')).getByText('Env')).toBeTruthy();
+  });
+
+  it('offers a text parameter with choices as a select, and fills Markdown with a parameter added since opening', () => {
+    // Region isn't in the view values (it was added after the workbook opened): its default stands in.
+    doc.parameters = [...doc.parameters, { ...env, name: 'Region', type: 'text', value: 'eu', choices: ['eu', 'us'], label: null }];
+    doc.widgets = [widget('m', 'markdown', 'Notes', undefined, { markdown: 'Region {Region}' })];
+    show({});
+    expect(screen.getByRole('combobox', { name: 'Region' })).toBeTruthy();
+    expect(within(frame('Notes')).getByText('Region eu')).toBeTruthy();
+  });
+
+  it('Full screen fixes the widget to the window, and the stylesheet frees it from the boxes that would hold it', () => {
+    show({});
+    fireEvent.click(within(frame('Notes')).getByRole('button', { name: 'Notes menu' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Full screen' }));
+    const notes = frame('Notes');
+    expect(notes.classList.contains('wb-full')).toBe(true);
+    expect(notes.classList.contains('fixed')).toBe(true);
+    // `relative` would win over `fixed` and keep it in its grid cell.
+    expect(notes.classList.contains('relative')).toBe(false);
+    // A container query container, or the glass workspace's backdrop filter, would be the box `fixed` resolves against.
+    expect(styles).toContain('.wb-canvas:has(.wb-full) { container-type: normal; }');
+    expect(styles).toContain('.theme-glass .workspace:has(.wb-full) { backdrop-filter: none; }');
+  });
+
+  it('in the glass themes, nothing in the widget editor has a backdrop filter, which would misplace Monaco’s suggest and hover', () => {
+    expect(styles).toContain('.theme-glass .wb-editor, .theme-glass .wb-editor .card { backdrop-filter: none;');
+  });
+
+  it('says on the parameter itself when the hunting timespan can’t be sent', () => {
+    doc.parameters = [{ ...env, name: 'Range', type: 'timespan', value: '90d', choices: null, label: null, huntingTimespan: true }];
+    doc.widgets = [];
+    show({});
+    expect(screen.getByRole('alert').textContent).toBe('Range: at most 30 days for Defender hunting.');
   });
 
   it('shows a damaged workbook, as parsed, without failing', () => {
@@ -196,14 +233,17 @@ describe('WorkbookView', () => {
     expect(within(frame('Total')).queryByText(/▲|▼/)).toBeNull();
   });
 
-  it('keeps a chart pick made in view mode as view state', async () => {
-    const setViewChart = vi.fn();
-    const edit = vi.fn();
-    useWorkbooks.setState({ setViewChart, edit });
-    show({ c: { state: 'done', result: result([{ name: 'n', type: 'long' }], [[1]]) } });
-    fireEvent.click(await within(frame('Sign-ins by day')).findByRole('button', { name: 'Chart type: auto' }));
-    expect(setViewChart).toHaveBeenCalledWith('t', 'c', { type: 'pie' });
-    expect(edit).not.toHaveBeenCalled();
+  it('draws a chart widget alone, as its own settings say, in view mode, edit mode and full screen', async () => {
+    doc.widgets = doc.widgets.map((w) => (w.id === 'c' ? { ...w, chart: { type: 'bar' } } : w));
+    const shown = { c: { state: 'done', result: result([{ name: 'n', type: 'long' }], [[1]]) } } as const;
+    const view = show(shown);
+    expect(await within(frame('Sign-ins by day')).findByText('Chart bar, alone')).toBeTruthy();
+    fireEvent.click(within(frame('Sign-ins by day')).getByRole('button', { name: 'Sign-ins by day menu' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Full screen' }));
+    expect(within(frame('Sign-ins by day')).getByText('Chart bar, alone')).toBeTruthy();
+    view.unmount();
+    show(shown, true);
+    expect(await within(frame('Sign-ins by day')).findByText('Chart bar, alone')).toBeTruthy();
   });
 
   it('opens a widget in a query tab with the current values as its parameters', () => {

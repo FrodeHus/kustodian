@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isoTimespan, MIN_SIZE, newWidget, newWorkbook, parseWorkbook } from './model';
+import { isoTimespan, MIN_SIZE, newToolButton, newWidget, newWorkbook, parseWorkbook } from './model';
 import type { WorkbookDoc } from './model';
 
 const example = () => ({
@@ -23,7 +23,9 @@ const example = () => ({
       },
       parameters: { PowerState: { from: 'widget', value: 'any' } },
       selection: 'multi',
-      tools: [{ label: 'Stop VM' }],
+      tools: [
+        { label: 'Stop VM', tool: 'Stop VM', mapping: { id: 'id' }, runsOn: 'selectedOrAll', after: 'refreshWidget', placement: 'header' },
+      ],
     },
   ],
   extra: { keep: true },
@@ -44,7 +46,10 @@ describe('parseWorkbook', () => {
     expect(d.parameters[0]).toMatchObject({ name: 'Subscriptions', multi: true, all: true, remember: false });
     expect(d.widgets[0]?.query?.saved?.id).toBe('7c1e');
     expect(d.widgets[0]?.query?.parameters).toEqual([]);
-    expect(d.widgets[0]).toMatchObject({ selection: 'multi', tools: [{ label: 'Stop VM' }] });
+    expect(d.widgets[0]?.selection).toBe('multi');
+    expect(d.widgets[0]?.tools).toEqual([
+      { label: 'Stop VM', tool: 'Stop VM', mapping: { id: 'id' }, runsOn: 'selectedOrAll', after: 'refreshWidget', placement: 'header' },
+    ]);
     expect(d).toMatchObject({ extra: { keep: true } });
   });
 
@@ -189,5 +194,63 @@ describe('new documents', () => {
     expect(w.query).toMatchObject({ source: 'graph', saved: null, text: '', parameters: [] });
     expect(w.parameters).toEqual({});
     expect(newWidget('markdown', { x: 0, y: 0, w: 4, h: 4 }).query).toBeUndefined();
+  });
+});
+
+describe('tool buttons and selection', () => {
+  const withWidget = (patch: Record<string, unknown>) => {
+    const e = example();
+    Object.assign(e.widgets[0] as object, patch);
+    return doc(e).widgets[0];
+  };
+
+  it('gives only table widgets selection and tools', () => {
+    const l = { x: 0, y: 0, w: 6, h: 12 };
+    expect(newWidget('table', l)).toMatchObject({ selection: 'multi', tools: [] });
+    for (const t of ['chart', 'stat', 'markdown'] as const) {
+      const w = newWidget(t, l);
+      expect('selection' in w || 'tools' in w).toBe(false);
+    }
+    expect(newToolButton()).toEqual({ label: '', tool: '', mapping: {}, runsOn: 'selectedOrAll', after: 'refreshWidget', placement: 'header' });
+  });
+
+  it('keeps only the six known fields of a button (spec section 4)', () => {
+    const file = { ...example() };
+    (file.widgets[0] as { tools: unknown[] }).tools = [{ tool: 'X', command: '/bin/sh', args: ['-c'], mode: 'run', x: 1 }];
+    const d = doc(file);
+    expect(Object.keys(d.widgets[0]?.tools?.[0] ?? {}).sort()).toEqual(['after', 'label', 'mapping', 'placement', 'runsOn', 'tool']);
+    const json = JSON.stringify(parseWorkbook(file));
+    expect(json).not.toContain('"command"');
+    expect(json).not.toContain('"args"');
+  });
+
+  it('ignores tools and selection on a non-table widget', () => {
+    const w = withWidget({ type: 'chart', tools: [{ tool: 'X', command: '/bin/sh' }], selection: 'single' });
+    expect(w && ('tools' in w || 'selection' in w)).toBe(false);
+  });
+
+  it('repairs buttons', () => {
+    const tools = withWidget({
+      tools: [
+        { label: 'no tool' },
+        { tool: '' },
+        'x',
+        { tool: 'A', mapping: { a: 'x', b: 1 }, runsOn: 'bad', after: 'bad', placement: 'bad' },
+        { tool: 'B', label: 'Bee', runsOn: 'selected', after: 'none', placement: 'menu' },
+      ],
+    })?.tools;
+    expect(tools).toEqual([
+      { label: 'A', tool: 'A', mapping: { a: 'x' }, runsOn: 'selectedOrAll', after: 'refreshWidget', placement: 'header' },
+      { label: 'Bee', tool: 'B', mapping: {}, runsOn: 'selected', after: 'none', placement: 'menu' },
+    ]);
+    expect(withWidget({ tools: [{ tool: 'A', label: '  ' }, { tool: 'B', label: ' Bee ' }] })?.tools?.map((b) => b.label)).toEqual(['A', 'Bee']);
+    expect(withWidget({ tools: 'nope' })?.tools).toEqual([]);
+  });
+
+  it('normalises selection', () => {
+    expect(withWidget({ selection: 'single' })?.selection).toBe('single');
+    expect(withWidget({ selection: 'none' })?.selection).toBe('none');
+    expect(withWidget({ selection: 'weird' })?.selection).toBe('multi');
+    expect(withWidget({ selection: undefined })?.selection).toBe('multi');
   });
 });

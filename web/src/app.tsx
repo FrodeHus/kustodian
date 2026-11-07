@@ -5,6 +5,8 @@ import type { KqlEditorHandle } from './editor/kql-editor';
 import { ExplainView, type ExplainRequest } from './explain/explain-view';
 import { SaveDialog } from './library/save-dialog';
 import { SaveWorkbookDialog } from './workbooks/save-workbook-dialog';
+import { ImportReview } from './workbooks/import-review';
+import { importWorkbook, useImportReview } from './workbooks/sharing';
 import { saveWorkbook, startWorkbookTabs } from './workbooks/workbook-store';
 import { newerRelease } from './settings/update-check';
 import { UpdateDialog } from './settings/update-dialog';
@@ -177,6 +179,8 @@ export function App() {
   const [accountsError, setAccountsError] = useState<Shown | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [panel, setPanel] = useState<PanelName>('schema');
+  /** A workbook tab's side panel: none until one is chosen on the rail, so the workbook gets the width. */
+  const [workbookPanel, setWorkbookPanel] = useState<PanelName | null>(null);
   const [paramsOpen, setParamsOpen] = useState(false);
   /** The tab the save dialog is open for. */
   const [saving, setSaving] = useState<string | null>(null);
@@ -285,7 +289,14 @@ export function App() {
       id: `panel.${p.name}`,
       title: `Show ${p.label}`,
       group: 'View',
-      run: () => setPanel(p.name),
+      run: () => {
+        const { tabs, activeId } = useTabs.getState();
+        if (tabs.find((t) => t.id === activeId)?.source === 'workbook') {
+          setWorkbookPanel(p.name);
+        } else {
+          setPanel(p.name);
+        }
+      },
     }));
     const themeCommand = (t: Theme): Command => ({
       id: `theme.${t}`,
@@ -332,6 +343,7 @@ export function App() {
       { id: 'tab.new', title: 'New Microsoft Graph query', group: 'Tabs', shortcut: 'Mod+T', run: () => useTabs.getState().open('graph') },
       { id: 'tab.newRaw', title: 'New raw Graph request', group: 'Tabs', run: () => openRaw() },
       { id: 'tab.newWorkbook', title: 'New workbook', group: 'Tabs', run: () => void useTabs.getState().openWorkbook() },
+      { id: 'workbook.import', title: 'Import workbook…', group: 'Tabs', run: () => void importWorkbook().catch(fail('The workbook couldn’t be imported')) },
       {
         id: 'schema.refresh',
         title: 'Refresh schema',
@@ -446,10 +458,12 @@ export function App() {
   const askErrorReports = settings?.settings.errorReports === null && !errorReportsClosed && !askTelemetry;
 
   // The window's shortcuts act on the workspace, so none fires while sign-in or settings covers it, or a dialog is open (the
-  // palette, the save dialog or the close confirmation, which handle their own keys, Esc included).
+  // palette, the save dialog, the close confirmation or a shared workbook's review, which handle their own keys, Esc included).
   const shortcutsOn = useRef(false);
+  const importOpen = useImportReview((s) => s.pending !== null);
   useEffect(() => {
-    shortcutsOn.current = !signingIn && !settingsOpen && !paletteOpen && saving === null && !confirming && !askTelemetry && !askErrorReports && !update;
+    shortcutsOn.current =
+      !signingIn && !settingsOpen && !paletteOpen && saving === null && !confirming && !askTelemetry && !askErrorReports && !update && !importOpen;
     paletteShown.current = paletteOpen;
     settingsShown.current = settingsOpen;
   });
@@ -624,15 +638,20 @@ export function App() {
         {/* Hidden rather than unmounted while signing in, so the editor keeps each tab's undo history. */}
         <div className="flex min-h-0 flex-1 flex-col" hidden={signingIn} inert={settingsOpen}>
           <div className="panes">
-            <Rail panel={panel} onChoose={setPanel} />
-            <SidePanel
-              panel={panel}
-              source={active?.source ?? 'graph'}
-              text={active?.text ?? ''}
-              onInsert={insert}
-              accountKey={accountKey}
-              onSignIn={() => setAccountsOpen(true)}
+            <Rail
+              panel={workbook ? workbookPanel : panel}
+              onChoose={workbook ? (p) => setWorkbookPanel((shown) => (shown === p ? null : p)) : setPanel}
             />
+            {(workbook ? workbookPanel : panel) && (
+              <SidePanel
+                panel={(workbook ? workbookPanel : panel) ?? panel}
+                source={active?.source ?? 'graph'}
+                text={active?.text ?? ''}
+                onInsert={insert}
+                accountKey={accountKey}
+                onSignIn={() => setAccountsOpen(true)}
+              />
+            )}
             <main className="workspace">
               {active ? (
                 <>
@@ -771,6 +790,7 @@ export function App() {
         />
       )}
       {update && !askTelemetry && !askErrorReports && <UpdateDialog info={update} onClose={() => setUpdate(null)} />}
+      <ImportReview />
       {paletteOpen && (
         <Palette
           onClose={() => {

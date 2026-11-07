@@ -2,7 +2,6 @@ import type { StoreApi, UseBoundStore } from 'zustand';
 import { create } from 'zustand';
 import { call } from '../bridge';
 import { useRevisions } from '../library/saving';
-import type { Picked } from '../results/chart-view';
 import { newId } from '../shell/ids';
 import { useTabs } from '../tabs/tab-store';
 import type { LibraryList, QueryRunParams, RunResult, SavedQuery, Source } from '../wire';
@@ -10,6 +9,7 @@ import type { Widget, WorkbookDoc } from './model';
 import { parseWorkbook } from './model';
 import type { ViewValues } from './resolve';
 import { initialValues, missingRequired, toParameterValues, widgetParams, widgetRunOptions, widgetsUsing } from './resolve';
+import type { RowSelection } from './tool-buttons';
 
 export type WidgetRun =
   | { state: 'idle' }
@@ -29,8 +29,8 @@ export interface WorkbookState {
   redo: WorkbookDoc[];
   /** The doc differs from the file (Ruling R1); {@link startWorkbookTabs} mirrors it into the tab. */
   dirty: boolean;
-  /** Chart picks changed outside edit mode, by widget id: view state, never in the doc (Ruling R3). */
-  viewCharts: Record<string, Picked>;
+  /** Chosen rows and the order the grid shows them, by widget id: view state, never in the doc. */
+  selections: Record<string, RowSelection>;
 }
 
 export interface WorkbookActions {
@@ -52,7 +52,8 @@ export interface WorkbookActions {
   /** The workbook was saved as `doc`. */
   markSaved(tabId: string, doc: WorkbookDoc): void;
   markUnsaved(tabId: string): void; // its file was deleted: dirty, also after a discard
-  setViewChart(tabId: string, widgetId: string, picked: Picked): void;
+  setSelection(tabId: string, widgetId: string, selected: number[]): void;
+  setShown(tabId: string, widgetId: string, shown: number[]): void; // no state change when equal to the current one
 }
 
 type Store = { byTab: Record<string, WorkbookState> } & WorkbookActions;
@@ -263,7 +264,7 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
     byTab: {},
 
     async load(tabId, doc, opts) {
-      const fresh: WorkbookState = { doc, values: initialValues(doc, {}), runs: {}, editing: false, undo: [], redo: [], dirty: opts?.dirty ?? false, viewCharts: {} };
+      const fresh: WorkbookState = { doc, values: initialValues(doc, {}), runs: {}, editing: false, undo: [], redo: [], dirty: opts?.dirty ?? false, selections: {} };
       const token = Symbol(tabId);
       loads.set(tabId, token);
       set((st) => ({ byTab: { ...st.byTab, [tabId]: fresh } }));
@@ -314,6 +315,10 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
           onStart: (runId) => setRun(tabId, widgetId, { state: 'running', runId, startedAt: Date.now() }),
           onAnswer: (run) => {
             setRun(tabId, widgetId, run);
+            if (run.state === 'done') {
+              // The rows changed, so the old row indexes mean nothing.
+              update(tabId, (s) => ({ selections: Object.fromEntries(Object.entries(s.selections).filter(([id]) => id !== widgetId)) }));
+            }
             settle();
           },
           onDropped: settle,
@@ -450,8 +455,16 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
       }
     },
 
-    setViewChart(tabId, widgetId, picked) {
-      update(tabId, (s) => ({ viewCharts: { ...s.viewCharts, [widgetId]: picked } }));
+    setSelection(tabId, widgetId, selected) {
+      update(tabId, (s) => ({ selections: { ...s.selections, [widgetId]: { shown: null, ...s.selections[widgetId], selected } } }));
+    },
+
+    setShown(tabId, widgetId, shown) {
+      const was = get().byTab[tabId]?.selections[widgetId];
+      if (was?.shown && was.shown.length === shown.length && was.shown.every((v, i) => v === shown[i])) {
+        return;
+      }
+      update(tabId, (s) => ({ selections: { ...s.selections, [widgetId]: { selected: [], ...s.selections[widgetId], shown } } }));
     },
   };
   return store;
@@ -516,30 +529,35 @@ export function startWorkbookTabs(notify?: (message: string) => void): () => voi
 }
 
 /**
+ * Linked widgets take their saved query's current source, text, options, parameters and name, so the file works without the
+ * library entry (spec §9.2); a link the library no longer has (or an unreadable library) keeps its last copy.
+ */
+export async function withLinkedCopies(doc: WorkbookDoc): Promise<WorkbookDoc> {
+  const library = await call<LibraryList>('library.list').then(
+    (l) => new Map(l.queries.map((q) => [q.id, q])),
+    () => new Map<string, SavedQuery>(),
+  );
+  const widgets = doc.widgets.map((w) => {
+    const q = w.query?.saved ? library.get(w.query.saved.id) : undefined;
+    return w.query && q && q.source !== 'raw'
+      ? { ...w, query: { ...w.query, source: q.source, text: q.text, options: q.options ?? null, parameters: q.parameters, saved: { id: q.id, name: q.name } } }
+      : w;
+  });
+  return { ...doc, widgets };
+}
+
+/**
  * Saves a workbook tab's document. Linked widgets first take their saved query's current source, text, options, parameters
  * and name, so the file works without the library entry (spec §9.2); a link the library no longer has keeps its last copy.
  * `as` names the workbook and puts it in a folder (the first save's dialog). Rejects with the host's refusal (a bad name or
  * folder). Allowed while editing.
  */
 export async function saveWorkbook(tabId: string, as?: { name: string; folder: string | null }): Promise<void> {
-  if (!useWorkbooks.getState().byTab[tabId]) {
-    throw new Error('The workbook is no longer open.');
-  }
-  // Unreadable library: the widgets keep their last copies.
-  const library = await call<LibraryList>('library.list').then(
-    (l) => new Map(l.queries.map((q) => [q.id, q])),
-    () => new Map<string, SavedQuery>(),
-  );
   const base = useWorkbooks.getState().byTab[tabId]?.doc;
   if (!base) {
     throw new Error('The workbook is no longer open.');
   }
-  const widgets = base.widgets.map((w) => {
-    const q = w.query?.saved ? library.get(w.query.saved.id) : undefined;
-    return w.query && q && q.source !== 'raw'
-      ? { ...w, query: { ...w.query, source: q.source, text: q.text, options: q.options ?? null, parameters: q.parameters, saved: { id: q.id, name: q.name } } }
-      : w;
-  });
+  const { widgets } = await withLinkedCopies(base);
   const { workbook } = await call<{ workbook: WorkbookDoc }>('workbook.save', { workbook: { ...base, widgets, ...as } });
   // An edit made while the save was out stays, unsaved.
   if (useWorkbooks.getState().byTab[tabId]?.doc === base) {

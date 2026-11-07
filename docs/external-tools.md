@@ -1,8 +1,11 @@
 # External tools
 
 The Rows tab's **Run tool** menu runs a command of your own on the selected rows, or on every row the filter shows when none
-are selected. **Edit tools…** opens `tools.json` in Kustodian's data folder (see [install.md](install.md)), and writes an
-example there first if there is no file.
+are selected. The tools are set up in **Settings › External tools**: add, edit, duplicate, reorder and delete them there, one
+box per argument; each change is saved to `tools.json` in Kustodian's data folder (see [install.md](install.md)) at once. A
+tool whose command is no file gets a warning there. While `tools.json` can't be read, Settings shows why and changes nothing.
+**Edit tools…** in the menu, and **Open tools.json** in Settings, open the file in a text editor instead, writing an example
+there first if there is no file. Saving from Settings rewrites the file, so its own layout isn't kept.
 
 ```json
 {
@@ -35,3 +38,7 @@ The command starts directly, never through a shell, so a row value is always exa
 For the same reason a Windows `.bat` or `.cmd` file can't take row values (Windows would run it through `cmd.exe`); use batch
 mode for those. Give `command` as a full path: an app started from the Finder or the Start menu doesn't get your shell's
 `PATH`. Commands run in your home folder.
+
+Table widgets in a [workbook](workbooks.md#selection-and-tool-buttons) can have tool buttons. A button names a tool here and
+never copies its command, so the workbook holds only the tool's name and a column mapping, and changing the tool here
+changes what the button runs. A workbook from someone else needs a tool of the same name in your own `tools.json`.

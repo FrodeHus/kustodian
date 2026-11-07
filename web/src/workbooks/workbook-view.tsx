@@ -6,6 +6,7 @@ import { MenuButton } from '../results/result-grid';
 import { runCommand } from '../shell/commands';
 import { ErrorReportActions, type Shown } from '../shell/error-report';
 import { errorText } from '../shell/errors';
+import { exportWorkbook } from './sharing';
 import { reportIdOf } from '../shell/report-id';
 import { ConfirmDelete } from '../side/row-menu';
 import { inSendDetails } from '../shell/send-details-marker';
@@ -13,7 +14,8 @@ import { SourceBadge } from '../tabs/source-badge';
 import { useTabs } from '../tabs/tab-store';
 import type { LibraryList, SavedQuery } from '../wire';
 import { narrowOrder, place } from './layout';
-import { MIN_SIZE, newWidget, type Widget, type WidgetType, type WorkbookParameter } from './model';
+import { MAX_WIDGETS, MIN_SIZE, newWidget, type Widget, type WidgetType, type WorkbookParameter } from './model';
+import { huntingTimespanProblem, workbookValues } from './resolve';
 import { ParametersDialog } from './parameters-dialog';
 import { WidgetEditor } from './widget-editor';
 import { WidgetFrame } from './widget-frame';
@@ -25,14 +27,16 @@ import { editStartDoc, readLibrary, useWorkbooks } from './workbook-store';
 
 const ALL = '\u0000all';
 
-/** A workbook parameter's control in the bar: a select for a list with choices (several values, one per line, when `multi`;
+/** A workbook parameter's control in the bar: a select for one with choices (a list's takes several values, one per line, when `multi`;
  * `all` adds "All", which picks every choice), else a text box. Text reruns as typing stops, or at once on Enter. */
 function ParamControl({ tabId, param, value }: { tabId: string; param: WorkbookParameter; value: string }) {
   const set = (v: string, now = true) => useWorkbooks.getState().setWorkbookValue(tabId, param.name, v, { now });
   const label = param.label ?? param.name;
-  const choices = param.type === 'list' ? (param.choices ?? []).filter((c) => c.trim() !== '') : [];
+  // Choices make a select for any type, as in a query tab; several values and All are a list's only.
+  const choices = (param.choices ?? []).filter((c) => c.trim() !== '');
+  const list = param.type === 'list';
   let control;
-  if (choices.length > 0 && param.multi) {
+  if (choices.length > 0 && list && param.multi) {
     control = (
       <select
         multiple
@@ -54,7 +58,7 @@ function ParamControl({ tabId, param, value }: { tabId: string; param: WorkbookP
     );
   } else if (choices.length > 0) {
     const all = choices.join('\n');
-    const options = [...(param.all ? [{ value: all, text: 'All' }] : []), ...choices.map((c) => ({ value: c, text: c }))];
+    const options = [...(list && param.all ? [{ value: all, text: 'All' }] : []), ...choices.map((c) => ({ value: c, text: c }))];
     control = (
       <select className="textbox mono" style={{ height: 28 }} aria-label={label} value={value} onChange={(e) => set(e.target.value)}>
         {!options.some((o) => o.value === value) && <option value={value}>{value === '' ? '(none)' : value}</option>}
@@ -77,10 +81,17 @@ function ParamControl({ tabId, param, value }: { tabId: string; param: WorkbookP
       />
     );
   }
+  // A hunting timespan that can't be sent says so here, where it's fixed, as well as on the widgets it stops.
+  const problem = param.huntingTimespan ? huntingTimespanProblem(label, value) : null;
   return (
     <label className="flex items-center gap-2 text-[12.5px]">
       <span className="muted">{label}</span>
       {control}
+      {problem && (
+        <span role="alert" className="text-[12px] text-bad">
+          {problem}
+        </span>
+      )}
     </label>
   );
 }
@@ -115,6 +126,8 @@ function SavedQueryPicker({ onPick, onClose }: { onPick: (q: SavedQuery) => void
     };
   }, []);
 
+  // Focus starts inside, so Esc closes it before the list has loaded (or when it's empty); the first query takes it on load.
+  useEffect(() => dialogRef.current?.querySelector<HTMLElement>('button')?.focus(), []);
   // A modal, as the save dialog is: focus that lands outside it goes back to it.
   useEffect(() => {
     const onFocusIn = (e: FocusEvent) => {
@@ -225,7 +238,8 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
   if (!state) {
     return <p className="faint m-0 p-4 text-[12px]">Opening the workbook…</p>;
   }
-  const { doc, values, runs, editing, viewCharts } = state;
+  const { doc, values, runs, editing } = state;
+  const full = doc.widgets.length >= MAX_WIDGETS;
   const store = useWorkbooks.getState;
   const updatedAt = Math.max(0, ...Object.values(runs).map((r) => (r.state === 'done' || r.state === 'failed' ? (r.finishedAt ?? 0) : 0)));
 
@@ -252,8 +266,13 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
     const min = MIN_SIZE[type];
     add(newWidget(type, place(doc.widgets, min.w, min.h * 2)), `a ${name} widget`);
   };
-  const addSaved = (q: SavedQuery) => {
+  // The picker opens from + Add widget, the editing bar's first button; focus goes back there when it closes.
+  const closePicker = () => {
     setPicking(false);
+    focusNext.current = () => editingBar.current?.querySelector('button');
+  };
+  const addSaved = (q: SavedQuery) => {
+    closePicker();
     if (q.source === 'raw') {
       return;
     }
@@ -321,23 +340,11 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
     const run = runs[w.id] ?? { state: 'idle' };
     switch (w.type) {
       case 'markdown':
-        return <MarkdownWidget text={w.markdown ?? ''} values={values.workbook} />;
+        return <MarkdownWidget text={w.markdown ?? ''} values={workbookValues(doc, values)} />;
       case 'chart':
-        return (
-          <ChartWidget
-            widget={w}
-            run={run}
-            picked={viewCharts[w.id] ?? w.chart ?? {}}
-            // Ruling R3: a pick outside edit mode is view state; in edit mode it is the widget's.
-            onChart={(picked) =>
-              editing
-                ? store().edit(tabId, (d) => ({ ...d, widgets: d.widgets.map((x) => (x.id === w.id ? { ...x, chart: picked } : x)) }))
-                : store().setViewChart(tabId, w.id, picked)
-            }
-          />
-        );
+        return <ChartWidget widget={w} run={run} />;
       case 'table':
-        return <TableWidget widget={w} run={run} />;
+        return <TableWidget widget={w} run={run} tabId={tabId} />;
       case 'stat':
         return <StatWidget widget={w} run={run} />;
     }
@@ -351,12 +358,13 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
           <h1 className="m-0 truncate text-[14px] font-semibold">{doc.name}</h1>
           <div className="grow" />
           <MenuButton label="Add widget" text="+ Add widget">
+            {full && <p className="faint m-0 max-w-56 px-2.5 py-1.5 text-[12px]">A workbook can have at most {MAX_WIDGETS} widgets.</p>}
             {ADDABLE.map(([type, name]) => (
-              <button key={type} type="button" role="menuitem" tabIndex={-1} onClick={() => addNew(type, name)}>
+              <button key={type} type="button" role="menuitem" tabIndex={-1} disabled={full} onClick={() => addNew(type, name)}>
                 {name}
               </button>
             ))}
-            <button type="button" role="menuitem" tabIndex={-1} onClick={() => setPicking(true)}>
+            <button type="button" role="menuitem" tabIndex={-1} disabled={full} onClick={() => setPicking(true)}>
               From a saved query…
             </button>
           </MenuButton>
@@ -395,6 +403,16 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
             <button type="button" role="menuitem" tabIndex={-1} onClick={() => store().saveValuesAsDefaults(tabId)}>
               Save current values as defaults
             </button>
+            <button
+              type="button"
+              role="menuitem"
+              tabIndex={-1}
+              onClick={() =>
+                exportWorkbook(tabId).catch((e: unknown) => setProblem({ text: `The workbook couldn’t be exported: ${errorText(e)}`, reportId: reportIdOf(e) }))
+              }
+            >
+              Export…
+            </button>
             <button type="button" role="menuitem" tabIndex={-1} disabled={!savedId} onClick={() => setDeleting(true)}>
               Delete
             </button>
@@ -429,7 +447,7 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
           />,
           document.body,
         )}
-      {picking && createPortal(<SavedQueryPicker onPick={addSaved} onClose={() => setPicking(false)} />, document.body)}
+      {picking && createPortal(<SavedQueryPicker onPick={addSaved} onClose={closePicker} />, document.body)}
       {deleting && <ConfirmDelete name={doc.name} onDelete={remove} onCancel={() => setDeleting(false)} />}
       {problem && (
         <p className="m-0 flex items-center gap-2 px-3 py-1.5 text-[12px] text-bad" role="alert">

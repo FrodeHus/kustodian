@@ -18,7 +18,7 @@ import {
 } from 'recharts';
 import type { ResultColumn } from '../wire';
 import type { Row } from './export';
-import { CHART_TYPES, NO_SHAPE, RENDER_HINTS, chartData, chartShape, isCategory, markFilter, isNumeric, renderHint, renderOptions, splitColumn, type CellMatch, type ChartPoint, type ChartType, type Stack } from './chart-shape';
+import { CHART_TYPES, NO_SHAPE, RENDER_HINTS, chartData, chartShape, isCategory, markFilter, isNumeric, renderHint, renderOptions, splitColumn, stackable, STACKS, type CellMatch, type ChartPoint, type ChartType, type Stack } from './chart-shape';
 
 /** Series colours, from the theme's tokens, so they follow light and dark. */
 const COLOURS = ['var(--accent)', 'var(--warn)', 'var(--ok)', 'var(--bad)', 'var(--kw)', 'var(--fn)', 'var(--num)', 'var(--str)', 'var(--col)'];
@@ -63,11 +63,8 @@ export interface Picked {
   stack?: Stack;
 }
 
-const STACKS: { stack: Stack; name: string }[] = [
-  { stack: 'none', name: 'None' },
-  { stack: 'stacked', name: 'Stacked' },
-  { stack: 'stacked100', name: 'Stacked 100%' },
-];
+/** The least height a category gets in a chart-only bar chart, which scrolls past that. */
+const BAR_ROW_PX = 22;
 
 const percent = (share: number) => `${Math.round(share * 100)}%`;
 
@@ -84,7 +81,8 @@ export default function ChartView({
   kql,
   onPick,
   picked,
-  setPicked,
+  setPicked = () => undefined,
+  controls = true,
 }: {
   columns: ResultColumn[];
   rows: Row[];
@@ -92,7 +90,9 @@ export default function ChartView({
   onPick?: (filter: CellMatch[]) => void;
   /** Held by the results panel, so the picks outlive switching tabs. */
   picked: Picked;
-  setPicked: (picked: Picked) => void;
+  setPicked?: (picked: Picked) => void;
+  /** False draws the chart alone, without the title, pickers and Full screen (a workbook widget, set in its editor). */
+  controls?: boolean;
 }) {
   const [full, setFull] = useState(false);
   // Esc leaves full screen first, before anything else that listens for it.
@@ -141,9 +141,8 @@ export default function ChartView({
     }
   };
   const pointer = onPick && spec.x !== null ? { cursor: 'pointer' } : undefined;
-  // Only bars and areas stack; stacked to 100%, the value axis reads as shares.
-  const stackable = type === 'column' || type === 'bar' || type === 'area';
-  const stack = stackable ? (picked.stack ?? options.stack ?? 'none') : 'none';
+  // Stacked to 100%, the value axis reads as shares.
+  const stack = stackable(type) ? (picked.stack ?? options.stack ?? 'none') : 'none';
   const stackId = stack === 'none' ? undefined : 'stack';
   const stackOffset = stack === 'stacked100' ? 'expand' : undefined;
   const valueTick = stackOffset ? percent : undefined;
@@ -242,6 +241,35 @@ export default function ChartView({
       );
   }
 
+  const plot = (
+    <div className="min-h-0 flex-1">
+      {spec.series.length > 0 && !controls && type === 'bar' ? (
+        // A widget can be short: a bar chart keeps 22 px a category and scrolls, rather than squeezing dozens into slivers.
+        <div className="h-full overflow-y-auto">
+          <div style={{ height: `max(100%, ${data.length * BAR_ROW_PX}px)` }}>
+            <ResponsiveContainer width="100%" height="100%">
+              {chart}
+            </ResponsiveContainer>
+          </div>
+        </div>
+      ) : spec.series.length > 0 ? (
+        <ResponsiveContainer width="100%" height="100%">
+          {chart}
+        </ResponsiveContainer>
+      ) : (
+        <div className="flex h-full items-center justify-center">
+          <span className="faint text-[12px]">{numbers.length === 0 ? 'No number columns to chart along this axis.' : controls ? 'Tick a value to chart.' : 'No value picked to chart.'}</span>
+        </div>
+      )}
+    </div>
+  );
+  if (!controls) {
+    return (
+      <section className="flex min-h-0 flex-1 flex-col px-3 pb-3" aria-label="Chart">
+        {plot}
+      </section>
+    );
+  }
   return (
     <section className={`card flex min-h-0 flex-1 flex-col gap-3 p-4 ${full ? 'fixed inset-0 z-20 rounded-none' : 'm-4'}`} aria-label="Chart">
       <div className="flex items-center gap-2.5">
@@ -304,7 +332,7 @@ export default function ChartView({
             </select>
           </label>
         )}
-        {stackable && (
+        {stackable(type) && (
           <label className="flex items-center gap-2">
             <span className="muted">Stacking</span>
             <select
@@ -330,17 +358,7 @@ export default function ChartView({
           </label>
         ))}
       </div>
-      <div className="min-h-0 flex-1">
-        {spec.series.length > 0 ? (
-          <ResponsiveContainer width="100%" height="100%">
-            {chart}
-          </ResponsiveContainer>
-        ) : (
-          <div className="flex h-full items-center justify-center">
-            <span className="faint text-[12px]">{numbers.length > 0 ? 'Tick a value to chart.' : 'No number columns to chart along this axis.'}</span>
-          </div>
-        )}
-      </div>
+      {plot}
     </section>
   );
 }

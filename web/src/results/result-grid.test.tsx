@@ -239,4 +239,104 @@ describe('ResultGrid', () => {
     fireEvent.keyDown(region, { key: 'Enter' });
     expect(onOpenRow).toHaveBeenLastCalledWith(0);
   });
+
+  it('grid_checkbox_column_selects_rows_through_the_caller', () => {
+    const rows = [
+      ['Contoso', 1, null],
+      ['Payroll', 2, null],
+      ['Legacy', 3, null],
+    ];
+    const onChange = vi.fn();
+    const onOpenRow = vi.fn();
+    const { container, rerender } = render(
+      <ResultGrid columns={columns} rows={rows} onOpenRow={onOpenRow} selection={{ mode: 'multi', selected: new Set(), onChange }} />,
+    );
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select row 2' }));
+    expect(onChange).toHaveBeenLastCalledWith(new Set([1]));
+    expect(onChange).toHaveBeenCalledTimes(1);
+
+    rerender(<ResultGrid columns={columns} rows={rows} onOpenRow={onOpenRow} selection={{ mode: 'multi', selected: new Set([1]), onChange }} />);
+    expect(bodyRows(container).map((tr) => tr.getAttribute('aria-selected'))).toEqual(['false', 'true', 'false']);
+    expect(screen.getByRole('checkbox', { name: 'Select row 2' })).toHaveProperty('checked', true);
+    const all = screen.getByRole('checkbox', { name: 'Select all rows' });
+    expect(all).toHaveProperty('indeterminate', true);
+    expect(all).toHaveProperty('checked', false);
+
+    // Unchecking it clears that row.
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select row 2' }));
+    expect(onChange).toHaveBeenLastCalledWith(new Set());
+  });
+
+  it('grid_select_all_selects_only_rows_the_filter_shows', () => {
+    const rows = [
+      ['Contoso', 1, null],
+      ['Payroll', 2, null],
+      ['Contoso East', 3, null],
+    ];
+    const onChange = vi.fn();
+    const { rerender } = render(<ResultGrid columns={columns} rows={rows} selection={{ mode: 'multi', selected: new Set(), onChange }} />);
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Filter rows' }), { target: { value: 'Contoso' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all rows' }));
+    expect(onChange).toHaveBeenLastCalledWith(new Set([0, 2]));
+
+    // With every shown row selected it is checked, and clicking it clears the selection.
+    rerender(<ResultGrid columns={columns} rows={rows} selection={{ mode: 'multi', selected: new Set([0, 2]), onChange }} />);
+    const all = screen.getByRole('checkbox', { name: 'Select all rows' });
+    expect(all).toHaveProperty('checked', true);
+    expect(all).toHaveProperty('indeterminate', false);
+    fireEvent.click(all);
+    expect(onChange).toHaveBeenLastCalledWith(new Set());
+  });
+
+  it('grid_single_mode_keeps_one_row', () => {
+    const rows = [
+      ['Contoso', 1, null],
+      ['Payroll', 2, null],
+      ['Legacy', 3, null],
+    ];
+    const onChange = vi.fn();
+    const { container } = render(<ResultGrid columns={columns} rows={rows} selection={{ mode: 'single', selected: new Set([0]), onChange }} />);
+    fireEvent.click(bodyRows(container)[2]!, { ctrlKey: true });
+    expect(onChange).toHaveBeenLastCalledWith(new Set([2]));
+    fireEvent.click(bodyRows(container)[1]!, { shiftKey: true });
+    expect(onChange).toHaveBeenLastCalledWith(new Set([1]));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select row 3' }));
+    expect(onChange).toHaveBeenLastCalledWith(new Set([2]));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select row 1' }));
+    expect(onChange).toHaveBeenLastCalledWith(new Set());
+    expect(screen.queryByRole('checkbox', { name: 'Select all rows' })).toBeNull();
+  });
+
+  it('grid_selection_none_has_no_checkboxes_and_selects_nothing', () => {
+    const rows = [
+      ['Contoso', 1, null],
+      ['Payroll', 2, null],
+    ];
+    const { container, unmount } = render(<ResultGrid columns={columns} rows={rows} selection="none" />);
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    fireEvent.click(bodyRows(container)[0]!);
+    fireEvent.keyDown(screen.getByRole('region', { name: 'Result rows' }), { key: 'ArrowDown' });
+    expect(bodyRows(container).map((tr) => tr.getAttribute('aria-selected'))).toEqual(['false', 'false']);
+    unmount();
+
+    // The Rows tab's grid, with no selection prop, has no checkbox column either.
+    render(<ResultGrid columns={columns} rows={rows} />);
+    expect(screen.queryByRole('checkbox')).toBeNull();
+  });
+
+  it('grid_reports_shown_rows_in_order', () => {
+    const rows = [
+      ['Contoso', 1, null],
+      ['Payroll', 2, null],
+      ['Contoso East', 3, null],
+    ];
+    const onShownChange = vi.fn();
+    render(<ResultGrid columns={columns} rows={rows} onShownChange={onShownChange} />);
+    expect(onShownChange).toHaveBeenLastCalledWith([0, 1, 2]);
+    // Sort by n descending: two clicks.
+    fireEvent.click(screen.getByRole('button', { name: /^n/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^n/ }));
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Filter rows' }), { target: { value: 'Contoso' } });
+    expect(onShownChange).toHaveBeenLastCalledWith([2, 0]);
+  });
 });

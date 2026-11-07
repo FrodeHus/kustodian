@@ -313,6 +313,23 @@ function serverRunResult(source: 'hunting' | 'arg') {
   };
 }
 
+/** A `count()` query's answer: a text and a number column, so Chart and Stat widgets have something to show. */
+function countedResult<T extends typeof runResult>(base: T): T {
+  return {
+    ...base,
+    columns: [
+      { name: 'Name', type: 'string' },
+      { name: 'Count', type: 'long' },
+    ],
+    rows: [
+      ['Finance', 42],
+      ['Engineering', 128],
+      ['Sales', 67],
+    ],
+    total: 3,
+  };
+}
+
 /** Built-in hunting and Resource Graph snippets, so the Snippets panel has some for each source. */
 const builtInHuntingSnippet = {
   id: '5f0e6a6e-6d0a-4a55-9a53-0b7e3a1c0101',
@@ -371,6 +388,7 @@ const builtInSnippet = {
 const RUN_DELAY_MS = 400;
 
 interface MockWorkbook {
+  kind?: string;
   id: string;
   name: string;
   folder?: string | null;
@@ -403,6 +421,7 @@ interface MockRequest {
     columns?: string[];
     rows?: unknown[][];
     mapping?: Record<string, string>;
+    tools?: (typeof mockTool)[];
     workbook?: MockWorkbook;
     values?: Record<string, string>;
   };
@@ -541,6 +560,8 @@ export function createMockTransport(): Transport {
   let receive: (message: string) => void = () => undefined;
   const runs = new Map<string, { id: string; timer: ReturnType<typeof setTimeout> }>();
   let settings = defaultSettings;
+  let tools = [mockTool];
+  const toolList = () => ({ tools, problem: null, path: '/mock/tools.json', missing: [] });
   const settingsAnswer = () => ({
     settings,
     limitsAppliedAt: 'startup',
@@ -650,6 +671,15 @@ export function createMockTransport(): Transport {
         reply(id, { workbook });
         break;
       }
+      case 'workbook.check':
+        if (!params?.workbook) {
+          fail(id, 'bad_request', 'The request has no workbook.');
+        } else if (params.workbook.kind !== 'kustodian.workbook') {
+          fail(id, 'bad_request', "This isn't a Kustodian workbook.");
+        } else {
+          reply(id, null);
+        }
+        break;
       case 'workbook.delete':
         workbooks.delete(params?.id ?? '');
         workbookValues.delete(params?.id ?? '');
@@ -689,8 +719,13 @@ export function createMockTransport(): Transport {
         reply(id, null);
         break;
       case 'tools.list':
-        reply(id, { tools: [mockTool], problem: null, path: '/mock/tools.json' });
+        reply(id, toolList());
         break;
+      case 'tools.save':
+        tools = params?.tools ?? [];
+        reply(id, toolList());
+        break;
+      case 'tools.pickCommand':
       case 'tools.edit':
       case 'tools.cancel':
         reply(id, null);
@@ -835,7 +870,8 @@ export function createMockTransport(): Transport {
         const timer = setTimeout(() => {
           runs.delete(tabId);
           const source = params?.source;
-          const result = { ...(source === 'hunting' || source === 'arg' ? serverRunResult(source) : runResult), runId };
+          const base = source === 'hunting' || source === 'arg' ? serverRunResult(source) : runResult;
+          const result = { ...(/\bcount\(\)/.test(params?.kql ?? '') ? countedResult(base) : base), runId };
           // As the host's Recent: newest first, with the run's options, so "open again" brings them back.
           recent.unshift({
             id: runId,

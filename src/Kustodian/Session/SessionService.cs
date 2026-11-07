@@ -5,6 +5,7 @@ using Kustodian.Graph.Run;
 using Kustodian.Library;
 using Kustodian.Raw;
 using Kustodian.Storage;
+using Kustodian.Workbooks;
 
 namespace Kustodian.Sessions;
 
@@ -34,7 +35,8 @@ public sealed record Session(int Version, string? ActiveId, IReadOnlyList<Sessio
 /// Owns <c>session.json</c>. Fields missing from the file take their defaults, in each tab and each tab's parameters and options
 /// too (<see cref="QueryOptionsDefaults"/>; missing options are null), so
 /// a file written by an older version restores. A file that can't be read is moved aside and reads as an empty session, marked
-/// corrupt. Saving drops tabs over the caps (<see cref="MaxTabs"/> tabs, <see cref="MaxTextBytes"/> of text each) and says how
+/// corrupt. Saving drops tabs over the caps (<see cref="MaxTabs"/> tabs, <see cref="MaxTextBytes"/> of text each, a workbook
+/// document as large as a workbook file may be, <see cref="WorkbookService.MaxBytes"/>) and says how
 /// many it dropped. A raw tab's headers are written only when the raw tab could send them
 /// (<see cref="RawRequestService.HeaderProblem"/>: never <c>Authorization</c>, <c>Host</c>, <c>Cookie</c>,
 /// <c>Accept-Encoding</c>, a <c>Proxy-*</c>, hop-by-hop or content header, nor a name that isn't a token or a value with CR or
@@ -59,12 +61,12 @@ public sealed class SessionService(JsonFileStore store)
     public Task<UserDataRead<Session>> GetAsync(CancellationToken ct = default) => _file.ReadAsync(ct);
 
     /// <summary>Writes <paramref name="session"/> as version 1 without the tabs over a cap, and returns how many it left out.
-    /// A tab over the text cap (its workbook document included) is dropped; then the tabs after the first <see cref="MaxTabs"/> are. When the active tab is
+    /// A tab over the text cap, or with a workbook document over <see cref="WorkbookService.MaxBytes"/>, is dropped; then the tabs after the first <see cref="MaxTabs"/> are. When the active tab is
     /// dropped nothing is active.</summary>
     public async Task<int> SaveAsync(Session session, CancellationToken ct = default)
     {
         var kept = session.Tabs.Where(t => Encoding.UTF8.GetByteCount(t.Text) <= MaxTextBytes
-            && (t.Workbook is null || Encoding.UTF8.GetByteCount(t.Workbook.ToJsonString()) <= MaxTextBytes)).Take(MaxTabs)
+            && (t.Workbook is null || Encoding.UTF8.GetByteCount(t.Workbook.ToJsonString()) <= WorkbookService.MaxBytes)).Take(MaxTabs)
             .Select(t => t.Raw is null ? t : t with { Raw = Sendable(t.Raw) }).ToList();
         var activeId = kept.Any(t => t.Id == session.ActiveId) ? session.ActiveId : null;
         await _file.WriteAsync(new Session(1, activeId, kept), ct);
