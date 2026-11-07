@@ -60,6 +60,14 @@ public sealed class SolutionRulesTests
         Assert.NotNull(SolutionRules.ManifestProblem(m, "entra-risky-users"));
 
     [Fact]
+    public void Item_ids_are_unique_across_kinds()
+    {
+        var v = Valid();
+        Assert.Equal("The id 'risky-users' is used by a query and a workbook.", SolutionRules.ManifestProblem(
+            v with { Content = v.Content with { Workbooks = ["risky-users"] } }, "entra-risky-users"));
+    }
+
+    [Fact]
     public void ExpectedFiles_follow_the_manifest()
     {
         var v = Valid();

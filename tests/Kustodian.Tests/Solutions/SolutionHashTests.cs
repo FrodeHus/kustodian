@@ -59,4 +59,14 @@ public sealed class SolutionHashTests
         Assert.Equal(hash, SolutionHash.Workbook(Workbook(name: "Other", text: "changed")));
         Assert.NotEqual(hash, SolutionHash.Workbook(Workbook(layout: "2")));
     }
+
+    [Fact]
+    public void Workbook_ignores_the_name_of_a_linked_query_but_not_its_id()
+    {
+        static JsonObject Wb(string id, string name) => JsonNode.Parse(
+            """{"widgets":[{"query":{"saved":{"id":"ID","name":"NAME"}}}]}""".Replace("ID", id).Replace("NAME", name))!.AsObject();
+        var hash = SolutionHash.Workbook(Wb("q1", "Risky users"));
+        Assert.Equal(hash, SolutionHash.Workbook(Wb("q1", "Renamed")));
+        Assert.NotEqual(hash, SolutionHash.Workbook(Wb("q2", "Risky users")));
+    }
 }

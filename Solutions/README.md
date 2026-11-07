@@ -37,7 +37,10 @@ A workbook links its queries with `query.saved.id` set to the query's id, not a 
 
 A valid manifest, exactly the files the manifest lists, queries that the library accepts and that parse, workbooks the app
 accepts in the form it writes, no GUID other than a workbook's own `id` and its widget ids, no e-mail address, and an
-up-to-date `index.json`.
+up-to-date `index.json`. Widget queries parse too, and Graph queries, in query files and in widgets, are checked against
+the app's Graph schema and planned as a run would plan them. Workbook widgets have no tool buttons yet: tool buttons in
+solution workbooks come with tool support. A changed solution must raise its `solutionVersion` (the
+`solutionVersion bumped` check).
 
 ## Regenerating the index
 

@@ -71,7 +71,7 @@ public static class SolutionHash
         });
     }
 
-    /// <summary>Hash of a workbook without its identity, timestamps, origin and the copies of the queries it links.</summary>
+    /// <summary>Hash of a workbook without its identity, timestamps, origin, and the copies and names of the queries it links.</summary>
     public static string Workbook(JsonObject wb)
     {
         var copy = (JsonObject)wb.DeepClone();
@@ -89,6 +89,9 @@ public static class SolutionHash
                 {
                     query.Remove(key);
                 }
+
+                // Renaming the linked query doesn't change the workbook.
+                (query["saved"] as JsonObject)?.Remove("name");
             }
         }
 

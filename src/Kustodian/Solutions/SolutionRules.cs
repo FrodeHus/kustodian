@@ -58,7 +58,10 @@ public static partial class SolutionRules
             return $"Source '{source}' must be graph, hunting or arg.";
         }
 
-        return ItemsProblem("query", m.Content.Queries) ?? ItemsProblem("workbook", m.Content.Workbooks);
+        return ItemsProblem("query", m.Content.Queries) ?? ItemsProblem("workbook", m.Content.Workbooks)
+            ?? (m.Content.Queries.Intersect(m.Content.Workbooks).FirstOrDefault() is { } shared
+                ? $"The id '{shared}' is used by a query and a workbook."
+                : null);
     }
 
     private static string? ItemsProblem(string kind, IReadOnlyList<string> ids)

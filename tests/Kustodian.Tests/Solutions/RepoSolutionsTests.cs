@@ -135,21 +135,35 @@ public sealed partial class RepoSolutionsTests
     {
         foreach (var (folder, _, id, input) in Queries())
         {
-            var file = $"queries/{id}.json";
             Assert.NotNull(input);
-            var values = input.Parameters.Select(p => new ParameterValue(p.Name, p.Type, Sample(p), p.Required)).ToList();
-            var result = ParameterSubstitution.Apply(input.Text, values);
-            if (result.Text is null)
-            {
-                Fail(folder, file, result.Missing is { } m ? $"parameter {m} has no value." : result.Error?.Message ?? "substitution failed.");
-                continue;
-            }
+            CheckSyntax(folder, $"queries/{id}.json", input.Text, input.Parameters);
+        }
+    }
 
-            var errors = KustoCode.Parse(result.Text).GetSyntaxDiagnostics().Where(d => d.Severity == "Error").ToList();
-            if (errors.Count > 0)
-            {
-                Fail(folder, file, errors[0].Message);
-            }
+    /// <summary>Hunting and ARG widget queries are syntax-checked as query files are; graph ones get the schema check below.</summary>
+    [Fact]
+    public void WidgetQueriesParse()
+    {
+        foreach (var (folder, file, _, text, defs) in WidgetQueries().Where(q => q.Source != "graph"))
+        {
+            CheckSyntax(folder, file, text, defs);
+        }
+    }
+
+    private static void CheckSyntax(string folder, string file, string kql, IReadOnlyList<ParameterDef> parameters)
+    {
+        var values = parameters.Select(p => new ParameterValue(p.Name, p.Type, Sample(p), p.Required)).ToList();
+        var result = ParameterSubstitution.Apply(kql, values);
+        if (result.Text is null)
+        {
+            Fail(folder, file, result.Missing is { } m ? $"parameter {m} has no value." : result.Error?.Message ?? "substitution failed.");
+            return;
+        }
+
+        var errors = KustoCode.Parse(result.Text).GetSyntaxDiagnostics().Where(d => d.Severity == "Error").ToList();
+        if (errors.Count > 0)
+        {
+            Fail(folder, file, errors[0].Message);
         }
     }
 
@@ -163,21 +177,26 @@ public sealed partial class RepoSolutionsTests
             CheckGraph(folder, $"queries/{id}.json", input!.Text, input.Parameters);
         }
 
-        // Widgets with their own query text: workbook parameters fill what the widget doesn't define itself.
-        foreach (var (folder, _, id, json) in Workbooks())
+        foreach (var (folder, file, _, text, defs) in WidgetQueries().Where(q => q.Source == "graph"))
         {
-            var shared = Defs(json["parameters"]);
-            foreach (var widget in (json["widgets"] as JsonArray ?? []).OfType<JsonObject>())
-            {
-                if (widget["query"] is JsonObject query && query["source"]?.GetValue<string>() == "graph")
-                {
-                    var own = Defs(query["parameters"]);
-                    var defs = own.Concat(shared.Where(s => own.All(o => o.Name != s.Name))).ToList();
-                    CheckGraph(folder, $"workbooks/{id}.json (widget {widget["id"]})", query["text"]!.GetValue<string>(), defs);
-                }
-            }
+            CheckGraph(folder, file, text, defs);
         }
     }
+
+    /// <summary>Every widget query with its text: workbook parameters fill what the widget doesn't define itself.</summary>
+    private static IEnumerable<(string Folder, string File, string? Source, string Text, List<ParameterDef> Defs)> WidgetQueries() =>
+        Workbooks().SelectMany(w =>
+        {
+            var shared = Defs(w.Json["parameters"]);
+            return (w.Json["widgets"] as JsonArray ?? []).OfType<JsonObject>().Where(widget => widget["query"] is JsonObject)
+                .Select(widget =>
+                {
+                    var query = widget["query"]!;
+                    var own = Defs(query["parameters"]);
+                    return (w.Folder, $"workbooks/{w.Id}.json (widget {widget["id"]})", query["source"]?.GetValue<string>(),
+                        query["text"]!.GetValue<string>(), own.Concat(shared.Where(s => own.All(o => o.Name != s.Name))).ToList());
+                });
+        });
 
     private static List<ParameterDef> Defs(JsonNode? node) =>
         (node as JsonArray ?? []).Select(p => p.Deserialize<ParameterDef>(JsonFileStore.Options)).OfType<ParameterDef>().ToList();
@@ -219,6 +238,11 @@ public sealed partial class RepoSolutionsTests
             if (WorkbookService.Check(json) is { } problem)
             {
                 Fail(folder, file, problem);
+            }
+
+            if ((json["widgets"] as JsonArray ?? []).OfType<JsonObject>().Any(w => w["tools"] is JsonArray { Count: > 0 }))
+            {
+                Fail(folder, file, "Tool buttons in solution workbooks come with tool support.");
             }
 
             var linked = (json["widgets"] as JsonArray ?? []).Select(w => w?["query"]?["saved"]?["id"]?.GetValue<string>()).OfType<string>();
