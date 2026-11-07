@@ -65,7 +65,7 @@ const onClose = vi.fn();
 
 function open(widgetId: string) {
   useWorkbooks.setState({
-    byTab: { t: { doc, values: { workbook: { TimeRange: '1d' }, widgets: {} }, runs: {}, editing: true, undo: [], redo: [], dirty: false } },
+    byTab: { t: { doc, values: { workbook: { TimeRange: '1d' }, widgets: {} }, runs: {}, editing: true, undo: [], redo: [], dirty: false, selections: {} } },
     runWidget,
   });
   render(<WidgetEditor tabId="t" widgetId={widgetId} onClose={onClose} />);
