@@ -330,6 +330,18 @@ function countedResult<T extends typeof runResult>(base: T): T {
   };
 }
 
+let vulnRuns = 0;
+/** A `DeviceTvmSoftwareVulnerabilities` query's answer: 4 rows that rotate each run (one key leaves, one arrives), for Row tracking. */
+function vulnerabilityResult<T extends typeof runResult>(base: T): T {
+  const n = vulnRuns++;
+  const rows = [0, 1, 2, 3].map((i) => {
+    const k = n + i;
+    return [`dev-${k}`, `PC-${k}`, `CVE-2026-${1000 + k}`, k % 2 ? 'High' : 'Critical'];
+  });
+  const text = { type: 'string' };
+  return { ...base, columns: ['DeviceId', 'DeviceName', 'CveId', 'Severity'].map((name) => ({ name, ...text })), rows, total: rows.length };
+}
+
 /** Built-in hunting and Resource Graph snippets, so the Snippets panel has some for each source. */
 const builtInHuntingSnippet = {
   id: '5f0e6a6e-6d0a-4a55-9a53-0b7e3a1c0101',
@@ -973,7 +985,14 @@ export function createMockTransport(): Transport {
           runs.delete(tabId);
           const source = params?.source;
           const base = source === 'hunting' || source === 'arg' ? serverRunResult(source) : runResult;
-          const result = { ...(/\bcount\(\)/.test(params?.kql ?? '') ? countedResult(base) : base), runId };
+          const kql = params?.kql ?? '';
+          // `cutoff` in the query text: more rows exist than came back, so a history run is skipped as cut off.
+          const answer = kql.includes('DeviceTvmSoftwareVulnerabilities')
+            ? vulnerabilityResult(base)
+            : /\bcount\(\)/.test(kql)
+              ? countedResult(base)
+              : base;
+          const result = { ...answer, ...(kql.includes('cutoff') ? { total: answer.rows.length + 1000 } : {}), runId };
           // As the host's Recent: newest first, with the run's options, so "open again" brings them back.
           recent.unshift({
             id: runId,
