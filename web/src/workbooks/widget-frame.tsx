@@ -8,7 +8,7 @@ import { SourceBadge } from '../tabs/source-badge';
 import { failed, useTabs } from '../tabs/tab-store';
 import type { ParameterDef, RunResult } from '../wire';
 import { COLUMNS, GAP_PX, move, place, resize, ROW_PX } from './layout';
-import { newWidget, type Widget, type WidgetLayout } from './model';
+import { MAX_WIDGETS, newWidget, type Widget, type WidgetLayout } from './model';
 import { widgetParams, widgetRunOptions, type ResolvedParam } from './resolve';
 import { effectiveWidget, useWorkbooks, type WidgetRun } from './workbook-store';
 
@@ -155,6 +155,23 @@ export function WidgetFrame({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [full]);
+  // Esc drops a drag under way: the widget stays where it was.
+  const dragging = target !== null;
+  useEffect(() => {
+    if (!dragging) {
+      return;
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        gesture.current = null;
+        setTarget(null);
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [dragging]);
   if (!doc || !values) {
     return null;
   }
@@ -200,6 +217,10 @@ export function WidgetFrame({
   };
 
   const { edit } = useWorkbooks.getState();
+  function cancelGesture() {
+    gesture.current = null;
+    setTarget(null);
+  }
   const steps = (e: { clientX: number; clientY: number }) => {
     const g = gesture.current;
     return g ? ([Math.round((e.clientX - g.x) / g.column), Math.round((e.clientY - g.y) / (ROW_PX + GAP_PX))] as const) : null;
@@ -245,10 +266,9 @@ export function WidgetFrame({
         commit(kind, s[0], s[1]);
       }
     },
-    onPointerCancel: () => {
-      gesture.current = null;
-      setTarget(null);
-    },
+    onPointerCancel: cancelGesture,
+    // Capture lost without a pointerup here (the window lost focus, say): drop the gesture rather than leave its target up.
+    onLostPointerCapture: cancelGesture,
   });
   const onGripKey = (e: KeyEvent) => {
     const arrow = ARROWS[e.key];
@@ -270,7 +290,7 @@ export function WidgetFrame({
         ref={ref}
         aria-label={title}
         style={cellVars(widget.layout)}
-        className={`card wb-widget relative flex min-h-0 min-w-0 flex-col ${selected ? 'border-accent' : ''} ${full ? 'fixed inset-0 z-20 rounded-none' : ''}`}
+        className={`card wb-widget flex min-h-0 min-w-0 flex-col ${selected ? 'border-accent' : ''} ${full ? 'wb-full fixed inset-0 z-20 rounded-none' : 'relative'}`}
         onPointerDown={editing?.onSelect}
       >
         <header className="flex min-w-0 flex-wrap items-center gap-2 px-3 py-2 text-[12.5px]">
@@ -318,7 +338,13 @@ export function WidgetFrame({
               <button type="button" className="btn ghost" onClick={(e) => editing?.onEditWidget(e.currentTarget)}>
                 Edit widget
               </button>
-              <button type="button" className="btn ghost" onClick={duplicate}>
+              <button
+                type="button"
+                className="btn ghost"
+                disabled={doc.widgets.length >= MAX_WIDGETS}
+                title={doc.widgets.length >= MAX_WIDGETS ? `A workbook can have at most ${MAX_WIDGETS} widgets.` : undefined}
+                onClick={duplicate}
+              >
                 Duplicate
               </button>
               <button type="button" className="btn ghost" onClick={editing?.onRemove}>

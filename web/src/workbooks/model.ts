@@ -3,6 +3,8 @@ import type { ParameterDef, QueryOptions, Source } from '../wire';
 
 export const WORKBOOK_KIND = 'kustodian.workbook';
 export const WORKBOOK_VERSION = 1;
+/** As the host's WorkbookService.MaxWidgets: a save with more is refused, so the editor stops adding at this many. */
+export const MAX_WIDGETS = 100;
 
 export type WidgetType = 'markdown' | 'chart' | 'table' | 'stat';
 export interface WidgetLayout {

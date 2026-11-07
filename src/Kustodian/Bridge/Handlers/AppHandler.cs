@@ -68,7 +68,10 @@ public sealed class AppHandler(MemoryGraphObjectCache objects, IGraphProbeCache 
             // The allowlist stays as it is; the widget tells the user which host it refused.
             if (!SystemBrowser.IsAllowed(link))
             {
-                throw new BridgeException(BridgeErrorCodes.BadRequest, $"Kustodian can't open links to {link.Host}.");
+                // github.com is allowed for the release pages only, so "can't open links to github.com" would be wrong.
+                throw new BridgeException(BridgeErrorCodes.BadRequest, link.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase)
+                    ? "Kustodian opens only its own release pages on github.com."
+                    : $"Kustodian can't open links to {link.Host}.");
             }
 
             try

@@ -193,6 +193,54 @@ describe('workbook edit mode', () => {
     expect(state().undo).toHaveLength(1);
   });
 
+  it('Esc during a drag drops it, and so does losing the pointer capture: nothing moves', () => {
+    show();
+    const grid = document.querySelector('.wb-grid')!;
+    grid.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, width: 1188, height: 600, right: 1188, bottom: 600, toJSON: () => ({}) });
+    const g = grip('Users');
+    const before = layoutOf('a');
+    fireEvent.pointerDown(g, { clientX: 10, clientY: 10, button: 0, pointerId: 1 });
+    fireEvent.pointerMove(g, { clientX: 230, clientY: 10, pointerId: 1 });
+    expect(document.querySelector('.wb-drop')).not.toBeNull();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(document.querySelector('.wb-drop')).toBeNull();
+    fireEvent.pointerUp(g, { clientX: 230, clientY: 10, pointerId: 1 });
+    expect(layoutOf('a')).toEqual(before);
+
+    fireEvent.pointerDown(g, { clientX: 10, clientY: 10, button: 0, pointerId: 2 });
+    fireEvent.pointerMove(g, { clientX: 230, clientY: 10, pointerId: 2 });
+    fireEvent(g, new Event('lostpointercapture', { bubbles: true }));
+    expect(document.querySelector('.wb-drop')).toBeNull();
+    fireEvent.pointerUp(g, { clientX: 230, clientY: 10, pointerId: 2 });
+    expect(layoutOf('a')).toEqual(before);
+    expect(state().undo).toHaveLength(0);
+  });
+
+  it('stops adding and duplicating at 100 widgets, and says why', () => {
+    doc = { ...doc, widgets: Array.from({ length: 100 }, (_, i) => widget(`w${i}`, 'markdown', `Note ${i}`, (i % 3) * 4, Math.floor(i / 3) * 12)) };
+    show();
+    fireEvent.click(screen.getByRole('button', { name: '+ Add widget' }));
+    expect(screen.getByText('A workbook can have at most 100 widgets.')).toBeTruthy();
+    for (const item of screen.getAllByRole('menuitem')) {
+      expect((item as HTMLButtonElement).disabled).toBe(true);
+    }
+    fireEvent.focus(grip('Note 0'));
+    expect((screen.getByRole('button', { name: 'Duplicate' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('the saved-query picker takes focus with an empty library, so Esc closes it, and gives focus back to + Add widget', async () => {
+    call.mockResolvedValue({ queries: [], folders: [], skipped: 0 });
+    show();
+    fireEvent.click(screen.getByRole('button', { name: '+ Add widget' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'From a saved query…' }));
+    const picker = await screen.findByRole('dialog', { name: 'Add a saved query' });
+    await within(picker).findByText('No saved queries yet.');
+    expect(picker.contains(document.activeElement)).toBe(true);
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: '+ Add widget' }));
+  });
+
   it('the corner handle resizes', () => {
     show();
     const grid = document.querySelector('.wb-grid')!;

@@ -87,7 +87,7 @@ export function widgetRunOptions(doc: WorkbookDoc, widget: Widget, values: ViewV
           ? (at(at(values.widgets, widget.id), hunting.name) ?? entry.value)
           : (at(values.workbook, hunting.name) ?? hunting.value);
     const timespan = isoTimespan(value.trim());
-    return timespan ? { timespan, scope: null } : { problem: `${hunting.name}: at most 30 days for Defender hunting.` };
+    return timespan ? { timespan, scope: null } : { problem: huntingTimespanProblem(hunting.name, value) ?? '' };
   }
   return runOptions({ source: widget.query.source, options: widget.query.options ?? undefined }) ?? null;
 }
@@ -99,4 +99,23 @@ export function initialValues(doc: WorkbookDoc, remembered: Record<string, strin
     workbook[p.name] = (p.remember ? remembered[p.name] : undefined) ?? p.value;
   }
   return { workbook, widgets: {} };
+}
+
+/** Each workbook parameter's current value: the one set in the view, else its default (a parameter added since opening has
+ * no view value yet). */
+export function workbookValues(doc: WorkbookDoc, values: ViewValues): Record<string, string> {
+  return Object.fromEntries(doc.parameters.map((p) => [p.name, at(values.workbook, p.name) ?? p.value]));
+}
+
+/** Why `value` can't be the Defender hunting timespan, said on the parameter and on the widgets it stops; null when it can. */
+export function huntingTimespanProblem(name: string, value: string): string | null {
+  const v = value.trim();
+  if (isoTimespan(v)) {
+    return null;
+  }
+  // The KQL form, but zero or over the limit; anything else isn't a timespan Kustodian converts.
+  const inRange = /^([0-9]+(?:\.[0-9]+)?)(d|h|m|s|ms)$/.exec(v);
+  return inRange && Number(inRange[1]) > 0
+    ? `${name}: at most 30 days for Defender hunting.`
+    : `${name}: a timespan such as 7d, 12h or 30m for Defender hunting.`;
 }

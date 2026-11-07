@@ -2,6 +2,7 @@ using Kustodian.Graph.Run;
 using Kustodian.Library;
 using Kustodian.Sessions;
 using Kustodian.Storage;
+using Kustodian.Workbooks;
 
 namespace Kustodian.Tests.Sessions;
 
@@ -171,9 +172,22 @@ public sealed class SessionServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task A_workbook_tab_over_the_text_cap_but_within_a_workbook_file_s_size_is_kept()
+    {
+        // A workbook can be saved at up to WorkbookService.MaxBytes, so an open one that size restores too.
+        var large = new System.Text.Json.Nodes.JsonObject { ["blob"] = new string('x', SessionService.MaxTextBytes + 1) };
+
+        var dropped = await NewService().SaveAsync(new Session(1, "large", [WorkbookTab("large", large)]), Ct);
+        var read = await NewService().GetAsync(Ct);
+
+        Assert.Equal(0, dropped);
+        Assert.Equal(["large"], read.Value.Tabs.Select(t => t.Id));
+    }
+
+    [Fact]
     public async Task A_workbook_tab_over_the_cap_is_dropped_and_counted()
     {
-        var big = new System.Text.Json.Nodes.JsonObject { ["blob"] = new string('x', SessionService.MaxTextBytes + 1) };
+        var big = new System.Text.Json.Nodes.JsonObject { ["blob"] = new string('x', WorkbookService.MaxBytes) };
 
         var dropped = await NewService().SaveAsync(new Session(1, "big", [Tab("a"), WorkbookTab("big", big)]), Ct);
         var read = await NewService().GetAsync(Ct);

@@ -313,6 +313,23 @@ function serverRunResult(source: 'hunting' | 'arg') {
   };
 }
 
+/** A `count()` query's answer: a text and a number column, so Chart and Stat widgets have something to show. */
+function countedResult<T extends typeof runResult>(base: T): T {
+  return {
+    ...base,
+    columns: [
+      { name: 'Name', type: 'string' },
+      { name: 'Count', type: 'long' },
+    ],
+    rows: [
+      ['Finance', 42],
+      ['Engineering', 128],
+      ['Sales', 67],
+    ],
+    total: 3,
+  };
+}
+
 /** Built-in hunting and Resource Graph snippets, so the Snippets panel has some for each source. */
 const builtInHuntingSnippet = {
   id: '5f0e6a6e-6d0a-4a55-9a53-0b7e3a1c0101',
@@ -835,7 +852,8 @@ export function createMockTransport(): Transport {
         const timer = setTimeout(() => {
           runs.delete(tabId);
           const source = params?.source;
-          const result = { ...(source === 'hunting' || source === 'arg' ? serverRunResult(source) : runResult), runId };
+          const base = source === 'hunting' || source === 'arg' ? serverRunResult(source) : runResult;
+          const result = { ...(/\bcount\(\)/.test(params?.kql ?? '') ? countedResult(base) : base), runId };
           // As the host's Recent: newest first, with the run's options, so "open again" brings them back.
           recent.unshift({
             id: runId,

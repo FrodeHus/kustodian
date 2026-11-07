@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ParameterDef } from '../wire';
 import type { Widget, WidgetParam, WidgetQuery, WorkbookDoc, WorkbookParameter } from './model';
 import { newWidget, newWorkbook } from './model';
-import { initialValues, missingRequired, toParameterValues, widgetParams, widgetRunOptions, widgetsUsing } from './resolve';
+import { initialValues, missingRequired, toParameterValues, widgetParams, widgetRunOptions, widgetsUsing, workbookValues } from './resolve';
 
 const wbParam = (name: string, value: string, extra: Partial<WorkbookParameter> = {}): WorkbookParameter => ({
   name,
@@ -109,6 +109,12 @@ describe('widgetRunOptions', () => {
     expect(widgetRunOptions(doc, w, { workbook: { TimeRange: '45d' }, widgets: {} })).toEqual({
       problem: 'TimeRange: at most 30 days for Defender hunting.',
     });
+    expect(widgetRunOptions(doc, w, { workbook: { TimeRange: 'a week' }, widgets: {} })).toEqual({
+      problem: 'TimeRange: a timespan such as 7d, 12h or 30m for Defender hunting.',
+    });
+    expect(widgetRunOptions(doc, w, { workbook: { TimeRange: '' }, widgets: {} })).toEqual({
+      problem: 'TimeRange: a timespan such as 7d, 12h or 30m for Defender hunting.',
+    });
   });
 
   it('sends nothing for Graph and the own options for ARG', () => {
@@ -140,5 +146,12 @@ describe('prototype keys', () => {
       { name: 'constructor', type: 'text', value: '', required: false, from: 'widget' },
       { name: 'toString', type: 'text', value: 'x', required: false, from: 'workbook' },
     ]);
+  });
+});
+
+describe('workbookValues', () => {
+  it('gives every workbook parameter its value: the view value, else the default for one added since opening', () => {
+    const doc = docOf([wbParam('dept', 'Finance'), wbParam('range', '7d')], []);
+    expect(workbookValues(doc, { workbook: { range: '1d', gone: 'x' }, widgets: {} })).toEqual({ dept: 'Finance', range: '1d' });
   });
 });
