@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Kustodian.History;
 using Kustodian.Messaging.Handlers;
 using Kustodian.Storage;
 using Kustodian.Workbooks;
@@ -10,12 +11,17 @@ public sealed class WorkbookHandlerTests : IDisposable
     private const string Id = "6f1c2a52-0b0e-4d6c-9a43-6a3f1f0b7c11";
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "kustodian-tests-" + Guid.NewGuid().ToString("N"));
     private readonly Messaging.Bridge _bridge = new(_ => { });
+    private readonly HistoryStore _history;
 
-    public WorkbookHandlerTests() =>
-        new WorkbookHandler(new WorkbookService(new JsonFileStore(_dir), TimeProvider.System)).Register(_bridge);
+    public WorkbookHandlerTests()
+    {
+        _history = new HistoryStore(_dir, TimeProvider.System);
+        new WorkbookHandler(new WorkbookService(new JsonFileStore(_dir), TimeProvider.System), _history).Register(_bridge);
+    }
 
     public void Dispose()
     {
+        _history.Dispose();
         if (Directory.Exists(_dir))
         {
             Directory.Delete(_dir, recursive: true);

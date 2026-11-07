@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as KeyEvent, type PointerEvent, type ReactNode } from 'react';
 import { EXPORT_NAMES, exportResult, type ExportFormat } from '../results/export';
+import { createPortal } from 'react-dom';
+import { call } from '../bridge';
 import { MenuButton, NoticeLine, type Notice } from '../results/result-grid';
 import { RunStatus } from '../results/run-status';
 import { errorText } from '../shell/errors';
@@ -9,6 +11,8 @@ import { failed, useTabs } from '../tabs/tab-store';
 import type { ParameterDef, RunResult } from '../wire';
 import { COLUMNS, GAP_PX, move, place, resize, ROW_PX } from './layout';
 import { MAX_WIDGETS, newWidget, type ToolButton, type Widget, type WidgetLayout } from './model';
+import { daysSince, HistoryData, SKIP_TEXT, useHistory, type HistoryFilter } from './history';
+import { ClearConfirm } from './history-section';
 import { widgetParams, widgetRunOptions, type ResolvedParam } from './resolve';
 import { buttonName, effectiveSelection, okResult, toolTarget } from './tool-buttons';
 import { useToolRun } from './tool-run';
@@ -45,6 +49,8 @@ function shifted(widgets: Widget[], id: string, kind: Kind, dx: number, dy: numb
 const cellVars = (l: WidgetLayout) => ({ '--x': l.x + 1, '--y': l.y + 1, '--w': l.w, '--h': l.h }) as CSSProperties;
 
 const duration = (ms: number) => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`);
+
+const INTERVAL_TEXT = { day: 'Daily', run: 'Every run', week: 'Weekly' } as const;
 
 /** A Widget · shown parameter's control: a select for one with choices, which reruns the widget at once, else a text box,
  * which reruns it when typing stops, or at once on Enter. */
@@ -173,6 +179,10 @@ export function WidgetFrame({
   const run = useWorkbooks((s) => s.byTab[tabId]?.runs[widget.id]);
   const [full, setFull] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [clearing, setClearing] = useState(false);
+  const [filter, setFilter] = useState<HistoryFilter>('open');
+  const history = useHistory(tabId, widget, run ?? { state: 'idle' });
+  const recording = useWorkbooks((s) => s.byTab[tabId]?.history[widget.id]);
   const selection = effectiveSelection(widget.selection, useWorkbooks((s) => s.byTab[tabId]?.selections[widget.id]));
   const tools = useToolRun(tabId, widget, setNotice);
   const ref = useRef<HTMLElement>(null);
@@ -254,6 +264,15 @@ export function WidgetFrame({
     );
   };
 
+  // The rerun drops the history the widget showed.
+  const clearHistory = () => {
+    setClearing(false);
+    call('history.clear', { workbookId: doc.id, widgetId: widget.id }).then(
+      () => void useWorkbooks.getState().runWidget(tabId, widget.id, { refresh: true }),
+      (e: unknown) => setNotice({ tone: 'bad', text: `Couldn’t clear history: ${errorText(e)}`, reportId: reportIdOf(e) }),
+    );
+  };
+
   const { edit } = useWorkbooks.getState();
   function cancelGesture() {
     gesture.current = null;
@@ -320,9 +339,15 @@ export function WidgetFrame({
   };
 
   // A table widget's selected rows that are shown, of those shown, and its header buttons (spec screen 5).
-  const ok = widget.type === 'table' ? okResult(run) : null;
+  // A tracked table's tools act on Open now only: the other filters show history rows, which a tool can't act on.
+  const toolsOn = widget.type === 'table' && (filter === 'open' || !history.changes);
+  const ok = toolsOn ? okResult(run) : null;
   const picked = ok ? toolTarget('selected', ok.rows, selection).rows.length : 0;
-  const headerTools = widget.type === 'table' && (widget.tools ?? []).some((b) => b.placement === 'header');
+  const headerTools = toolsOn && (widget.tools ?? []).some((b) => b.placement === 'header');
+
+  // The footer: how often it saves and for how long (from the first snapshot), why the last run wasn't kept, a reset file.
+  const first = history.values?.snapshots[0]?.takenAt;
+  const days = first === undefined ? null : daysSince(first, new Date(history.readAt ?? 0));
 
   const used = params.filter((p) => p.from === 'workbook').map((p) => p.name);
 
@@ -374,8 +399,13 @@ export function WidgetFrame({
                         Export {EXPORT_NAMES[format]}
                       </button>
                     ))}
-                    {widget.type === 'table' && <ToolButtonItems tabId={tabId} widget={widget} placement="menu" onOpen={tools.open} />}
+                    {toolsOn && <ToolButtonItems tabId={tabId} widget={widget} placement="menu" onOpen={tools.open} />}
                   </>
+                )}
+                {widget.history && (
+                  <button type="button" role="menuitem" tabIndex={-1} onClick={() => setClearing(true)}>
+                    Clear history…
+                  </button>
                 )}
                 <button type="button" role="menuitem" tabIndex={-1} onClick={() => setFull(!full)}>
                   {full ? 'Exit full screen' : 'Full screen'}
@@ -444,8 +474,20 @@ export function WidgetFrame({
         </header>
         {notice && <NoticeLine notice={notice} onDismiss={() => setNotice(null)} />}
         <div className={`flex min-h-0 flex-1 flex-col overflow-hidden ${bare ? 'pt-3' : ''}`}>
-          {(widget.query && runBody(tabId, widget, run, onSignIn)) ?? children}
+          {(widget.query && runBody(tabId, widget, run, onSignIn)) ?? <HistoryData.Provider value={{ ...history, filter, setFilter }}>{children}</HistoryData.Provider>}
         </div>
+        {widget.history && (
+          <footer className="faint flex flex-col gap-0.5 px-3 pb-2 text-[11.5px]">
+            <span>
+              {INTERVAL_TEXT[widget.history.interval]}
+              {days !== null && ` · ${days} ${days === 1 ? 'day' : 'days'}`}
+            </span>
+            {recording?.skipped && <span className="text-warn">! {SKIP_TEXT[recording.skipped]}</span>}
+            {recording?.error && <span className="text-warn">! Not recorded: {recording.error}</span>}
+            {(recording?.reset || history.values?.reset || history.changes?.reset) && <span className="text-warn">History was reset: its file was damaged.</span>}
+            {history.error && <span className="text-bad">Couldn’t read history: {history.error}</span>}
+          </footer>
+        )}
         {/* Pointer only; Shift+arrows on the grip resize from the keyboard. */}
         {selected && (
           <>
@@ -458,6 +500,16 @@ export function WidgetFrame({
       {target && <div className="wb-widget wb-drop" style={cellVars(target)} aria-hidden="true" />}
       {/* Outside the widget's body, so a rerun's spinner doesn't unmount it (Review Focus 5). */}
       {tools.dialog}
+      {clearing &&
+        createPortal(
+          <div className="fixed inset-0 z-20" onKeyDown={(e) => e.key === 'Escape' && setClearing(false)}>
+            <div className="scrim" onClick={() => setClearing(false)} />
+            <div className="card absolute inset-x-0 top-[20vh] mx-auto w-[360px] max-w-[calc(100vw-32px)] p-3">
+              <ClearConfirm title="Clear this widget's history?" confirm="Clear" onConfirm={clearHistory} onCancel={() => setClearing(false)} />
+            </div>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }

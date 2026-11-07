@@ -7,8 +7,9 @@ import { useSchemas } from '../schema/schema-store';
 import { errorText } from '../shell/errors';
 import { inSendDetails } from '../shell/send-details-marker';
 import { SourceBadge } from '../tabs/source-badge';
-import type { LibraryList, ParameterDef, RunResult, SavedQuery } from '../wire';
+import type { HistorySeries, LibraryList, ParameterDef, RunResult, SavedQuery } from '../wire';
 import type { ParamFrom, Widget, WidgetQuery } from './model';
+import { ClearConfirm, HistorySection } from './history-section';
 import { widgetParams, workbookValues } from './resolve';
 import { ColumnSelect, ToolButtonsSection } from './tool-buttons-section';
 import { ChartWidget } from './widgets/chart-widget';
@@ -31,14 +32,21 @@ const FROM_NAMES: [ParamFrom, string][] = [
   ['fixed', 'Fixed'],
 ];
 
-type Section = 'query' | 'parameters' | 'visualization' | 'tools';
+type Section = 'query' | 'parameters' | 'visualization' | 'tools' | 'history';
 // A table has no visualization settings in v1; only a table has tool buttons.
 const SECTIONS: [Section, string][] = [
   ['query', 'Query'],
   ['parameters', 'Parameters'],
   ['visualization', 'Visualization'],
   ['tools', 'Tool buttons'],
+  ['history', 'History'],
 ];
+
+/** Whether an edit changes what a stored series means: the query, its source or options, or what history tracks (or that it is on). */
+const changesSeries = (a: Widget, b: Widget): boolean =>
+  JSON.stringify([a.query?.text, a.query?.saved?.id, a.query?.source, a.query?.options, a.history?.mode, a.history?.keys]) !==
+    JSON.stringify([b.query?.text, b.query?.saved?.id, b.query?.source, b.query?.options, b.history?.mode, b.history?.keys]) ||
+  !b.history;
 
 /** The query a saved one makes: its source, text, options and parameters, linked when `linked`. */
 const fromSaved = (query: WidgetQuery, q: SavedQuery, linked: boolean): WidgetQuery =>
@@ -59,6 +67,9 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
   const original = doc?.widgets.find((w) => w.id === widgetId);
   const [draft, setDraft] = useState(original);
   const [section, setSection] = useState<Section>('query');
+  const [asking, setAsking] = useState(false);
+  const refocusApply = useRef(false);
+  const [applyError, setApplyError] = useState<string | null>(null);
   const [queries, setQueries] = useState<SavedQuery[] | null>(null);
   const [preview, setPreview] = useState<{ state: 'running' } | { state: 'done'; result: RunResult } | { state: 'failed'; text: string } | null>(null);
   const schemas = useSchemas((s) => s.byKey);
@@ -123,7 +134,7 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
   };
   const copyIn = () => query && setQuery(linked ? fromSaved(query, linked, false) : { saved: null });
 
-  const apply = () => {
+  const commit = () => {
     close();
     if (draft === original) {
       return;
@@ -134,6 +145,21 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
       void libraryRead.current.then(() => store().runWidget(tabId, widgetId));
     }
   };
+
+  // Edits that change what a stored series means ask first, when there is history to lose (Review Focus 2).
+  const apply = () => {
+    setApplyError(null);
+    if (!original.history || !changesSeries(original, draft)) {
+      commit();
+      return;
+    }
+    call<HistorySeries[]>('history.series', { workbookId: doc.id, widgetId }).then(
+      (s) => (s.length > 0 ? setAsking(true) : commit()),
+      (e: unknown) => setApplyError(errorText(e)),
+    );
+  };
+  const clearAndApply = () =>
+    call('history.clear', { workbookId: doc.id, widgetId }).then(commit, (e: unknown) => setApplyError(errorText(e)));
 
   const runPreview = () => {
     const n = ++previews.current;
@@ -149,6 +175,7 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
   const result = preview?.state === 'done' ? preview.result : lastRun?.state === 'done' ? lastRun.result : null;
   const columns = result?.columns.map((c) => c.name) ?? [];
 
+  const needsKey = draft.history?.mode === 'rows' && draft.history.keys.length === 0;
   const toolless = draft.tools?.some((b) => !b.tool) ?? false;
   const params = widgetParams(doc, live, values);
   const setParam = (name: string, from: ParamFrom, value: string) => {
@@ -404,6 +431,9 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
         </div>
       ) : null;
 
+    const historyPanel = (
+      <HistorySection draft={draft} columns={result?.columns ?? []} result={result} set={(change) => setDraft(change(draft))} workbookId={doc.id} />
+    );
     const shown = preview?.state === 'done' ? ({ state: 'done', result: preview.result } as const) : null;
     body = (
       <>
@@ -419,6 +449,8 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
             queryPanel
           ) : section === 'parameters' ? (
             parametersPanel
+          ) : section === 'history' ? (
+            historyPanel
           ) : section === 'tools' ? (
             <ToolButtonsSection draft={draft} columns={result?.columns ?? []} set={set} />
           ) : (
@@ -491,15 +523,46 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
           Hide the title bar outside edit mode
         </label>
         {body}
+        {asking ? (
+          <ClearConfirm
+            title="Clear this widget's history?"
+            confirm="Clear and apply"
+            error={applyError}
+            onConfirm={() => void clearAndApply()}
+            onCancel={() => {
+              refocusApply.current = true;
+              setAsking(false);
+            }}
+          />
+        ) : (
         <div className="flex items-center justify-end gap-2">
+          {applyError && (
+            <span role="alert" className="text-[12px] text-bad">
+              {applyError}
+            </span>
+          )}
+          {needsKey && section !== 'history' && <span className="faint text-[12px]">Choose at least one key column.</span>}
           {toolless && <span className="faint text-[12px]">Choose a tool for each button.</span>}
           <button type="button" className="btn ghost" onClick={close}>
             Cancel
           </button>
-          <button type="button" className="btn primary" disabled={query?.saved?.id === '' || toolless} onClick={apply}>
+          <button
+            // The question replaced this row, Apply with it: Cancel gives focus back to the new Apply.
+            ref={(b) => {
+              if (b && refocusApply.current) {
+                refocusApply.current = false;
+                b.focus();
+              }
+            }}
+            type="button"
+            className="btn primary"
+            disabled={query?.saved?.id === '' || toolless || needsKey}
+            onClick={apply}
+          >
             Apply
           </button>
         </div>
+        )}
       </div>
     </div>
   );

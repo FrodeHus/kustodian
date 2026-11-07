@@ -254,3 +254,41 @@ describe('tool buttons and selection', () => {
     expect(withWidget({ selection: undefined })?.selection).toBe('multi');
   });
 });
+
+describe('history setting', () => {
+  const widget = (type: string, history: unknown) => ({
+    id: 'h',
+    type,
+    layout: { x: 0, y: 0, w: 4, h: 8 },
+    ...(type === 'markdown' ? {} : { query: { source: 'graph', text: 'x', options: null } }),
+    history,
+  });
+  const parse = (w: unknown) => {
+    const d = parseWorkbook({ kind: 'kustodian.workbook', version: 1, id: 'i', name: 'n', widgets: [w] });
+    return typeof d === 'string' ? undefined : d.widgets[0];
+  };
+  const good = { mode: 'rows', interval: 'week', retentionDays: 365, keys: ['A'], keep: ['B'], since: '2026-10-30' };
+
+  it('parses_a_history_setting', () => {
+    expect(parse(widget('table', good))?.history).toEqual(good);
+  });
+  it('drops_an_unknown_mode_and_keeps_the_rest_of_the_widget', () => {
+    const w = parse(widget('table', { ...good, mode: 'nope' }));
+    expect(w?.id).toBe('h');
+    expect(w && 'history' in w).toBe(false);
+  });
+  it('falls_back_on_an_unknown_retention_interval_and_since', () => {
+    expect(parse(widget('stat', { ...good, retentionDays: 7, interval: 'x', since: 'soon' }))?.history).toMatchObject({
+      retentionDays: 90,
+      interval: 'day',
+      since: 'P7D',
+    });
+  });
+  it('history_on_a_markdown_widget_is_dropped', () => {
+    const w = parse(widget('markdown', good));
+    expect(w && 'history' in w).toBe(false);
+  });
+  it('drops_a_non_string_key', () => {
+    expect(parse(widget('chart', { ...good, keys: ['A', 1], keep: [null, 'B'] }))?.history).toMatchObject({ keys: ['A'], keep: ['B'] });
+  });
+});

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Kustodian.History;
 using Kustodian.Workbooks;
 
 namespace Kustodian.Messaging.Handlers;
@@ -7,7 +8,7 @@ namespace Kustodian.Messaging.Handlers;
 /// <summary><c>workbook.list</c>, <c>workbook.get</c>, <c>workbook.save</c>, <c>workbook.check</c> (is an imported workbook allowed, nothing
 /// written), <c>workbook.delete</c>, and <c>workbook.values.get</c> / <c>workbook.values.save</c> for the values last used in a workbook. A workbook is an opaque
 /// object to the host; one that isn't allowed (or an id that isn't valid) is a <c>bad_request</c> whose message says why.</summary>
-public sealed class WorkbookHandler(WorkbookService workbooks)
+public sealed class WorkbookHandler(WorkbookService workbooks, HistoryStore history)
 {
     public void Register(Bridge bridge)
     {
@@ -26,6 +27,8 @@ public sealed class WorkbookHandler(WorkbookService workbooks)
             await Rejected(async () =>
             {
                 await workbooks.DeleteAsync(Id(p), ct);
+                // DeleteAsync refused an invalid id, so this parses; history files under the lowercase form.
+                await history.DeleteWorkbookAsync(Guid.Parse(Id(p)).ToString("D"), ct);
                 return (object?)null;
             });
             return null;
