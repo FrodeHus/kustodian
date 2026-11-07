@@ -1,5 +1,7 @@
 import type { Row } from '../results/export';
+import type { RunResult } from '../wire';
 import type { ToolButton } from './model';
+import type { WidgetRun } from './workbook-store';
 
 export interface RowSelection {
   selected: readonly number[];
@@ -24,3 +26,8 @@ export function toolTarget(runsOn: ToolButton['runsOn'], rows: Row[], selection:
   }
   return { rows: shown.map((i) => rows[i]!), count: `all ${shown.length}`, heading: `on all ${shown.length} rows` };
 }
+
+export const NO_SELECTION: RowSelection = { selected: [], shown: null };
+
+/** The run's result when it answered ok; buttons are off without one. */
+export const okResult = (run: WidgetRun | undefined): RunResult | null => (run?.state === 'done' && run.result.outcome === 'ok' ? run.result : null);

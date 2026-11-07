@@ -8,8 +8,10 @@ import { SourceBadge } from '../tabs/source-badge';
 import { failed, useTabs } from '../tabs/tab-store';
 import type { ParameterDef, RunResult } from '../wire';
 import { COLUMNS, GAP_PX, move, place, resize, ROW_PX } from './layout';
-import { MAX_WIDGETS, newWidget, type Widget, type WidgetLayout } from './model';
+import { MAX_WIDGETS, newWidget, type ToolButton, type Widget, type WidgetLayout } from './model';
 import { widgetParams, widgetRunOptions, type ResolvedParam } from './resolve';
+import { NO_SELECTION, okResult, toolTarget } from './tool-buttons';
+import { useToolRun } from './tool-run';
 import { effectiveWidget, useWorkbooks, type WidgetRun } from './workbook-store';
 
 const FORMATS: ExportFormat[] = ['csv', 'json', 'markdown'];
@@ -69,6 +71,39 @@ function ShownControl({ param, choices, onChange }: { param: ResolvedParam; choi
       onKeyDown={(e) => e.key === 'Enter' && onChange(e.currentTarget.value, true)}
     />
   );
+}
+
+/** A widget's buttons for one placement: `btn`s for 'header', menu items for 'menu'. Each is labelled `${label} · ${count}`
+ * and is off while its target has no rows or the widget has no ok result. */
+function ToolButtonItems({
+  tabId,
+  widget,
+  placement,
+  onOpen,
+}: {
+  tabId: string;
+  widget: Widget;
+  placement: ToolButton['placement'];
+  onOpen: (b: ToolButton) => void;
+}): ReactNode {
+  const result = okResult(useWorkbooks((s) => s.byTab[tabId]?.runs[widget.id]));
+  const selection = useWorkbooks((s) => s.byTab[tabId]?.selections[widget.id]) ?? NO_SELECTION;
+  return (widget.tools ?? [])
+    .filter((b) => b.placement === placement)
+    .map((b, i) => {
+      const target = toolTarget(b.runsOn, result?.rows ?? [], selection);
+      const label = `${b.label} · ${target.count}`;
+      const off = !result || target.rows.length === 0;
+      return placement === 'header' ? (
+        <button key={i} type="button" className="btn" disabled={off} onClick={() => onOpen(b)}>
+          {label}
+        </button>
+      ) : (
+        <button key={i} type="button" role="menuitem" tabIndex={-1} disabled={off} onClick={() => onOpen(b)}>
+          {label}
+        </button>
+      );
+    });
 }
 
 /** What a widget shows while it has no result: running, waiting, blocked, gone, or the error view. Null when it has one. */
@@ -137,6 +172,8 @@ export function WidgetFrame({
   const run = useWorkbooks((s) => s.byTab[tabId]?.runs[widget.id]);
   const [full, setFull] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const selection = useWorkbooks((s) => s.byTab[tabId]?.selections[widget.id]) ?? NO_SELECTION;
+  const tools = useToolRun(tabId, widget, setNotice);
   const ref = useRef<HTMLElement>(null);
   // The pointer gesture under way: what it does, where it started, and the grid's measured column pitch.
   const gesture = useRef<{ kind: Kind; x: number; y: number; column: number } | null>(null);
@@ -281,6 +318,11 @@ export function WidgetFrame({
     }
   };
 
+  // A table widget's selected rows that are shown, of those shown, and its header buttons (spec screen 5).
+  const ok = widget.type === 'table' ? okResult(run) : null;
+  const picked = ok ? toolTarget('selected', ok.rows, selection).rows.length : 0;
+  const headerTools = widget.type === 'table' && (widget.tools ?? []).some((b) => b.placement === 'header');
+
   const used = params.filter((p) => p.from === 'workbook').map((p) => p.name);
 
   const selected = editing?.selected ?? false;
@@ -330,6 +372,7 @@ export function WidgetFrame({
                         Export {EXPORT_NAMES[format]}
                       </button>
                     ))}
+                    {widget.type === 'table' && <ToolButtonItems tabId={tabId} widget={widget} placement="menu" onOpen={tools.open} />}
                   </>
                 )}
                 <button type="button" role="menuitem" tabIndex={-1} onClick={() => setFull(!full)}>
@@ -338,7 +381,7 @@ export function WidgetFrame({
               </MenuButton>
             </div>
           </div>
-          {(params.some((p) => p.from === 'widget') || used.length > 0 || editing) && (
+          {(params.some((p) => p.from === 'widget') || used.length > 0 || editing || picked > 0 || headerTools) && (
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               {/* Edit mode's size sits here, not in the first row, so the title keeps room at the narrowest widget. */}
               {editing && (
@@ -383,6 +426,17 @@ export function WidgetFrame({
                   </button>
                 </>
               )}
+              {/* In this wrapping row, not the first, so the title keeps room at the narrowest widget. */}
+              {(picked > 0 || headerTools) && (
+                <div className="ml-auto flex flex-wrap items-center gap-2">
+                  {picked > 0 && (
+                    <span className="faint text-[11.5px]">
+                      {picked} of {selection.shown?.length ?? ok?.rows.length} selected
+                    </span>
+                  )}
+                  <ToolButtonItems tabId={tabId} widget={widget} placement="header" onOpen={tools.open} />
+                </div>
+              )}
             </div>
           )}
         </header>
@@ -400,6 +454,8 @@ export function WidgetFrame({
         )}
       </section>
       {target && <div className="wb-widget wb-drop" style={cellVars(target)} aria-hidden="true" />}
+      {/* Outside the widget's body, so a rerun's spinner doesn't unmount it (Review Focus 5). */}
+      {tools.dialog}
     </>
   );
 }

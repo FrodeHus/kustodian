@@ -113,6 +113,8 @@ export interface Notice {
   text: string;
   /** The report ID the host gave the error, if it did. */
   reportId?: string;
+  /** A button after the text, such as Edit tools…. */
+  action?: { label: string; onClick: () => void };
 }
 
 /** A notice line: success as a status, failure as an alert. */
@@ -124,6 +126,11 @@ export function NoticeLine({ notice, onDismiss }: { notice: Notice; onDismiss: (
     >
       <span className="min-w-0">{notice.text}</span>
       {notice.tone === 'bad' && <ErrorReportActions reportId={notice.reportId} uiSections={{ message: notice.text }} />}
+      {notice.action && (
+        <button type="button" className="btn ghost" onClick={notice.action.onClick}>
+          {notice.action.label}
+        </button>
+      )}
       <div className="grow" />
       <button type="button" className="btn ghost" onClick={onDismiss}>
         Dismiss
