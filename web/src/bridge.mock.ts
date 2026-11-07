@@ -388,6 +388,7 @@ const builtInSnippet = {
 const RUN_DELAY_MS = 400;
 
 interface MockWorkbook {
+  kind?: string;
   id: string;
   name: string;
   folder?: string | null;
@@ -670,6 +671,15 @@ export function createMockTransport(): Transport {
         reply(id, { workbook });
         break;
       }
+      case 'workbook.check':
+        if (!params?.workbook) {
+          fail(id, 'bad_request', 'The request has no workbook.');
+        } else if (params.workbook.kind !== 'kustodian.workbook') {
+          fail(id, 'bad_request', "This isn't a Kustodian workbook.");
+        } else {
+          reply(id, null);
+        }
+        break;
       case 'workbook.delete':
         workbooks.delete(params?.id ?? '');
         workbookValues.delete(params?.id ?? '');

@@ -117,6 +117,49 @@ public sealed class WorkbookServiceTests : IDisposable
     }
 
     [Fact]
+    public void Check_accepts_a_valid_workbook_and_writes_nothing()
+    {
+        Assert.Null(WorkbookService.Check(Doc()));
+        Assert.False(Directory.Exists(WorkbooksDir));
+    }
+
+    [Theory]
+    [InlineData("kind")]
+    [InlineData("version")]
+    [InlineData("id")]
+    [InlineData("name-empty")]
+    [InlineData("name-long")]
+    [InlineData("folder-slash")]
+    [InlineData("widgets-101")]
+    public async Task Check_refuses_what_save_refuses(string what)
+    {
+        var doc = Doc();
+        switch (what)
+        {
+            case "kind": doc["kind"] = "x"; break;
+            case "version": doc["version"] = 2; break;
+            case "id": doc["id"] = "abc"; break;
+            case "name-empty": doc["name"] = ""; break;
+            case "name-long": doc["name"] = new string('n', 201); break;
+            case "folder-slash": doc["folder"] = "a/b"; break;
+            case "widgets-101": doc["widgets"] = new JsonArray(Enumerable.Range(0, 101).Select(_ => (JsonNode?)new JsonObject()).ToArray()); break;
+        }
+
+        var ex = await Assert.ThrowsAsync<WorkbookRejectedException>(() => NewService().SaveAsync(doc, Ct));
+
+        Assert.Equal(ex.Message, WorkbookService.Check(doc));
+    }
+
+    [Fact]
+    public void Check_refuses_a_workbook_over_2_MB()
+    {
+        var doc = Doc();
+        doc["widgets"] = new JsonArray(new JsonObject { ["type"] = "markdown", ["text"] = new string('p', WorkbookService.MaxBytes) });
+
+        Assert.Equal("The workbook can be at most 2 MB.", WorkbookService.Check(doc));
+    }
+
+    [Fact]
     public async Task List_returns_summaries_sorted_by_name_then_id_and_distinct_folders()
     {
         var service = NewService();

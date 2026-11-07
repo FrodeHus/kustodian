@@ -80,6 +80,26 @@ public sealed class WorkbookHandlerTests : IDisposable
         Assert.Equal(message, reply.GetProperty("error").GetProperty("message").GetString());
     }
 
+    [Theory]
+    [InlineData("""{}""", "The request has no workbook.")]
+    [InlineData("""{"workbook":{"kind":"kustodian.workbook","version":2}}""", "This workbook needs a newer Kustodian.")]
+    public async Task Workbook_check_that_is_not_allowed_is_a_bad_request(string @params, string message)
+    {
+        var reply = await CallAsync("workbook.check", @params);
+
+        Assert.Equal("bad_request", reply.GetProperty("error").GetProperty("code").GetString());
+        Assert.Equal(message, reply.GetProperty("error").GetProperty("message").GetString());
+    }
+
+    [Fact]
+    public async Task Workbook_check_over_the_bridge_answers_null_for_a_valid_workbook()
+    {
+        var reply = await CallAsync("workbook.check", Workbook());
+
+        Assert.False(reply.TryGetProperty("error", out _));
+        Assert.Equal(JsonValueKind.Null, reply.GetProperty("result").ValueKind);
+    }
+
     [Fact]
     public async Task Workbook_calls_with_a_bad_id_are_a_bad_request()
     {

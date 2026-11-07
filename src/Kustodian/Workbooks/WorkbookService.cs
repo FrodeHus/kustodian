@@ -86,6 +86,10 @@ public sealed class WorkbookService(JsonFileStore store, TimeProvider time, ILog
         }
     }
 
+    /// <summary>What is wrong with an imported workbook, or null. Reads and writes nothing.</summary>
+    public static string? Check(JsonObject workbook) => Problem(workbook)
+        ?? (Encoding.UTF8.GetByteCount(workbook.ToJsonString()) > MaxBytes ? "The workbook can be at most 2 MB." : null);
+
     /// <summary>Writes <paramref name="workbook"/> with <c>modifiedAt</c> set to now and returns what was written. Throws
     /// <see cref="WorkbookRejectedException"/> for a value that isn't allowed, and writes nothing then.</summary>
     public async Task<JsonObject> SaveAsync(JsonObject workbook, CancellationToken ct = default)

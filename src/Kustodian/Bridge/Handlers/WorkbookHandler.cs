@@ -4,8 +4,8 @@ using Kustodian.Workbooks;
 
 namespace Kustodian.Messaging.Handlers;
 
-/// <summary><c>workbook.list</c>, <c>workbook.get</c>, <c>workbook.save</c>, <c>workbook.delete</c>, and
-/// <c>workbook.values.get</c> / <c>workbook.values.save</c> for the values last used in a workbook. A workbook is an opaque
+/// <summary><c>workbook.list</c>, <c>workbook.get</c>, <c>workbook.save</c>, <c>workbook.check</c> (is an imported workbook allowed, nothing
+/// written), <c>workbook.delete</c>, and <c>workbook.values.get</c> / <c>workbook.values.save</c> for the values last used in a workbook. A workbook is an opaque
 /// object to the host; one that isn't allowed (or an id that isn't valid) is a <c>bad_request</c> whose message says why.</summary>
 public sealed class WorkbookHandler(WorkbookService workbooks)
 {
@@ -16,6 +16,11 @@ public sealed class WorkbookHandler(WorkbookService workbooks)
             await Rejected(async () => new WorkbookAnswer(await workbooks.GetAsync(Id(p), ct))));
         bridge.Register("workbook.save", async (p, ct) =>
             await Rejected(async () => new WorkbookAnswer(await workbooks.SaveAsync(Wanted(p), ct))));
+        bridge.Register("workbook.check", (p, _) =>
+        {
+            var problem = WorkbookService.Check(Wanted(p));
+            return problem is null ? Task.FromResult<object?>(BridgeNull.Value) : throw new BridgeException(BridgeErrorCodes.BadRequest, problem);
+        });
         bridge.Register("workbook.delete", async (p, ct) =>
         {
             await Rejected(async () =>
