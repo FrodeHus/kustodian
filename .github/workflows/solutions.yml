@@ -10,6 +10,8 @@ on:
   pull_request_target:
     paths: ['Solutions/**']
 
+permissions: {}
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -19,6 +21,9 @@ jobs:
     name: solutionVersion bumped
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
     permissions:
       contents: read
     steps:
@@ -61,6 +66,9 @@ jobs:
     name: tools.json review notice
     if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
     permissions:
       contents: read
       pull-requests: write
@@ -73,9 +81,10 @@ jobs:
           SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           marker='<!-- solutions-tools-change -->'
+          # An API failure here aborts the job (set -e); only an empty match list is fine.
+          list="$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[] | "\(.status) \(.filename)"')"
           # Only plain ids are accepted, so the path is safe to put in a URL.
-          files="$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename' \
-            | grep -E '^Solutions/[A-Za-z0-9._-]+/tools\.json$' || true)"
+          files="$(grep -E '^[a-z_]+ Solutions/[A-Za-z0-9._-]+/tools\.json$' <<<"$list" || true)"
           if [[ -z "$files" ]]; then
             echo "No tools.json changes."
             exit 0
@@ -83,29 +92,45 @@ jobs:
           gh api -X POST "repos/$REPO/issues/$PR/labels" -f 'labels[]=tools-change' >/dev/null
 
           body="$(mktemp)"
+          bad=0
           {
             echo "$marker"
             echo "### tools.json changed"
             echo
             echo "Review every tool below before approving. Copilot is asked to flag risky ones."
-            while IFS= read -r path; do
+            while IFS=' ' read -r status path; do
               echo
               echo "**\`$path\`**"
               echo
               echo '````text'
-              # Contents are data: backticks and control characters are stripped so they cannot close the fence.
-              gh api -H 'Accept: application/vnd.github.raw+json' "repos/$REPO/contents/$path?ref=$SHA" \
-                | jq -r '(.tools // [])[] | "\(.name): \(.command) \((.args // []) | map(tostring) | join(" "))"' \
-                | tr -d '`\000-\010\013-\037' | head -c 20000 \
-                || echo "(could not read or parse this file)"
+              if [[ "$status" == "removed" ]]; then
+                echo "(removed)"
+              elif ! raw="$(gh api -H 'Accept: application/vnd.github.raw+json' "repos/$REPO/contents/$path?ref=$SHA")" \
+                || ! out="$(jq -r '(.tools // [])[] | "\(.name): \(.command) \((.args // []) | map(tostring) | join(" "))"' <<<"$raw")"; then
+                echo "(could not read or parse this file; review it by hand)"
+                bad=1
+              elif [[ -z "$out" ]]; then
+                echo "(no tools)"
+              else
+                # Contents are data: backticks and control characters are stripped so they cannot close the fence.
+                tr -d '`\000-\010\013-\037' <<<"$out" | head -c 20000
+              fi
               echo '````'
             done <<<"$files"
           } >"$body"
+          # GitHub rejects comments over 65536 characters.
+          if [[ "$(wc -c <"$body")" -gt 60000 ]]; then
+            head -c 60000 "$body" >"$body.cut"
+            printf '\n````\n(truncated)\n' >>"$body.cut"
+            mv "$body.cut" "$body"
+          fi
 
+          # Only the workflow's own comments count, so a PR author cannot plant a marker comment.
           id="$(gh api --paginate "repos/$REPO/issues/$PR/comments" \
-            --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n1)"
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\"))) | .id" | head -n1)"
           if [[ -n "$id" ]]; then
             gh api -X PATCH "repos/$REPO/issues/comments/$id" -F "body=@$body" >/dev/null
           else
             gh api -X POST "repos/$REPO/issues/$PR/comments" -F "body=@$body" >/dev/null
           fi
+          exit "$bad"

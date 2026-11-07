@@ -7,7 +7,7 @@ applyTo: "Solutions/**/tools.json"
 Each entry in `tools.json` runs a local command on a user's machine. Flag every entry that matches any of these, and quote
 the tool `name` and the offending `command` or argument for each finding:
 
-- A shell interpreter as `command`: `bash`, `sh`, `zsh`, `pwsh`, `powershell`, `cmd`.
+- A shell interpreter as `command`: `bash`, `sh`, `zsh`, `pwsh`, `powershell`, `cmd`, whether by name or by full path (for example `/bin/bash`, `pwsh.exe`).
 - A download or install command: `curl`, `wget`, `Invoke-WebRequest`, or a package manager (`npm`, `pip`, `brew`, `winget`,
   `apt`, `choco`, and similar).
 - A write or delete API call: `--method post|put|patch|delete`, or `az ... delete|stop|create`.
