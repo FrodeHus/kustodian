@@ -46,18 +46,18 @@
         },
         {
           "path": "queries/legacy-vulnerabilities.json",
-          "sha256": "73fb35a9cc875197742d6715da9f5778fa84761b1416b48f1143a88036bbdb3b",
-          "size": 539
+          "sha256": "ca6679b9b03dcf20a6b84023893470049045684b042c7cbfcf42db0c5a8cf610",
+          "size": 829
         },
         {
           "path": "queries/overdue-exposures.json",
-          "sha256": "12b3a577884b8cee1d4284e18962fbfea31af985cd55cd7b741840908e7e0d48",
-          "size": 2153
+          "sha256": "3ac672e1cee8e5eee1831c38f4bd0823e35ff54959c448a1e8d337c5fbafbaad",
+          "size": 2169
         },
         {
           "path": "queries/sla-compliance.json",
-          "sha256": "e3c52ca3f6489de19961a82cba62344581374ad7b16a2ae96d851b342bbdd57e",
-          "size": 2241
+          "sha256": "434b86c116c5e181b14982f6c91d71c1d021c0a3c5c8ea1b6e93fcefbdf25570",
+          "size": 2342
         },
         {
           "path": "solution.json",
@@ -66,8 +66,8 @@
         },
         {
           "path": "workbooks/patch-sla.json",
-          "sha256": "63477d5acf8cdd6c6d05bf033ca09908e2db1c83ffbad9592b67bcbd44f37b7f",
-          "size": 15769
+          "sha256": "f610966a2f70d2e751cc61e5e1068bc0d16bef9f370110569d6bddfeefed836e",
+          "size": 16184
         }
       ]
     },
