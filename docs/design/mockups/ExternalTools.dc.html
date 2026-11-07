@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kustodian · Settings · External tools</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="studio.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}a{color:#4CC2FF}
+.btn.icon{width:28px;padding:0;justify-content:center}.btn.danger{color:var(--bad)}
+.chip.acc{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.param{color:var(--col)}
+.trow{display:grid;grid-template-columns:28px minmax(0,1.1fr) 76px minmax(0,2.4fr) 150px;gap:14px;align-items:center;padding:10px 12px;border-top:1px solid var(--line)}
+.thead{display:grid;grid-template-columns:28px minmax(0,1.1fr) 76px minmax(0,2.4fr) 150px;gap:14px;padding:0 12px 8px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.cmd{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmd b{color:var(--text);font-weight:500}
+.grip{display:flex;flex-direction:column;gap:2px}
+.grip button{width:22px;height:16px;padding:0;border:0;border-radius:4px;background:transparent;color:var(--faint);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.grip button:hover{background:var(--raise);color:var(--text)}
+.grip button:disabled{opacity:.35;cursor:default}
+</style>
+</helmet>
+<div class="studio" style="width: 1440px; height: 1060px; display: flex; flex-direction: column;">
+<div class="titlebar"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><span class="brand">Kustodian</span><div style="flex-grow: 1;"></div><span class="pill"><span class="dot-ok"></span><b>kari@contoso.com</b> · Contoso Ltd</span></div>
+<div style="flex: 1; overflow: hidden; padding: 32px; display: flex; flex-direction: column; gap: 16px;">
+<div><button type="button" class="btn ghost">← Back to queries</button></div>
+<div style="display: flex; align-items: baseline; gap: 12px;"><h1 style="margin: 0; font-size: 22px; line-height: 28px; font-weight: 600;">Settings</h1><span class="muted" style="font-size: 12px;">Kustodian 0.9.0</span></div>
+<div style="max-width: 880px; display: flex; flex-direction: column; gap: 16px;">
+
+<section class="card" aria-label="Appearance" style="padding: 16px 20px; display: flex; align-items: center; gap: 12px; opacity: .55;"><b style="font-size: 14px;">Appearance</b><span class="faint" style="font-size: 12px;">Theme · Dark</span></section>
+<section class="card" aria-label="Raw requests" style="padding: 16px 20px; display: flex; align-items: center; gap: 12px; opacity: .55;"><b style="font-size: 14px;">Raw requests</b><span class="faint" style="font-size: 12px;">beta</span></section>
+<section class="card" aria-label="Sign-in" style="padding: 16px 20px; display: flex; align-items: center; gap: 12px; opacity: .55;"><b style="font-size: 14px;">Sign-in</b><span class="faint" style="font-size: 12px;">Default client ID, tenant</span></section>
+
+<section class="card" aria-label="External tools" style="padding: 20px; display: flex; flex-direction: column; gap: 12px; border-color: var(--accent);">
+<div style="display: flex; align-items: center; gap: 10px;">
+<b style="font-size: 14px;">External tools</b>
+<span class="chip">3 tools</span>
+<div style="flex-grow: 1;"></div>
+<button type="button" class="btn ghost">Open tools.json</button>
+<button type="button" class="btn primary">
+<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M8 3v10M3 8h10"></path></svg>
+Add tool</button>
+</div>
+<span class="muted" style="font-size: 12px;">Commands of your own that the Rows tab’s <b style="color: var(--text); font-weight: 500;">Run tool</b> menu runs on the selected rows, in this order. Changes are saved to <span class="mono">tools.json</span> at once.</span>
+
+<div style="display: flex; flex-direction: column; margin-top: 4px;">
+<div class="thead"><span></span><span>Name</span><span>Runs</span><span>Command</span><span></span></div>
+
+<div class="trow">
+<div class="grip"><button type="button" aria-label="Move Revoke sessions up" disabled=""><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 6.5 5 3.5l3 3"></path></svg></button><button type="button" aria-label="Move Revoke sessions down"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 3.5 5 6.5l3-3"></path></svg></button></div>
+<div style="display: flex; flex-direction: column; gap: 3px; min-width: 0;"><span style="font-weight: 600;">Revoke sessions</span><span style="display: flex; gap: 4px;"><span class="chip acc mono" style="height: 18px; font-size: 10.5px; padding: 0 6px;">{id}</span></span></div>
+<span class="chip" style="justify-self: start;">Each row</span>
+<span class="cmd" title="/opt/homebrew/bin/az rest --method post --url https://graph.microsoft.com/v1.0/users/{id}/revokeSignInSessions"><b>/opt/homebrew/bin/az</b> rest --method post --url https://graph.microsoft.com/v1.0/users/<span class="param">{id}</span>/revokeSignInSessions</span>
+<div style="display: flex; gap: 4px; justify-content: flex-end;"><button type="button" class="btn">Edit…</button><button type="button" class="btn icon ghost" aria-label="Duplicate Revoke sessions"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"></rect><path d="M3 10.5V4a1 1 0 0 1 1-1h6.5"></path></svg></button><button type="button" class="btn icon ghost danger" aria-label="Delete Revoke sessions"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5"></path></svg></button></div>
+</div>
+
+<div class="trow">
+<div class="grip"><button type="button" aria-label="Move Save as JSON lines up"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 6.5 5 3.5l3 3"></path></svg></button><button type="button" aria-label="Move Save as JSON lines down"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 3.5 5 6.5l3-3"></path></svg></button></div>
+<div style="display: flex; flex-direction: column; gap: 3px; min-width: 0;"><span style="font-weight: 600;">Save as JSON lines</span><span class="faint" style="font-size: 11.5px;">Rows on stdin</span></div>
+<span class="chip" style="justify-self: start;">Batch</span>
+<span class="cmd"><b>/opt/homebrew/bin/jq</b> -c .[]</span>
+<div style="display: flex; gap: 4px; justify-content: flex-end;"><button type="button" class="btn">Edit…</button><button type="button" class="btn icon ghost" aria-label="Duplicate Save as JSON lines"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"></rect><path d="M3 10.5V4a1 1 0 0 1 1-1h6.5"></path></svg></button><button type="button" class="btn icon ghost danger" aria-label="Delete Save as JSON lines"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5"></path></svg></button></div>
+</div>
+
+<div class="trow">
+<div class="grip"><button type="button" aria-label="Move Disable account up"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 6.5 5 3.5l3 3"></path></svg></button><button type="button" aria-label="Move Disable account down" disabled=""><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 3.5 5 6.5l3-3"></path></svg></button></div>
+<div style="display: flex; flex-direction: column; gap: 3px; min-width: 0;"><span style="font-weight: 600;">Disable account</span><span style="display: flex; gap: 4px;"><span class="chip acc mono" style="height: 18px; font-size: 10.5px; padding: 0 6px;">{userPrincipalName}</span></span></div>
+<span class="chip" style="justify-self: start;">Each row</span>
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;"><span class="cmd"><b>pwsh</b> -File ~/scripts/disable.ps1 -Upn <span class="param">{userPrincipalName}</span></span><span class="chip warn" style="align-self: flex-start;">No file at “pwsh”: give the full path</span></div>
+<div style="display: flex; gap: 4px; justify-content: flex-end;"><button type="button" class="btn">Edit…</button><button type="button" class="btn icon ghost" aria-label="Duplicate Disable account"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"></rect><path d="M3 10.5V4a1 1 0 0 1 1-1h6.5"></path></svg></button><button type="button" class="btn icon ghost danger" aria-label="Delete Disable account"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5"></path></svg></button></div>
+</div>
+</div>
+
+<div style="display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px;">
+<span class="faint mono" style="font-size: 11px;">~/Library/Application Support/Kustodian/tools.json</span>
+<div style="flex-grow: 1;"></div>
+<span class="faint" style="font-size: 12px;">Commands start directly, never through a shell, in your home folder.</span>
+</div>
+</section>
+
+<section class="card" aria-label="External tools, when tools.json can’t be read" style="padding: 20px; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: center; gap: 10px;"><b style="font-size: 14px;">External tools</b><span class="chip warn">tools.json has a problem</span><span class="faint" style="font-size: 11.5px; margin-left: auto;">The same card, another state</span></div>
+<div class="card" role="note" style="padding: 12px 14px; border-color: var(--warn); background: var(--warn-soft); display: flex; flex-direction: column; gap: 8px;">
+<span style="font-size: 12.5px;">tools.json couldn’t be read, so the Run tool menu has no tools. Nothing here changes it until it’s fixed.</span>
+<span class="mono faint" style="font-size: 11px;">Line 9, column 4: “mode” must be “each” or “batch”.</span>
+<div style="display: flex; gap: 8px;"><button type="button" class="btn">Open tools.json</button><button type="button" class="btn">Read it again</button></div>
+</div>
+</section>
+
+<section class="card" aria-label="Limits" style="padding: 16px 20px; display: flex; align-items: center; gap: 12px; opacity: .55;"><b style="font-size: 14px;">Limits</b><span class="faint" style="font-size: 12px;">Graph objects per table, engine…</span></section>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1060}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
