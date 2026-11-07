@@ -16,6 +16,11 @@ follow [Semantic Versioning](https://semver.org/).
   such as `Stop VM · 2`. The button names a tool in your `tools.json` and maps its parameters to columns; it runs on the
   selected rows, or on all rows the filter shows when none are selected, and always asks first. See
   [docs/workbooks.md](docs/workbooks.md#selection-and-tool-buttons).
+- **Share workbooks**: Export… in a workbook's ⋯ menu writes a `.kustodian-workbook.json` file with its layout, queries,
+  parameter defaults and tool-button settings, never results or tokens. Import… in the Saved panel, or Import workbook… in the
+  palette, shows a review first: saved queries are added to your library or copied into the widgets, tool buttons are matched
+  by name to your own `tools.json` (which import never changes), and a workbook you already have can be kept alongside or
+  replaced. See [docs/workbooks.md](docs/workbooks.md#sharing).
 - A **Full screen** button on the Chart tab fills the app window with the chart; click it again or press Esc to go back.
 - Click a column, bar, pie slice or point in the Chart tab to see the rows behind it on the Rows tab. It filters the
   result you already have, without running the query again; a chip in the result bar shows the filter and clears it.

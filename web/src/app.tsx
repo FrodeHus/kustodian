@@ -5,6 +5,8 @@ import type { KqlEditorHandle } from './editor/kql-editor';
 import { ExplainView, type ExplainRequest } from './explain/explain-view';
 import { SaveDialog } from './library/save-dialog';
 import { SaveWorkbookDialog } from './workbooks/save-workbook-dialog';
+import { ImportReview } from './workbooks/import-review';
+import { importWorkbook } from './workbooks/sharing';
 import { saveWorkbook, startWorkbookTabs } from './workbooks/workbook-store';
 import { newerRelease } from './settings/update-check';
 import { UpdateDialog } from './settings/update-dialog';
@@ -341,6 +343,7 @@ export function App() {
       { id: 'tab.new', title: 'New Microsoft Graph query', group: 'Tabs', shortcut: 'Mod+T', run: () => useTabs.getState().open('graph') },
       { id: 'tab.newRaw', title: 'New raw Graph request', group: 'Tabs', run: () => openRaw() },
       { id: 'tab.newWorkbook', title: 'New workbook', group: 'Tabs', run: () => void useTabs.getState().openWorkbook() },
+      { id: 'workbook.import', title: 'Import workbook…', group: 'Tabs', run: () => void importWorkbook().catch(fail('The workbook couldn’t be imported')) },
       {
         id: 'schema.refresh',
         title: 'Refresh schema',
@@ -785,6 +788,7 @@ export function App() {
         />
       )}
       {update && !askTelemetry && !askErrorReports && <UpdateDialog info={update} onClose={() => setUpdate(null)} />}
+      <ImportReview />
       {paletteOpen && (
         <Palette
           onClose={() => {

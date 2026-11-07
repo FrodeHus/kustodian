@@ -106,3 +106,23 @@ closing such a tab asks first, as a query tab does.
 
 Unsaved workbooks, edits included, come back after a restart like unsaved query tabs do. If the saved copy was deleted in the
 meantime, the tab stays open as unsaved.
+
+## Sharing
+
+**Export…** in a workbook's ⋯ menu writes one `.kustodian-workbook.json` file: the workbook's layout, queries, parameters
+with their defaults, and tool-button settings. Linked saved queries carry their text. It never holds results, tokens or
+remembered values.
+
+**Import…** in the Workbooks group of the Saved panel, or **Import workbook…** in the command palette, opens a file and shows
+a review first. Nothing runs, and nothing is saved, until you choose. The review shows:
+
+- **What's in it**: the widgets, parameters and buttons.
+- **Saved queries**: they are added to your library with new ids, in a folder named after the workbook, or copied into the
+  widgets. **Open without saving** always copies them and saves nothing.
+- **Tool buttons**: each is matched by name to a tool in your own `tools.json`. Import never changes `tools.json`. A button
+  with no match is left off, unless you choose one of your tools for it.
+- **Parameter values**: the defaults are listed. They aren't checked against your tenant yet.
+- **The file**: shown as Kustodian read it.
+
+If you already have a workbook with the same id, the review asks: **Keep both** (the default, with a new id) or **Replace**.
+Replace is off while that workbook is open in a tab.

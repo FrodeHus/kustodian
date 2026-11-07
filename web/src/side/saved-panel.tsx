@@ -10,6 +10,7 @@ import { SourceBadge, WorkbookIcon } from '../tabs/source-badge';
 import { useTabs } from '../tabs/tab-store';
 import type { LibraryList, SavedQuery, Source, WorkbookList, WorkbookSummary } from '../wire';
 import { parseWorkbook } from '../workbooks/model';
+import { importWorkbook } from '../workbooks/sharing';
 import { useWorkbooks } from '../workbooks/workbook-store';
 import { PanelHeading } from './panel-heading';
 import { ConfirmDelete, RowMenu } from './row-menu';
@@ -96,6 +97,12 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
       (e: unknown) => setProblem({ text: `${w.name} couldn’t be opened: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
   };
+
+  const importFile = () =>
+    importWorkbook().then(
+      () => setProblem(null),
+      (e: unknown) => setProblem({ text: `The workbook couldn’t be imported: ${errorText(e)}`, reportId: reportIdOf(e) }),
+    );
 
   const removeWorkbook = (w: WorkbookSummary) => {
     setDeleting(null);
@@ -244,7 +251,7 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
         <ul className="side-list">
           {folders.map((f) => folder(f.name, f.name, f.queries.map(row)))}
           {loose.map(row)}
-          {shownWorkbooks.length > 0 && (
+          {(needle === '' || shownWorkbooks.length > 0) && (
             <li>
               <button
                 type="button"
@@ -261,6 +268,11 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
               </button>
               {workbooksOpen && (
                 <ul className="side-list pl-3">
+                  <li>
+                    <button type="button" className="side-open" onClick={() => void importFile()}>
+                      Import…
+                    </button>
+                  </li>
                   {workbookFolders.map((f) => folder(f.key, f.name, f.items.map(workbookRow)))}
                   {looseWorkbooks.map(workbookRow)}
                 </ul>

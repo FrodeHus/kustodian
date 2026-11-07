@@ -210,4 +210,18 @@ describe('SavedPanel', () => {
     expect(screen.getByRole('button', { name: 'Identity', expanded: false })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Hygiene' })).toBeNull();
   });
+
+  it('saved_import_button_asks_for_a_workbook_file_and_shows_a_refusal', async () => {
+    library = { queries: [], folders: [], skipped: 0 };
+    const answer = bridge.call.getMockImplementation()!;
+    bridge.call.mockImplementation((method: string, params?: { id?: string }) =>
+      method === 'file.open' ? Promise.resolve({ path: '/x/a.json', name: 'a.json', text: 'not json' }) : answer(method, params),
+    );
+    render(<SavedPanel />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Import…' }));
+
+    expect(bridge.call).toHaveBeenCalledWith('file.open', { filters: [{ name: 'Kustodian workbook', extensions: ['json'] }] });
+    expect((await screen.findByRole('alert')).textContent).toContain('The workbook couldn’t be imported: ');
+  });
 });
