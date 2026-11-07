@@ -201,10 +201,10 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
         var modified = new List<InstalledItem>();
         foreach (var item in solution.Items)
         {
-            (string Hash, SolutionOrigin? Origin)? now = item.Kind == QueryKind
-                ? queries.TryGetValue(item.LibraryId, out var q) ? (SolutionHash.Query(InputOf(q)), q.Origin) : null
-                : await _workbooks.GetAsync(item.LibraryId, ct) is { } wb ? (SolutionHash.Workbook(wb), OriginOf(wb)) : null;
-            if (now is { } n && n.Hash != n.Origin?.ContentHash)
+            var modifiedNow = item.Kind == QueryKind
+                ? queries.TryGetValue(item.LibraryId, out var q) && IsModified(q)
+                : await _workbooks.GetAsync(item.LibraryId, ct) is { } wb && IsModified(wb);
+            if (modifiedNow)
             {
                 modified.Add(item);
             }
@@ -213,8 +213,9 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
         return modified;
     }
 
-    /// <summary>Deletes the solution's items, except the library ids in <paramref name="keepModified"/>, which stay as the
-    /// user's own with their origin cleared, and removes it from <c>solutions.json</c>. Items already gone are skipped.</summary>
+    /// <summary>Deletes the solution's unmodified items and removes it from <c>solutions.json</c>. The library ids in
+    /// <paramref name="keepModified"/>, and any item modified by now, stay as the user's own with their origin cleared. Items
+    /// already gone are skipped.</summary>
     public async Task UninstallAsync(string id, IReadOnlySet<string> keepModified, CancellationToken ct)
     {
         await _gate.WaitAsync(ct);
@@ -225,16 +226,18 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
             var queries = (await _library.ListAsync(ct)).Queries.ToDictionary(q => q.Id);
             foreach (var item in solution.Items)
             {
+                // Never delete what the user changed, even after ModifiedAsync was asked.
                 var keep = keepModified.Contains(item.LibraryId);
                 if (item.Kind == QueryKind)
                 {
                     if (queries.TryGetValue(item.LibraryId, out var q))
                     {
-                        await (keep ? _library.SaveAsync(InputOf(q), null, ct) : _library.DeleteAsync(q.Id, ct));
+                        await (keep || IsModified(q) ? _library.SaveAsync(InputOf(q), null, ct) : _library.DeleteAsync(q.Id, ct));
                     }
                 }
                 else if (await _workbooks.GetAsync(item.LibraryId, ct) is { } wb)
                 {
+                    keep = keep || IsModified(wb);
                     wb.Remove("origin");
                     await (keep ? _workbooks.SaveAsync(wb, false, ct) : _workbooks.DeleteAsync(item.LibraryId, ct));
                 }
@@ -341,12 +344,16 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
                     ? _library.DeleteAsync(id, CancellationToken.None)
                     : _workbooks.DeleteAsync(id, CancellationToken.None));
             }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            catch (Exception e) when (e is not OperationCanceledException)
             {
                 _log.LogWarning(e, "The installed {Kind} {Id} could not be removed after a failed install.", kind, id);
             }
         }
     }
+
+    private static bool IsModified(SavedQuery q) => SolutionHash.Query(InputOf(q)) != q.Origin?.ContentHash;
+
+    private static bool IsModified(JsonObject wb) => SolutionHash.Workbook(wb) != OriginOf(wb)?.ContentHash;
 
     private static SavedQueryInput InputOf(SavedQuery q) => new(q.Id, q.Name, q.Folder, q.Source, q.Text, q.Parameters, q.Options);
 

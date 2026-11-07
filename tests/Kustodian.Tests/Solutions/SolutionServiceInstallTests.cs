@@ -285,6 +285,28 @@ public sealed class SolutionServiceInstallTests : IDisposable
     }
 
     [Fact]
+    public async Task UninstallNeverDeletesAModifiedItem()
+    {
+        var svc = Service();
+        await svc.InstallAsync(Id, Set(), Ct);
+        var edited = (await _library.ListAsync(Ct)).Queries.Single(q => q.Origin!.ItemId == "risky-users");
+        await _library.SaveAsync(InputOf(edited) with { Text = edited.Text + "\n| take 10" }, Ct);
+        var summary = Assert.Single((await _workbooks.ListAsync(Ct)).Workbooks);
+        var wb = (await _workbooks.GetAsync(summary.Id, Ct))!;
+        wb.Remove("origin");
+        await _workbooks.SaveAsync(wb, keepOrigin: false, Ct);
+
+        await svc.UninstallAsync(Id, Set(), Ct);
+
+        var kept = Assert.Single((await _library.ListAsync(Ct)).Queries);
+        Assert.Equal(edited.Id, kept.Id);
+        Assert.Null(kept.Origin);
+        Assert.False((await _workbooks.GetAsync(summary.Id, Ct))!.ContainsKey("origin"));
+        var file = JsonNode.Parse(await File.ReadAllTextAsync(InstalledPath, Ct))!;
+        Assert.Empty(file["installed"]!.AsArray());
+    }
+
+    [Fact]
     public async Task UninstallSkipsMissing()
     {
         var svc = Service();
