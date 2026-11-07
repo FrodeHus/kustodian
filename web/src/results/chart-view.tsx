@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -109,11 +109,29 @@ export default function ChartView({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [full]);
-  const hint = renderHint(kql);
-  const options = renderOptions(kql);
-  const shape = chartShape(columns, rows, hint, options);
+  // Shaping sorts and copies every row: once per result and pick, not on every render.
+  const view = useMemo(() => {
+    const hint = renderHint(kql);
+    const options = renderOptions(kql);
+    const shape = chartShape(columns, rows, hint, options);
+    if (!shape) {
+      return null;
+    }
+    const type = picked.type ?? shape.type;
+    const auto = picked.type ? (chartShape(columns, rows, picked.type, options) ?? { ...shape, type }) : shape;
+    // A pick that the current result has no column for (after a new run) falls back to the shape's.
+    const names = new Set(columns.map((c) => c.name));
+    const x = picked.x === undefined || (picked.x !== null && !names.has(picked.x)) || (picked.x === null && rows.length !== 1) ? auto.x : picked.x;
+    const numbers = columns.filter((c) => c.name !== x && isNumeric(c)).map((c) => c.name);
+    const chosen = (picked.series ?? auto.series).filter((s) => numbers.includes(s));
+    const splits = columns.filter((c) => c.name !== x && isCategory(c)).map((c) => c.name);
+    const split = picked.split === undefined || (picked.split !== null && !splits.includes(picked.split)) ? auto.split : picked.split;
+    const spec = { type, x, series: type === 'pie' ? chosen.slice(0, 1) : chosen, split };
+    const { series, data } = chartData(columns, rows, spec);
+    return { hint, options, type, x, numbers, splits, spec, series, data };
+  }, [columns, rows, kql, picked]);
 
-  if (!shape) {
+  if (!view) {
     return (
       <div className="flex flex-1 items-center justify-center p-4">
         <span className="faint text-[12px]">{NO_SHAPE}</span>
@@ -121,17 +139,7 @@ export default function ChartView({
     );
   }
 
-  const type = picked.type ?? shape.type;
-  const auto = picked.type ? (chartShape(columns, rows, picked.type, options) ?? { ...shape, type }) : shape;
-  // A pick that the current result has no column for (after a new run) falls back to the shape's.
-  const names = new Set(columns.map((c) => c.name));
-  const x = picked.x === undefined || (picked.x !== null && !names.has(picked.x)) || (picked.x === null && rows.length !== 1) ? auto.x : picked.x;
-  const numbers = columns.filter((c) => c.name !== x && isNumeric(c)).map((c) => c.name);
-  const chosen = (picked.series ?? auto.series).filter((s) => numbers.includes(s));
-  const splits = columns.filter((c) => c.name !== x && isCategory(c)).map((c) => c.name);
-  const split = picked.split === undefined || (picked.split !== null && !splits.includes(picked.split)) ? auto.split : picked.split;
-  const spec = { type, x, series: type === 'pie' ? chosen.slice(0, 1) : chosen, split };
-  const { series, data } = chartData(columns, rows, spec);
+  const { hint, options, type, x, numbers, splits, spec, series, data } = view;
   // The point at `index` (a mark's, or the chart's active one for lines and areas), and the series clicked when there is one.
   const pick = (index: unknown, name?: string) => {
     const point = data[Number(index)];

@@ -12,7 +12,7 @@ follow [Semantic Versioning](https://semver.org/).
   items to install into a library folder named after it, with new ids; nothing runs on install. Uninstall removes what you
   haven't changed and keeps the rest in Saved, offline too and after a solution leaves the catalog. The last catalog is
   kept for offline use, every solution file downloaded is checked against its SHA-256 and size, and the catalog index has a
-  4 MB limit. **Entra risky users** and **MFA and passkey adoption** ship first. See
+  4 MB limit. **Entra risky users**, **MFA and passkey adoption** and **Defender vulnerability patch SLAs** ship first. See
   [docs/solutions.md](docs/solutions.md).
 - **Workbooks**: a tab of Markdown, Chart, Table and Stat widgets on a grid, each running a query written in the widget or a
   linked saved one, on any source. Workbook parameters rerun only the widgets that use them, and widgets can show their own.
@@ -84,6 +84,15 @@ follow [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - Markdown widgets and solution READMEs render pipe tables (`| a | b |`) as tables instead of one line of text.
+- Discarding a workbook edit (or undoing back to the start) reruns any widget that ran a draft query while editing, so it no
+  longer shows, or runs tool buttons on, rows from a query the workbook doesn't have.
+- A raw Graph request's response no longer undoes header or version changes made while it was being sent.
+- The Saved, Snippets and Recent panels drop a read error once a later read works.
+- Arrow Down on a widget's move grip moves it past the widget right below it; before, it was packed straight back.
+- A link Ctrl/Cmd+clicked in the query editor opens in your browser through the same allowlist as workbook links, never inside
+  the app window.
+- Moving the cursor in the editor no longer re-renders the whole window, and charts are shaped once per result instead of on
+  every re-render.
 - Markdown widgets show headings, lists, quotes and code as such: `## Test` is a heading again, not plain text. Any widget
   can now hide its title bar outside edit mode (**Hide the title bar outside edit mode** in Edit widget); its ⋯ menu hides
   with it.

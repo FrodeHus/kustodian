@@ -68,8 +68,12 @@ export function RawTab({ tab, schema, defaultVersion, accountKey, onSignIn }: Ra
   const [view, setView] = useState<'body' | 'headers'>('body');
   const [notice, setNotice] = useState<Notice | null>(null);
 
-  const setRequest = (next: { version?: string; headers?: RawTabHeader[] }) =>
-    useTabs.getState().setRaw(tab.id, { version: next.version ?? request.version, headers: next.headers ?? request.headers });
+  // Read from the store, not this render: a response landing later mustn't put back headers edited while it was out.
+  const current = () => rawRequest(useTabs.getState().tabs.find((t) => t.id === tab.id) ?? tab);
+  const setRequest = (next: { version?: string; headers?: RawTabHeader[] }) => {
+    const now = current();
+    useTabs.getState().setRaw(tab.id, { version: next.version ?? now.version, headers: next.headers ?? now.headers });
+  };
 
   const busy = () => useRawResponses.getState().responses[tab.id]?.sending ?? false;
 
@@ -94,7 +98,8 @@ export function RawTab({ tab, schema, defaultVersion, accountKey, onSignIn }: Ra
       const response = await call<RawResponse>('raw.send', { version, path, headers });
       // The host says which account it sent for: the next pages go out for that one, whatever is active by then.
       updateRaw(tab.id, { pages: [response], accountKey: response.accountKey, sending: false });
-      setRequest({ version });
+      // Keeps the version it was sent with, unless another was picked while it was out.
+      setRequest({ version: current().version ?? version });
       useTabs.getState().setTitle(tab.id, `GET /${path.split('?')[0] ?? ''}`);
     } catch (e) {
       const message = errorText(e);
