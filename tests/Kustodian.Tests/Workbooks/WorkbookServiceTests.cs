@@ -230,4 +230,23 @@ public sealed class WorkbookServiceTests : IDisposable
 
         Assert.Equal("P7D", (await NewService().GetValuesAsync(id, Ct))["Timerange"]!.GetValue<string>());
     }
+
+    [Fact]
+    public async Task Save_without_origin_keeps_the_files_origin()
+    {
+        var service = NewService();
+        var doc = Doc();
+        var id = doc["id"]!.GetValue<string>();
+        doc["origin"] = new JsonObject { ["solutionId"] = "entra-risky-users" };
+        await service.SaveAsync(doc, Ct);
+
+        await service.SaveAsync(Doc(id, name: "Renamed"), Ct);
+
+        var read = await NewService().GetAsync(id, Ct);
+        Assert.Equal("Renamed", read!["name"]!.GetValue<string>());
+        Assert.Equal("entra-risky-users", read["origin"]!["solutionId"]!.GetValue<string>());
+
+        await service.SaveAsync(Doc(id), keepOrigin: false, Ct);
+        Assert.False((await NewService().GetAsync(id, Ct))!.ContainsKey("origin"));
+    }
 }
