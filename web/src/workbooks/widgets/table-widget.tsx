@@ -4,11 +4,13 @@ import { ResultGrid, type GridSelection } from '../../results/result-grid';
 import { RowDetails } from '../../results/row-details';
 import type { Widget } from '../model';
 import { useWorkbooks, type WidgetRun } from '../workbook-store';
+import { HistoryTable } from './history-table';
 
 /** A table widget: the result grid, its tools in a bar of their own. With a `tabId` its row selection lives in the store, for
- * its tool buttons; without one (the editor's preview) the grid keeps its own. */
+ * its tool buttons; without one (the editor's preview) the grid keeps its own. With Row tracking it is the tracked table. */
 export function TableWidget({ widget, run, tabId }: { widget: Widget; run: WidgetRun; tabId?: string }) {
   const kept = useWorkbooks((s) => (tabId ? s.byTab[tabId]?.selections[widget.id]?.selected : undefined));
+  const since = useWorkbooks((s) => (tabId ? s.byTab[tabId]?.since[widget.id] : undefined)) ?? widget.history?.since;
   const mode = widget.selection ?? 'multi';
   const id = useId();
   // The opened row, with the rows it indexes: a rerun's new rows close it.
@@ -26,7 +28,7 @@ export function TableWidget({ widget, run, tabId }: { widget: Widget; run: Widge
   }
   const inspected = details?.rows === run.result.rows ? details.index : null;
   const detailsRow = inspected === null ? undefined : run.result.rows[inspected];
-  return (
+  const grid = (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <ResultGrid
         columns={run.result.columns}
@@ -39,5 +41,10 @@ export function TableWidget({ widget, run, tabId }: { widget: Widget; run: Widge
       />
       {detailsRow && <RowDetails id={`${id}-details`} columns={run.result.columns} row={detailsRow} onClose={() => setDetails(null)} />}
     </div>
+  );
+  return tabId !== undefined && widget.history?.mode === 'rows' && since !== undefined ? (
+    <HistoryTable tabId={tabId} widgetId={widget.id} since={since} rowCount={run.result.rows.length} open={grid} />
+  ) : (
+    grid
   );
 }
