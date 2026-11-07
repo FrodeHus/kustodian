@@ -235,4 +235,28 @@ describe('workbook edit mode', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
     expect(runAll).not.toHaveBeenCalled();
   });
+
+  it('closing the parameters dialog, by Cancel or Esc, returns focus to Parameters', () => {
+    show();
+    const button = screen.getByRole('button', { name: 'Parameters' });
+    for (const close of [
+      () => fireEvent.click(screen.getByRole('button', { name: 'Cancel' })),
+      () => fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' }),
+    ]) {
+      fireEvent.click(button);
+      close();
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(document.activeElement).toBe(button);
+    }
+  });
+
+  it('Ctrl+Z is not the workbook’s undo while the parameters dialog is open', () => {
+    show();
+    fireEvent.keyDown(grip('Notes'), { key: 'ArrowRight' });
+    const moved = layoutOf('b');
+    fireEvent.click(screen.getByRole('button', { name: 'Parameters' }));
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Cancel' }), { key: 'z', ctrlKey: true });
+    expect(layoutOf('b')).toEqual(moved);
+    expect(state().undo).toHaveLength(1);
+  });
 });
