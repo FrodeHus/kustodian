@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ExternalTool, RunResult, ToolList } from '../wire';
 import { newToolButton, newWidget, newWorkbook, type ToolButton, type Widget, type WorkbookDoc } from './model';
@@ -125,6 +125,21 @@ describe('tool buttons on a table widget', () => {
       ['cache', 'vm-3'],
     ]);
     expect(sent.mapping).toEqual({ id: 'id' });
+  });
+
+  it('names a button with a blank label by its tool', () => {
+    show([button({ label: '  ' })]);
+    expect(within(frame()).getByRole('button', { name: 'Stop VM · all 3' })).toBeTruthy();
+  });
+
+  it('ignores the stored selection once the widget turns selection off', () => {
+    show([button()]);
+    tick(2);
+    tick(3);
+    const s = useWorkbooks.getState().byTab['t']!;
+    act(() => useWorkbooks.setState({ byTab: { t: { ...s, doc: { ...s.doc, widgets: s.doc.widgets.map((w) => ({ ...w, selection: 'none' as const })) } } } }));
+    expect(within(frame()).queryByText(/selected$/)).toBeNull();
+    expect(within(frame()).getByRole('button', { name: 'Stop VM · all 3' })).toBeTruthy();
   });
 
   it('is off when it runs on the selected rows and none are', () => {

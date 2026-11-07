@@ -10,7 +10,7 @@ import type { ParameterDef, RunResult } from '../wire';
 import { COLUMNS, GAP_PX, move, place, resize, ROW_PX } from './layout';
 import { MAX_WIDGETS, newWidget, type ToolButton, type Widget, type WidgetLayout } from './model';
 import { widgetParams, widgetRunOptions, type ResolvedParam } from './resolve';
-import { NO_SELECTION, okResult, toolTarget } from './tool-buttons';
+import { buttonName, effectiveSelection, okResult, toolTarget } from './tool-buttons';
 import { useToolRun } from './tool-run';
 import { effectiveWidget, useWorkbooks, type WidgetRun } from './workbook-store';
 
@@ -87,12 +87,13 @@ function ToolButtonItems({
   onOpen: (b: ToolButton) => void;
 }): ReactNode {
   const result = okResult(useWorkbooks((s) => s.byTab[tabId]?.runs[widget.id]));
-  const selection = useWorkbooks((s) => s.byTab[tabId]?.selections[widget.id]) ?? NO_SELECTION;
+  const stored = useWorkbooks((s) => s.byTab[tabId]?.selections[widget.id]);
+  const selection = effectiveSelection(widget.selection, stored);
   return (widget.tools ?? [])
     .filter((b) => b.placement === placement)
     .map((b, i) => {
       const target = toolTarget(b.runsOn, result?.rows ?? [], selection);
-      const label = `${b.label} · ${target.count}`;
+      const label = `${buttonName(b)} · ${target.count}`;
       const off = !result || target.rows.length === 0;
       return placement === 'header' ? (
         <button key={i} type="button" className="btn" disabled={off} onClick={() => onOpen(b)}>
@@ -172,7 +173,7 @@ export function WidgetFrame({
   const run = useWorkbooks((s) => s.byTab[tabId]?.runs[widget.id]);
   const [full, setFull] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
-  const selection = useWorkbooks((s) => s.byTab[tabId]?.selections[widget.id]) ?? NO_SELECTION;
+  const selection = effectiveSelection(widget.selection, useWorkbooks((s) => s.byTab[tabId]?.selections[widget.id]));
   const tools = useToolRun(tabId, widget, setNotice);
   const ref = useRef<HTMLElement>(null);
   // The pointer gesture under way: what it does, where it started, and the grid's measured column pitch.

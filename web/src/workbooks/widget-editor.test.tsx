@@ -350,6 +350,14 @@ describe('WidgetEditor', () => {
       expect(state().undo).toEqual([doc]);
     });
 
+    it('lists a saved mapping column that the result lacks, instead of showing Automatic', async () => {
+      doc.widgets[0] = { ...doc.widgets[0]!, tools: [button({ tool: 'Stop VM', label: 'Stop VM', mapping: { id: 'resourceId' } })] };
+      open('a');
+      tab('Tool buttons');
+      await screen.findByRole('option', { name: 'Stop VM · once per row' });
+      expect((screen.getByRole('combobox', { name: '{id}' }) as HTMLSelectElement).value).toBe('resourceId');
+    });
+
     it('a tool that isn’t in tools.json stays chosen, and Apply keeps it', async () => {
       doc.widgets[0] = { ...doc.widgets[0]!, tools: [button()] };
       open('a');

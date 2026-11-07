@@ -38,7 +38,7 @@ A Chart, Table or Stat widget gets its query one of two ways, picked in the widg
 
 A table widget can have a checkbox column and tool buttons that run one of your external tools (see
 [external-tools.md](external-tools.md)) on its rows. In the widget editor, **Rows can be selected** turns the checkboxes on
-or off, and **Several rows at once** limits it to one row. The widget header shows "2 of 14 selected", and select-all ticks
+or off, and with **Several rows at once** off, only one row at a time can be selected. The widget header shows "2 of 14 selected", and select-all ticks
 the rows the filter shows.
 
 Tool buttons are set up on the editor's **Tool buttons** tab. Each button has:

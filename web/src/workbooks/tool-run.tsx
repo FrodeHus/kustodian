@@ -8,7 +8,7 @@ import { errorText } from '../shell/errors';
 import { reportIdOf } from '../shell/report-id';
 import type { ExternalTool, ResultColumn, ToolList } from '../wire';
 import type { ToolButton, Widget } from './model';
-import { NO_SELECTION, okResult, toolTarget } from './tool-buttons';
+import { buttonName, effectiveSelection, okResult, toolTarget } from './tool-buttons';
 import { useWorkbooks } from './workbook-store';
 
 interface Opened {
@@ -36,7 +36,7 @@ export function useToolRun(tabId: string, widget: Widget, onNotice: (n: Notice) 
       return;
     }
     // A snapshot: the dialog keeps these rows whatever the widget does meanwhile.
-    const target = toolTarget(button.runsOn, result.rows, s?.selections[widget.id] ?? NO_SELECTION);
+    const target = toolTarget(button.runsOn, result.rows, effectiveSelection(widget.selection, s?.selections[widget.id]));
     if (target.rows.length === 0) {
       return;
     }
@@ -62,7 +62,7 @@ export function useToolRun(tabId: string, widget: Widget, onNotice: (n: Notice) 
             tool,
             columns: result.columns,
             rows: target.rows,
-            title: `${button.label} ${target.heading}`,
+            title: `${buttonName(button)} ${target.heading}`,
             initialMapping: startMapping(tool, result.columns, button.mapping),
             onRan,
           });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { toolTarget } from './tool-buttons';
+import { newToolButton } from './model';
+import { buttonName, effectiveSelection, NO_SELECTION, toolTarget } from './tool-buttons';
 
 const rows = Array.from({ length: 14 }, (_, i) => [i]);
 const every = rows.map((_, i) => i);
@@ -38,5 +39,19 @@ describe('toolTarget', () => {
   it('treats shown null as every row and shown [] as none', () => {
     expect(toolTarget('selectedOrAll', rows, { selected: [], shown: null }).rows).toHaveLength(14);
     expect(toolTarget('selectedOrAll', rows, { selected: [], shown: [] }).rows).toEqual([]);
+  });
+});
+
+describe('buttonName and effectiveSelection', () => {
+  it('names a button by its trimmed label, else its tool', () => {
+    expect(buttonName({ ...newToolButton(), label: ' Stop ', tool: 'T' })).toBe('Stop');
+    expect(buttonName({ ...newToolButton(), label: '  ', tool: 'T' })).toBe('T');
+  });
+
+  it('is empty while selection is off, whatever the store holds', () => {
+    const stored = { selected: [1], shown: [0, 1] };
+    expect(effectiveSelection('none', stored)).toBe(NO_SELECTION);
+    expect(effectiveSelection('multi', stored)).toBe(stored);
+    expect(effectiveSelection('multi', undefined)).toBe(NO_SELECTION);
   });
 });

@@ -243,6 +243,7 @@ describe('tool buttons and selection', () => {
       { label: 'A', tool: 'A', mapping: { a: 'x' }, runsOn: 'selectedOrAll', after: 'refreshWidget', placement: 'header' },
       { label: 'Bee', tool: 'B', mapping: {}, runsOn: 'selected', after: 'none', placement: 'menu' },
     ]);
+    expect(withWidget({ tools: [{ tool: 'A', label: '  ' }, { tool: 'B', label: ' Bee ' }] })?.tools?.map((b) => b.label)).toEqual(['A', 'Bee']);
     expect(withWidget({ tools: 'nope' })?.tools).toEqual([]);
   });
 

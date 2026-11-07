@@ -49,6 +49,11 @@ export function ToolButtonsSection({ draft, columns, set }: { draft: Widget; col
   const tool = button && find(button.tool);
   const problem = error?.text ?? list?.problem;
 
+  // Keep a saved mapping listed when its column isn't in the result (no result yet), so the select shows it.
+  const mapped = (saved: string | undefined) => {
+    const names = columns.map((c) => c.name);
+    return saved && !names.includes(saved) ? [...names, saved] : names;
+  };
   const setButton = (change: Partial<ToolButton>) => set({ tools: tools.map((b, i) => (i === at ? { ...b, ...change } : b)) });
   const chooseTool = (name: string) => {
     const next = find(name);
@@ -157,7 +162,7 @@ export function ToolButtonsSection({ draft, columns, set }: { draft: Widget; col
                       key={p}
                       label={`{${p}}`}
                       value={button.mapping[p] ?? ''}
-                      columns={columns.map((c) => c.name)}
+                      columns={mapped(button.mapping[p])}
                       onChange={(column) => setButton({ mapping: { ...button.mapping, [p]: column } })}
                     />
                   ))}

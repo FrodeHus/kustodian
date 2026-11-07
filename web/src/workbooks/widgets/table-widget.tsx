@@ -7,8 +7,9 @@ import { useWorkbooks, type WidgetRun } from '../workbook-store';
  * its tool buttons; without one (the editor's preview) the grid keeps its own. */
 export function TableWidget({ widget, run, tabId }: { widget: Widget; run: WidgetRun; tabId?: string }) {
   const kept = useWorkbooks((s) => (tabId ? s.byTab[tabId]?.selections[widget.id]?.selected : undefined));
-  const selected = useMemo(() => new Set(kept ?? []), [kept]);
   const mode = widget.selection ?? 'multi';
+  // The store keeps the old selection until the rerun answers; with selection off it counts as empty.
+  const selected = useMemo(() => new Set(mode === 'none' ? [] : (kept ?? [])), [kept, mode]);
   const selection: GridSelection | 'none' | undefined =
     tabId === undefined
       ? undefined

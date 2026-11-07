@@ -184,7 +184,7 @@ function parseToolButton(v: unknown): ToolButton | null {
   }
   const mapping = Object.entries(isObj(v.mapping) ? v.mapping : {}).filter((e): e is [string, string] => typeof e[1] === 'string');
   return {
-    label: typeof v.label === 'string' && v.label !== '' ? v.label : v.tool,
+    label: typeof v.label === 'string' && v.label.trim() !== '' ? v.label.trim() : v.tool,
     tool: v.tool,
     mapping: Object.fromEntries(mapping),
     runsOn: oneOf(v.runsOn, ['selectedOrAll', 'selected'], 'selectedOrAll'),
