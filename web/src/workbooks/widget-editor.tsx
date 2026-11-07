@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, useId, useRef, useState, type ReactNode } fr
 import { call } from '../bridge';
 import { openSaved } from '../library/open-library';
 import { PARAMETER_TYPES } from '../params/find-params';
-import { CHART_TYPES } from '../results/chart-shape';
+import { CHART_TYPES, STACKS, chartShape, isCategory, renderHint, renderOptions, stackable } from '../results/chart-shape';
 import { useSchemas } from '../schema/schema-store';
 import { errorText } from '../shell/errors';
 import { inSendDetails } from '../shell/send-details-marker';
@@ -323,6 +323,15 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
       );
 
     const picked = draft.chart ?? {};
+    // The type and stacking the chart draws when the widget leaves them automatic, as the Chart tab works them out.
+    const kql = live.query?.text ?? '';
+    const chartType = picked.type ?? (result ? chartShape(result.columns, result.rows, renderHint(kql), renderOptions(kql))?.type : undefined);
+    const stack = picked.stack ?? renderOptions(kql).stack ?? 'none';
+    const splits = (result?.columns ?? []).filter((c) => c.name !== picked.x && isCategory(c)).map((c) => c.name);
+    // Keep a saved split listed before a preview has run, so the select shows it.
+    if (picked.split && !splits.includes(picked.split)) {
+      splits.push(picked.split);
+    }
     const visualizationPanel =
       draft.type === 'chart' ? (
         <div className="flex flex-col gap-3">
@@ -342,7 +351,37 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
               columns={columns}
               onChange={(y) => set({ chart: { ...picked, series: y ? [y] : undefined } })}
             />
-            <ColumnSelect label="Series" value={picked.split ?? ''} columns={columns} onChange={(split) => set({ chart: { ...picked, split: split || undefined } })} />
+            <label className="field">
+              <span>Split by</span>
+              <select
+                className="textbox"
+                value={picked.split === undefined ? 'auto' : picked.split === null ? 'none' : `col:${picked.split}`}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  set({ chart: { ...picked, split: v === 'auto' ? undefined : v === 'none' ? null : v.slice(4) } });
+                }}
+              >
+                <option value="auto">Automatic</option>
+                <option value="none">None</option>
+                {splits.map((name) => (
+                  <option key={name} value={`col:${name}`}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {chartType && stackable(chartType) && (
+              <label className="field">
+                <span>Stacking</span>
+                <select className="textbox" value={stack} onChange={(e) => set({ chart: { ...picked, stack: STACKS.find((t) => t.stack === e.target.value)?.stack } })}>
+                  {STACKS.map((t) => (
+                    <option key={t.stack} value={t.stack}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
         </div>
       ) : draft.type === 'stat' ? (

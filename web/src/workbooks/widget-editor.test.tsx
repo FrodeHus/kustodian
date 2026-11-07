@@ -21,10 +21,15 @@ vi.mock('../editor/kql-editor', () => ({
 }));
 // Recharts can't lay out in jsdom; the chart's own tests cover it.
 vi.mock('../results/chart-view', () => ({
-  default: ({ picked, controls = true }: { picked: { type?: string }; controls?: boolean }) => (
-    <p>
-      Chart {picked.type ?? 'auto'}, {controls ? 'with pickers' : 'alone'}
-    </p>
+  default: ({ picked, controls = true }: { picked: { type?: string; split?: string | null; stack?: string }; controls?: boolean }) => (
+    <>
+      <p>
+        Chart {picked.type ?? 'auto'}, {controls ? 'with pickers' : 'alone'}
+      </p>
+      <p>
+        Split {picked.split === undefined ? 'auto' : (picked.split ?? 'none')}, stack {picked.stack ?? 'auto'}
+      </p>
+    </>
   ),
 }));
 
@@ -222,6 +227,80 @@ describe('WidgetEditor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Bar' }));
     fireEvent.click(screen.getByRole('button', { name: 'Run preview' }));
     expect(await screen.findByText('Chart bar, alone')).toBeTruthy();
+  });
+
+  describe('Split by and Stacking', () => {
+    const result = {
+      outcome: 'ok',
+      message: null,
+      error: null,
+      columns: [
+        { name: 'day', type: 'datetime' },
+        { name: 'state', type: 'string' },
+        { name: 'n', type: 'long' },
+      ],
+      rows: [['2026-11-01T00:00:00Z', 'open', 1]],
+      total: 1,
+      tables: [],
+      durationMs: 1,
+      droppedValues: 0,
+      runId: 'r',
+      diagnostics: [],
+      permissions: [],
+    } as unknown as RunResult;
+    const select = (name: string) => screen.getByRole('combobox', { name }) as HTMLSelectElement;
+
+    it('Split by offers Automatic, None and the text columns, and writes widget.chart.split', () => {
+      doc.widgets[0] = { ...doc.widgets[0]!, type: 'chart', chart: { type: 'column' } };
+      open('a', result);
+      tab('Visualization');
+      expect(screen.queryByRole('combobox', { name: 'Series' })).toBeNull();
+      expect([...select('Split by').options].map((o) => o.text)).toEqual(['Automatic', 'None', 'state']);
+      fireEvent.change(select('Split by'), { target: { value: 'col:state' } });
+      apply();
+      expect(applied().chart).toMatchObject({ split: 'state' });
+    });
+
+    it('Split by None writes null, so the chart doesn’t split', () => {
+      doc.widgets[0] = { ...doc.widgets[0]!, type: 'chart', chart: { type: 'column' } };
+      open('a', result);
+      tab('Visualization');
+      fireEvent.change(select('Split by'), { target: { value: 'none' } });
+      apply();
+      expect(applied().chart?.split).toBeNull();
+    });
+
+    it('Stacking writes widget.chart.stack, and the preview chart gets the split and the stacking', async () => {
+      call.mockImplementation((method: string) =>
+        method === 'library.list' ? Promise.resolve({ queries: [], folders: [], skipped: 0 }) : method === 'query.run' ? Promise.resolve(result) : new Promise(() => undefined),
+      );
+      doc.widgets[0] = { ...doc.widgets[0]!, type: 'chart', chart: { type: 'bar' } };
+      open('a', result);
+      tab('Visualization');
+      expect([...select('Stacking').options].map((o) => o.text)).toEqual(['None', 'Stacked', 'Stacked 100%']);
+      fireEvent.change(select('Split by'), { target: { value: 'col:state' } });
+      fireEvent.change(select('Stacking'), { target: { value: 'stacked100' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Run preview' }));
+      expect(await screen.findByText('Split state, stack stacked100')).toBeTruthy();
+      apply();
+      expect(applied().chart).toMatchObject({ type: 'bar', split: 'state', stack: 'stacked100' });
+    });
+
+    it('Stacking is offered for column, bar and area charts only', () => {
+      doc.widgets[0] = { ...doc.widgets[0]!, type: 'chart', chart: { type: 'column' } };
+      open('a', result);
+      tab('Visualization');
+      for (const [name, shown] of [
+        ['Area', true],
+        ['Line', false],
+        ['Pie', false],
+        ['Time chart', false],
+        ['Bar', true],
+      ] as const) {
+        fireEvent.click(screen.getByRole('button', { name }));
+        expect(screen.queryByRole('combobox', { name: 'Stacking' }) !== null).toBe(shown);
+      }
+    });
   });
 
   it('a Markdown widget has a text area and a rendered preview, no tabs', () => {

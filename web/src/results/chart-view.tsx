@@ -18,7 +18,7 @@ import {
 } from 'recharts';
 import type { ResultColumn } from '../wire';
 import type { Row } from './export';
-import { CHART_TYPES, NO_SHAPE, RENDER_HINTS, chartData, chartShape, isCategory, markFilter, isNumeric, renderHint, renderOptions, splitColumn, type CellMatch, type ChartPoint, type ChartType, type Stack } from './chart-shape';
+import { CHART_TYPES, NO_SHAPE, RENDER_HINTS, chartData, chartShape, isCategory, markFilter, isNumeric, renderHint, renderOptions, splitColumn, stackable, STACKS, type CellMatch, type ChartPoint, type ChartType, type Stack } from './chart-shape';
 
 /** Series colours, from the theme's tokens, so they follow light and dark. */
 const COLOURS = ['var(--accent)', 'var(--warn)', 'var(--ok)', 'var(--bad)', 'var(--kw)', 'var(--fn)', 'var(--num)', 'var(--str)', 'var(--col)'];
@@ -62,12 +62,6 @@ export interface Picked {
   split?: string | null;
   stack?: Stack;
 }
-
-const STACKS: { stack: Stack; name: string }[] = [
-  { stack: 'none', name: 'None' },
-  { stack: 'stacked', name: 'Stacked' },
-  { stack: 'stacked100', name: 'Stacked 100%' },
-];
 
 /** The least height a category gets in a chart-only bar chart, which scrolls past that. */
 const BAR_ROW_PX = 22;
@@ -147,9 +141,8 @@ export default function ChartView({
     }
   };
   const pointer = onPick && spec.x !== null ? { cursor: 'pointer' } : undefined;
-  // Only bars and areas stack; stacked to 100%, the value axis reads as shares.
-  const stackable = type === 'column' || type === 'bar' || type === 'area';
-  const stack = stackable ? (picked.stack ?? options.stack ?? 'none') : 'none';
+  // Stacked to 100%, the value axis reads as shares.
+  const stack = stackable(type) ? (picked.stack ?? options.stack ?? 'none') : 'none';
   const stackId = stack === 'none' ? undefined : 'stack';
   const stackOffset = stack === 'stacked100' ? 'expand' : undefined;
   const valueTick = stackOffset ? percent : undefined;
@@ -339,7 +332,7 @@ export default function ChartView({
             </select>
           </label>
         )}
-        {stackable && (
+        {stackable(type) && (
           <label className="flex items-center gap-2">
             <span className="muted">Stacking</span>
             <select
