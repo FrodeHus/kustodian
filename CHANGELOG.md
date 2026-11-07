@@ -11,6 +11,10 @@ follow [Semantic Versioning](https://semver.org/).
   linked saved one, on any source. Workbook parameters rerun only the widgets that use them, and widgets can show their own.
   Edit mode (mouse or keyboard) arranges widgets, and workbooks save to the library and come back after a restart. See
   [docs/workbooks.md](docs/workbooks.md).
+- **Tool buttons on table widgets**: tick rows in a table widget and run one of your external tools on them with a button
+  such as `Stop VM · 2`. The button names a tool in your `tools.json` and maps its parameters to columns; it runs on the
+  selected rows, or on all rows the filter shows when none are selected, and always asks first. See
+  [docs/workbooks.md](docs/workbooks.md#selection-and-tool-buttons).
 - A **Full screen** button on the Chart tab fills the app window with the chart; click it again or press Esc to go back.
 - Click a column, bar, pie slice or point in the Chart tab to see the rows behind it on the Rows tab. It filters the
   result you already have, without running the query again; a chip in the result bar shows the filter and clears it.
@@ -61,6 +65,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Chart widgets can split by a column and stack again: the widget editor's Visualization tab has **Split by** (formerly
+  "Series") and **Stacking** (None, Stacked, Stacked 100%) for column, bar and area charts.
 - Workbooks, after a look in the real app: a full-screen widget now fills the window. In the glass themes, completion and
   hover in the widget editor sit at the cursor. Chart widgets show only the chart, and are set up in the widget editor.
   Markdown fills in parameters added since the workbook opened. Widget headers fit in the narrowest widgets. Workbook
