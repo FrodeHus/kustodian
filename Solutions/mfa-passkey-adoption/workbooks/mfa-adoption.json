@@ -1,0 +1,391 @@
+{
+  "kind": "kustodian.workbook",
+  "version": 1,
+  "id": "3f5edc01-4ded-4806-867f-7a1f4d855af9",
+  "name": "MFA and passkey adoption",
+  "folder": null,
+  "parameters": [
+    {
+      "name": "Period",
+      "type": "timespan",
+      "value": "7d",
+      "required": true,
+      "label": "Sign-ins from the last",
+      "choices": [
+        "1d",
+        "7d",
+        "14d",
+        "30d"
+      ],
+      "multi": false,
+      "all": false,
+      "remember": false,
+      "huntingTimespan": false
+    },
+    {
+      "name": "MfaTypes",
+      "type": "list",
+      "value": "Passkey (device-bound)\nFIDO2 security key\nWindows Hello for Business\nMobile app notification\nAuthenticator App\nOATH verification code\nText message\nPhone call\nPassword\nPreviously satisfied",
+      "required": true,
+      "label": "Methods",
+      "choices": [
+        "Passkey (device-bound)",
+        "FIDO2 security key",
+        "Windows Hello for Business",
+        "Mobile app notification",
+        "Authenticator App",
+        "OATH verification code",
+        "Text message",
+        "Phone call",
+        "Password",
+        "Previously satisfied"
+      ],
+      "multi": true,
+      "all": true,
+      "remember": false,
+      "huntingTimespan": false
+    },
+    {
+      "name": "MinUsers",
+      "type": "number",
+      "value": "10",
+      "required": true,
+      "label": "Hide companies with this many users or fewer",
+      "choices": null,
+      "multi": false,
+      "all": false,
+      "remember": false,
+      "huntingTimespan": false
+    }
+  ],
+  "widgets": [
+    {
+      "id": "wmfa01",
+      "type": "markdown",
+      "title": "",
+      "layout": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 4
+      },
+      "parameters": {},
+      "markdown": "## MFA and passkey adoption\nWho has registered a passkey, who has only app or phone MFA, and who has no MFA at all, across every user. A passkey here is a device-bound passkey (`passKeyDeviceBound`, `passKeyDeviceBoundAuthenticator`). The company chart groups by `extensionAttribute1` when it is set, otherwise `companyName`, and leaves out users with neither."
+    },
+    {
+      "id": "wmfa02",
+      "type": "stat",
+      "title": "Passkey adoption (%)",
+      "layout": {
+        "x": 0,
+        "y": 4,
+        "w": 3,
+        "h": 6
+      },
+      "parameters": {},
+      "query": {
+        "source": "graph",
+        "text": "let passkey = dynamic([\"passKeyDeviceBound\", \"passKeyDeviceBoundAuthenticator\"]);\nlet app = dynamic([\"microsoftAuthenticatorPush\", \"microsoftAuthenticatorPasswordless\", \"softwareOneTimePasscode\"]);\nreports_authenticationMethods_userRegistrationDetails\n| extend\n    hasHardwareKey = array_length(set_intersect(methodsRegistered, passkey)) > 0,\n    hasAuthenticatorApp = array_length(set_intersect(methodsRegistered, app)) > 0,\n    hasNoMFA = array_length(methodsRegistered) == 0\n| extend PRFMA = iif(hasHardwareKey, \"Passkey\", iif(hasNoMFA, \"No MFA\", \"Missing passkey\"))\n| summarize Passkey = round(100.0 * countif(hasHardwareKey) / count(), 1)",
+        "options": null,
+        "parameters": [],
+        "saved": null
+      },
+      "stat": {
+        "value": "Passkey",
+        "compare": null
+      }
+    },
+    {
+      "id": "wmfa03",
+      "type": "stat",
+      "title": "Users without MFA",
+      "layout": {
+        "x": 3,
+        "y": 4,
+        "w": 3,
+        "h": 6
+      },
+      "parameters": {},
+      "query": {
+        "source": "graph",
+        "text": "let passkey = dynamic([\"passKeyDeviceBound\", \"passKeyDeviceBoundAuthenticator\"]);\nlet app = dynamic([\"microsoftAuthenticatorPush\", \"microsoftAuthenticatorPasswordless\", \"softwareOneTimePasscode\"]);\nreports_authenticationMethods_userRegistrationDetails\n| extend\n    hasHardwareKey = array_length(set_intersect(methodsRegistered, passkey)) > 0,\n    hasAuthenticatorApp = array_length(set_intersect(methodsRegistered, app)) > 0,\n    hasNoMFA = array_length(methodsRegistered) == 0\n| extend PRFMA = iif(hasHardwareKey, \"Passkey\", iif(hasNoMFA, \"No MFA\", \"Missing passkey\"))\n| summarize NoMfa = countif(hasNoMFA)",
+        "options": null,
+        "parameters": [],
+        "saved": null
+      },
+      "stat": {
+        "value": "NoMfa",
+        "compare": null
+      }
+    },
+    {
+      "id": "wmfa04",
+      "type": "stat",
+      "title": "MFA but no passkey",
+      "layout": {
+        "x": 6,
+        "y": 4,
+        "w": 3,
+        "h": 6
+      },
+      "parameters": {},
+      "query": {
+        "source": "graph",
+        "text": "let passkey = dynamic([\"passKeyDeviceBound\", \"passKeyDeviceBoundAuthenticator\"]);\nlet app = dynamic([\"microsoftAuthenticatorPush\", \"microsoftAuthenticatorPasswordless\", \"softwareOneTimePasscode\"]);\nreports_authenticationMethods_userRegistrationDetails\n| extend\n    hasHardwareKey = array_length(set_intersect(methodsRegistered, passkey)) > 0,\n    hasAuthenticatorApp = array_length(set_intersect(methodsRegistered, app)) > 0,\n    hasNoMFA = array_length(methodsRegistered) == 0\n| extend PRFMA = iif(hasHardwareKey, \"Passkey\", iif(hasNoMFA, \"No MFA\", \"Missing passkey\"))\n| summarize MissingPasskey = countif(PRFMA == \"Missing passkey\")",
+        "options": null,
+        "parameters": [],
+        "saved": null
+      },
+      "stat": {
+        "value": "MissingPasskey",
+        "compare": null
+      }
+    },
+    {
+      "id": "wmfa05",
+      "type": "stat",
+      "title": "Users counted",
+      "layout": {
+        "x": 9,
+        "y": 4,
+        "w": 3,
+        "h": 6
+      },
+      "parameters": {},
+      "query": {
+        "source": "graph",
+        "text": "let passkey = dynamic([\"passKeyDeviceBound\", \"passKeyDeviceBoundAuthenticator\"]);\nlet app = dynamic([\"microsoftAuthenticatorPush\", \"microsoftAuthenticatorPasswordless\", \"softwareOneTimePasscode\"]);\nreports_authenticationMethods_userRegistrationDetails\n| extend\n    hasHardwareKey = array_length(set_intersect(methodsRegistered, passkey)) > 0,\n    hasAuthenticatorApp = array_length(set_intersect(methodsRegistered, app)) > 0,\n    hasNoMFA = array_length(methodsRegistered) == 0\n| extend PRFMA = iif(hasHardwareKey, \"Passkey\", iif(hasNoMFA, \"No MFA\", \"Missing passkey\"))\n| summarize Users = count()",
+        "options": null,
+        "parameters": [],
+        "saved": null
+      },
+      "stat": {
+        "value": "Users",
+        "compare": null
+      }
+    },
+    {
+      "id": "wmfa06",
+      "type": "chart",
+      "title": "Missing passkey or MFA, by company",
+      "layout": {
+        "x": 0,
+        "y": 10,
+        "w": 8,
+        "h": 16
+      },
+      "parameters": {},
+      "query": {
+        "source": "graph",
+        "text": "let passkey = dynamic([\"passKeyDeviceBound\", \"passKeyDeviceBoundAuthenticator\"]);\nlet app = dynamic([\"microsoftAuthenticatorPush\", \"microsoftAuthenticatorPasswordless\", \"softwareOneTimePasscode\"]);\nreports_authenticationMethods_userRegistrationDetails\n| extend\n    hasHardwareKey = array_length(set_intersect(methodsRegistered, passkey)) > 0,\n    hasAuthenticatorApp = array_length(set_intersect(methodsRegistered, app)) > 0,\n    hasNoMFA = array_length(methodsRegistered) == 0\n| join kind = inner (\n    users\n    | extend company = iif(isnotempty(tostring(onPremisesExtensionAttributes.extensionAttribute1)), tolower(tostring(onPremisesExtensionAttributes.extensionAttribute1)), tolower(companyName))\n    | where isnotempty(company)\n    | project id, company)\n    on id\n| extend PRFMA = iif(hasHardwareKey, \"Passkey\", iif(hasNoMFA, \"No MFA\", \"Missing passkey\"))\n| where PRFMA <> \"Passkey\"\n| summarize count() by PRFMA, company\n| where count_ > {MinUsers}",
+        "options": null,
+        "parameters": [
+          {
+            "name": "MinUsers",
+            "type": "number",
+            "value": "10",
+            "required": true,
+            "choices": null
+          }
+        ],
+        "saved": {
+          "id": "mfa-by-company",
+          "name": "MFA / Missing passkey or MFA by company"
+        }
+      },
+      "chart": {
+        "type": "bar",
+        "x": "company",
+        "series": [
+          "count_"
+        ],
+        "split": "PRFMA",
+        "stack": "stacked"
+      }
+    },
+    {
+      "id": "wmfa07",
+      "type": "chart",
+      "title": "Passkey vs MFA vs no MFA",
+      "layout": {
+        "x": 8,
+        "y": 10,
+        "w": 4,
+        "h": 16
+      },
+      "parameters": {},
+      "query": {
+        "source": "graph",
+        "text": "let passkey = dynamic([\"passKeyDeviceBound\", \"passKeyDeviceBoundAuthenticator\"]);\nlet app = dynamic([\"microsoftAuthenticatorPush\", \"microsoftAuthenticatorPasswordless\", \"softwareOneTimePasscode\"]);\nreports_authenticationMethods_userRegistrationDetails\n| extend\n    hasHardwareKey = array_length(set_intersect(methodsRegistered, passkey)) > 0,\n    hasAuthenticatorApp = array_length(set_intersect(methodsRegistered, app)) > 0,\n    hasNoMFA = array_length(methodsRegistered) == 0\n| extend PRFMA = iif(hasHardwareKey, \"Passkey\", iif(hasNoMFA, \"No MFA\", \"Missing passkey\"))\n| summarize Users = count() by PRFMA",
+        "options": null,
+        "parameters": [],
+        "saved": null
+      },
+      "chart": {
+        "type": "pie",
+        "x": "PRFMA",
+        "series": [
+          "Users"
+        ]
+      }
+    },
+    {
+      "id": "wmfa08",
+      "type": "chart",
+      "title": "MFA coverage",
+      "layout": {
+        "x": 0,
+        "y": 26,
+        "w": 6,
+        "h": 16
+      },
+      "parameters": {},
+      "query": {
+        "source": "graph",
+        "text": "let passkey = dynamic([\"passKeyDeviceBound\", \"passKeyDeviceBoundAuthenticator\"]);\nlet app = dynamic([\"microsoftAuthenticatorPush\", \"microsoftAuthenticatorPasswordless\", \"softwareOneTimePasscode\"]);\nreports_authenticationMethods_userRegistrationDetails\n| extend\n    hasHardwareKey = array_length(set_intersect(methodsRegistered, passkey)) > 0,\n    hasAuthenticatorApp = array_length(set_intersect(methodsRegistered, app)) > 0,\n    hasNoMFA = array_length(methodsRegistered) == 0\n| extend PRFMA = iif(hasHardwareKey, \"Passkey\", iif(hasNoMFA, \"No MFA\", \"Missing passkey\"))\n| summarize Passkey = countif(hasHardwareKey), AuthenticatorApp = countif(hasAuthenticatorApp), PasswordlessCapable = countif(isPasswordlessCapable), NoMFA = countif(hasNoMFA)",
+        "options": null,
+        "parameters": [],
+        "saved": null
+      },
+      "chart": {
+        "type": "column",
+        "x": null,
+        "series": [
+          "Passkey",
+          "AuthenticatorApp",
+          "PasswordlessCapable",
+          "NoMFA"
+        ]
+      }
+    },
+    {
+      "id": "wmfa09",
+      "type": "chart",
+      "title": "Registered methods",
+      "layout": {
+        "x": 6,
+        "y": 26,
+        "w": 6,
+        "h": 16
+      },
+      "parameters": {},
+      "query": {
+        "source": "graph",
+        "text": "reports_authenticationMethods_userRegistrationDetails\n| mv-expand method = methodsRegistered\n| summarize Users = count() by Method = tostring(method)\n| order by Users desc",
+        "options": null,
+        "parameters": [],
+        "saved": null
+      },
+      "chart": {
+        "type": "column",
+        "x": "Method",
+        "series": [
+          "Users"
+        ]
+      }
+    },
+    {
+      "id": "wmfa10",
+      "type": "table",
+      "title": "Admins without a passkey",
+      "layout": {
+        "x": 0,
+        "y": 42,
+        "w": 6,
+        "h": 14
+      },
+      "parameters": {},
+      "query": {
+        "source": "graph",
+        "text": "let passkey = dynamic([\"passKeyDeviceBound\", \"passKeyDeviceBoundAuthenticator\"]);\nlet app = dynamic([\"microsoftAuthenticatorPush\", \"microsoftAuthenticatorPasswordless\", \"softwareOneTimePasscode\"]);\nreports_authenticationMethods_userRegistrationDetails\n| extend\n    hasHardwareKey = array_length(set_intersect(methodsRegistered, passkey)) > 0,\n    hasAuthenticatorApp = array_length(set_intersect(methodsRegistered, app)) > 0,\n    hasNoMFA = array_length(methodsRegistered) == 0\n| extend PRFMA = iif(hasHardwareKey, \"Passkey\", iif(hasNoMFA, \"No MFA\", \"Missing passkey\"))\n| where isAdmin and not(hasHardwareKey)\n| project userDisplayName, userPrincipalName, defaultMfaMethod, methodsRegistered\n| order by userDisplayName asc",
+        "options": null,
+        "parameters": [],
+        "saved": null
+      },
+      "selection": "multi",
+      "tools": []
+    },
+    {
+      "id": "wmfa11",
+      "type": "table",
+      "title": "Users missing a passkey",
+      "layout": {
+        "x": 6,
+        "y": 42,
+        "w": 6,
+        "h": 14
+      },
+      "parameters": {},
+      "query": {
+        "source": "graph",
+        "text": "let passkey = dynamic([\"passKeyDeviceBound\", \"passKeyDeviceBoundAuthenticator\"]);\nlet app = dynamic([\"microsoftAuthenticatorPush\", \"microsoftAuthenticatorPasswordless\", \"softwareOneTimePasscode\"]);\nreports_authenticationMethods_userRegistrationDetails\n| extend\n    hasHardwareKey = array_length(set_intersect(methodsRegistered, passkey)) > 0,\n    hasAuthenticatorApp = array_length(set_intersect(methodsRegistered, app)) > 0,\n    hasNoMFA = array_length(methodsRegistered) == 0\n| extend PRFMA = iif(hasHardwareKey, \"Passkey\", iif(hasNoMFA, \"No MFA\", \"Missing passkey\"))\n| where PRFMA <> \"Passkey\"\n| project userDisplayName, userPrincipalName, PRFMA, hasAuthenticatorApp, defaultMfaMethod, methodsRegistered\n| order by PRFMA asc, userDisplayName asc",
+        "options": null,
+        "parameters": [],
+        "saved": {
+          "id": "users-missing-passkey",
+          "name": "MFA / Users missing a passkey"
+        }
+      },
+      "selection": "multi",
+      "tools": []
+    },
+    {
+      "id": "wmfa12",
+      "type": "chart",
+      "title": "Sign-ins by method",
+      "layout": {
+        "x": 0,
+        "y": 56,
+        "w": 12,
+        "h": 16
+      },
+      "parameters": {},
+      "query": {
+        "source": "graph",
+        "text": "auditLogs_signIns\n| where createdDateTime > ago({Period})\n| mv-expand detail = authenticationDetails\n| where tobool(detail.succeeded)\n| extend Method = tostring(detail.authenticationMethod)\n| where Method in ({MfaTypes})\n| summarize SignIns = count() by bin(createdDateTime, iff({Period} <= 1d, 1h, 1d)), Method",
+        "options": null,
+        "parameters": [
+          {
+            "name": "Period",
+            "type": "timespan",
+            "value": "7d",
+            "required": true,
+            "choices": [
+              "1d",
+              "7d",
+              "14d",
+              "30d"
+            ]
+          },
+          {
+            "name": "MfaTypes",
+            "type": "list",
+            "value": "Passkey (device-bound)\nFIDO2 security key\nWindows Hello for Business\nMobile app notification\nAuthenticator App\nOATH verification code\nText message\nPhone call\nPassword\nPreviously satisfied",
+            "required": true,
+            "choices": [
+              "Passkey (device-bound)",
+              "FIDO2 security key",
+              "Windows Hello for Business",
+              "Mobile app notification",
+              "Authenticator App",
+              "OATH verification code",
+              "Text message",
+              "Phone call",
+              "Password",
+              "Previously satisfied"
+            ]
+          }
+        ],
+        "saved": null
+      },
+      "chart": {
+        "type": "timechart",
+        "x": "createdDateTime",
+        "series": [
+          "SignIns"
+        ],
+        "split": "Method"
+      }
+    }
+  ]
+}

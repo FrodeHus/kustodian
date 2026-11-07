@@ -1,0 +1,15 @@
+{
+  "name": "MFA / Missing passkey or MFA by company",
+  "folder": "MFA",
+  "source": "graph",
+  "text": "let passkey = dynamic([\"passKeyDeviceBound\", \"passKeyDeviceBoundAuthenticator\"]);\nlet app = dynamic([\"microsoftAuthenticatorPush\", \"microsoftAuthenticatorPasswordless\", \"softwareOneTimePasscode\"]);\nreports_authenticationMethods_userRegistrationDetails\n| extend\n    hasHardwareKey = array_length(set_intersect(methodsRegistered, passkey)) > 0,\n    hasAuthenticatorApp = array_length(set_intersect(methodsRegistered, app)) > 0,\n    hasNoMFA = array_length(methodsRegistered) == 0\n| join kind = inner (\n    users\n    | extend company = iif(isnotempty(tostring(onPremisesExtensionAttributes.extensionAttribute1)), tolower(tostring(onPremisesExtensionAttributes.extensionAttribute1)), tolower(companyName))\n    | where isnotempty(company)\n    | project id, company)\n    on id\n| extend PRFMA = iif(hasHardwareKey, \"Passkey\", iif(hasNoMFA, \"No MFA\", \"Missing passkey\"))\n| where PRFMA <> \"Passkey\"\n| summarize count() by PRFMA, company\n| where count_ > {MinUsers}",
+  "parameters": [
+    {
+      "name": "MinUsers",
+      "type": "number",
+      "value": "10",
+      "required": true,
+      "choices": null
+    }
+  ]
+}

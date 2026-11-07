@@ -158,24 +158,51 @@ public sealed partial class RepoSolutionsTests
     [Fact]
     public void GraphQueriesMatchTheSchema()
     {
-        var globals = GraphGlobals.Typed(GraphSchemaCatalog.Beta);
         foreach (var (folder, _, id, input) in Queries().Where(q => q.Input?.Source == "graph"))
         {
-            var file = $"queries/{id}.json";
-            var values = input!.Parameters.Select(p => new ParameterValue(p.Name, p.Type, Sample(p), p.Required)).ToList();
-            var text = ParameterSubstitution.Apply(input.Text, values).Text!;
+            CheckGraph(folder, $"queries/{id}.json", input!.Text, input.Parameters);
+        }
 
-            var errors = KustoCode.ParseAndAnalyze(text, globals).GetDiagnostics().Where(d => d.Severity == "Error").ToList();
-            if (errors.Count > 0)
+        // Widgets with their own query text: workbook parameters fill what the widget doesn't define itself.
+        foreach (var (folder, _, id, json) in Workbooks())
+        {
+            var shared = Defs(json["parameters"]);
+            foreach (var widget in (json["widgets"] as JsonArray ?? []).OfType<JsonObject>())
             {
-                Fail(folder, file, errors[0].Message);
+                if (widget["query"] is JsonObject query && query["source"]?.GetValue<string>() == "graph")
+                {
+                    var own = Defs(query["parameters"]);
+                    var defs = own.Concat(shared.Where(s => own.All(o => o.Name != s.Name))).ToList();
+                    CheckGraph(folder, $"workbooks/{id}.json (widget {widget["id"]})", query["text"]!.GetValue<string>(), defs);
+                }
             }
+        }
+    }
 
-            var plan = GraphQueryPlanner.Plan(GraphSchemaCatalog.Beta, text, DateTimeOffset.UtcNow);
-            if (plan.Refusal is { } refusal || plan.Error is not null)
-            {
-                Fail(folder, file, plan.Refusal ?? plan.Error!.Message);
-            }
+    private static List<ParameterDef> Defs(JsonNode? node) =>
+        (node as JsonArray ?? []).Select(p => p.Deserialize<ParameterDef>(JsonFileStore.Options)).OfType<ParameterDef>().ToList();
+
+    private static void CheckGraph(string folder, string file, string kql, IReadOnlyList<ParameterDef> parameters)
+    {
+        var values = parameters.Select(p => new ParameterValue(p.Name, p.Type, Sample(p), p.Required)).ToList();
+        var substituted = ParameterSubstitution.Apply(kql, values);
+        if (substituted.Text is not { } text)
+        {
+            Fail(folder, file, "Its parameters could not be filled in.");
+            return;
+        }
+
+        var errors = KustoCode.ParseAndAnalyze(text, GraphGlobals.Typed(GraphSchemaCatalog.Beta)).GetDiagnostics()
+            .Where(d => d.Severity == "Error").ToList();
+        if (errors.Count > 0)
+        {
+            Fail(folder, file, errors[0].Message);
+        }
+
+        var plan = GraphQueryPlanner.Plan(GraphSchemaCatalog.Beta, text, DateTimeOffset.UtcNow);
+        if (plan.Refusal is not null || plan.Error is not null)
+        {
+            Fail(folder, file, plan.Refusal ?? plan.Error!.Message);
         }
     }
 

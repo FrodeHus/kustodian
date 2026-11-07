@@ -148,7 +148,7 @@ public sealed class SolutionServiceInstallTests : IDisposable
         Assert.Equal(expected, listed.Items.OrderBy(i => i.ItemId));
         Assert.Equal(_time.GetUtcNow(), listed.InstalledAt);
 
-        Assert.Equal("1.0.0", Assert.Single((await svc.ListAsync(false, Ct)).Solutions).InstalledVersion);
+        Assert.Equal("1.0.0", (await svc.ListAsync(false, Ct)).Solutions.Single(s => s.Manifest.Id == "entra-risky-users").InstalledVersion);
     }
 
     [Fact]
@@ -262,7 +262,7 @@ public sealed class SolutionServiceInstallTests : IDisposable
         Assert.Empty((await _workbooks.ListAsync(Ct)).Workbooks);
         var file = JsonNode.Parse(await File.ReadAllTextAsync(InstalledPath, Ct))!;
         Assert.Empty(file["installed"]!.AsArray());
-        Assert.Null(Assert.Single((await svc.ListAsync(false, Ct)).Solutions).InstalledVersion);
+        Assert.Null((await svc.ListAsync(false, Ct)).Solutions.Single(s => s.Manifest.Id == "entra-risky-users").InstalledVersion);
     }
 
     [Fact]
@@ -330,11 +330,11 @@ public sealed class SolutionServiceInstallTests : IDisposable
         await File.WriteAllTextAsync(InstalledPath, "{ not json", Ct);
         var svc = Service();
 
-        Assert.Null(Assert.Single((await svc.ListAsync(false, Ct)).Solutions).InstalledVersion);
+        Assert.Null((await svc.ListAsync(false, Ct)).Solutions.Single(s => s.Manifest.Id == "entra-risky-users").InstalledVersion);
         Assert.True(File.Exists(InstalledPath + ".corrupt"));
 
         await svc.InstallAsync(Id, Set(), Ct);
-        Assert.Equal("1.0.0", Assert.Single((await svc.ListAsync(false, Ct)).Solutions).InstalledVersion);
+        Assert.Equal("1.0.0", (await svc.ListAsync(false, Ct)).Solutions.Single(s => s.Manifest.Id == "entra-risky-users").InstalledVersion);
     }
 
     private sealed class Handler(Func<string, HttpResponseMessage> answer) : HttpMessageHandler

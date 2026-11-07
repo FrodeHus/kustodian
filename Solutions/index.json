@@ -66,6 +66,75 @@
           "size": 1981
         }
       ]
+    },
+    {
+      "manifest": {
+        "version": 1,
+        "id": "mfa-passkey-adoption",
+        "name": "MFA and passkey adoption",
+        "solutionVersion": "1.0.0",
+        "description": "Passkey and MFA registration by company: who has a passkey, who has only app or phone MFA, and who has none.",
+        "author": "Kustodian",
+        "support": "kustodian",
+        "categories": [
+          "Identity",
+          "Security"
+        ],
+        "sources": [
+          "graph"
+        ],
+        "minAppVersion": "1.0.0",
+        "requires": {
+          "graph": [
+            "AuditLog.Read.All",
+            "User.Read.All"
+          ],
+          "roles": [
+            "Reports Reader"
+          ],
+          "licenses": [
+            "AAD_PREMIUM"
+          ],
+          "azure": null
+        },
+        "content": {
+          "queries": [
+            "mfa-by-company",
+            "users-missing-passkey"
+          ],
+          "workbooks": [
+            "mfa-adoption"
+          ],
+          "tools": []
+        }
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "sha256": "aa08d1ed40fa244acae222b88cd510f80552276125ed65265a0fcd094a17d092",
+          "size": 1841
+        },
+        {
+          "path": "queries/mfa-by-company.json",
+          "sha256": "ad51e165d93f1de6c9eabc9146f1433a9d185e894a97b05c52353264b6c421ac",
+          "size": 1251
+        },
+        {
+          "path": "queries/users-missing-passkey.json",
+          "sha256": "83989ea82fec02d2a7b7e30bc14c3b4e619533ae85795c10ce552692e2424ba8",
+          "size": 896
+        },
+        {
+          "path": "solution.json",
+          "sha256": "93b09efb2477755964bddeb5c9f8df8ecb6372dfb666ae0cccf9015e102a0bbe",
+          "size": 755
+        },
+        {
+          "path": "workbooks/mfa-adoption.json",
+          "sha256": "4a5fec8365bd48e31317943ca0c5053907bf5769416ee963a9a0dd6790be095b",
+          "size": 15627
+        }
+      ]
     }
   ]
 }
