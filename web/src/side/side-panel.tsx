@@ -7,7 +7,8 @@ import { SavedPanel } from './saved-panel';
 import { SnippetPanel } from './snippet-panel';
 
 /** The rail of side panels (spec 6.1, mockup Main): the chosen one is pressed. */
-export function Rail({ panel, onChoose }: { panel: PanelName; onChoose: (panel: PanelName) => void }) {
+/** The panel buttons; `panel` is the one showing, or null when none is (a workbook tab starts with none). */
+export function Rail({ panel, onChoose }: { panel: PanelName | null; onChoose: (panel: PanelName) => void }) {
   return (
     <nav className="rail" aria-label="Side panels">
       {PANELS.map((p) => (

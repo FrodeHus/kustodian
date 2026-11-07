@@ -177,6 +177,8 @@ export function App() {
   const [accountsError, setAccountsError] = useState<Shown | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [panel, setPanel] = useState<PanelName>('schema');
+  /** A workbook tab's side panel: none until one is chosen on the rail, so the workbook gets the width. */
+  const [workbookPanel, setWorkbookPanel] = useState<PanelName | null>(null);
   const [paramsOpen, setParamsOpen] = useState(false);
   /** The tab the save dialog is open for. */
   const [saving, setSaving] = useState<string | null>(null);
@@ -285,7 +287,14 @@ export function App() {
       id: `panel.${p.name}`,
       title: `Show ${p.label}`,
       group: 'View',
-      run: () => setPanel(p.name),
+      run: () => {
+        const { tabs, activeId } = useTabs.getState();
+        if (tabs.find((t) => t.id === activeId)?.source === 'workbook') {
+          setWorkbookPanel(p.name);
+        } else {
+          setPanel(p.name);
+        }
+      },
     }));
     const themeCommand = (t: Theme): Command => ({
       id: `theme.${t}`,
@@ -624,15 +633,20 @@ export function App() {
         {/* Hidden rather than unmounted while signing in, so the editor keeps each tab's undo history. */}
         <div className="flex min-h-0 flex-1 flex-col" hidden={signingIn} inert={settingsOpen}>
           <div className="panes">
-            <Rail panel={panel} onChoose={setPanel} />
-            <SidePanel
-              panel={panel}
-              source={active?.source ?? 'graph'}
-              text={active?.text ?? ''}
-              onInsert={insert}
-              accountKey={accountKey}
-              onSignIn={() => setAccountsOpen(true)}
+            <Rail
+              panel={workbook ? workbookPanel : panel}
+              onChoose={workbook ? (p) => setWorkbookPanel((shown) => (shown === p ? null : p)) : setPanel}
             />
+            {(workbook ? workbookPanel : panel) && (
+              <SidePanel
+                panel={(workbook ? workbookPanel : panel) ?? panel}
+                source={active?.source ?? 'graph'}
+                text={active?.text ?? ''}
+                onInsert={insert}
+                accountKey={accountKey}
+                onSignIn={() => setAccountsOpen(true)}
+              />
+            )}
             <main className="workspace">
               {active ? (
                 <>
