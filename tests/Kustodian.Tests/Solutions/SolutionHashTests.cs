@@ -29,6 +29,23 @@ public sealed class SolutionHashTests
         Assert.NotEqual(SolutionHash.Query(a), SolutionHash.Query(a with { Text = "users | take 2" }));
     }
 
+    [Fact]
+    public void Query_follows_source_and_parameters()
+    {
+        var a = new SavedQueryInput("1", "A", null, "graph", "t", []);
+        var hash = SolutionHash.Query(a);
+        Assert.NotEqual(hash, SolutionHash.Query(a with { Source = "hunting" }));
+        Assert.NotEqual(hash, SolutionHash.Query(a with { Parameters = [new ParameterDef("p", "string", "v", false, null)] }));
+    }
+
+    [Fact]
+    public void Workbook_keeps_the_text_of_an_unlinked_widget()
+    {
+        static JsonObject Wb(string text) => JsonNode.Parse(
+            """{"widgets":[{"query":{"saved":null,"text":"TEXT"}}]}""".Replace("TEXT", text))!.AsObject();
+        Assert.NotEqual(SolutionHash.Workbook(Wb("a")), SolutionHash.Workbook(Wb("b")));
+    }
+
     private static JsonObject Workbook(string name = "W", string layout = "1", string text = "t") =>
         JsonNode.Parse("""
         {"id":"w","name":"NAME","folder":"x","modifiedAt":"m","createdAt":"c","origin":{"a":1},

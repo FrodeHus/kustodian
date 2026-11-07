@@ -5,19 +5,21 @@ namespace Kustodian.Solutions;
 /// <summary>The rules a manifest and its listed files must satisfy; each returns a message for the first problem, or null.</summary>
 public static partial class SolutionRules
 {
+    private const long QueryFileLimit = 2_097_152;
+    private const long WorkbookFileLimit = 2_097_152;
     private static readonly string[] Supports = ["kustodian", "community"];
     private static readonly string[] SourceNames = ["graph", "hunting", "arg"];
 
-    [GeneratedRegex("^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$")]
+    [GeneratedRegex("^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]\\z")]
     private static partial Regex IdPattern();
 
-    [GeneratedRegex(@"^\d+\.\d+\.\d+$")]
+    [GeneratedRegex(@"^\d+\.\d+\.\d+\z")]
     private static partial Regex SemverPattern();
 
-    [GeneratedRegex("^[0-9a-f]{64}$")]
+    [GeneratedRegex("^[0-9a-f]{64}\\z")]
     private static partial Regex HexPattern();
 
-    [GeneratedRegex("^(queries|workbooks)/([a-z0-9][a-z0-9-]{1,62}[a-z0-9])\\.json$")]
+    [GeneratedRegex("^(queries|workbooks)/([a-z0-9][a-z0-9-]{1,62}[a-z0-9])\\.json\\z")]
     private static partial Regex ItemPathPattern();
 
     /// <summary>True for 3 to 64 lowercase letters, digits and hyphens, not starting or ending with a hyphen.</summary>
@@ -87,7 +89,9 @@ public static partial class SolutionRules
         {
             "README.md" => 262_144L,
             "tools.json" => 65_536L,
-            _ when ItemPathPattern().IsMatch(f.Path) => 2_097_152L,
+            // The 1 MB limit is on query text and LibraryService enforces it; the file also holds parameters and JSON escaping.
+            _ when ItemPathPattern().Match(f.Path) is { Success: true } m && m.Groups[1].Value == "queries" => QueryFileLimit,
+            _ when ItemPathPattern().IsMatch(f.Path) => WorkbookFileLimit,
             _ => 0L,
         };
         if (limit == 0)

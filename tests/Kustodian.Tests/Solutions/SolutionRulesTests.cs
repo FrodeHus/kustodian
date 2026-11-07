@@ -22,6 +22,16 @@ public sealed class SolutionRulesTests
     public void IsId_refuses_65_characters() => Assert.False(SolutionRules.IsId(new string('a', 65)));
 
     [Fact]
+    public void IsId_refuses_a_trailing_newline() => Assert.False(SolutionRules.IsId("abc\n"));
+
+    [Fact]
+    public void FileProblem_refuses_a_trailing_newline()
+    {
+        Assert.NotNull(SolutionRules.FileProblem(new IndexFile("queries/abc.json\n", Hash, 10)));
+        Assert.NotNull(SolutionRules.FileProblem(new IndexFile("README.md", Hash + "\n", 10)));
+    }
+
+    [Fact]
     public void IsId_accepts_64_characters() => Assert.True(SolutionRules.IsId(new string('a', 64)));
 
     [Fact]
