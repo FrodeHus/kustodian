@@ -18,8 +18,9 @@ follow [Semantic Versioning](https://semver.org/).
   pill-shaped controls. Pick one in Settings or the command palette.
 - Ten themes from the most used editor themes: GitHub Dark, One Dark, Dracula, Material, Monokai, Ayu Dark, Night Owl,
   Tokyo Night, Catppuccin Mocha and Gruvbox Dark. Each colours the window and the KQL editor.
-- A **Run tool** menu on the Rows tab runs your own commands, set up in `tools.json`, on the selected rows: once per row
-  with `{column}` values as arguments, or once with the rows as JSON on stdin. See [docs/external-tools.md](docs/external-tools.md).
+- A **Run tool** menu on the Rows tab runs your own commands on the selected rows: once per row with `{column}` values as
+  arguments, or once with the rows as JSON on stdin. Set them up in **Settings › External tools**, one box per argument,
+  or by hand in `tools.json`. See [docs/external-tools.md](docs/external-tools.md).
 - Error reports, off until you opt in: when Kustodian fails in a way it shouldn't, it sends the error's types, where in
   Kustodian's code it happened, the recent steps before it as codes, the app version and the OS. Never your tenant,
   account, queries, values, results or error messages. See [what is sent](https://frodehus.github.io/kustodian/telemetry.html).

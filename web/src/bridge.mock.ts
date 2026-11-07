@@ -403,6 +403,7 @@ interface MockRequest {
     columns?: string[];
     rows?: unknown[][];
     mapping?: Record<string, string>;
+    tools?: (typeof mockTool)[];
     workbook?: MockWorkbook;
     values?: Record<string, string>;
   };
@@ -541,6 +542,8 @@ export function createMockTransport(): Transport {
   let receive: (message: string) => void = () => undefined;
   const runs = new Map<string, { id: string; timer: ReturnType<typeof setTimeout> }>();
   let settings = defaultSettings;
+  let tools = [mockTool];
+  const toolList = () => ({ tools, problem: null, path: '/mock/tools.json', missing: [] });
   const settingsAnswer = () => ({
     settings,
     limitsAppliedAt: 'startup',
@@ -689,8 +692,13 @@ export function createMockTransport(): Transport {
         reply(id, null);
         break;
       case 'tools.list':
-        reply(id, { tools: [mockTool], problem: null, path: '/mock/tools.json' });
+        reply(id, toolList());
         break;
+      case 'tools.save':
+        tools = params?.tools ?? [];
+        reply(id, toolList());
+        break;
+      case 'tools.pickCommand':
       case 'tools.edit':
       case 'tools.cancel':
         reply(id, null);

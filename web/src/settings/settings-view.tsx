@@ -12,6 +12,7 @@ import { CANNOT_CREATE_REASON, canCreateApp } from '../signin/permission-plan';
 import type { AccountInfo, AppInfo, AppSettings, SettingsAnswer, Theme, UpdateInfo } from '../wire';
 import { setErrorReports, setTelemetry, writeSettings } from './settings-writes';
 import { ErrorReportsExplainer } from './error-reports';
+import { ExternalTools } from './external-tools';
 import { TelemetryExplainer } from './telemetry';
 import { UpdateDialog } from './update-dialog';
 
@@ -79,7 +80,7 @@ interface SettingsViewProps {
 
 /**
  * Settings (spec 6.11 and 9): the theme, which applies at once; the raw request tab's default version; the sign-in screen's
- * default client ID and tenant; the limits with their ranges, which apply the next time Kustodian starts; and clearing the
+ * default client ID and tenant; the Run tool menu's external tools, which save at once; the limits with their ranges, which apply the next time Kustodian starts; and clearing the
  * cached Graph objects. The host checks every value, and its message shows beside the field it is about.
  */
 export function SettingsView({ onClose, onChange, account, createAppOpen = false, onCreateAppOpen, onAccountSwitched }: SettingsViewProps) {
@@ -357,6 +358,9 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
                   </div>
                 </div>
               )}
+            </Card>
+            <Card title="External tools">
+              <ExternalTools />
             </Card>
             <Card title="Graph compatibility findings">
               <TelemetryExplainer />

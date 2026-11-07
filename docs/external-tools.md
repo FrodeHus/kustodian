@@ -1,8 +1,11 @@
 # External tools
 
 The Rows tab's **Run tool** menu runs a command of your own on the selected rows, or on every row the filter shows when none
-are selected. **Edit tools…** opens `tools.json` in Kustodian's data folder (see [install.md](install.md)), and writes an
-example there first if there is no file.
+are selected. The tools are set up in **Settings › External tools**: add, edit, duplicate, reorder and delete them there, one
+box per argument; each change is saved to `tools.json` in Kustodian's data folder (see [install.md](install.md)) at once. A
+tool whose command is no file gets a warning there. While `tools.json` can't be read, Settings shows why and changes nothing.
+**Edit tools…** in the menu, and **Open tools.json** in Settings, open the file in a text editor instead, writing an example
+there first if there is no file. Saving from Settings rewrites the file, so its own layout isn't kept.
 
 ```json
 {
