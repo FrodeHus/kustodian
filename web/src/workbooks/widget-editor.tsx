@@ -486,6 +486,10 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
           <span>Title</span>
           <input className="textbox" autoFocus value={draft.title} onChange={(e) => set({ title: e.target.value })} />
         </label>
+        <label className="flex items-center gap-1.5">
+          <input type="checkbox" checked={draft.hideTitle ?? false} onChange={(e) => set({ hideTitle: e.target.checked || undefined })} />
+          Hide the title bar outside edit mode
+        </label>
         {body}
         <div className="flex items-center justify-end gap-2">
           {toolless && <span className="faint text-[12px]">Choose a tool for each button.</span>}

@@ -41,6 +41,8 @@ export interface Widget {
   id: string;
   type: WidgetType;
   title: string;
+  /** Out of edit mode, the widget shows no title bar (and so no ⋯ menu); edit mode always shows it. */
+  hideTitle?: boolean;
   layout: WidgetLayout;
   markdown?: string;
   query?: WidgetQuery;
@@ -204,12 +206,13 @@ function parseWidget(v: unknown): Widget | null {
   }
   // Data widgets always have a query, as newWidget makes them.
   const query = parsed ?? (type === 'markdown' ? undefined : emptyQuery());
-  const { query: _query, chart, stat, tools, selection, ...rest } = v;
+  const { query: _query, chart, stat, tools, selection, hideTitle, ...rest } = v;
   return {
     ...rest,
     id: v.id,
     type,
     title: str(v.title, ''),
+    ...(hideTitle === true ? { hideTitle: true } : {}),
     layout: clampLayout(type, v.layout),
     parameters: parseWidgetParams(v.parameters),
     ...(query ? { query } : {}),

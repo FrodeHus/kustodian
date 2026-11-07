@@ -327,6 +327,7 @@ export function WidgetFrame({
   const used = params.filter((p) => p.from === 'workbook').map((p) => p.name);
 
   const selected = editing?.selected ?? false;
+  const bare = !editing && widget.hideTitle === true;
   return (
     <>
       <section
@@ -338,7 +339,7 @@ export function WidgetFrame({
       >
         {/* One row that never wraps (the title truncates, so it fits at the narrowest widget), then a row that wraps for the
             widget's own controls, the workbook parameters it uses and, in edit mode, its size and (selected) its actions. */}
-        <header className="flex min-w-0 flex-col gap-1.5 px-3 py-2 text-[12.5px]">
+        <header hidden={bare} className="flex min-w-0 flex-col gap-1.5 px-3 py-2 text-[12.5px]">
           <div className="flex min-w-0 items-center gap-2">
             {editing && (
               <button
@@ -442,7 +443,7 @@ export function WidgetFrame({
           )}
         </header>
         {notice && <NoticeLine notice={notice} onDismiss={() => setNotice(null)} />}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className={`flex min-h-0 flex-1 flex-col overflow-hidden ${bare ? 'pt-3' : ''}`}>
           {(widget.query && runBody(tabId, widget, run, onSignIn)) ?? children}
         </div>
         {/* Pointer only; Shift+arrows on the grip resize from the keyboard. */}
