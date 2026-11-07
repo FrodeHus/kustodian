@@ -518,6 +518,21 @@ public class BridgeTests
         Assert.Equal("Kustodian can't open links to example.com.", refused.GetProperty("error").GetProperty("message").GetString());
     }
 
+    [Theory]
+    [InlineData("https://github.com/FrodeHus/kustodian")]
+    [InlineData("https://github.com/someone/else/releases/tag/v1")]
+    public async Task Open_link_to_github_that_is_not_a_release_page_says_only_release_pages_open(string url)
+    {
+        var bridge = NewBridge();
+        var opened = new List<Uri>();
+        NewAppHandler(new MemoryGraphObjectCache(TimeProvider.System), NoGraphProbeCache.Instance, opened.Add).Register(bridge);
+
+        var refused = Parse(await bridge.HandleAsync("""{"id":"a","method":"app.openLink","params":{"url":""" + "\"" + url + "\"}}"));
+
+        Assert.Empty(opened);
+        Assert.Equal("Kustodian opens only its own release pages on github.com.", refused.GetProperty("error").GetProperty("message").GetString());
+    }
+
     private static AppHandler NewAppHandler(MemoryGraphObjectCache objects, IGraphProbeCache probes, Action<Uri>? open = null) =>
         new(objects, probes, new UpdateCheck(new HttpClient(), "0.0.0"), new SystemBrowser(open ?? (_ => { })));
 

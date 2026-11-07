@@ -34,7 +34,7 @@ beforeEach(() => {
 describe('SaveWorkbookDialog', () => {
   it('shows the host’s refusal and stays open', async () => {
     const id = useTabs.getState().openWorkbook(newWorkbook('Workbook 1'));
-    useWorkbooks.setState({ byTab: { [id]: { doc: useTabs.getState().tabs[0]!.workbook!, values: { workbook: {}, widgets: {} }, runs: {}, editing: false, undo: [], redo: [], dirty: true, viewCharts: {} } } });
+    useWorkbooks.setState({ byTab: { [id]: { doc: useTabs.getState().tabs[0]!.workbook!, values: { workbook: {}, widgets: {} }, runs: {}, editing: false, undo: [], redo: [], dirty: true } } });
     const onClose = vi.fn();
     render(<SaveWorkbookDialog tab={useTabs.getState().tabs[0]!} onClose={onClose} />);
 

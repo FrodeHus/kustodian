@@ -36,7 +36,7 @@ const onClose = vi.fn();
 
 function open() {
   useWorkbooks.setState({
-    byTab: { t: { doc, values: { workbook: {}, widgets: {} }, runs: {}, editing: true, undo: [], redo: [], dirty: false, viewCharts: {} } },
+    byTab: { t: { doc, values: { workbook: {}, widgets: {} }, runs: {}, editing: true, undo: [], redo: [], dirty: false } },
     runAll,
   });
   render(<ParametersDialog tabId="t" onClose={onClose} />);

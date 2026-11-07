@@ -9,7 +9,7 @@ import { inSendDetails } from '../shell/send-details-marker';
 import { SourceBadge } from '../tabs/source-badge';
 import type { LibraryList, ParameterDef, RunResult, SavedQuery } from '../wire';
 import type { ParamFrom, Widget, WidgetQuery } from './model';
-import { widgetParams } from './resolve';
+import { widgetParams, workbookValues } from './resolve';
 import { ChartWidget } from './widgets/chart-widget';
 import { MarkdownWidget } from './widgets/markdown-widget';
 import { StatWidget } from './widgets/stat-widget';
@@ -186,7 +186,7 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
           <textarea className="textbox mono h-64 py-2" value={draft.markdown ?? ''} onChange={(e) => set({ markdown: e.target.value })} />
         </label>
         <div className="card flex h-64 min-h-0 flex-col pt-3">
-          <MarkdownWidget text={draft.markdown ?? ''} values={values.workbook} />
+          <MarkdownWidget text={draft.markdown ?? ''} values={workbookValues(doc, values)} />
         </div>
       </div>
     );
@@ -415,7 +415,7 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
             </p>
           ) : shown ? (
             draft.type === 'chart' ? (
-              <ChartWidget widget={live} run={shown} picked={picked} onChart={(chart) => set({ chart })} />
+              <ChartWidget widget={live} run={shown} />
             ) : draft.type === 'stat' ? (
               <StatWidget widget={live} run={shown} />
             ) : (

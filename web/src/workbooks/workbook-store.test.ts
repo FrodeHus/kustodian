@@ -295,8 +295,7 @@ describe('workbook store', () => {
     const doc = tab().doc;
     useWorkbooks.getState().setWorkbookValue('t', 'Name', 'y', { now: true });
     useWorkbooks.getState().setWidgetValue('t', 'a', 'Top', '10', { now: true });
-    useWorkbooks.getState().setViewChart('t', 'a', { type: 'bar' } as never);
-    expect(tab()).toMatchObject({ doc, dirty: false, viewCharts: { a: { type: 'bar' } } });
+    expect(tab()).toMatchObject({ doc, dirty: false });
     expect(runs.at(-1)?.params.parameters?.map((p) => p.value)).toEqual(['y', '10']);
 
     useWorkbooks.getState().saveValuesAsDefaults('t');
@@ -311,7 +310,6 @@ describe('workbook store', () => {
     remembered = { Name: 'kept' };
     void useWorkbooks.getState().load('t', docOf([wbParam('Name', 'x', { remember: true })], [widget('a', 'T {Name}'), widget('b', 'users')]));
     await flush();
-    useWorkbooks.getState().setViewChart('t', 'a', { type: 'bar' } as never);
     useWorkbooks.getState().setWorkbookValue('t', 'Name', 'mine', { now: true });
     runs = [];
     open();

@@ -20,7 +20,13 @@ vi.mock('../editor/kql-editor', () => ({
   ),
 }));
 // Recharts can't lay out in jsdom; the chart's own tests cover it.
-vi.mock('../results/chart-view', () => ({ default: () => null }));
+vi.mock('../results/chart-view', () => ({
+  default: ({ picked, controls = true }: { picked: { type?: string }; controls?: boolean }) => (
+    <p>
+      Chart {picked.type ?? 'auto'}, {controls ? 'with pickers' : 'alone'}
+    </p>
+  ),
+}));
 
 const risky: SavedQuery = {
   version: 1,
@@ -59,7 +65,7 @@ const onClose = vi.fn();
 
 function open(widgetId: string) {
   useWorkbooks.setState({
-    byTab: { t: { doc, values: { workbook: { TimeRange: '1d' }, widgets: {} }, runs: {}, editing: true, undo: [], redo: [], dirty: false, viewCharts: {} } },
+    byTab: { t: { doc, values: { workbook: { TimeRange: '1d' }, widgets: {} }, runs: {}, editing: true, undo: [], redo: [], dirty: false } },
     runWidget,
   });
   render(<WidgetEditor tabId="t" widgetId={widgetId} onClose={onClose} />);
@@ -179,6 +185,19 @@ describe('WidgetEditor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Line' }));
     apply();
     expect(applied().chart).toMatchObject({ type: 'line' });
+  });
+
+  it('the preview draws the chart alone, as the Visualization tab sets it', async () => {
+    const result = { outcome: 'ok', message: null, error: null, columns: [{ name: 'n', type: 'long' }], rows: [[1]], total: 1, tables: [], durationMs: 1, droppedValues: 0, runId: 'r', diagnostics: [], permissions: [] };
+    call.mockImplementation((method: string) =>
+      method === 'library.list' ? Promise.resolve({ queries: [], folders: [], skipped: 0 }) : method === 'query.run' ? Promise.resolve(result) : new Promise(() => undefined),
+    );
+    doc.widgets[0] = { ...doc.widgets[0]!, type: 'chart' };
+    open('a');
+    tab('Visualization');
+    fireEvent.click(screen.getByRole('button', { name: 'Bar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run preview' }));
+    expect(await screen.findByText('Chart bar, alone')).toBeTruthy();
   });
 
   it('a Markdown widget has a text area and a rendered preview, no tabs', () => {

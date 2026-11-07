@@ -6,7 +6,7 @@ the tab strip. It opens as a workbook tab next to your query tabs. Save it with 
 
 ## Widgets
 
-Widgets sit on a 12-column grid. Each has a header with its title, the source, the parameters it shows, which workbook
+Widgets sit on a 12-column grid, at most 100 in a workbook. Each has a header with its title, the source, the parameters it shows, which workbook
 parameters it uses, and how long its last run took. The ⋯ menu has Refresh, Open in query tab, Export (CSV, JSON or
 Markdown) and Full screen.
 
@@ -75,7 +75,7 @@ they stack full width, in top-to-bottom, left-to-right order.
 ## Saving and restoring
 
 The first Save asks for a name and a folder. Later saves write straight away. Workbooks are listed under **Workbooks** in the
-side panel next to saved queries, where a click opens one and its menu deletes it. A dot on the tab means unsaved changes, and
+side panel next to saved queries, in their folders, where a click opens one and its menu deletes it. A dot on the tab means unsaved changes, and
 closing such a tab asks first, as a query tab does.
 
 Unsaved workbooks, edits included, come back after a restart like unsaved query tabs do. If the saved copy was deleted in the
