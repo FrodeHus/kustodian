@@ -1,5 +1,5 @@
 import type { Transport } from './bridge';
-import type { QueryOptions } from './wire';
+import type { HistoryChanges, HistoryRecordParams, HistorySeries, HistorySnapshot, QueryOptions, TrackedRow } from './wire';
 import schema from './fixtures/graph-schema.json';
 
 /**
@@ -574,6 +574,24 @@ export function createMockTransport(): Transport {
   const workbooks = new Map<string, MockWorkbook>();
   const workbookValues = new Map<string, Record<string, string>>();
   let savedCounter = 0;
+  // History, in memory: one series per workbook, widget and call (query text and parameters), as the host keeps it.
+  interface MockHistory {
+    label: string;
+    since: string;
+    columns: { name: string; type: string }[];
+    snapshots: HistorySnapshot[];
+    tracked: TrackedRow[];
+    keys: Set<string>;
+  }
+  const histories = new Map<string, Map<string, MockHistory>>();
+  const historyKey = (p: HistoryRecordParams) => JSON.stringify([p.query.text, p.query.parameters, p.setting.mode, p.setting.keys]);
+  const widgetHistory = (p: HistoryRecordParams) => {
+    const widget = `${p.workbookId}/${p.widgetId}`;
+    if (!histories.has(widget)) {
+      histories.set(widget, new Map());
+    }
+    return histories.get(widget)!;
+  };
   let session: Record<string, unknown> = { version: 1, activeId: null, tabs: [] };
   const recent: Record<string, unknown>[] = [];
   const userSnippets = new Map<string, Record<string, unknown>>();
@@ -680,7 +698,91 @@ export function createMockTransport(): Transport {
           reply(id, null);
         }
         break;
+      case 'history.record': {
+        const hp = params as unknown as HistoryRecordParams;
+        const series = widgetHistory(hp);
+        const key = historyKey(hp);
+        const now = new Date().toISOString();
+        const rows: unknown[][] = hp.rows ?? [];
+        const h = series.get(key) ?? { label: hp.label, since: now, columns: hp.columns, snapshots: [], tracked: [], keys: new Set() };
+        if (hp.setting.mode === 'values') {
+          if (rows.length > 500) {
+            reply(id, { recorded: false, skipped: 'tooManyRows', reset: false });
+            break;
+          }
+          h.snapshots = [{ takenAt: now, columns: hp.columns, rows }];
+        } else {
+          const n = hp.setting.keys.length;
+          const keyOf = (row: unknown[]) => JSON.stringify(row.slice(0, n));
+          const current = new Map(rows.map((row) => [keyOf(row), row] as const));
+          if (current.size < rows.length) {
+            reply(id, { recorded: false, skipped: 'keysNotUnique', reset: false });
+            break;
+          }
+          for (const row of h.tracked) {
+            if (!row.gone && !current.has(keyOf(row.values))) {
+              row.gone = now;
+            }
+          }
+          for (const [k, row] of current) {
+            if (!h.keys.has(k)) {
+              h.tracked.push({ values: row, firstSeen: now, gone: null });
+            }
+          }
+          h.keys = new Set(current.keys());
+          h.snapshots.push({ takenAt: now, columns: hp.columns, rows: [] });
+        }
+        series.set(key, h);
+        reply(id, { recorded: true, skipped: null, reset: false });
+        break;
+      }
+      case 'history.values': {
+        const hp = params as unknown as HistoryRecordParams;
+        reply(id, { snapshots: widgetHistory(hp).get(historyKey(hp))?.snapshots ?? [], reset: false });
+        break;
+      }
+      case 'history.changes': {
+        const hp = params as unknown as HistoryRecordParams;
+        const h = widgetHistory(hp).get(historyKey(hp));
+        const added = h?.tracked.filter((r) => !r.gone && h.keys.size > 0 && r.firstSeen === h.snapshots.at(-1)?.takenAt) ?? [];
+        const gone = h?.tracked.filter((r) => r.gone === h.snapshots.at(-1)?.takenAt) ?? [];
+        const answer: HistoryChanges = {
+          since: h && h.snapshots.length > 1 ? h.snapshots.at(-2)!.takenAt : null,
+          columns: h?.columns ?? [],
+          new: added,
+          newCount: added.length,
+          gone,
+          goneCount: gone.length,
+          open: h?.keys.size ?? 0,
+          reset: false,
+        };
+        reply(id, answer);
+        break;
+      }
+      case 'history.series': {
+        const hp = params as unknown as HistoryRecordParams;
+        const all: HistorySeries[] = [...(histories.get(`${hp.workbookId}/${hp.widgetId}`)?.values() ?? [])].map((h) => ({
+          label: h.label,
+          since: h.since,
+          snapshots: h.snapshots.length,
+          gaps: 0,
+          stored: h.tracked.length || h.snapshots.length,
+        }));
+        reply(id, all);
+        break;
+      }
+      case 'history.clear': {
+        const hp = params as unknown as HistoryRecordParams;
+        histories.delete(`${hp.workbookId}/${hp.widgetId}`);
+        reply(id, null);
+        break;
+      }
       case 'workbook.delete':
+        for (const widget of histories.keys()) {
+          if (widget.startsWith(`${params?.id}/`)) {
+            histories.delete(widget);
+          }
+        }
         workbooks.delete(params?.id ?? '');
         workbookValues.delete(params?.id ?? '');
         reply(id, null);
