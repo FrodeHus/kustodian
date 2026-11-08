@@ -353,6 +353,12 @@ export interface WorkbookList {
   skipped: number;
 }
 
+/** `pins.get`'s answer and `pins.set`'s `pins`: the ids pinned to the top of the Saved panel, in the order they were pinned. */
+export interface Pins {
+  queries: string[];
+  workbooks: string[];
+}
+
 export interface Snippet {
   id: string;
   source: Source;

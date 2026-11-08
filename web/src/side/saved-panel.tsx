@@ -8,7 +8,7 @@ import { reportIdOf } from '../shell/report-id';
 import { MOD } from '../shell/keys';
 import { SourceBadge } from '../tabs/source-badge';
 import { useTabs } from '../tabs/tab-store';
-import type { LibraryList, SavedQuery, Source, WorkbookList, WorkbookSummary } from '../wire';
+import type { LibraryList, Pins, SavedQuery, Source, WorkbookList, WorkbookSummary } from '../wire';
 import { parseWorkbook } from '../workbooks/model';
 import { importWorkbook } from '../workbooks/sharing';
 import { useWorkbooks } from '../workbooks/workbook-store';
@@ -21,6 +21,7 @@ function skippedText(n: number): string {
 
 const LIST_FAILED = 'The saved queries couldn’t be read';
 const WORKBOOKS_FAILED = 'The workbooks couldn’t be read';
+const NO_PINS: Pins = { queries: [], workbooks: [] };
 
 const prefixOf = (name: string) => {
   const i = name.indexOf(' / ');
@@ -45,8 +46,9 @@ function byPrefix(queries: SavedQuery[]): { groups: [string, SavedQuery[]][]; re
  * The Saved panel (spec 6.6), in two tabs, Queries and Workbooks, each with a search. Queries: the library's folders as
  * groups that fold, then the queries in no folder; queries named "Prefix / name" that share a prefix fold under it. It lists
  * the queries of the active tab's `source` (spec 6.1), or every source's with "All sources". A query opens on click; its menu
- * renames it or deletes it (after asking). Workbooks, of every source, in their folders: one opens in a workbook tab on
- * click, and its menu deletes it (after asking).
+ * pins it, renames it or deletes it (after asking). Workbooks, of every source, in their folders: one opens in a workbook tab on
+ * click, and its menu pins it or deletes it (after asking). Pinned items, in the order they were pinned, sit in a Pinned group at
+ * the top of their tab instead of in their folder; the pins live in `pins.json` (`pins.get`, `pins.set`).
  */
 export function SavedPanel({ source = 'graph' }: { source?: Source }) {
   const revision = useRevisions((s) => s.library);
@@ -60,6 +62,33 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
   const [all, setAll] = useState(false);
   const [workbooks, setWorkbooks] = useState<WorkbookList | null>(null);
   const [kind, setKind] = useState<'queries' | 'workbooks'>('queries');
+  const [pins, setPins] = useState<Pins>(NO_PINS);
+
+  useEffect(() => {
+    let live = true;
+    call<Pins | null>('pins.get').then(
+      (p) => live && setPins(p ?? NO_PINS),
+      (e: unknown) => live && setProblem({ text: `The pins couldn’t be read: ${errorText(e)}`, reportId: reportIdOf(e) }),
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  /** Pins the query or workbook `id`, at the end of the pinned ones, or unpins it; puts the pins back if they can't be stored. */
+  const togglePin = (list: keyof Pins, id: string) => {
+    const before = pins;
+    const ids = before[list];
+    const after = { ...before, [list]: ids.includes(id) ? ids.filter((i) => i !== id) : [...ids, id] };
+    setPins(after);
+    call('pins.set', { pins: after }).then(
+      () => setProblem(null),
+      (e: unknown) => {
+        setPins(before);
+        setProblem({ text: `The pins couldn’t be saved: ${errorText(e)}`, reportId: reportIdOf(e) });
+      },
+    );
+  };
 
   useEffect(() => {
     let live = true;
@@ -200,6 +229,7 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
         <RowMenu
           name={q.name}
           actions={[
+            { label: pins.queries.includes(q.id) ? 'Unpin' : 'Pin', run: () => togglePin('queries', q.id) },
             {
               label: 'Rename',
               run: () => {
@@ -224,15 +254,27 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
         <button type="button" className="side-open" aria-label={w.name} onClick={() => openWorkbook(w)}>
           <span className="truncate">{w.name}</span>
         </button>
-        <RowMenu name={w.name} actions={[{ label: 'Delete', run: () => setDeleting(w.id) }]} />
+        <RowMenu
+          name={w.name}
+          actions={[
+            { label: pins.workbooks.includes(w.id) ? 'Unpin' : 'Pin', run: () => togglePin('workbooks', w.id) },
+            { label: 'Delete', run: () => setDeleting(w.id) },
+          ]}
+        />
       </li>
     );
+  /** The pinned items among `items`, in the order they were pinned, and the others; a pin whose item is gone is skipped. */
+  const pinnedOf = <T extends { id: string }>(items: T[], ids: string[]) => ({
+    pinned: ids.flatMap((id) => items.filter((i) => i.id === id)),
+    others: items.filter((i) => !ids.includes(i.id)),
+  });
   const shownWorkbooks = (workbooks?.workbooks ?? []).filter((w) => !needle || w.name.toLowerCase().includes(needle));
+  const { pinned: pinnedWorkbooks, others: otherWorkbooks } = pinnedOf(shownWorkbooks, pins.workbooks);
   // Workbook folders fold as query folders do, keyed apart from them (a query folder and a workbook folder can share a name).
   const workbookFolders = (workbooks?.folders ?? [])
-    .map((f) => ({ name: f, key: `workbooks/${f}`, items: shownWorkbooks.filter((w) => w.folder === f) }))
+    .map((f) => ({ name: f, key: `workbooks/${f}`, items: otherWorkbooks.filter((w) => w.folder === f) }))
     .filter((f) => f.items.length > 0);
-  const looseWorkbooks = shownWorkbooks.filter((w) => !w.folder || !workbooks?.folders.includes(w.folder));
+  const looseWorkbooks = otherWorkbooks.filter((w) => !w.folder || !workbooks?.folders.includes(w.folder));
 
   /** A folder of `count` items that folds, under `key` in the folded state; a search shows its matches in every folder. */
   const folder = (key: string, name: string, count: number, rows: ReactNode[]) => {
@@ -260,8 +302,9 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
       ...rest.map((q) => row(q)),
     ];
   };
-  const folders = (list?.folders ?? []).map((f) => ({ name: f, queries: queries.filter((q) => q.folder === f) })).filter((f) => f.queries.length > 0);
-  const loose = queries.filter((q) => !q.folder || !list?.folders.includes(q.folder));
+  const { pinned: pinnedQueries, others: otherQueries } = pinnedOf(queries, pins.queries);
+  const folders = (list?.folders ?? []).map((f) => ({ name: f, queries: otherQueries.filter((q) => q.folder === f) })).filter((f) => f.queries.length > 0);
+  const loose = otherQueries.filter((q) => !q.folder || !list?.folders.includes(q.folder));
   const tab = (k: typeof kind, label: string, count: number) => (
     <button type="button" role="tab" className="rtab h-8 flex-1" aria-selected={kind === k} onClick={() => setKind(k)}>
       {label} <span className="faint text-[11px] font-normal">{count}</span>
@@ -298,6 +341,7 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
               <p className="faint m-0 px-[14px] text-[12px]">{needle ? 'No saved query matches.' : `No saved queries yet. Save a query with ${MOD} S.`}</p>
             )}
             <ul className="side-list">
+              {pinnedQueries.length > 0 && folder('\0pinned', 'Pinned', pinnedQueries.length, pinnedQueries.map((q) => row(q)))}
               {folders.map((f) => folder(f.name, f.name, f.queries.length, grouped(f.name, f.queries)))}
               {grouped('', loose)}
             </ul>
@@ -313,6 +357,7 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
               <p className="faint m-0 px-[14px] text-[12px]">{needle ? 'No workbook matches.' : 'No workbooks yet.'}</p>
             )}
             <ul className="side-list">
+              {pinnedWorkbooks.length > 0 && folder('workbooks/\0pinned', 'Pinned', pinnedWorkbooks.length, pinnedWorkbooks.map(workbookRow))}
               {workbookFolders.map((f) => folder(f.key, f.name, f.items.length, f.items.map(workbookRow)))}
               {looseWorkbooks.map(workbookRow)}
             </ul>

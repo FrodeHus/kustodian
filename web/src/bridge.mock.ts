@@ -1,5 +1,5 @@
 import type { Transport } from './bridge';
-import type { HistoryChanges, HistoryRecordParams, HistorySeries, HistorySnapshot, QueryOptions, TrackedRow } from './wire';
+import type { HistoryChanges, HistoryRecordParams, HistorySeries, HistorySnapshot, Pins, QueryOptions, TrackedRow } from './wire';
 import schema from './fixtures/graph-schema.json';
 
 /**
@@ -438,6 +438,7 @@ interface MockRequest {
     tools?: (typeof mockTool)[];
     workbook?: MockWorkbook;
     values?: Record<string, string>;
+    pins?: Pins;
   };
 }
 
@@ -615,6 +616,7 @@ export function createMockTransport(): Transport {
   const saved = new Map<string, SavedQuery>();
   const workbooks = new Map<string, MockWorkbook>();
   const workbookValues = new Map<string, Record<string, string>>();
+  let pins: Pins = { queries: [], workbooks: [] };
   let savedCounter = 0;
   // History, in memory: one series per workbook, widget and call (query text and parameters), as the host keeps it.
   interface MockHistory {
@@ -858,6 +860,13 @@ export function createMockTransport(): Transport {
       case 'session.save':
         session = { ...(params?.session ?? session), version: 1 };
         reply(id, { dropped: 0 });
+        break;
+      case 'pins.get':
+        reply(id, pins);
+        break;
+      case 'pins.set':
+        pins = params?.pins ?? { queries: [], workbooks: [] };
+        reply(id, pins);
         break;
       case 'snippets.list':
         reply(id, { snippets: [builtInSnippet, builtInHuntingSnippet, builtInArgSnippet, ...userSnippets.values()] });

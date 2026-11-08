@@ -115,6 +115,54 @@ describe('SavedPanel', () => {
     expect(screen.queryByRole('button', { name: 'Break glass / Sign-ins' })).toBeNull();
   });
 
+  it('saved_pins_a_query_to_the_top_and_unpins_it', async () => {
+    let pins = { queries: ['gone'], workbooks: [] as string[] };
+    const answer = bridge.call.getMockImplementation()!;
+    bridge.call.mockImplementation((method: string, params?: { pins?: typeof pins }) => {
+      if (method === 'pins.get') {
+        return Promise.resolve(pins);
+      }
+      if (method === 'pins.set') {
+        pins = params!.pins!;
+        return Promise.resolve(pins);
+      }
+      return answer(method, params);
+    });
+    render(<SavedPanel />);
+
+    // A pin whose query is gone shows nothing.
+    await screen.findByRole('button', { name: 'Stale guests' });
+    expect(screen.queryByRole('button', { name: 'Pinned' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'More for Stale guests' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Pin' }));
+    await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('pins.set', { pins: { queries: ['gone', 'q1'], workbooks: [] } }));
+    // It moves out of its folder into Pinned.
+    const pinned = screen.getByRole('button', { name: 'Pinned', expanded: true }).nextElementSibling as HTMLElement;
+    expect(within(pinned).getByRole('button', { name: 'Stale guests' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Identity' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'More for Stale guests' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Unpin' }));
+    await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('pins.set', { pins: { queries: ['gone'], workbooks: [] } }));
+    expect(screen.queryByRole('button', { name: 'Pinned' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Identity' })).toBeTruthy();
+  });
+
+  it('saved_puts_the_pins_back_when_they_cant_be_saved', async () => {
+    const answer = bridge.call.getMockImplementation()!;
+    bridge.call.mockImplementation((method: string, params?: unknown) =>
+      method === 'pins.set' ? Promise.reject(new Error('disk full')) : answer(method, params as never),
+    );
+    render(<SavedPanel />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'More for All apps' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Pin' }));
+
+    expect((await screen.findByRole('alert')).textContent).toContain('The pins couldn’t be saved');
+    expect(screen.queryByRole('button', { name: 'Pinned' })).toBeNull();
+  });
+
   it('saved_rename_saves_and_retitles_open_tabs', async () => {
     render(<SavedPanel />);
     fireEvent.click(await screen.findByRole('button', { name: 'All apps' }));
