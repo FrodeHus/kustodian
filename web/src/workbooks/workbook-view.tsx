@@ -72,6 +72,18 @@ function ParamControl({ tabId, param, value }: { tabId: string; param: WorkbookP
         ))}
       </select>
     );
+  } else if (list) {
+    // One value per line, as a query tab's list takes them; Enter starts a new line, so it reruns as typing stops.
+    control = (
+      <textarea
+        className="textbox mono h-auto w-56 py-1"
+        rows={2}
+        aria-label={label}
+        placeholder="One value per line"
+        value={value}
+        onChange={(e) => set(e.target.value, false)}
+      />
+    );
   } else {
     control = (
       <input

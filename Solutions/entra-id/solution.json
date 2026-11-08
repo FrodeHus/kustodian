@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "id": "entra-id",
+  "name": "Entra ID",
+  "solutionVersion": "1.1.0",
+  "description": "Microsoft Entra ID reviews: break-glass account compliance, risky users and their sign-ins, and MFA and passkey adoption.",
+  "author": "Kustodian",
+  "support": "kustodian",
+  "categories": ["Identity", "Security"],
+  "sources": ["graph"],
+  "minAppVersion": "1.1.0",
+  "requires": {
+    "graph": [
+      "AuditLog.Read.All",
+      "Directory.Read.All",
+      "IdentityRiskyUser.Read.All",
+      "Policy.Read.All",
+      "RoleManagement.Read.Directory",
+      "User.Read.All"
+    ],
+    "roles": ["Global Reader"],
+    "licenses": ["AAD_PREMIUM", "AAD_PREMIUM_P2"]
+  },
+  "content": {
+    "queries": [
+      "btg-findings",
+      "btg-conditional-access",
+      "btg-accounts",
+      "btg-roles",
+      "btg-groups",
+      "btg-sign-ins",
+      "btg-tenant",
+      "risky-users",
+      "risky-signins",
+      "mfa-by-company",
+      "users-missing-passkey"
+    ],
+    "workbooks": ["break-glass-compliance", "risky-users-review", "mfa-adoption"],
+    "tools": []
+  }
+}

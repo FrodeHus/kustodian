@@ -1,0 +1,461 @@
+{
+  "kind": "kustodian.workbook",
+  "version": 2,
+  "id": "8d2f61c4-3b7e-4a9d-b5c0-2e6f9a1d7b43",
+  "name": "Break-glass account compliance",
+  "folder": null,
+  "parameters": [
+    {
+      "name": "Accounts",
+      "type": "list",
+      "value": "",
+      "required": true,
+      "label": "Break-glass accounts (UPN, one per line)",
+      "choices": null,
+      "multi": false,
+      "all": false,
+      "remember": true,
+      "huntingTimespan": false
+    },
+    {
+      "name": "BtgGroups",
+      "type": "list",
+      "value": "",
+      "required": false,
+      "label": "Break-glass groups (display name, one per line)",
+      "choices": null,
+      "multi": false,
+      "all": false,
+      "remember": true,
+      "huntingTimespan": false
+    },
+    {
+      "name": "Lookback",
+      "type": "timespan",
+      "value": "30d",
+      "required": true,
+      "label": "No sign-ins in the last",
+      "choices": [
+        "7d",
+        "14d",
+        "30d",
+        "90d"
+      ],
+      "multi": false,
+      "all": false,
+      "remember": false,
+      "huntingTimespan": false
+    }
+  ],
+  "widgets": [
+    {
+      "id": "wbtg01",
+      "type": "markdown",
+      "title": "",
+      "layout": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 6
+      },
+      "parameters": {},
+      "markdown": "## Break-glass account compliance\nChecks that each break-glass account still works when you need it: excluded from every Conditional Access policy, hardened, a permanent Global Administrator, and unused. Enter the accounts in **Break-glass accounts**, one UPN per line, and the groups that hold them in **Break-glass groups** for the group checks.\n\n**FAIL** and **ERROR** need action; **ERROR** means the check couldn't read what it needs. Group checks are on the **Groups** tab only: they read every group in the tenant when no group is given."
+    },
+    {
+      "id": "wbtgtabs",
+      "type": "tabs",
+      "title": "",
+      "hideTitle": true,
+      "layout": {
+        "x": 0,
+        "y": 6,
+        "w": 12,
+        "h": 56
+      },
+      "parameters": {},
+      "tabs": [
+        {
+          "id": "tbtgall",
+          "name": "Overview"
+        },
+        {
+          "id": "tbtgca",
+          "name": "Conditional Access"
+        },
+        {
+          "id": "tbtgacct",
+          "name": "Accounts"
+        },
+        {
+          "id": "tbtgrole",
+          "name": "Roles"
+        },
+        {
+          "id": "tbtggrp",
+          "name": "Groups"
+        },
+        {
+          "id": "tbtguse",
+          "name": "Sign-ins"
+        },
+        {
+          "id": "tbtgtnt",
+          "name": "Tenant"
+        }
+      ]
+    },
+    {
+      "id": "wbtg02",
+      "type": "chart",
+      "title": "Checks by category",
+      "layout": {
+        "x": 0,
+        "y": 0,
+        "w": 7,
+        "h": 16
+      },
+      "parameters": {},
+      "query": {
+        "source": "graph",
+        "text": "let btg = users\n| where userPrincipalName in~ ({Accounts})\n| project userId = id, upn = userPrincipalName, enabled = coalesce(accountEnabled, false), synced = coalesce(onPremisesSyncEnabled, false), userType, assignedLicenses, passwordPolicies, lastPasswordChangeDateTime, signInActivity, memberOf, ownedObjects;\nlet btgGroups = btg\n| project userId, upn\n| join kind=leftouter (btg | mv-expand g = memberOf | where tostring(g.objectType) == \"group\" | summarize groupIds = make_set(tostring(g.id)) by userId) on userId\n| project userId, upn, groupIds = coalesce(groupIds, dynamic([]));\nlet gaRole = roleManagement_directory_roleDefinitions\n| where displayName == \"Global Administrator\"\n| project gaId = id, k = 1;\nlet ca = identity_conditionalAccess_policies\n| project policy = displayName, state, exUsers = conditions.users.excludeUsers, exGroups = conditions.users.excludeGroups, exRoles = conditions.users.excludeRoles,\n    inUsers = conditions.users.includeUsers, inGroups = conditions.users.includeGroups, inRoles = conditions.users.includeRoles, k = 1;\nlet acct = btg\n| join kind=leftouter (reports_authenticationMethods_userRegistrationDetails | project userId = id, methods = methodsRegistered) on userId\n| extend fidoKeys = iff(isnull(methods), long(null), array_length(set_intersect(methods, dynamic([\"passKeyDeviceBound\"])))),\n    otherMethods = iff(isnull(methods), dynamic(null), set_difference(methods, dynamic([\"passKeyDeviceBound\"])));\nlet principals = union\n    (btg | project userId, upn, principalId = userId, via = \"direct\"),\n    (btg | mv-expand g = memberOf | where tostring(g.objectType) == \"group\" | project userId, upn, principalId = tostring(g.id), via = strcat(\"group \", tostring(g.displayName)));\nlet roleNames = roleManagement_directory_roleDefinitions | project roleDefinitionId = id, role = displayName;\nlet active = principals\n| join kind=inner (roleManagement_directory_roleAssignmentScheduleInstances | project principalId, roleDefinitionId, directoryScopeId, assignmentType, endDateTime) on principalId\n| join kind=leftouter roleNames on roleDefinitionId\n| summarize permanentGa = countif(role == \"Global Administrator\" and directoryScopeId == \"/\" and assignmentType == \"Assigned\" and isnull(endDateTime)),\n    anyGa = countif(role == \"Global Administrator\" and directoryScopeId == \"/\"),\n    gaVia = make_set_if(via, role == \"Global Administrator\" and directoryScopeId == \"/\"),\n    extra = make_set_if(role, role != \"Global Administrator\") by userId;\nlet eligible = principals\n| join kind=inner (roleManagement_directory_roleEligibilityScheduleInstances | project principalId, roleDefinitionId) on principalId\n| join kind=leftouter roleNames on roleDefinitionId\n| summarize eligibleRoles = make_set(role) by userId;\nlet roles = btg\n| project userId, upn\n| join kind=leftouter active on userId\n| join kind=leftouter eligible on userId\n| extend permanentGa = coalesce(permanentGa, 0), anyGa = coalesce(anyGa, 0), extra = coalesce(extra, dynamic([])), eligibleRoles = coalesce(eligibleRoles, dynamic([]));\nlet use = btg\n| extend interactive = todatetime(signInActivity.lastSignInDateTime), nonInteractive = todatetime(signInActivity.lastNonInteractiveSignInDateTime);\nlet premium = subscribedSkus\n| where capabilityStatus == \"Enabled\"\n| mv-expand plan = servicePlans\n| where tostring(plan.servicePlanName) in (\"AAD_PREMIUM\", \"AAD_PREMIUM_P2\")\n| summarize plans = count();\nlet fido = policies_authenticationMethodsPolicy_authenticationMethodConfigurations\n| where id == \"Fido2\"\n| project state, excludeTargets, includeTargets, keyRestrictions;\nunion\n    (print wanted = {Accounts}\n    | mv-expand typed = wanted to typeof(string)\n    | extend lower = tolower(typed)\n    | join kind=leftanti (btg | project lower = tolower(upn)) on lower\n    | project Category = \"SYS\", Check = \"SYS.ResolveUser\", Target = typed, Status = \"FAIL\", Detail = \"No user has this UPN, so it isn't checked.\"),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.Enabled\", Target = upn, Status = iff(enabled, \"PASS\", \"FAIL\"),\n        Detail = iff(enabled, \"Account is enabled.\", \"Account is disabled. A break-glass account must be usable.\")),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.CloudOnly\", Target = upn, Status = iff(synced, \"FAIL\", \"PASS\"),\n        Detail = iff(synced, \"Synced from on-premises AD. It must be cloud-only, so an on-premises outage or compromise can't touch it.\", \"Cloud-only account.\")),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.UserType\", Target = upn, Status = iff(userType == \"Member\", \"PASS\", \"FAIL\"),\n        Detail = strcat(\"userType is \", userType, iff(userType == \"Member\", \".\", \"; it must be Member.\"))),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.UpnDomain\", Target = upn, Status = iff(upn endswith \".onmicrosoft.com\", \"PASS\", \"WARN\"),\n        Detail = iff(upn endswith \".onmicrosoft.com\", \"UPN is on the *.onmicrosoft.com domain.\", \"UPN is on a custom domain. Prefer *.onmicrosoft.com, so a federation or DNS failure can't block sign-in.\")),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.NoLicense\", Target = upn, Status = iff(array_length(assignedLicenses) > 0, \"WARN\", \"PASS\"),\n        Detail = iff(array_length(assignedLicenses) > 0, strcat(array_length(assignedLicenses), \" license(s) assigned. Break-glass accounts should have none (no mailbox, no data).\"), \"No licenses assigned.\")),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.PwdNeverExpires\", Target = upn, Status = iff(passwordPolicies contains \"DisablePasswordExpiration\", \"PASS\", \"FAIL\"),\n        Detail = iff(passwordPolicies contains \"DisablePasswordExpiration\", \"Password expiration is disabled.\", \"Password can expire. An expired password during an outage locks you out; set DisablePasswordExpiration.\")),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.Fido2Registered\", Target = upn, Status = case(isnull(fidoKeys), \"ERROR\", fidoKeys > 0, \"PASS\", \"FAIL\"),\n        Detail = case(isnull(fidoKeys), \"No registration details for this account (needs Reports Reader and AuditLog.Read.All).\", fidoKeys > 0, \"A FIDO2 security key is registered.\", \"No FIDO2 security key is registered.\")),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.OnlyFido2\", Target = upn, Status = case(isnull(otherMethods), \"ERROR\", array_length(otherMethods) == 0, \"PASS\", \"FAIL\"),\n        Detail = case(isnull(otherMethods), \"No registration details for this account (needs Reports Reader and AuditLog.Read.All).\", array_length(otherMethods) == 0, \"Only FIDO2 security keys are registered.\", strcat(\"Other methods are registered: \", strcat_array(otherMethods, \", \"), \". Remove them so the account can't be phished or SIM-swapped.\"))),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.NoOwnedObjects\", Target = upn, Status = iff(array_length(ownedObjects) > 0, \"WARN\", \"PASS\"),\n        Detail = iff(array_length(ownedObjects) > 0, strcat(\"Owns \", array_length(ownedObjects), \" object(s) (apps or groups). Break-glass accounts should own nothing.\"), \"Owns no directory objects.\")),\n    (acct | where isnotnull(lastPasswordChangeDateTime) | project Category = \"ACCT\", Check = \"ACCT.PasswordAge\", Target = upn, Status = \"INFO\",\n        Detail = strcat(\"Password last changed \", datetime_diff(\"day\", now(), lastPasswordChangeDateTime), \" day(s) ago.\")),\n    (ca\n    | join kind=inner (btgGroups | extend k = 1) on k\n    | join kind=leftouter gaRole on k\n    | extend direct = set_has_element(exUsers, userId), viaGroup = array_length(set_intersect(exGroups, groupIds)) > 0,\n        roleOnly = set_has_element(exRoles, gaId)\n    | extend inScope = set_has_element(inUsers, \"All\") or set_has_element(inUsers, userId) or array_length(set_intersect(inGroups, groupIds)) > 0 or set_has_element(inRoles, gaId)\n    | project Category = \"CA\", Check = iff(direct or viaGroup, \"CA.Excluded\", \"CA.NotExcluded\"), Target = strcat(upn, \" | \", policy),\n        Status = case(direct or viaGroup, \"PASS\", state == \"disabled\", \"WARN\", inScope, \"FAIL\", \"WARN\"),\n        Detail = case(direct, \"Excluded directly.\", viaGroup, \"Excluded through a group.\",\n            state == \"disabled\", \"The policy is off but doesn't exclude the account. Fix it before the policy is turned on.\",\n            inScope, strcat(\"[\", state, \"] The account is in scope and not excluded.\"),\n            strcat(\"[\", state, \"] The account isn't targeted now, but isn't excluded either. Exclusion must be explicit.\", iff(roleOnly, \" Only a role exclusion exists, which doesn't count.\", \"\")))),\n    (roles | project Category = \"ROLE\", Check = \"ROLE.GlobalAdminPermanent\", Target = upn, Status = iff(permanentGa > 0, \"PASS\", \"FAIL\"),\n        Detail = case(permanentGa > 0, strcat(\"Permanent active Global Administrator (\", strcat_array(gaVia, \", \"), \").\"),\n            anyGa > 0, \"Global Administrator is active but time-bound or activated through PIM. It must be permanent: PIM may be unavailable in the emergency.\",\n            \"No active tenant-wide Global Administrator assignment.\")),\n    (roles | project Category = \"ROLE\", Check = \"ROLE.NoEligible\", Target = upn, Status = iff(array_length(eligibleRoles) > 0, \"FAIL\", \"PASS\"),\n        Detail = iff(array_length(eligibleRoles) > 0, strcat(\"PIM-eligible for: \", strcat_array(eligibleRoles, \", \"), \". Break-glass accounts must not depend on PIM activation.\"), \"No PIM-eligible assignments.\")),\n    (roles | project Category = \"ROLE\", Check = \"ROLE.OnlyGlobalAdmin\", Target = upn, Status = iff(array_length(extra) > 0, \"WARN\", \"PASS\"),\n        Detail = iff(array_length(extra) > 0, strcat(\"Also holds: \", strcat_array(extra, \", \"), \". Global Administrator alone is enough.\"), \"Holds only Global Administrator.\")),\n    (use | project Category = \"USE\", Check = \"USE.NoSignIns\", Target = upn,\n        Status = case(isnull(signInActivity), \"ERROR\", coalesce(interactive > ago({Lookback}), false) or coalesce(nonInteractive > ago({Lookback}), false), \"FAIL\", \"PASS\"),\n        Detail = case(isnull(signInActivity), \"Sign-in activity couldn't be read (needs Entra ID P1 and AuditLog.Read.All).\",\n            coalesce(interactive > ago({Lookback}), false) or coalesce(nonInteractive > ago({Lookback}), false), strcat(\"Signed in within the period (last interactive: \", iff(isnull(interactive), \"never\", format_datetime(interactive, \"yyyy-MM-dd HH:mm\")), \", last non-interactive: \", iff(isnull(nonInteractive), \"never\", format_datetime(nonInteractive, \"yyyy-MM-dd HH:mm\")), \"). Every break-glass sign-in must be accounted for: a planned test or an incident.\"),\n            strcat(\"No sign-ins within the period. Last interactive sign-in: \", iff(isnull(interactive), \"never\", format_datetime(interactive, \"yyyy-MM-dd HH:mm\")), \".\"))),\n    (btg | summarize accounts = count() | project Category = \"TNT\", Check = \"TNT.AccountCount\", Target = \"tenant\", Status = iff(accounts < 2, \"FAIL\", \"PASS\"),\n        Detail = iff(accounts < 2, strcat(\"Only \", accounts, \" break-glass account(s) found. Microsoft recommends at least two, with credentials kept in separate places.\"), strcat(accounts, \" break-glass accounts.\"))),\n    (premium | project Category = \"TNT\", Check = \"TNT.EntraPremium\", Target = \"tenant\", Status = iff(plans > 0, \"PASS\", \"WARN\"),\n        Detail = iff(plans > 0, \"Entra ID P1 or P2 is present, so Conditional Access is licensed.\", \"No Entra ID P1 or P2 service plan found; Conditional Access may be unlicensed.\")),\n    (fido\n    | extend k = 1\n    | join kind=leftouter (fido | mv-expand target = includeTargets | summarize includedIds = make_set(tostring(target.id)) | extend k = 1) on k\n    | join kind=inner (btgGroups | extend k = 1) on k\n    | extend includedIds = coalesce(includedIds, dynamic([])), enabled = state == \"enabled\"\n    | extend all = set_has_element(includedIds, \"all_users\"), direct = set_has_element(includedIds, userId),\n        viaGroup = array_length(set_intersect(includedIds, groupIds)) > 0\n    | project Category = \"TNT\", Check = \"TNT.Fido2MethodEnabled\", Target = upn, Status = iff(enabled and (all or direct or viaGroup), \"PASS\", \"FAIL\"),\n        Detail = case(not(enabled), strcat(\"The FIDO2 security key method is \", state, \".\"),\n            all, \"The FIDO2 security key method is enabled for all users.\",\n            direct, \"The FIDO2 security key method is enabled and targets the account directly.\",\n            viaGroup, \"The FIDO2 security key method is enabled for a group the account is in.\",\n            \"The FIDO2 security key method is enabled, but not for the account or any group it is in, so it can't register or use a key.\")),\n    (fido\n    | mv-expand target = excludeTargets\n    | project excludedId = tostring(target.id), k = 1\n    | join kind=inner (btgGroups | extend k = 1) on k\n    | where excludedId == userId or set_has_element(groupIds, excludedId)\n    | project Category = \"TNT\", Check = \"TNT.Fido2NotExcluded\", Target = upn, Status = \"FAIL\",\n        Detail = \"The account, or a group it is in, is excluded from the FIDO2 method, so it can't sign in with its key.\"),\n    (fido\n    | where tobool(keyRestrictions.isEnforced) and tostring(keyRestrictions.enforcementType) == \"allow\"\n    | project Category = \"TNT\", Check = \"TNT.Fido2KeyRestriction\", Target = \"tenant\", Status = \"INFO\",\n        Detail = strcat(\"Only allowed key models can register (AAGUIDs: \", strcat_array(keyRestrictions.aaGuids, \", \"), \"). Check that each break-glass key's model is on the list.\"))\n| extend Rank = case(Status == \"FAIL\", 0, Status == \"ERROR\", 1, Status == \"WARN\", 2, Status == \"INFO\", 3, 4)\n| order by Rank asc, Category asc, Check asc, Target asc\n| project Category, Check, Target, Status, Detail\n| summarize Checks = count() by Category, Status",
+        "options": null,
+        "parameters": [
+          {
+            "name": "Accounts",
+            "type": "list",
+            "value": "",
+            "required": true,
+            "choices": null
+          },
+          {
+            "name": "Lookback",
+            "type": "timespan",
+            "value": "30d",
+            "required": true,
+            "choices": [
+              "7d",
+              "14d",
+              "30d",
+              "90d"
+            ]
+          }
+        ],
+        "saved": null
+      },
+      "chart": {
+        "type": "bar",
+        "x": "Category",
+        "series": [
+          "Checks"
+        ],
+        "split": "Status",
+        "stack": "stacked"
+      },
+      "in": {
+        "tabs": "wbtgtabs",
+        "tab": "tbtgall"
+      }
+    },
+    {
+      "id": "wbtg03",
+      "type": "markdown",
+      "title": "",
+      "hideTitle": true,
+      "layout": {
+        "x": 7,
+        "y": 0,
+        "w": 5,
+        "h": 16
+      },
+      "parameters": {},
+      "markdown": "### Not checked here\nGraph tables can't show these yet, so check them by hand:\n\n- **Security Defaults** are off (Entra admin center, Properties).\n- **Per-user MFA** is disabled for each account.\n- **Two FIDO2 keys** per account, stored in separate places. Registration details show whether a key exists, not how many.\n- **Key models**: if the FIDO2 policy allows only some key models (an INFO row on the Tenant tab lists them), the break-glass keys are on the list.\n- **Nested groups**: exclusions and roles are checked through the groups an account is a direct member of.\n- That the credentials are stored safely and a test sign-in happens on schedule.",
+      "in": {
+        "tabs": "wbtgtabs",
+        "tab": "tbtgall"
+      }
+    },
+    {
+      "id": "wbtg04",
+      "type": "table",
+      "title": "All findings",
+      "layout": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 30
+      },
+      "parameters": {},
+      "query": {
+        "source": "graph",
+        "text": "let btg = users\n| where userPrincipalName in~ ({Accounts})\n| project userId = id, upn = userPrincipalName, enabled = coalesce(accountEnabled, false), synced = coalesce(onPremisesSyncEnabled, false), userType, assignedLicenses, passwordPolicies, lastPasswordChangeDateTime, signInActivity, memberOf, ownedObjects;\nlet btgGroups = btg\n| project userId, upn\n| join kind=leftouter (btg | mv-expand g = memberOf | where tostring(g.objectType) == \"group\" | summarize groupIds = make_set(tostring(g.id)) by userId) on userId\n| project userId, upn, groupIds = coalesce(groupIds, dynamic([]));\nlet gaRole = roleManagement_directory_roleDefinitions\n| where displayName == \"Global Administrator\"\n| project gaId = id, k = 1;\nlet ca = identity_conditionalAccess_policies\n| project policy = displayName, state, exUsers = conditions.users.excludeUsers, exGroups = conditions.users.excludeGroups, exRoles = conditions.users.excludeRoles,\n    inUsers = conditions.users.includeUsers, inGroups = conditions.users.includeGroups, inRoles = conditions.users.includeRoles, k = 1;\nlet acct = btg\n| join kind=leftouter (reports_authenticationMethods_userRegistrationDetails | project userId = id, methods = methodsRegistered) on userId\n| extend fidoKeys = iff(isnull(methods), long(null), array_length(set_intersect(methods, dynamic([\"passKeyDeviceBound\"])))),\n    otherMethods = iff(isnull(methods), dynamic(null), set_difference(methods, dynamic([\"passKeyDeviceBound\"])));\nlet principals = union\n    (btg | project userId, upn, principalId = userId, via = \"direct\"),\n    (btg | mv-expand g = memberOf | where tostring(g.objectType) == \"group\" | project userId, upn, principalId = tostring(g.id), via = strcat(\"group \", tostring(g.displayName)));\nlet roleNames = roleManagement_directory_roleDefinitions | project roleDefinitionId = id, role = displayName;\nlet active = principals\n| join kind=inner (roleManagement_directory_roleAssignmentScheduleInstances | project principalId, roleDefinitionId, directoryScopeId, assignmentType, endDateTime) on principalId\n| join kind=leftouter roleNames on roleDefinitionId\n| summarize permanentGa = countif(role == \"Global Administrator\" and directoryScopeId == \"/\" and assignmentType == \"Assigned\" and isnull(endDateTime)),\n    anyGa = countif(role == \"Global Administrator\" and directoryScopeId == \"/\"),\n    gaVia = make_set_if(via, role == \"Global Administrator\" and directoryScopeId == \"/\"),\n    extra = make_set_if(role, role != \"Global Administrator\") by userId;\nlet eligible = principals\n| join kind=inner (roleManagement_directory_roleEligibilityScheduleInstances | project principalId, roleDefinitionId) on principalId\n| join kind=leftouter roleNames on roleDefinitionId\n| summarize eligibleRoles = make_set(role) by userId;\nlet roles = btg\n| project userId, upn\n| join kind=leftouter active on userId\n| join kind=leftouter eligible on userId\n| extend permanentGa = coalesce(permanentGa, 0), anyGa = coalesce(anyGa, 0), extra = coalesce(extra, dynamic([])), eligibleRoles = coalesce(eligibleRoles, dynamic([]));\nlet use = btg\n| extend interactive = todatetime(signInActivity.lastSignInDateTime), nonInteractive = todatetime(signInActivity.lastNonInteractiveSignInDateTime);\nlet premium = subscribedSkus\n| where capabilityStatus == \"Enabled\"\n| mv-expand plan = servicePlans\n| where tostring(plan.servicePlanName) in (\"AAD_PREMIUM\", \"AAD_PREMIUM_P2\")\n| summarize plans = count();\nlet fido = policies_authenticationMethodsPolicy_authenticationMethodConfigurations\n| where id == \"Fido2\"\n| project state, excludeTargets, includeTargets, keyRestrictions;\nunion\n    (print wanted = {Accounts}\n    | mv-expand typed = wanted to typeof(string)\n    | extend lower = tolower(typed)\n    | join kind=leftanti (btg | project lower = tolower(upn)) on lower\n    | project Category = \"SYS\", Check = \"SYS.ResolveUser\", Target = typed, Status = \"FAIL\", Detail = \"No user has this UPN, so it isn't checked.\"),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.Enabled\", Target = upn, Status = iff(enabled, \"PASS\", \"FAIL\"),\n        Detail = iff(enabled, \"Account is enabled.\", \"Account is disabled. A break-glass account must be usable.\")),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.CloudOnly\", Target = upn, Status = iff(synced, \"FAIL\", \"PASS\"),\n        Detail = iff(synced, \"Synced from on-premises AD. It must be cloud-only, so an on-premises outage or compromise can't touch it.\", \"Cloud-only account.\")),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.UserType\", Target = upn, Status = iff(userType == \"Member\", \"PASS\", \"FAIL\"),\n        Detail = strcat(\"userType is \", userType, iff(userType == \"Member\", \".\", \"; it must be Member.\"))),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.UpnDomain\", Target = upn, Status = iff(upn endswith \".onmicrosoft.com\", \"PASS\", \"WARN\"),\n        Detail = iff(upn endswith \".onmicrosoft.com\", \"UPN is on the *.onmicrosoft.com domain.\", \"UPN is on a custom domain. Prefer *.onmicrosoft.com, so a federation or DNS failure can't block sign-in.\")),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.NoLicense\", Target = upn, Status = iff(array_length(assignedLicenses) > 0, \"WARN\", \"PASS\"),\n        Detail = iff(array_length(assignedLicenses) > 0, strcat(array_length(assignedLicenses), \" license(s) assigned. Break-glass accounts should have none (no mailbox, no data).\"), \"No licenses assigned.\")),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.PwdNeverExpires\", Target = upn, Status = iff(passwordPolicies contains \"DisablePasswordExpiration\", \"PASS\", \"FAIL\"),\n        Detail = iff(passwordPolicies contains \"DisablePasswordExpiration\", \"Password expiration is disabled.\", \"Password can expire. An expired password during an outage locks you out; set DisablePasswordExpiration.\")),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.Fido2Registered\", Target = upn, Status = case(isnull(fidoKeys), \"ERROR\", fidoKeys > 0, \"PASS\", \"FAIL\"),\n        Detail = case(isnull(fidoKeys), \"No registration details for this account (needs Reports Reader and AuditLog.Read.All).\", fidoKeys > 0, \"A FIDO2 security key is registered.\", \"No FIDO2 security key is registered.\")),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.OnlyFido2\", Target = upn, Status = case(isnull(otherMethods), \"ERROR\", array_length(otherMethods) == 0, \"PASS\", \"FAIL\"),\n        Detail = case(isnull(otherMethods), \"No registration details for this account (needs Reports Reader and AuditLog.Read.All).\", array_length(otherMethods) == 0, \"Only FIDO2 security keys are registered.\", strcat(\"Other methods are registered: \", strcat_array(otherMethods, \", \"), \". Remove them so the account can't be phished or SIM-swapped.\"))),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.NoOwnedObjects\", Target = upn, Status = iff(array_length(ownedObjects) > 0, \"WARN\", \"PASS\"),\n        Detail = iff(array_length(ownedObjects) > 0, strcat(\"Owns \", array_length(ownedObjects), \" object(s) (apps or groups). Break-glass accounts should own nothing.\"), \"Owns no directory objects.\")),\n    (acct | where isnotnull(lastPasswordChangeDateTime) | project Category = \"ACCT\", Check = \"ACCT.PasswordAge\", Target = upn, Status = \"INFO\",\n        Detail = strcat(\"Password last changed \", datetime_diff(\"day\", now(), lastPasswordChangeDateTime), \" day(s) ago.\")),\n    (ca\n    | join kind=inner (btgGroups | extend k = 1) on k\n    | join kind=leftouter gaRole on k\n    | extend direct = set_has_element(exUsers, userId), viaGroup = array_length(set_intersect(exGroups, groupIds)) > 0,\n        roleOnly = set_has_element(exRoles, gaId)\n    | extend inScope = set_has_element(inUsers, \"All\") or set_has_element(inUsers, userId) or array_length(set_intersect(inGroups, groupIds)) > 0 or set_has_element(inRoles, gaId)\n    | project Category = \"CA\", Check = iff(direct or viaGroup, \"CA.Excluded\", \"CA.NotExcluded\"), Target = strcat(upn, \" | \", policy),\n        Status = case(direct or viaGroup, \"PASS\", state == \"disabled\", \"WARN\", inScope, \"FAIL\", \"WARN\"),\n        Detail = case(direct, \"Excluded directly.\", viaGroup, \"Excluded through a group.\",\n            state == \"disabled\", \"The policy is off but doesn't exclude the account. Fix it before the policy is turned on.\",\n            inScope, strcat(\"[\", state, \"] The account is in scope and not excluded.\"),\n            strcat(\"[\", state, \"] The account isn't targeted now, but isn't excluded either. Exclusion must be explicit.\", iff(roleOnly, \" Only a role exclusion exists, which doesn't count.\", \"\")))),\n    (roles | project Category = \"ROLE\", Check = \"ROLE.GlobalAdminPermanent\", Target = upn, Status = iff(permanentGa > 0, \"PASS\", \"FAIL\"),\n        Detail = case(permanentGa > 0, strcat(\"Permanent active Global Administrator (\", strcat_array(gaVia, \", \"), \").\"),\n            anyGa > 0, \"Global Administrator is active but time-bound or activated through PIM. It must be permanent: PIM may be unavailable in the emergency.\",\n            \"No active tenant-wide Global Administrator assignment.\")),\n    (roles | project Category = \"ROLE\", Check = \"ROLE.NoEligible\", Target = upn, Status = iff(array_length(eligibleRoles) > 0, \"FAIL\", \"PASS\"),\n        Detail = iff(array_length(eligibleRoles) > 0, strcat(\"PIM-eligible for: \", strcat_array(eligibleRoles, \", \"), \". Break-glass accounts must not depend on PIM activation.\"), \"No PIM-eligible assignments.\")),\n    (roles | project Category = \"ROLE\", Check = \"ROLE.OnlyGlobalAdmin\", Target = upn, Status = iff(array_length(extra) > 0, \"WARN\", \"PASS\"),\n        Detail = iff(array_length(extra) > 0, strcat(\"Also holds: \", strcat_array(extra, \", \"), \". Global Administrator alone is enough.\"), \"Holds only Global Administrator.\")),\n    (use | project Category = \"USE\", Check = \"USE.NoSignIns\", Target = upn,\n        Status = case(isnull(signInActivity), \"ERROR\", coalesce(interactive > ago({Lookback}), false) or coalesce(nonInteractive > ago({Lookback}), false), \"FAIL\", \"PASS\"),\n        Detail = case(isnull(signInActivity), \"Sign-in activity couldn't be read (needs Entra ID P1 and AuditLog.Read.All).\",\n            coalesce(interactive > ago({Lookback}), false) or coalesce(nonInteractive > ago({Lookback}), false), strcat(\"Signed in within the period (last interactive: \", iff(isnull(interactive), \"never\", format_datetime(interactive, \"yyyy-MM-dd HH:mm\")), \", last non-interactive: \", iff(isnull(nonInteractive), \"never\", format_datetime(nonInteractive, \"yyyy-MM-dd HH:mm\")), \"). Every break-glass sign-in must be accounted for: a planned test or an incident.\"),\n            strcat(\"No sign-ins within the period. Last interactive sign-in: \", iff(isnull(interactive), \"never\", format_datetime(interactive, \"yyyy-MM-dd HH:mm\")), \".\"))),\n    (btg | summarize accounts = count() | project Category = \"TNT\", Check = \"TNT.AccountCount\", Target = \"tenant\", Status = iff(accounts < 2, \"FAIL\", \"PASS\"),\n        Detail = iff(accounts < 2, strcat(\"Only \", accounts, \" break-glass account(s) found. Microsoft recommends at least two, with credentials kept in separate places.\"), strcat(accounts, \" break-glass accounts.\"))),\n    (premium | project Category = \"TNT\", Check = \"TNT.EntraPremium\", Target = \"tenant\", Status = iff(plans > 0, \"PASS\", \"WARN\"),\n        Detail = iff(plans > 0, \"Entra ID P1 or P2 is present, so Conditional Access is licensed.\", \"No Entra ID P1 or P2 service plan found; Conditional Access may be unlicensed.\")),\n    (fido\n    | extend k = 1\n    | join kind=leftouter (fido | mv-expand target = includeTargets | summarize includedIds = make_set(tostring(target.id)) | extend k = 1) on k\n    | join kind=inner (btgGroups | extend k = 1) on k\n    | extend includedIds = coalesce(includedIds, dynamic([])), enabled = state == \"enabled\"\n    | extend all = set_has_element(includedIds, \"all_users\"), direct = set_has_element(includedIds, userId),\n        viaGroup = array_length(set_intersect(includedIds, groupIds)) > 0\n    | project Category = \"TNT\", Check = \"TNT.Fido2MethodEnabled\", Target = upn, Status = iff(enabled and (all or direct or viaGroup), \"PASS\", \"FAIL\"),\n        Detail = case(not(enabled), strcat(\"The FIDO2 security key method is \", state, \".\"),\n            all, \"The FIDO2 security key method is enabled for all users.\",\n            direct, \"The FIDO2 security key method is enabled and targets the account directly.\",\n            viaGroup, \"The FIDO2 security key method is enabled for a group the account is in.\",\n            \"The FIDO2 security key method is enabled, but not for the account or any group it is in, so it can't register or use a key.\")),\n    (fido\n    | mv-expand target = excludeTargets\n    | project excludedId = tostring(target.id), k = 1\n    | join kind=inner (btgGroups | extend k = 1) on k\n    | where excludedId == userId or set_has_element(groupIds, excludedId)\n    | project Category = \"TNT\", Check = \"TNT.Fido2NotExcluded\", Target = upn, Status = \"FAIL\",\n        Detail = \"The account, or a group it is in, is excluded from the FIDO2 method, so it can't sign in with its key.\"),\n    (fido\n    | where tobool(keyRestrictions.isEnforced) and tostring(keyRestrictions.enforcementType) == \"allow\"\n    | project Category = \"TNT\", Check = \"TNT.Fido2KeyRestriction\", Target = \"tenant\", Status = \"INFO\",\n        Detail = strcat(\"Only allowed key models can register (AAGUIDs: \", strcat_array(keyRestrictions.aaGuids, \", \"), \"). Check that each break-glass key's model is on the list.\"))\n| extend Rank = case(Status == \"FAIL\", 0, Status == \"ERROR\", 1, Status == \"WARN\", 2, Status == \"INFO\", 3, 4)\n| order by Rank asc, Category asc, Check asc, Target asc\n| project Category, Check, Target, Status, Detail",
+        "options": null,
+        "parameters": [
+          {
+            "name": "Accounts",
+            "type": "list",
+            "value": "",
+            "required": true,
+            "choices": null
+          },
+          {
+            "name": "Lookback",
+            "type": "timespan",
+            "value": "30d",
+            "required": true,
+            "choices": [
+              "7d",
+              "14d",
+              "30d",
+              "90d"
+            ]
+          }
+        ],
+        "saved": {
+          "id": "btg-findings",
+          "name": "Break glass / All findings"
+        }
+      },
+      "selection": "none",
+      "tools": [],
+      "in": {
+        "tabs": "wbtgtabs",
+        "tab": "tbtgall"
+      }
+    },
+    {
+      "id": "wbtg05",
+      "type": "table",
+      "title": "Conditional Access exclusions",
+      "layout": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 40
+      },
+      "parameters": {},
+      "query": {
+        "source": "graph",
+        "text": "let btg = users\n| where userPrincipalName in~ ({Accounts})\n| project userId = id, upn = userPrincipalName, enabled = coalesce(accountEnabled, false), synced = coalesce(onPremisesSyncEnabled, false), userType, assignedLicenses, passwordPolicies, lastPasswordChangeDateTime, signInActivity, memberOf, ownedObjects;\nlet btgGroups = btg\n| project userId, upn\n| join kind=leftouter (btg | mv-expand g = memberOf | where tostring(g.objectType) == \"group\" | summarize groupIds = make_set(tostring(g.id)) by userId) on userId\n| project userId, upn, groupIds = coalesce(groupIds, dynamic([]));\nlet gaRole = roleManagement_directory_roleDefinitions\n| where displayName == \"Global Administrator\"\n| project gaId = id, k = 1;\nlet ca = identity_conditionalAccess_policies\n| project policy = displayName, state, exUsers = conditions.users.excludeUsers, exGroups = conditions.users.excludeGroups, exRoles = conditions.users.excludeRoles,\n    inUsers = conditions.users.includeUsers, inGroups = conditions.users.includeGroups, inRoles = conditions.users.includeRoles, k = 1;\nunion\n    (ca\n    | join kind=inner (btgGroups | extend k = 1) on k\n    | join kind=leftouter gaRole on k\n    | extend direct = set_has_element(exUsers, userId), viaGroup = array_length(set_intersect(exGroups, groupIds)) > 0,\n        roleOnly = set_has_element(exRoles, gaId)\n    | extend inScope = set_has_element(inUsers, \"All\") or set_has_element(inUsers, userId) or array_length(set_intersect(inGroups, groupIds)) > 0 or set_has_element(inRoles, gaId)\n    | project Category = \"CA\", Check = iff(direct or viaGroup, \"CA.Excluded\", \"CA.NotExcluded\"), Target = strcat(upn, \" | \", policy),\n        Status = case(direct or viaGroup, \"PASS\", state == \"disabled\", \"WARN\", inScope, \"FAIL\", \"WARN\"),\n        Detail = case(direct, \"Excluded directly.\", viaGroup, \"Excluded through a group.\",\n            state == \"disabled\", \"The policy is off but doesn't exclude the account. Fix it before the policy is turned on.\",\n            inScope, strcat(\"[\", state, \"] The account is in scope and not excluded.\"),\n            strcat(\"[\", state, \"] The account isn't targeted now, but isn't excluded either. Exclusion must be explicit.\", iff(roleOnly, \" Only a role exclusion exists, which doesn't count.\", \"\"))))\n| extend Rank = case(Status == \"FAIL\", 0, Status == \"ERROR\", 1, Status == \"WARN\", 2, Status == \"INFO\", 3, 4)\n| order by Rank asc, Category asc, Check asc, Target asc\n| project Category, Check, Target, Status, Detail",
+        "options": null,
+        "parameters": [
+          {
+            "name": "Accounts",
+            "type": "list",
+            "value": "",
+            "required": true,
+            "choices": null
+          }
+        ],
+        "saved": {
+          "id": "btg-conditional-access",
+          "name": "Break glass / Conditional Access exclusions"
+        }
+      },
+      "selection": "none",
+      "tools": [],
+      "in": {
+        "tabs": "wbtgtabs",
+        "tab": "tbtgca"
+      }
+    },
+    {
+      "id": "wbtg06",
+      "type": "table",
+      "title": "Account hygiene",
+      "layout": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 40
+      },
+      "parameters": {},
+      "query": {
+        "source": "graph",
+        "text": "let btg = users\n| where userPrincipalName in~ ({Accounts})\n| project userId = id, upn = userPrincipalName, enabled = coalesce(accountEnabled, false), synced = coalesce(onPremisesSyncEnabled, false), userType, assignedLicenses, passwordPolicies, lastPasswordChangeDateTime, signInActivity, memberOf, ownedObjects;\nlet acct = btg\n| join kind=leftouter (reports_authenticationMethods_userRegistrationDetails | project userId = id, methods = methodsRegistered) on userId\n| extend fidoKeys = iff(isnull(methods), long(null), array_length(set_intersect(methods, dynamic([\"passKeyDeviceBound\"])))),\n    otherMethods = iff(isnull(methods), dynamic(null), set_difference(methods, dynamic([\"passKeyDeviceBound\"])));\nunion\n    (print wanted = {Accounts}\n    | mv-expand typed = wanted to typeof(string)\n    | extend lower = tolower(typed)\n    | join kind=leftanti (btg | project lower = tolower(upn)) on lower\n    | project Category = \"SYS\", Check = \"SYS.ResolveUser\", Target = typed, Status = \"FAIL\", Detail = \"No user has this UPN, so it isn't checked.\"),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.Enabled\", Target = upn, Status = iff(enabled, \"PASS\", \"FAIL\"),\n        Detail = iff(enabled, \"Account is enabled.\", \"Account is disabled. A break-glass account must be usable.\")),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.CloudOnly\", Target = upn, Status = iff(synced, \"FAIL\", \"PASS\"),\n        Detail = iff(synced, \"Synced from on-premises AD. It must be cloud-only, so an on-premises outage or compromise can't touch it.\", \"Cloud-only account.\")),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.UserType\", Target = upn, Status = iff(userType == \"Member\", \"PASS\", \"FAIL\"),\n        Detail = strcat(\"userType is \", userType, iff(userType == \"Member\", \".\", \"; it must be Member.\"))),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.UpnDomain\", Target = upn, Status = iff(upn endswith \".onmicrosoft.com\", \"PASS\", \"WARN\"),\n        Detail = iff(upn endswith \".onmicrosoft.com\", \"UPN is on the *.onmicrosoft.com domain.\", \"UPN is on a custom domain. Prefer *.onmicrosoft.com, so a federation or DNS failure can't block sign-in.\")),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.NoLicense\", Target = upn, Status = iff(array_length(assignedLicenses) > 0, \"WARN\", \"PASS\"),\n        Detail = iff(array_length(assignedLicenses) > 0, strcat(array_length(assignedLicenses), \" license(s) assigned. Break-glass accounts should have none (no mailbox, no data).\"), \"No licenses assigned.\")),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.PwdNeverExpires\", Target = upn, Status = iff(passwordPolicies contains \"DisablePasswordExpiration\", \"PASS\", \"FAIL\"),\n        Detail = iff(passwordPolicies contains \"DisablePasswordExpiration\", \"Password expiration is disabled.\", \"Password can expire. An expired password during an outage locks you out; set DisablePasswordExpiration.\")),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.Fido2Registered\", Target = upn, Status = case(isnull(fidoKeys), \"ERROR\", fidoKeys > 0, \"PASS\", \"FAIL\"),\n        Detail = case(isnull(fidoKeys), \"No registration details for this account (needs Reports Reader and AuditLog.Read.All).\", fidoKeys > 0, \"A FIDO2 security key is registered.\", \"No FIDO2 security key is registered.\")),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.OnlyFido2\", Target = upn, Status = case(isnull(otherMethods), \"ERROR\", array_length(otherMethods) == 0, \"PASS\", \"FAIL\"),\n        Detail = case(isnull(otherMethods), \"No registration details for this account (needs Reports Reader and AuditLog.Read.All).\", array_length(otherMethods) == 0, \"Only FIDO2 security keys are registered.\", strcat(\"Other methods are registered: \", strcat_array(otherMethods, \", \"), \". Remove them so the account can't be phished or SIM-swapped.\"))),\n    (acct | project Category = \"ACCT\", Check = \"ACCT.NoOwnedObjects\", Target = upn, Status = iff(array_length(ownedObjects) > 0, \"WARN\", \"PASS\"),\n        Detail = iff(array_length(ownedObjects) > 0, strcat(\"Owns \", array_length(ownedObjects), \" object(s) (apps or groups). Break-glass accounts should own nothing.\"), \"Owns no directory objects.\")),\n    (acct | where isnotnull(lastPasswordChangeDateTime) | project Category = \"ACCT\", Check = \"ACCT.PasswordAge\", Target = upn, Status = \"INFO\",\n        Detail = strcat(\"Password last changed \", datetime_diff(\"day\", now(), lastPasswordChangeDateTime), \" day(s) ago.\"))\n| extend Rank = case(Status == \"FAIL\", 0, Status == \"ERROR\", 1, Status == \"WARN\", 2, Status == \"INFO\", 3, 4)\n| order by Rank asc, Category asc, Check asc, Target asc\n| project Category, Check, Target, Status, Detail",
+        "options": null,
+        "parameters": [
+          {
+            "name": "Accounts",
+            "type": "list",
+            "value": "",
+            "required": true,
+            "choices": null
+          }
+        ],
+        "saved": {
+          "id": "btg-accounts",
+          "name": "Break glass / Account hygiene"
+        }
+      },
+      "selection": "none",
+      "tools": [],
+      "in": {
+        "tabs": "wbtgtabs",
+        "tab": "tbtgacct"
+      }
+    },
+    {
+      "id": "wbtg07",
+      "type": "table",
+      "title": "Role assignments",
+      "layout": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 40
+      },
+      "parameters": {},
+      "query": {
+        "source": "graph",
+        "text": "let btg = users\n| where userPrincipalName in~ ({Accounts})\n| project userId = id, upn = userPrincipalName, enabled = coalesce(accountEnabled, false), synced = coalesce(onPremisesSyncEnabled, false), userType, assignedLicenses, passwordPolicies, lastPasswordChangeDateTime, signInActivity, memberOf, ownedObjects;\nlet gaRole = roleManagement_directory_roleDefinitions\n| where displayName == \"Global Administrator\"\n| project gaId = id, k = 1;\nlet principals = union\n    (btg | project userId, upn, principalId = userId, via = \"direct\"),\n    (btg | mv-expand g = memberOf | where tostring(g.objectType) == \"group\" | project userId, upn, principalId = tostring(g.id), via = strcat(\"group \", tostring(g.displayName)));\nlet roleNames = roleManagement_directory_roleDefinitions | project roleDefinitionId = id, role = displayName;\nlet active = principals\n| join kind=inner (roleManagement_directory_roleAssignmentScheduleInstances | project principalId, roleDefinitionId, directoryScopeId, assignmentType, endDateTime) on principalId\n| join kind=leftouter roleNames on roleDefinitionId\n| summarize permanentGa = countif(role == \"Global Administrator\" and directoryScopeId == \"/\" and assignmentType == \"Assigned\" and isnull(endDateTime)),\n    anyGa = countif(role == \"Global Administrator\" and directoryScopeId == \"/\"),\n    gaVia = make_set_if(via, role == \"Global Administrator\" and directoryScopeId == \"/\"),\n    extra = make_set_if(role, role != \"Global Administrator\") by userId;\nlet eligible = principals\n| join kind=inner (roleManagement_directory_roleEligibilityScheduleInstances | project principalId, roleDefinitionId) on principalId\n| join kind=leftouter roleNames on roleDefinitionId\n| summarize eligibleRoles = make_set(role) by userId;\nlet roles = btg\n| project userId, upn\n| join kind=leftouter active on userId\n| join kind=leftouter eligible on userId\n| extend permanentGa = coalesce(permanentGa, 0), anyGa = coalesce(anyGa, 0), extra = coalesce(extra, dynamic([])), eligibleRoles = coalesce(eligibleRoles, dynamic([]));\nunion\n    (roles | project Category = \"ROLE\", Check = \"ROLE.GlobalAdminPermanent\", Target = upn, Status = iff(permanentGa > 0, \"PASS\", \"FAIL\"),\n        Detail = case(permanentGa > 0, strcat(\"Permanent active Global Administrator (\", strcat_array(gaVia, \", \"), \").\"),\n            anyGa > 0, \"Global Administrator is active but time-bound or activated through PIM. It must be permanent: PIM may be unavailable in the emergency.\",\n            \"No active tenant-wide Global Administrator assignment.\")),\n    (roles | project Category = \"ROLE\", Check = \"ROLE.NoEligible\", Target = upn, Status = iff(array_length(eligibleRoles) > 0, \"FAIL\", \"PASS\"),\n        Detail = iff(array_length(eligibleRoles) > 0, strcat(\"PIM-eligible for: \", strcat_array(eligibleRoles, \", \"), \". Break-glass accounts must not depend on PIM activation.\"), \"No PIM-eligible assignments.\")),\n    (roles | project Category = \"ROLE\", Check = \"ROLE.OnlyGlobalAdmin\", Target = upn, Status = iff(array_length(extra) > 0, \"WARN\", \"PASS\"),\n        Detail = iff(array_length(extra) > 0, strcat(\"Also holds: \", strcat_array(extra, \", \"), \". Global Administrator alone is enough.\"), \"Holds only Global Administrator.\"))\n| extend Rank = case(Status == \"FAIL\", 0, Status == \"ERROR\", 1, Status == \"WARN\", 2, Status == \"INFO\", 3, 4)\n| order by Rank asc, Category asc, Check asc, Target asc\n| project Category, Check, Target, Status, Detail",
+        "options": null,
+        "parameters": [
+          {
+            "name": "Accounts",
+            "type": "list",
+            "value": "",
+            "required": true,
+            "choices": null
+          }
+        ],
+        "saved": {
+          "id": "btg-roles",
+          "name": "Break glass / Role assignments"
+        }
+      },
+      "selection": "none",
+      "tools": [],
+      "in": {
+        "tabs": "wbtgtabs",
+        "tab": "tbtgrole"
+      }
+    },
+    {
+      "id": "wbtg08",
+      "type": "table",
+      "title": "Group posture",
+      "layout": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 40
+      },
+      "parameters": {},
+      "query": {
+        "source": "graph",
+        "text": "let btg = users\n| where userPrincipalName in~ ({Accounts})\n| project userId = id, upn = userPrincipalName, enabled = coalesce(accountEnabled, false), synced = coalesce(onPremisesSyncEnabled, false), userType, assignedLicenses, passwordPolicies, lastPasswordChangeDateTime, signInActivity, memberOf, ownedObjects;\nlet ca = identity_conditionalAccess_policies\n| project policy = displayName, state, exUsers = conditions.users.excludeUsers, exGroups = conditions.users.excludeGroups, exRoles = conditions.users.excludeRoles,\n    inUsers = conditions.users.includeUsers, inGroups = conditions.users.includeGroups, inRoles = conditions.users.includeRoles, k = 1;\nlet grp = groups\n| where displayName in~ ({BtgGroups})\n| project groupId = id, group = displayName, assignable = coalesce(isAssignableToRole, false), groupTypes, membershipRule, synced = coalesce(onPremisesSyncEnabled, false),\n    security = coalesce(securityEnabled, false), mail = coalesce(mailEnabled, false), owners, members;\nlet grpMembers = grp\n| mv-expand m = members\n| project groupId, group, type = tostring(m.objectType), name = tostring(m.displayName), memberUpn = tostring(m.userPrincipalName);\nunion\n    (grp | project Category = \"GRP\", Check = \"GRP.RoleAssignable\", Target = group, Status = iff(assignable, \"PASS\", \"FAIL\"),\n        Detail = iff(assignable, \"Role-assignable: only a Privileged Role Administrator or Global Administrator can change its members.\", \"Not role-assignable. A Groups Administrator or an owner could add themselves and inherit the Conditional Access exclusion.\")),\n    (grp | project Category = \"GRP\", Check = \"GRP.StaticMembership\", Target = group, Status = iff(set_has_element(groupTypes, \"DynamicMembership\") or isnotempty(membershipRule), \"FAIL\", \"PASS\"),\n        Detail = iff(set_has_element(groupTypes, \"DynamicMembership\") or isnotempty(membershipRule), strcat(\"Dynamic membership (\", membershipRule, \"). Changing an attribute could add an account to the exclusion.\"), \"Assigned (static) membership.\")),\n    (grp | project Category = \"GRP\", Check = \"GRP.CloudOnly\", Target = group, Status = iff(synced, \"FAIL\", \"PASS\"),\n        Detail = iff(synced, \"Synced from on-premises AD, so its members can be changed there.\", \"Cloud-only group.\")),\n    (grp | where not(security) or mail | project Category = \"GRP\", Check = \"GRP.SecurityGroup\", Target = group, Status = \"WARN\",\n        Detail = strcat(\"securityEnabled is \", security, \", mailEnabled is \", mail, \". Expect a plain security group.\")),\n    (grp | project Category = \"GRP\", Check = \"GRP.NoOwners\", Target = group, Status = iff(array_length(owners) > 0, \"WARN\", \"PASS\"),\n        Detail = iff(array_length(owners) > 0, strcat(array_length(owners), \" owner(s). Owners can change its members; prefer none, managed by Global Administrators.\"), \"No owners.\")),\n    (grp\n    | join kind=leftouter (grpMembers | summarize nonUsers = make_set_if(name, type != \"user\") by groupId) on groupId\n    | extend nonUsers = coalesce(nonUsers, dynamic([]))\n    | project Category = \"GRP\", Check = \"GRP.OnlyUsers\", Target = group, Status = iff(array_length(nonUsers) > 0, \"FAIL\", \"PASS\"),\n        Detail = iff(array_length(nonUsers) > 0, strcat(\"Has members that aren't users (nested groups, service principals or devices): \", strcat_array(nonUsers, \", \"), \".\"), \"Every member is a user.\")),\n    (grpMembers\n    | where type == \"user\"\n    | join kind=leftanti (btg | project memberUpn = upn) on memberUpn\n    | project Category = \"GRP\", Check = \"GRP.UnexpectedMember\", Target = strcat(group, \" | \", memberUpn), Status = \"WARN\",\n        Detail = \"A member of the group that isn't in Accounts. It inherits the group's exclusions: add it to Accounts or remove it from the group.\"),\n    (ca\n    | where state != \"disabled\"\n    | join kind=inner (grp | project groupId, group, k = 1) on k\n    | where not(set_has_element(exGroups, groupId))\n    | project Category = \"CA\", Check = \"CA.GroupNotExcluded\", Target = strcat(group, \" | \", policy), Status = \"WARN\",\n        Detail = \"The break-glass group isn't in the policy's excluded groups (its accounts may still be excluded one by one).\")\n| extend Rank = case(Status == \"FAIL\", 0, Status == \"ERROR\", 1, Status == \"WARN\", 2, Status == \"INFO\", 3, 4)\n| order by Rank asc, Category asc, Check asc, Target asc\n| project Category, Check, Target, Status, Detail",
+        "options": null,
+        "parameters": [
+          {
+            "name": "Accounts",
+            "type": "list",
+            "value": "",
+            "required": true,
+            "choices": null
+          },
+          {
+            "name": "BtgGroups",
+            "type": "list",
+            "value": "",
+            "required": false,
+            "choices": null
+          }
+        ],
+        "saved": {
+          "id": "btg-groups",
+          "name": "Break glass / Group posture"
+        }
+      },
+      "selection": "none",
+      "tools": [],
+      "in": {
+        "tabs": "wbtgtabs",
+        "tab": "tbtggrp"
+      }
+    },
+    {
+      "id": "wbtg09",
+      "type": "table",
+      "title": "Sign-in activity",
+      "layout": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 40
+      },
+      "parameters": {},
+      "query": {
+        "source": "graph",
+        "text": "let btg = users\n| where userPrincipalName in~ ({Accounts})\n| project userId = id, upn = userPrincipalName, enabled = coalesce(accountEnabled, false), synced = coalesce(onPremisesSyncEnabled, false), userType, assignedLicenses, passwordPolicies, lastPasswordChangeDateTime, signInActivity, memberOf, ownedObjects;\nlet use = btg\n| extend interactive = todatetime(signInActivity.lastSignInDateTime), nonInteractive = todatetime(signInActivity.lastNonInteractiveSignInDateTime);\nunion\n    (use | project Category = \"USE\", Check = \"USE.NoSignIns\", Target = upn,\n        Status = case(isnull(signInActivity), \"ERROR\", coalesce(interactive > ago({Lookback}), false) or coalesce(nonInteractive > ago({Lookback}), false), \"FAIL\", \"PASS\"),\n        Detail = case(isnull(signInActivity), \"Sign-in activity couldn't be read (needs Entra ID P1 and AuditLog.Read.All).\",\n            coalesce(interactive > ago({Lookback}), false) or coalesce(nonInteractive > ago({Lookback}), false), strcat(\"Signed in within the period (last interactive: \", iff(isnull(interactive), \"never\", format_datetime(interactive, \"yyyy-MM-dd HH:mm\")), \", last non-interactive: \", iff(isnull(nonInteractive), \"never\", format_datetime(nonInteractive, \"yyyy-MM-dd HH:mm\")), \"). Every break-glass sign-in must be accounted for: a planned test or an incident.\"),\n            strcat(\"No sign-ins within the period. Last interactive sign-in: \", iff(isnull(interactive), \"never\", format_datetime(interactive, \"yyyy-MM-dd HH:mm\")), \".\")))\n| extend Rank = case(Status == \"FAIL\", 0, Status == \"ERROR\", 1, Status == \"WARN\", 2, Status == \"INFO\", 3, 4)\n| order by Rank asc, Category asc, Check asc, Target asc\n| project Category, Check, Target, Status, Detail",
+        "options": null,
+        "parameters": [
+          {
+            "name": "Accounts",
+            "type": "list",
+            "value": "",
+            "required": true,
+            "choices": null
+          },
+          {
+            "name": "Lookback",
+            "type": "timespan",
+            "value": "30d",
+            "required": true,
+            "choices": [
+              "7d",
+              "14d",
+              "30d",
+              "90d"
+            ]
+          }
+        ],
+        "saved": {
+          "id": "btg-sign-ins",
+          "name": "Break glass / Sign-in activity"
+        }
+      },
+      "selection": "none",
+      "tools": [],
+      "in": {
+        "tabs": "wbtgtabs",
+        "tab": "tbtguse"
+      }
+    },
+    {
+      "id": "wbtg10",
+      "type": "table",
+      "title": "Tenant guardrails",
+      "layout": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 40
+      },
+      "parameters": {},
+      "query": {
+        "source": "graph",
+        "text": "let btg = users\n| where userPrincipalName in~ ({Accounts})\n| project userId = id, upn = userPrincipalName, enabled = coalesce(accountEnabled, false), synced = coalesce(onPremisesSyncEnabled, false), userType, assignedLicenses, passwordPolicies, lastPasswordChangeDateTime, signInActivity, memberOf, ownedObjects;\nlet btgGroups = btg\n| project userId, upn\n| join kind=leftouter (btg | mv-expand g = memberOf | where tostring(g.objectType) == \"group\" | summarize groupIds = make_set(tostring(g.id)) by userId) on userId\n| project userId, upn, groupIds = coalesce(groupIds, dynamic([]));\nlet premium = subscribedSkus\n| where capabilityStatus == \"Enabled\"\n| mv-expand plan = servicePlans\n| where tostring(plan.servicePlanName) in (\"AAD_PREMIUM\", \"AAD_PREMIUM_P2\")\n| summarize plans = count();\nlet fido = policies_authenticationMethodsPolicy_authenticationMethodConfigurations\n| where id == \"Fido2\"\n| project state, excludeTargets, includeTargets, keyRestrictions;\nunion\n    (btg | summarize accounts = count() | project Category = \"TNT\", Check = \"TNT.AccountCount\", Target = \"tenant\", Status = iff(accounts < 2, \"FAIL\", \"PASS\"),\n        Detail = iff(accounts < 2, strcat(\"Only \", accounts, \" break-glass account(s) found. Microsoft recommends at least two, with credentials kept in separate places.\"), strcat(accounts, \" break-glass accounts.\"))),\n    (premium | project Category = \"TNT\", Check = \"TNT.EntraPremium\", Target = \"tenant\", Status = iff(plans > 0, \"PASS\", \"WARN\"),\n        Detail = iff(plans > 0, \"Entra ID P1 or P2 is present, so Conditional Access is licensed.\", \"No Entra ID P1 or P2 service plan found; Conditional Access may be unlicensed.\")),\n    (fido\n    | extend k = 1\n    | join kind=leftouter (fido | mv-expand target = includeTargets | summarize includedIds = make_set(tostring(target.id)) | extend k = 1) on k\n    | join kind=inner (btgGroups | extend k = 1) on k\n    | extend includedIds = coalesce(includedIds, dynamic([])), enabled = state == \"enabled\"\n    | extend all = set_has_element(includedIds, \"all_users\"), direct = set_has_element(includedIds, userId),\n        viaGroup = array_length(set_intersect(includedIds, groupIds)) > 0\n    | project Category = \"TNT\", Check = \"TNT.Fido2MethodEnabled\", Target = upn, Status = iff(enabled and (all or direct or viaGroup), \"PASS\", \"FAIL\"),\n        Detail = case(not(enabled), strcat(\"The FIDO2 security key method is \", state, \".\"),\n            all, \"The FIDO2 security key method is enabled for all users.\",\n            direct, \"The FIDO2 security key method is enabled and targets the account directly.\",\n            viaGroup, \"The FIDO2 security key method is enabled for a group the account is in.\",\n            \"The FIDO2 security key method is enabled, but not for the account or any group it is in, so it can't register or use a key.\")),\n    (fido\n    | mv-expand target = excludeTargets\n    | project excludedId = tostring(target.id), k = 1\n    | join kind=inner (btgGroups | extend k = 1) on k\n    | where excludedId == userId or set_has_element(groupIds, excludedId)\n    | project Category = \"TNT\", Check = \"TNT.Fido2NotExcluded\", Target = upn, Status = \"FAIL\",\n        Detail = \"The account, or a group it is in, is excluded from the FIDO2 method, so it can't sign in with its key.\"),\n    (fido\n    | where tobool(keyRestrictions.isEnforced) and tostring(keyRestrictions.enforcementType) == \"allow\"\n    | project Category = \"TNT\", Check = \"TNT.Fido2KeyRestriction\", Target = \"tenant\", Status = \"INFO\",\n        Detail = strcat(\"Only allowed key models can register (AAGUIDs: \", strcat_array(keyRestrictions.aaGuids, \", \"), \"). Check that each break-glass key's model is on the list.\"))\n| extend Rank = case(Status == \"FAIL\", 0, Status == \"ERROR\", 1, Status == \"WARN\", 2, Status == \"INFO\", 3, 4)\n| order by Rank asc, Category asc, Check asc, Target asc\n| project Category, Check, Target, Status, Detail",
+        "options": null,
+        "parameters": [
+          {
+            "name": "Accounts",
+            "type": "list",
+            "value": "",
+            "required": true,
+            "choices": null
+          }
+        ],
+        "saved": {
+          "id": "btg-tenant",
+          "name": "Break glass / Tenant guardrails"
+        }
+      },
+      "selection": "none",
+      "tools": [],
+      "in": {
+        "tabs": "wbtgtabs",
+        "tab": "tbtgtnt"
+      }
+    }
+  ]
+}

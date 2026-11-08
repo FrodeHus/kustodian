@@ -175,9 +175,9 @@ value, else the parameter's default. A required parameter with no value stops th
 the other widgets still run.
 
 **Parameters** (in edit mode) opens the workbook's parameters: name, label, type (text, number, timespan, datetime or list),
-choices, default and required. The dialog shows which widgets use each parameter and flags unused ones. A list with choices
-can allow several values, and can offer **All**, which sends every choice. **Remember my last value** keeps your pick on this
-computer, outside the workbook. A timespan can be marked as the Defender hunting timespan: hunting widgets then use it
+choices, default and required. The dialog shows which widgets use each parameter and flags unused ones. A list without
+choices takes several values, one per line. A list with choices can allow several values, and can offer **All**, which
+sends every choice. **Remember my last value** keeps your pick on this computer, outside the workbook. A timespan can be marked as the Defender hunting timespan: hunting widgets then use it
 (converted to the form the API takes, at most 30 days) unless they set it themselves.
 
 Change a workbook parameter in the bar under the toolbar and only the widgets that use it rerun. A text parameter reruns when

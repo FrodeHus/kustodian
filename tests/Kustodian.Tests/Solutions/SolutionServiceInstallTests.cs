@@ -14,8 +14,8 @@ namespace Kustodian.Tests.Solutions;
 /// <summary>Install and uninstall against the repo's own sample solution, served from a fake GitHub.</summary>
 public sealed class SolutionServiceInstallTests : IDisposable
 {
-    private const string Id = "entra-risky-users";
-    private const string Folder = "Entra risky users";
+    private const string Id = "entra-id";
+    private const string Folder = "Entra ID";
     private const string IndexUrl = SolutionService.BaseUrl + "index.json";
     private static readonly string SolutionsDir = Path.Combine(FindRoot(), "Solutions");
 
@@ -65,7 +65,7 @@ public sealed class SolutionServiceInstallTests : IDisposable
         return dir?.FullName ?? throw new InvalidOperationException("Kustodian.slnx not found above the test output.");
     }
 
-    private SolutionService Service(string appVersion = "1.0.0")
+    private SolutionService Service(string appVersion = "1.1.0")
     {
         var http = new HttpClient(new Handler(url =>
         {
@@ -106,6 +106,14 @@ public sealed class SolutionServiceInstallTests : IDisposable
 
     private static HashSet<string> Set(params string[] ids) => [.. ids];
 
+    /// <summary>The items an install skips: <paramref name="ids"/>, and every part but the risky-users one, which the tests
+    /// use as their sample (two queries, the second linked from the workbook's third widget).</summary>
+    private static HashSet<string> Skip(params string[] ids) =>
+    [
+        .. ids, "btg-findings", "btg-conditional-access", "btg-accounts", "btg-roles", "btg-groups", "btg-sign-ins", "btg-tenant",
+        "mfa-by-company", "users-missing-passkey", "break-glass-compliance", "mfa-adoption",
+    ];
+
     private string InstalledPath => Path.Combine(_dir, "solutions.json");
 
     private string[] SavedFiles() =>
@@ -125,7 +133,7 @@ public sealed class SolutionServiceInstallTests : IDisposable
     {
         var svc = Service();
 
-        var installed = await svc.InstallAsync(Id, Set(), Ct);
+        var installed = await svc.InstallAsync(Id, Skip(), Ct);
 
         var queries = (await _library.ListAsync(Ct)).Queries;
         Assert.Equal(2, queries.Count);
@@ -134,23 +142,23 @@ public sealed class SolutionServiceInstallTests : IDisposable
             Assert.Equal(Folder, q.Folder);
             Assert.True(Guid.TryParseExact(q.Id, "D", out _));
             var itemId = q.Origin!.ItemId;
-            Assert.Equal(new SolutionOrigin(Id, "1.0.0", itemId, SolutionHash.Sha256(_files[$"queries/{itemId}.json"]),
+            Assert.Equal(new SolutionOrigin(Id, "1.1.0", itemId, SolutionHash.Sha256(_files[$"queries/{itemId}.json"]),
                 SolutionHash.Query(InputOf(q))), q.Origin);
         }
 
         var riskyUsers = queries.Single(q => q.Origin!.ItemId == "risky-users");
         var summary = Assert.Single((await _workbooks.ListAsync(Ct)).Workbooks);
         Assert.Equal(Folder, summary.Folder);
-        Assert.NotEqual(FileJson("workbooks/weekly-review.json")["id"]!.GetValue<string>(), summary.Id);
+        Assert.NotEqual(FileJson("workbooks/risky-users-review.json")["id"]!.GetValue<string>(), summary.Id);
         var wb = (await _workbooks.GetAsync(summary.Id, Ct))!;
         var saved = wb["widgets"]![2]!["query"]!["saved"]!;
         Assert.Equal(riskyUsers.Id, saved["id"]!.GetValue<string>());
         Assert.Equal(riskyUsers.Name, saved["name"]!.GetValue<string>());
-        Assert.Equal(new SolutionOrigin(Id, "1.0.0", "weekly-review", SolutionHash.Sha256(_files["workbooks/weekly-review.json"]),
+        Assert.Equal(new SolutionOrigin(Id, "1.1.0", "risky-users-review", SolutionHash.Sha256(_files["workbooks/risky-users-review.json"]),
             SolutionHash.Workbook(wb)), wb["origin"].Deserialize<SolutionOrigin>(JsonFileStore.Options));
 
         var expected = queries.Select(q => new InstalledItem("query", q.Origin!.ItemId, q.Id))
-            .Append(new InstalledItem("workbook", "weekly-review", summary.Id)).OrderBy(i => i.ItemId).ToList();
+            .Append(new InstalledItem("workbook", "risky-users-review", summary.Id)).OrderBy(i => i.ItemId).ToList();
         Assert.Equal(expected, installed.Items.OrderBy(i => i.ItemId));
         var file = JsonNode.Parse(await File.ReadAllTextAsync(InstalledPath, Ct))!;
         Assert.Equal(1, file["version"]!.GetValue<int>());
@@ -158,13 +166,13 @@ public sealed class SolutionServiceInstallTests : IDisposable
         Assert.Equal(expected, listed.Items.OrderBy(i => i.ItemId));
         Assert.Equal(_time.GetUtcNow(), listed.InstalledAt);
 
-        Assert.Equal("1.0.0", (await svc.ListAsync(false, Ct)).Solutions.Single(s => s.Manifest.Id == "entra-risky-users").InstalledVersion);
+        Assert.Equal("1.1.0", (await svc.ListAsync(false, Ct)).Solutions.Single(s => s.Manifest.Id == Id).InstalledVersion);
     }
 
     [Fact]
     public async Task InstallSkipsItems()
     {
-        var installed = await Service().InstallAsync(Id, Set("risky-signins"), Ct);
+        var installed = await Service().InstallAsync(Id, Skip("risky-signins"), Ct);
 
         Assert.Equal("risky-users", Assert.Single((await _library.ListAsync(Ct)).Queries).Origin!.ItemId);
         Assert.DoesNotContain(installed.Items, i => i.ItemId == "risky-signins");
@@ -174,7 +182,7 @@ public sealed class SolutionServiceInstallTests : IDisposable
     [Fact]
     public async Task InstallSkippedLinkedQueryCopiesIntoWidget()
     {
-        await Service().InstallAsync(Id, Set("risky-users"), Ct);
+        await Service().InstallAsync(Id, Skip("risky-users"), Ct);
 
         var summary = Assert.Single((await _workbooks.ListAsync(Ct)).Workbooks);
         var query = (await _workbooks.GetAsync(summary.Id, Ct))!["widgets"]![2]!["query"]!;
@@ -190,7 +198,7 @@ public sealed class SolutionServiceInstallTests : IDisposable
         tampered["text"] = "users";
         _files["queries/risky-signins.json"] = Bytes(tampered);
 
-        var ex = await Assert.ThrowsAsync<SolutionRejectedException>(() => Service().InstallAsync(Id, Set(), Ct));
+        var ex = await Assert.ThrowsAsync<SolutionRejectedException>(() => Service().InstallAsync(Id, Skip(), Ct));
 
         Assert.Equal("The download didn't match the catalog. Try again later.", ex.Message);
         await AssertNothingWritten();
@@ -203,7 +211,7 @@ public sealed class SolutionServiceInstallTests : IDisposable
         Directory.CreateDirectory(_dir);
         await File.WriteAllTextAsync(Path.Combine(_dir, WorkbookService.Folder), "", Ct);
 
-        await Assert.ThrowsAnyAsync<IOException>(() => Service().InstallAsync(Id, Set(), Ct));
+        await Assert.ThrowsAnyAsync<IOException>(() => Service().InstallAsync(Id, Skip(), Ct));
 
         Assert.Empty(SavedFiles());
         Assert.False(File.Exists(InstalledPath));
@@ -212,16 +220,16 @@ public sealed class SolutionServiceInstallTests : IDisposable
     [Fact]
     public async Task RefusedWorkbookWritesNothing()
     {
-        var wb = FileJson("workbooks/weekly-review.json");
+        var wb = FileJson("workbooks/risky-users-review.json");
         var widgets = wb["widgets"]!.AsArray();
         while (widgets.Count <= WorkbookService.MaxWidgets)
         {
             widgets.Add(widgets[0]!.DeepClone());
         }
 
-        Publish("workbooks/weekly-review.json", Bytes(wb));
+        Publish("workbooks/risky-users-review.json", Bytes(wb));
 
-        var ex = await Assert.ThrowsAsync<SolutionRejectedException>(() => Service().InstallAsync(Id, Set(), Ct));
+        var ex = await Assert.ThrowsAsync<SolutionRejectedException>(() => Service().InstallAsync(Id, Skip(), Ct));
 
         Assert.Contains("at most 100 widgets", ex.Message);
         await AssertNothingWritten();
@@ -231,9 +239,9 @@ public sealed class SolutionServiceInstallTests : IDisposable
     public async Task InstallTwiceIsRefused()
     {
         var svc = Service();
-        await svc.InstallAsync(Id, Set(), Ct);
+        await svc.InstallAsync(Id, Skip(), Ct);
 
-        var ex = await Assert.ThrowsAsync<SolutionRejectedException>(() => svc.InstallAsync(Id, Set(), Ct));
+        var ex = await Assert.ThrowsAsync<SolutionRejectedException>(() => svc.InstallAsync(Id, Skip(), Ct));
 
         Assert.Equal("This solution is already installed.", ex.Message);
         Assert.Equal(2, SavedFiles().Length);
@@ -243,12 +251,12 @@ public sealed class SolutionServiceInstallTests : IDisposable
     public async Task IncompatibleIsRefused()
     {
         var manifest = FileJson("solution.json");
-        manifest["minAppVersion"] = "1.1.0";
+        manifest["minAppVersion"] = "1.2.0";
         Publish("solution.json", Bytes(manifest));
 
-        var ex = await Assert.ThrowsAsync<SolutionRejectedException>(() => Service("1.0.0").InstallAsync(Id, Set(), Ct));
+        var ex = await Assert.ThrowsAsync<SolutionRejectedException>(() => Service("1.1.0").InstallAsync(Id, Skip(), Ct));
 
-        Assert.Equal("Needs Kustodian 1.1.0", ex.Message);
+        Assert.Equal("Needs Kustodian 1.2.0", ex.Message);
         await AssertNothingWritten();
     }
 
@@ -256,7 +264,7 @@ public sealed class SolutionServiceInstallTests : IDisposable
     public async Task UninstallRemovesUnmodifiedAndAsks()
     {
         var svc = Service();
-        await svc.InstallAsync(Id, Set(), Ct);
+        await svc.InstallAsync(Id, Skip(), Ct);
         var edited = (await _library.ListAsync(Ct)).Queries.Single(q => q.Origin!.ItemId == "risky-users");
         await _library.SaveAsync(InputOf(edited) with { Text = edited.Text + "\n| take 10", Name = "Mine" }, Ct);
         var workbookId = Assert.Single((await _workbooks.ListAsync(Ct)).Workbooks).Id;
@@ -277,21 +285,21 @@ public sealed class SolutionServiceInstallTests : IDisposable
         Assert.Empty(await _history.SeriesAsync(workbookId, "w1", Ct));
         var file = JsonNode.Parse(await File.ReadAllTextAsync(InstalledPath, Ct))!;
         Assert.Empty(file["installed"]!.AsArray());
-        Assert.Null((await svc.ListAsync(false, Ct)).Solutions.Single(s => s.Manifest.Id == "entra-risky-users").InstalledVersion);
+        Assert.Null((await svc.ListAsync(false, Ct)).Solutions.Single(s => s.Manifest.Id == Id).InstalledVersion);
     }
 
     [Fact]
     public async Task UninstallKeepsAModifiedWorkbookWithoutOrigin()
     {
         var svc = Service();
-        await svc.InstallAsync(Id, Set(), Ct);
+        await svc.InstallAsync(Id, Skip(), Ct);
         var summary = Assert.Single((await _workbooks.ListAsync(Ct)).Workbooks);
         var wb = (await _workbooks.GetAsync(summary.Id, Ct))!;
         wb.Remove("origin");
         wb["widgets"]!.AsArray().RemoveAt(0);
         await _workbooks.SaveAsync(wb, Ct);
 
-        Assert.Equal([new InstalledItem("workbook", "weekly-review", summary.Id)], await svc.ModifiedAsync(Id, Ct));
+        Assert.Equal([new InstalledItem("workbook", "risky-users-review", summary.Id)], await svc.ModifiedAsync(Id, Ct));
 
         await svc.UninstallAsync(Id, Set(summary.Id), Ct);
 
@@ -303,7 +311,7 @@ public sealed class SolutionServiceInstallTests : IDisposable
     public async Task UninstallNeverDeletesAModifiedItem()
     {
         var svc = Service();
-        await svc.InstallAsync(Id, Set(), Ct);
+        await svc.InstallAsync(Id, Skip(), Ct);
         var edited = (await _library.ListAsync(Ct)).Queries.Single(q => q.Origin!.ItemId == "risky-users");
         await _library.SaveAsync(InputOf(edited) with { Text = edited.Text + "\n| take 10" }, Ct);
         var summary = Assert.Single((await _workbooks.ListAsync(Ct)).Workbooks);
@@ -325,7 +333,7 @@ public sealed class SolutionServiceInstallTests : IDisposable
     public async Task UninstallSkipsMissing()
     {
         var svc = Service();
-        await svc.InstallAsync(Id, Set(), Ct);
+        await svc.InstallAsync(Id, Skip(), Ct);
         var gone = (await _library.ListAsync(Ct)).Queries.Single(q => q.Origin!.ItemId == "risky-signins");
         await _library.DeleteAsync(gone.Id, Ct);
 
@@ -345,11 +353,11 @@ public sealed class SolutionServiceInstallTests : IDisposable
         await File.WriteAllTextAsync(InstalledPath, "{ not json", Ct);
         var svc = Service();
 
-        Assert.Null((await svc.ListAsync(false, Ct)).Solutions.Single(s => s.Manifest.Id == "entra-risky-users").InstalledVersion);
+        Assert.Null((await svc.ListAsync(false, Ct)).Solutions.Single(s => s.Manifest.Id == Id).InstalledVersion);
         Assert.True(File.Exists(InstalledPath + ".corrupt"));
 
-        await svc.InstallAsync(Id, Set(), Ct);
-        Assert.Equal("1.0.0", (await svc.ListAsync(false, Ct)).Solutions.Single(s => s.Manifest.Id == "entra-risky-users").InstalledVersion);
+        await svc.InstallAsync(Id, Skip(), Ct);
+        Assert.Equal("1.1.0", (await svc.ListAsync(false, Ct)).Solutions.Single(s => s.Manifest.Id == Id).InstalledVersion);
     }
 
     /// <summary>Takes the solution out of the index, as a withdrawal upstream would.</summary>
@@ -363,7 +371,7 @@ public sealed class SolutionServiceInstallTests : IDisposable
     public async Task OfflineAnInstalledSolutionStillOpensAndUninstalls()
     {
         var svc = Service();
-        await svc.InstallAsync(Id, Set(), Ct);
+        await svc.InstallAsync(Id, Skip(), Ct);
         _time.Advance(TimeSpan.FromHours(2));
         _down = true;
 
@@ -380,13 +388,13 @@ public sealed class SolutionServiceInstallTests : IDisposable
     public async Task OfflineWithoutACacheAnInstalledSolutionStillOpens()
     {
         var svc = Service();
-        await svc.InstallAsync(Id, Set(), Ct);
+        await svc.InstallAsync(Id, Skip(), Ct);
         File.Delete(Path.Combine(_dir, "solution-cache", "index.json"));
         _down = true;
 
         var (manifest, readme) = await svc.GetAsync(Id, Ct);
 
-        Assert.Equal("Entra risky users", manifest.Name);
+        Assert.Equal("Entra ID", manifest.Name);
         Assert.Equal("", readme);
     }
 
@@ -394,14 +402,14 @@ public sealed class SolutionServiceInstallTests : IDisposable
     public async Task AWithdrawnSolutionIsListedFromItsSnapshotAndUninstalls()
     {
         var svc = Service();
-        await svc.InstallAsync(Id, Set(), Ct);
+        await svc.InstallAsync(Id, Skip(), Ct);
         var snapshot = _index.Solutions.Single(e => e.Manifest.Id == Id).Manifest;
         Withdraw();
 
         var item = (await svc.ListAsync(true, Ct)).Solutions.Single(s => s.Manifest.Id == Id);
         Assert.Equal(snapshot.Name, item.Manifest.Name);
         Assert.Equal(snapshot.Content.Queries, item.Manifest.Content.Queries);
-        Assert.Equal("1.0.0", item.InstalledVersion);
+        Assert.Equal("1.1.0", item.InstalledVersion);
         Assert.True(item.Compatible);
 
         var (manifest, readme) = await svc.GetAsync(Id, Ct);

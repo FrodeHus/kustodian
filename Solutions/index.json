@@ -74,10 +74,10 @@
     {
       "manifest": {
         "version": 1,
-        "id": "entra-risky-users",
-        "name": "Entra risky users",
-        "solutionVersion": "1.0.0",
-        "description": "Risky users from Microsoft Entra ID Protection, with their recent sign-ins, and a weekly review workbook.",
+        "id": "entra-id",
+        "name": "Entra ID",
+        "solutionVersion": "1.1.0",
+        "description": "Microsoft Entra ID reviews: break-glass account compliance, risky users and their sign-ins, and MFA and passkey adoption.",
         "author": "Kustodian",
         "support": "kustodian",
         "categories": [
@@ -87,24 +87,43 @@
         "sources": [
           "graph"
         ],
-        "minAppVersion": "1.0.0",
+        "minAppVersion": "1.1.0",
         "requires": {
           "graph": [
-            "IdentityRiskyUser.Read.All"
+            "AuditLog.Read.All",
+            "Directory.Read.All",
+            "IdentityRiskyUser.Read.All",
+            "Policy.Read.All",
+            "RoleManagement.Read.Directory",
+            "User.Read.All"
           ],
-          "roles": null,
+          "roles": [
+            "Global Reader"
+          ],
           "licenses": [
+            "AAD_PREMIUM",
             "AAD_PREMIUM_P2"
           ],
           "azure": null
         },
         "content": {
           "queries": [
+            "btg-findings",
+            "btg-conditional-access",
+            "btg-accounts",
+            "btg-roles",
+            "btg-groups",
+            "btg-sign-ins",
+            "btg-tenant",
             "risky-users",
-            "risky-signins"
+            "risky-signins",
+            "mfa-by-company",
+            "users-missing-passkey"
           ],
           "workbooks": [
-            "weekly-review"
+            "break-glass-compliance",
+            "risky-users-review",
+            "mfa-adoption"
           ],
           "tools": []
         }
@@ -112,8 +131,48 @@
       "files": [
         {
           "path": "README.md",
-          "sha256": "4ec3374c19513650bfd967084828626437af02f88a4d0c821cc46660e99997f8",
-          "size": 499
+          "sha256": "146dfa554d49c61dd581a586a009621e09d9cbf85439ae221005bfb537c5b56c",
+          "size": 5347
+        },
+        {
+          "path": "queries/btg-accounts.json",
+          "sha256": "9ac89f28058790438486bfe84cd85341f1867c4773de60ea9176f0ae45719700",
+          "size": 5094
+        },
+        {
+          "path": "queries/btg-conditional-access.json",
+          "sha256": "1c78b3f063c2fecc881f7455e16f346766b7597aca2106646b38dc4bfd725c32",
+          "size": 2822
+        },
+        {
+          "path": "queries/btg-findings.json",
+          "sha256": "4ebc95c1ba004c5b7f4bd30bf67ffdfa1d899a982ee9fa6c65b127e9512f433e",
+          "size": 14561
+        },
+        {
+          "path": "queries/btg-groups.json",
+          "sha256": "c0a0ddc44dbf037cba8f12ebd4c98d196391e95a1463ce82d2a75bf20e49600f",
+          "size": 4876
+        },
+        {
+          "path": "queries/btg-roles.json",
+          "sha256": "f13bf8ec1de59c33fbcfe68d6655ecf4fc070eca9dfb9fc33a86620b3309e10c",
+          "size": 3794
+        },
+        {
+          "path": "queries/btg-sign-ins.json",
+          "sha256": "91d9502d2dc6b72130109d89f9f1f95c54784fb1df18b50eec4e7901a95e1e42",
+          "size": 2213
+        },
+        {
+          "path": "queries/btg-tenant.json",
+          "sha256": "ca4db4be69203a6053c42d6665e56360cc3484f16d51d2357b6f3b5ee56dbef3",
+          "size": 4282
+        },
+        {
+          "path": "queries/mfa-by-company.json",
+          "sha256": "ad51e165d93f1de6c9eabc9146f1433a9d185e894a97b05c52353264b6c421ac",
+          "size": 1251
         },
         {
           "path": "queries/risky-signins.json",
@@ -126,83 +185,29 @@
           "size": 412
         },
         {
-          "path": "solution.json",
-          "sha256": "c120e6f7aa4b3e359dd3acb6dcd54cfdfa756b438a7b57d6b7f54f94a82bd98a",
-          "size": 602
-        },
-        {
-          "path": "workbooks/weekly-review.json",
-          "sha256": "e0870055110d01c03a36ef738b9b7d8a52bb9ad00332cd14c13250ac295d4c67",
-          "size": 1981
-        }
-      ]
-    },
-    {
-      "manifest": {
-        "version": 1,
-        "id": "mfa-passkey-adoption",
-        "name": "MFA and passkey adoption",
-        "solutionVersion": "1.0.0",
-        "description": "Passkey and MFA registration by company: who has a passkey, who has only app or phone MFA, and who has none.",
-        "author": "Kustodian",
-        "support": "kustodian",
-        "categories": [
-          "Identity",
-          "Security"
-        ],
-        "sources": [
-          "graph"
-        ],
-        "minAppVersion": "1.0.0",
-        "requires": {
-          "graph": [
-            "AuditLog.Read.All",
-            "User.Read.All"
-          ],
-          "roles": [
-            "Reports Reader"
-          ],
-          "licenses": [
-            "AAD_PREMIUM"
-          ],
-          "azure": null
-        },
-        "content": {
-          "queries": [
-            "mfa-by-company",
-            "users-missing-passkey"
-          ],
-          "workbooks": [
-            "mfa-adoption"
-          ],
-          "tools": []
-        }
-      },
-      "files": [
-        {
-          "path": "README.md",
-          "sha256": "aa08d1ed40fa244acae222b88cd510f80552276125ed65265a0fcd094a17d092",
-          "size": 1841
-        },
-        {
-          "path": "queries/mfa-by-company.json",
-          "sha256": "ad51e165d93f1de6c9eabc9146f1433a9d185e894a97b05c52353264b6c421ac",
-          "size": 1251
-        },
-        {
           "path": "queries/users-missing-passkey.json",
           "sha256": "83989ea82fec02d2a7b7e30bc14c3b4e619533ae85795c10ce552692e2424ba8",
           "size": 896
         },
         {
           "path": "solution.json",
-          "sha256": "93b09efb2477755964bddeb5c9f8df8ecb6372dfb666ae0cccf9015e102a0bbe",
-          "size": 755
+          "sha256": "89c1bbd79956e996cf09ad705e6128c24fb227c487e7bfb34259489cfff97a8f",
+          "size": 1078
+        },
+        {
+          "path": "workbooks/break-glass-compliance.json",
+          "sha256": "8d34b4c5972124f5408703b3f2d9c7a2173fdefe36beb553151dd19c6e9fac73",
+          "size": 60089
         },
         {
           "path": "workbooks/mfa-adoption.json",
           "sha256": "4a5fec8365bd48e31317943ca0c5053907bf5769416ee963a9a0dd6790be095b",
           "size": 15627
+        },
+        {
+          "path": "workbooks/risky-users-review.json",
+          "sha256": "e0870055110d01c03a36ef738b9b7d8a52bb9ad00332cd14c13250ac295d4c67",
+          "size": 1981
         }
       ]
     }

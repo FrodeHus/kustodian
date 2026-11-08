@@ -256,7 +256,11 @@ export function ParametersDialog({ tabId, onClose }: { tabId: string; onClose: (
               )}
               <label className="field">
                 <span>Default</span>
-                <input className="textbox mono" value={p.value} onChange={(e) => change({ value: e.target.value })} />
+                {p.type === 'list' && !p.choices ? (
+                  <textarea className="textbox mono h-auto py-1.5" rows={3} placeholder="One value per line" value={p.value} onChange={(e) => change({ value: e.target.value })} />
+                ) : (
+                  <input className="textbox mono" value={p.value} onChange={(e) => change({ value: e.target.value })} />
+                )}
               </label>
               <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-[12.5px]">
                 {several && (

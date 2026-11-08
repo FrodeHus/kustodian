@@ -69,3 +69,31 @@ You may see these notices after a run:
 
 Filter with something Graph can apply, such as `==` or `startswith`, before the query reads a relationship column. That keeps
 the number of objects small, so the read is quick and stays under the cap.
+
+## Derived types
+
+Some Graph collections hold objects of several types. `policies_authenticationMethodsPolicy_authenticationMethodConfigurations`
+lists a `fido2AuthenticationMethodConfiguration`, an `smsAuthenticationMethodConfiguration` and so on, and
+`identity_conditionalAccess_namedLocations` lists IP and country locations. Such a table has the base type's columns, then
+the derived types' own properties, then `odataType`:
+
+- A derived column is empty on rows of other types. Its description starts with the types that have it ("Only on
+  fido2AuthenticationMethodConfiguration.").
+- `odataType` is the row's type, `@odata.type` without its `#` (`microsoft.graph.fido2AuthenticationMethodConfiguration`).
+  Use it to keep one type's rows.
+- When two derived types have a property with the same name and different types, the column is `dynamic`.
+- Graph can't select, filter or sort a collection by a derived type's property. A query that uses a derived column reads the
+  table without `$select`, so Graph sends each object's default properties, and its `where` and `sort` on derived columns
+  run locally. A property Graph returns only when selected is then empty. `odataType` alone keeps the `$select`.
+- A table whose derived types would add more than 200 columns (`deviceManagement_deviceConfigurations`, `directoryObjects`)
+  gets only `odataType`.
+- A derived type's navigation properties aren't columns, except those Graph returns inline in the list: the method
+  configurations' `includeTargets`.
+
+The FIDO2 method policy:
+
+```kql
+policies_authenticationMethodsPolicy_authenticationMethodConfigurations
+| where odataType == "microsoft.graph.fido2AuthenticationMethodConfiguration"
+| project state, includeTargets, keyRestrictions, isAttestationEnforced
+```

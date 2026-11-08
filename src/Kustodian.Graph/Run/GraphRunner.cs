@@ -321,7 +321,17 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
     internal static string CountQuery(string column, long count) => string.Create(CultureInfo.InvariantCulture,
         $"print ['{column.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("'", "\\'", StringComparison.Ordinal)}'] = tolong({count})");
 
-    /// <summary>The table as the engine loads it: every column of the schema's table, so it is the table the editor shows.</summary>
+    /// <summary>The table as the engine loads it: every column of the schema's table, so it is the table the editor shows. A
+    /// table with derived types gets each row's <see cref="GraphSchemaBuilder.OdataTypeColumn"/> from its <c>@odata.type</c>.</summary>
     private static EngineTable Table(GraphTable table, IReadOnlyList<JsonObject> rows)
-        => new(table.Name, table.Columns.Select(c => new EngineColumn(c.Name, c.Type)).ToList(), rows);
+    {
+        if (table.Columns.Any(c => c.Derived && c.Name == GraphSchemaBuilder.OdataTypeColumn))
+        {
+            foreach (var row in rows)
+                row[GraphSchemaBuilder.OdataTypeColumn] = row["@odata.type"] is JsonValue v && v.TryGetValue<string>(out var type)
+                    ? type.TrimStart('#')
+                    : table.EntityType;
+        }
+        return new(table.Name, table.Columns.Select(c => new EngineColumn(c.Name, c.Type)).ToList(), rows);
+    }
 }

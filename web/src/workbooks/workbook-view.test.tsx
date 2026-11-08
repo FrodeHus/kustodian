@@ -226,6 +226,15 @@ describe('WorkbookView', () => {
     expect(setWidgetValue).toHaveBeenLastCalledWith('t', 'tb', 'Top', '5', { now: true });
   });
 
+  it('a free-entry list takes one value per line', () => {
+    doc = { ...doc, parameters: [...doc.parameters, { ...env, name: 'Accounts', choices: null, label: null, value: '' }] };
+    show({});
+    const accounts = screen.getByRole('textbox', { name: 'Accounts' });
+    expect(accounts.tagName).toBe('TEXTAREA');
+    fireEvent.change(accounts, { target: { value: 'a@contoso.com\nb@contoso.com' } });
+    expect(setWorkbookValue).toHaveBeenLastCalledWith('t', 'Accounts', 'a@contoso.com\nb@contoso.com', { now: false });
+  });
+
   it('says why a blocked widget did not run', () => {
     show({ tb: { state: 'blocked', reason: 'Needs a value before the widget runs.' } });
     expect(within(frame('Users')).getByText('Needs a value before the widget runs.')).toBeTruthy();
