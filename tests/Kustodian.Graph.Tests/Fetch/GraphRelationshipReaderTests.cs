@@ -12,8 +12,18 @@ namespace Kustodian.Graph.Tests;
 /// <summary>One relationship (<c>memberOf</c>, <c>manager</c>) of each object, read through <c>$batch</c>.</summary>
 public sealed class GraphRelationshipReaderTests
 {
-    private static readonly GraphColumn MemberOf = new("memberOf", "dynamic", "", [], false, null, Collection: true) { Relationship = true };
-    private static readonly GraphColumn Manager = new("manager", "dynamic", "", [], false, null) { Relationship = true };
+    private static readonly GraphColumn MemberOf = new("memberOf", "dynamic", "", [], false, GraphSchemaJson.DirectoryObjectRef, Collection: true) { Relationship = true };
+    private static readonly GraphColumn Manager = new("manager", "dynamic", "", [], false, GraphSchemaJson.DirectoryObjectRef) { Relationship = true };
+    private static readonly GraphColumn Methods = new("authenticationMethods", "dynamic", "", [], false, "kustodian.authenticationMethod", Collection: true)
+    {
+        Relationship = true,
+        RelationshipPath = "authentication/methods",
+    };
+    private static readonly GraphColumn Requirements = new("authenticationRequirements", "dynamic", "", [], false, "microsoft.graph.strongAuthenticationRequirements")
+    {
+        Relationship = true,
+        RelationshipPath = "authentication/requirements",
+    };
 
     private static JsonObject Obj(string id) => new() { ["id"] = id };
 
@@ -42,9 +52,69 @@ public sealed class GraphRelationshipReaderTests
     public void Template_matches_the_spec()
     {
         Assert.Equal("users/{id}/memberOf?$select=id,displayName,userPrincipalName,mail,appId,deviceId&$top=999",
-            GraphRelationshipReader.Template("users", "memberOf", true));
+            GraphRelationshipReader.Template("users", MemberOf));
         Assert.Equal("users/{id}/manager?$select=id,displayName,userPrincipalName,mail,appId,deviceId",
-            GraphRelationshipReader.Template("users", "manager", false));
+            GraphRelationshipReader.Template("users", Manager));
+        // Any other shape is read whole, at its path.
+        Assert.Equal("users/{id}/authentication/methods", GraphRelationshipReader.Template("users", Methods));
+        Assert.Equal("users/{id}/authentication/requirements", GraphRelationshipReader.Template("users", Requirements));
+    }
+
+    [Fact]
+    public async Task Shaped_entries_keep_their_fields()
+    {
+        var urls = new List<string>();
+        var graph = new FakeGraph
+        {
+            Answer = (request, _) =>
+            {
+                var batch = JsonNode.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult())!.AsObject();
+                lock (urls)
+                    urls.AddRange(batch["requests"]!.AsArray().Select(r => r!["url"]!.GetValue<string>()));
+                return Task.FromResult(Batch(request, id => (200, new Dictionary<string, object>
+                {
+                    ["@odata.context"] = "https://graph.microsoft.com/beta/$metadata#users('" + id + "')/authentication/methods",
+                    ["value"] = new object[]
+                    {
+                        new Dictionary<string, object?>
+                        {
+                            ["@odata.type"] = "#microsoft.graph.fido2AuthenticationMethod", ["id"] = "k1", ["displayName"] = "YubiKey",
+                            ["createdDateTime"] = "2026-01-02T03:04:05Z", ["aaGuid"] = "cb69481e", ["model"] = "YubiKey 5", ["attestationLevel"] = null,
+                        },
+                        new Dictionary<string, object> { ["@odata.type"] = "#microsoft.graph.passwordAuthenticationMethod", ["id"] = "p1" },
+                    },
+                })));
+            },
+        };
+
+        var result = await Read(Reader(graph), Methods, "u1");
+
+        Assert.Equal(["/users/u1/authentication/methods"], urls);
+        var entries = Assert.IsType<JsonArray>(result.Values["u1"]);
+        Assert.Equal("""{"objectType":"fido2AuthenticationMethod","id":"k1","displayName":"YubiKey","createdDateTime":"2026-01-02T03:04:05Z","aaGuid":"cb69481e","model":"YubiKey 5","attestationLevel":null}""",
+            entries[0]!.ToJsonString());
+        Assert.Equal("""{"objectType":"passwordAuthenticationMethod","id":"p1"}""", entries[1]!.ToJsonString());
+    }
+
+    [Fact]
+    public async Task Shaped_single_object_is_one_entry()
+    {
+        var graph = new FakeGraph
+        {
+            Answer = (request, _) => Task.FromResult(Batch(request, id => id == "u2"
+                ? (403, new { error = new { code = "Authorization_RequestDenied" } })
+                : (200, new Dictionary<string, object>
+                {
+                    ["@odata.context"] = "https://graph.microsoft.com/beta/$metadata#microsoft.graph.strongAuthenticationRequirements",
+                    ["perUserMfaState"] = "disabled",
+                }))),
+        };
+
+        var result = await Read(Reader(graph), Requirements, "u1", "u2");
+
+        Assert.Equal("""{"perUserMfaState":"disabled"}""", result.Values["u1"]!.ToJsonString());
+        Assert.False(result.Values.ContainsKey("u2"));
+        Assert.Equal((1, 0), (result.Refused, result.Failed));
     }
 
     [Fact]

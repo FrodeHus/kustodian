@@ -20,7 +20,7 @@ public sealed class GraphExplainTests
         new("createdDateTime", "datetime", "", ["eq", "ne", "not", "ge", "le", "gt", "lt", "in"], false, null),
         new("keyCount", "long", "", ["eq", "ne", "gt", "ge", "lt", "le", "in"], false, null),
         new("onPremisesPublishing", "dynamic", "", [], false, "microsoft.graph.onPremisesPublishing", Listable: false),
-        new("owners", "dynamic", "", [], false, null, Collection: true, Listable: false)
+        new("owners", "dynamic", "", [], false, GraphSchemaJson.DirectoryObjectRef, Collection: true, Listable: false)
         {
             Relationship = true,
             Permissions = ["Application.Read.All", "Directory.Read.All"],
@@ -234,7 +234,7 @@ public sealed class GraphExplainTests
 
         var relationship = Assert.Single(table.Relationships);
         Assert.Equal("owners", relationship.Column);
-        Assert.Equal(GraphRelationshipReader.Template("applications", "owners", true), relationship.Url);
+        Assert.Equal(GraphRelationshipReader.Template("applications", Columns.Single(c => c.Name == "owners")), relationship.Url);
         Assert.Equal(["Application.Read.All", "Directory.Read.All"], relationship.Permissions);
         Assert.Equal(1_000, relationship.EntryCap);
         Assert.False(table.FilteredLocally);

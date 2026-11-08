@@ -27,7 +27,7 @@ public sealed partial class GraphSchemaDiff
 
     /// <summary>Whether the column's name or description looks like it holds a secret: a password, secret, token, private key,
     /// credential or certificate. A name that is about one rather than one (<c>passwordPolicies</c>,
-    /// <c>tokenLifetimePolicies</c>, <c>certificateExpirationDateTime</c>) doesn't count by its name.</summary>
+    /// <c>tokenLifetimePolicies</c>, <c>certificateExpirationDateTime</c>, <c>maximumDepTokens</c>) doesn't count by its name.</summary>
     public static bool LooksSecret(GraphColumn column)
         => SecretNameRegex().IsMatch(column.Name) && !AboutSecretRegex().IsMatch(column.Name)
             || SecretDescriptionRegex().IsMatch(column.Description);
@@ -35,7 +35,7 @@ public sealed partial class GraphSchemaDiff
     [GeneratedRegex("password|secret|token|privatekey|credential|certificate|pfx|pkcs", RegexOptions.IgnoreCase)]
     private static partial Regex SecretNameRegex();
 
-    [GeneratedRegex("(Policies|Policy|DateTime|Date|Time|Lifetime|Id|Ids|Count|Type|Types|Name|Names|State|Status|Enabled|Required|Settings|Configuration|Configurations|Length|Thumbprint|Issuer|Subject|Url|Uri)$")]
+    [GeneratedRegex("^(maximum|minimum|max|min|is|has|allow)[A-Z]|(Policies|Policy|DateTime|Date|Time|Lifetime|Id|Ids|Count|Type|Types|Name|Names|State|Status|Enabled|Required|Settings|Preferences|Configuration|Configurations|Length|Thumbprint|Issuer|Subject|SerialNumber|Reason|Url|Uri)$")]
     private static partial Regex AboutSecretRegex();
 
     [GeneratedRegex(@"private key|secret value|password value|plain ?text password|certificate content|raw data|\bbase64\b|the (password|secret|token) (itself|for|used to|that)", RegexOptions.IgnoreCase)]
@@ -129,6 +129,8 @@ public sealed partial class GraphSchemaDiff
                     lines.Add($"{name}: {column.Name} known permission {old.KnownPermission ?? "none"} → {column.KnownPermission ?? "none"}");
                 if (old.Relationship != column.Relationship)
                     lines.Add($"{name}: {column.Name} relationship {old.Relationship} → {column.Relationship}");
+                if (old.Derived != column.Derived)
+                    lines.Add($"{name}: {column.Name} derived {old.Derived} → {column.Derived}");
                 if (!old.Permissions.SequenceEqual(column.Permissions))
                     lines.Add($"{name}: {column.Name} permissions [{string.Join(", ", old.Permissions)}] → [{string.Join(", ", column.Permissions)}]");
                 if (old.Description != column.Description)

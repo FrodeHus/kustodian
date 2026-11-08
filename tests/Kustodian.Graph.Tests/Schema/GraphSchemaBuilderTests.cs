@@ -195,7 +195,7 @@ public sealed class GraphSchemaBuilderTests
         Assert.False(Column("appId").Collection);
     }
 
-    private static GraphSchema BuildWith(IReadOnlyDictionary<string, IReadOnlyList<string>> relationships, ICollection<string>? warnings = null)
+    private static GraphSchema BuildWith(IReadOnlyDictionary<string, IReadOnlyList<GraphRelationship>> relationships, ICollection<string>? warnings = null)
     {
         using var stream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Fixtures", "mini-metadata.xml"));
         using var permissions = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Schema", "permissions-excerpt.json"));
@@ -210,7 +210,7 @@ public sealed class GraphSchemaBuilderTests
     public void Curated_relationship_becomes_a_get_only_dynamic_column()
     {
         var warnings = new List<string>();
-        var schema = BuildWith(new Dictionary<string, IReadOnlyList<string>> { ["applications"] = ["owners", "primaryOwner"] }, warnings);
+        var schema = BuildWith(new Dictionary<string, IReadOnlyList<GraphRelationship>> { ["applications"] = ["owners", "primaryOwner"] }, warnings);
         var columns = schema.Find("applications")!.Columns;
 
         var owners = columns.Single(c => c.Name == "owners");
@@ -232,7 +232,7 @@ public sealed class GraphSchemaBuilderTests
     [Fact]
     public void Directory_object_ref_shape_is_in_complex_types()
     {
-        var schema = BuildWith(new Dictionary<string, IReadOnlyList<string>> { ["applications"] = ["owners"] });
+        var schema = BuildWith(new Dictionary<string, IReadOnlyList<GraphRelationship>> { ["applications"] = ["owners"] });
 
         var fields = schema.ComplexTypes[GraphSchemaJson.DirectoryObjectRef];
         Assert.Equal(["id", "objectType", "displayName", "userPrincipalName", "mail", "appId", "deviceId"], fields.Select(f => f.Name));
@@ -247,16 +247,65 @@ public sealed class GraphSchemaBuilderTests
     public void Unknown_curated_name_fails()
     {
         var e = Assert.Throws<GraphRelationshipException>(
-            () => BuildWith(new Dictionary<string, IReadOnlyList<string>> { ["applications"] = ["nope"] }));
+            () => BuildWith(new Dictionary<string, IReadOnlyList<GraphRelationship>> { ["applications"] = ["nope"] }));
 
         Assert.Contains("applications.nope", e.Message);
+    }
+
+    [Fact]
+    public void Relationship_path_to_other_entities_has_their_shape()
+    {
+        var schema = BuildWith(new Dictionary<string, IReadOnlyList<GraphRelationship>>
+        {
+            ["applications"] = [new("authenticationMethods", "authentication/methods")],
+        });
+
+        var column = schema.Find("applications")!.Columns.Single(c => c.Name == "authenticationMethods");
+        Assert.True(column.Relationship);
+        Assert.True(column.Collection);
+        Assert.Equal("authentication/methods", column.RelationshipPath);
+        Assert.Equal("The registered authentication methods.", column.Description);
+        Assert.Equal("kustodian.authenticationMethod", column.ComplexType);
+        // objectType, the base type's properties, then the derived types' (sorted by type name), each once.
+        Assert.Equal(["objectType", "id", "createdDateTime", "displayName", "aaGuid", "model", "publicKeyCredential", "password"],
+            schema.ComplexTypes["kustodian.authenticationMethod"].Select(f => f.Name));
+        Assert.Equal("datetime", schema.ComplexTypes["kustodian.authenticationMethod"].Single(f => f.Name == "createdDateTime").Type);
+        // A field's complex type is in the schema too.
+        Assert.Contains("microsoft.graph.signInActivity", schema.ComplexTypes.Keys);
+        Assert.DoesNotContain(GraphSchemaJson.DirectoryObjectRef, schema.ComplexTypes.Keys);
+    }
+
+    [Fact]
+    public void Relationship_path_to_a_complex_property_has_that_type()
+    {
+        var schema = BuildWith(new Dictionary<string, IReadOnlyList<GraphRelationship>>
+        {
+            ["applications"] = [new("authenticationRequirements", "authentication/requirements")],
+        });
+
+        var column = schema.Find("applications")!.Columns.Single(c => c.Name == "authenticationRequirements");
+        Assert.False(column.Collection);
+        Assert.Equal("microsoft.graph.strongAuthenticationRequirements", column.ComplexType);
+        Assert.Equal(["perUserMfaState"], schema.ComplexTypes[column.ComplexType!].Select(f => f.Name));
+    }
+
+    [Fact]
+    public void Relationship_path_with_an_unknown_segment_fails()
+    {
+        var e = Assert.Throws<GraphRelationshipException>(() => BuildWith(new Dictionary<string, IReadOnlyList<GraphRelationship>>
+        {
+            ["applications"] = [new("methods", "authentication/nope")],
+        }));
+
+        Assert.Contains("applications.methods", e.Message);
+        Assert.Contains("nope", e.Message);
     }
 
     [Fact]
     public void Unknown_curated_table_fails()
     {
         var e = Assert.Throws<GraphRelationshipException>(
-            () => BuildWith(new Dictionary<string, IReadOnlyList<string>> { ["nowhere"] = ["owners"] }));
+            () => BuildWith(new Dictionary<string, IReadOnlyList<GraphRelationship>> { ["nowhere"] = ["owners"] }));
 
         Assert.Contains("nowhere", e.Message);
     }
@@ -269,4 +318,101 @@ public sealed class GraphSchemaBuilderTests
         Assert.DoesNotContain(plain.Find("applications")!.Columns, c => c.Name == "owners");
         Assert.DoesNotContain(GraphSchemaJson.DirectoryObjectRef, plain.ComplexTypes.Keys);
     }
+
+    private const string PolymorphicCsdl = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+          <edmx:DataServices>
+            <Schema Namespace="microsoft.graph" Alias="graph" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+              <EntityType Name="thing" Abstract="true">
+                <Key><PropertyRef Name="id" /></Key>
+                <Property Name="id" Type="Edm.String" Nullable="false" />
+                <Property Name="state" Type="Edm.String" />
+              </EntityType>
+              <EntityType Name="alpha" BaseType="graph.thing">
+                <Property Name="shared" Type="Edm.String" />
+                <Property Name="clash" Type="Edm.String" />
+                <Property Name="onlyAlpha" Type="Edm.Boolean">
+                  <Annotation Term="Org.OData.Core.V1.Description" String="Alpha's flag." />
+                </Property>
+                <Property Name="picture" Type="Edm.Stream" />
+              </EntityType>
+              <EntityType Name="beta" BaseType="graph.thing">
+                <Property Name="shared" Type="Edm.String" />
+                <Property Name="clash" Type="Edm.Int32" />
+                <NavigationProperty Name="targets" Type="Collection(graph.plain)" ContainsTarget="true" />
+              </EntityType>
+              <EntityType Name="gamma" BaseType="graph.alpha">
+                <Property Name="onlyGamma" Type="Edm.Int64" />
+              </EntityType>
+              <EntityType Name="plain">
+                <Key><PropertyRef Name="id" /></Key>
+                <Property Name="id" Type="Edm.String" Nullable="false" />
+              </EntityType>
+              <EntityContainer Name="GraphService">
+                <EntitySet Name="things" EntityType="graph.thing" />
+                <EntitySet Name="plains" EntityType="graph.plain" />
+              </EntityContainer>
+            </Schema>
+          </edmx:DataServices>
+        </edmx:Edmx>
+        """;
+
+    private static GraphSchema BuildPolymorphic()
+    {
+        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(PolymorphicCsdl));
+        return GraphSchemaBuilder.Build(GraphMetadata.Load(stream), new Dictionary<string, IReadOnlyList<string>>(), "test",
+            DateTimeOffset.UnixEpoch);
+    }
+
+    // Graph lists derived-type objects in a base collection (@odata.type #microsoft.graph.alpha); their own properties are
+    // columns, null on other types' rows, never filterable.
+    [Fact]
+    public void Derived_types_properties_become_derived_columns()
+    {
+        var things = BuildPolymorphic().Find("things")!;
+
+        Assert.Equal(["id", "state", "shared", "clash", "onlyAlpha", "onlyGamma", "odataType"], things.Columns.Select(c => c.Name));
+        Assert.All(things.Columns.Skip(2), c => Assert.True(c.Derived));
+        Assert.All(things.Columns, c => Assert.Empty(c.Filter));
+        Assert.False(things.Columns[0].Derived);
+        var columns = things.Columns.ToDictionary(c => c.Name);
+        Assert.Equal("string", columns["shared"].Type);
+        Assert.Equal("Only on alpha, beta.", columns["shared"].Description);
+        // Sibling types disagree on the type: one dynamic column.
+        Assert.Equal("dynamic", columns["clash"].Type);
+        // gamma inherits onlyAlpha from alpha: it counts once, for alpha.
+        Assert.Equal("Only on alpha. Alpha's flag.", columns["onlyAlpha"].Description);
+        Assert.Equal("long", columns["onlyGamma"].Type);
+        Assert.Equal("string", columns["odataType"].Type);
+        // A stream is never read in a list, and a navigation only when Graph is known to inline it.
+        Assert.DoesNotContain("picture", columns.Keys);
+        Assert.DoesNotContain("targets", columns.Keys);
+    }
+
+    [Fact]
+    public void A_table_without_derived_types_has_no_odata_type_column()
+        => Assert.DoesNotContain(BuildPolymorphic().Find("plains")!.Columns, c => c.Derived || c.Name == GraphSchemaBuilder.OdataTypeColumn);
+
+    // The FIDO2 method policy's settings live on fido2AuthenticationMethodConfiguration; includeTargets is a navigation
+    // Graph inlines in the list (Learn's Get authenticationMethodsPolicy).
+    [Theory]
+    [InlineData("includeTargets", "dynamic")]
+    [InlineData("keyRestrictions", "dynamic")]
+    [InlineData("isAttestationEnforced", "bool")]
+    [InlineData("odataType", "string")]
+    public void The_embedded_schema_has_the_fido2_policy_columns(string name, string type)
+    {
+        var column = GraphSchemaCatalog.Beta.Find("policies_authenticationMethodsPolicy_authenticationMethodConfigurations")!
+            .Columns.Single(c => c.Name == name);
+
+        Assert.True(column.Derived);
+        Assert.Equal(type, column.Type);
+    }
+
+    // 1,407 derived columns: past the cap, the table gets only odataType.
+    [Fact]
+    public void A_table_past_the_derived_column_cap_gets_only_odata_type()
+        => Assert.Equal([GraphSchemaBuilder.OdataTypeColumn],
+            GraphSchemaCatalog.Beta.Find("deviceManagement_deviceConfigurations")!.Columns.Where(c => c.Derived).Select(c => c.Name));
 }

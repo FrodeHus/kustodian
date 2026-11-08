@@ -359,6 +359,83 @@ public sealed class GraphRunnerTests
         Assert.Equal(2, second.PerObjectCached);
     }
 
+    /// <summary>Graph listing <paramref name="ids"/>; in a <c>$batch</c>, u1 has two FIDO2 keys and a password, u2 one key;
+    /// u1's per-user MFA is disabled and u2's enforced.</summary>
+    private static Task<HttpResponseMessage> AuthenticationAnswer(HttpRequestMessage request, string[] ids)
+        => OwnersAnswer(request, ids, id => (200, id switch
+        {
+            "u1" => (object)new
+            {
+                value = new object[]
+                {
+                    new Dictionary<string, string> { ["@odata.type"] = "#microsoft.graph.fido2AuthenticationMethod", ["id"] = "k1", ["model"] = "YubiKey 5" },
+                    new Dictionary<string, string> { ["@odata.type"] = "#microsoft.graph.fido2AuthenticationMethod", ["id"] = "k2", ["model"] = "YubiKey 5C" },
+                    new Dictionary<string, string> { ["@odata.type"] = "#microsoft.graph.passwordAuthenticationMethod", ["id"] = "p1" },
+                },
+            },
+            _ => new { value = new object[] { new Dictionary<string, string> { ["@odata.type"] = "#microsoft.graph.fido2AuthenticationMethod", ["id"] = "k3" } } },
+        }));
+
+    [Fact]
+    public async Task Authentication_methods_reach_the_engine_in_their_own_shape()
+    {
+        await using var h = NewHost();
+        string[] ids = ["u1", "u2"];
+        h.Graph.Answer = (request, _) => AuthenticationAnswer(request, ids);
+
+        var r = await h.RunAsync("""
+            users
+            | mv-expand m = authenticationMethods
+            | where tostring(m.objectType) == "fido2AuthenticationMethod"
+            | summarize keys = count(), models = make_set(tostring(m.model)) by id
+            | order by id asc
+            """, ct: Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        Assert.Equal(["u1", "u2"], Column(r, "id"));
+        Assert.Equal(["2", "1"], Column(r, "keys"));
+        Assert.Contains(h.Graph.Requests, u => u.Contains("$batch", StringComparison.Ordinal));
+        var relationship = Assert.Single(Assert.Single(r.Tables).Relationships);
+        Assert.Equal("authenticationMethods", relationship.Column);
+        Assert.Equal(["UserAuthenticationMethod.Read.All", "UserAuthenticationMethod.Read"], relationship.Permissions);
+        // Authentication methods have no displayName: none is "limited" as a directory object would be.
+        Assert.Equal(0, relationship.Limited);
+    }
+
+    [Fact]
+    public async Task Authentication_requirements_reach_the_engine_as_one_object()
+    {
+        await using var h = NewHost();
+        string[] ids = ["u1", "u2"];
+        h.Graph.Answer = (request, _) => OwnersAnswer(request, ids, id => id == "u2"
+            ? (403, new { error = new { code = "Authorization_RequestDenied", message = "denied" } })
+            : (200, new Dictionary<string, string> { ["@odata.context"] = "x", ["perUserMfaState"] = "disabled" }));
+
+        var r = await h.RunAsync("users | project id, state = tostring(authenticationRequirements.perUserMfaState) | order by id asc", ct: Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        Assert.Equal(["disabled", ""], Column(r, "state"));
+        var relationship = Assert.Single(Assert.Single(r.Tables).Relationships);
+        Assert.Equal(1, relationship.Refused);
+        Assert.Equal(["Policy.Read.All"], relationship.Permissions);
+    }
+
+    [Fact]
+    public async Task Authentication_methods_over_the_cap_stay_empty()
+    {
+        await using var h = NewHost();
+        var ids = Enumerable.Range(0, 101).Select(i => "u" + i.ToString(CultureInfo.InvariantCulture)).ToArray();
+        h.Graph.Answer = (request, _) => AuthenticationAnswer(request, ids);
+
+        var r = await h.RunAsync("users | mv-expand m = authenticationMethods", ct: Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        var relationship = Assert.Single(Assert.Single(r.Tables).Relationships);
+        Assert.True(relationship.Capped);
+        Assert.Equal(101, relationship.Objects);
+        Assert.DoesNotContain(h.Graph.Requests, u => u.Contains("$batch", StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task Capped_relationship_reaches_the_result()
     {
@@ -819,5 +896,40 @@ public sealed class GraphRunnerTests
         Assert.All(new[] { timedOut, denied, refused, signIn }, r => Assert.Null(r.Cause));
         // Graph's answer is kept for a full report.
         Assert.Contains("Off.", refused.ReadFailure?.Body, StringComparison.Ordinal);
+    }
+
+    // Graph's list holds each method's own type; the derived columns are filled on that type's rows and empty on the others,
+    // and odataType comes from @odata.type.
+    [Fact]
+    public async Task Run_over_mixed_derived_types_fills_each_rows_own_columns()
+    {
+        await using var h = NewHost();
+        h.Graph.Answer = (_, _) => Task.FromResult(FakeGraph.Collection([
+            new Dictionary<string, object?>
+            {
+                ["@odata.type"] = "#microsoft.graph.fido2AuthenticationMethodConfiguration", ["id"] = "Fido2", ["state"] = "enabled",
+                ["isAttestationEnforced"] = true,
+                ["keyRestrictions"] = new { isEnforced = true, enforcementType = "allow", aaGuids = new[] { "a" } },
+                ["includeTargets"] = new[] { new { targetType = "group", id = "all_users" } },
+            },
+            new Dictionary<string, object?>
+            {
+                ["@odata.type"] = "#microsoft.graph.smsAuthenticationMethodConfiguration", ["id"] = "Sms", ["state"] = "disabled",
+                ["includeTargets"] = Array.Empty<object>(),
+            },
+        ]));
+
+        var r = await h.RunAsync("policies_authenticationMethodsPolicy_authenticationMethodConfigurations"
+            + " | project id, odataType, isAttestationEnforced, enforced = tobool(keyRestrictions.isEnforced),"
+            + " target = tostring(includeTargets[0].id)", ct: Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        Assert.Equal(["Fido2", "Sms"], Column(r, "id"));
+        Assert.Equal(["microsoft.graph.fido2AuthenticationMethodConfiguration", "microsoft.graph.smsAuthenticationMethodConfiguration"],
+            Column(r, "odataType"));
+        Assert.Equal(["True", null], Column(r, "isAttestationEnforced"));
+        Assert.Equal(["True", null], Column(r, "enforced"));
+        Assert.Equal(["all_users", ""], Column(r, "target"));
+        Assert.DoesNotContain(Assert.Single(r.Tables).Requests, q => q.Contains("$select", StringComparison.Ordinal));
     }
 }

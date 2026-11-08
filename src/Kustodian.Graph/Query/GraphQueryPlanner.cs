@@ -145,13 +145,18 @@ public static class GraphQueryPlanner
                 .Where(c => everyColumn || columnRefs.Contains(c) || names.Contains(c.Name))
                 .Select(c => new GraphLicenseGap(c.Name, unlicensed[c.Name]))
                 .ToList();
-            var select = symbol.Columns
+            var needed = symbol.Columns
                 .Where(c => !getOnly.Contains(c.Name) && !unlicensed.ContainsKey(c.Name))
                 .Where(c => everyColumn || columnRefs.Contains(c) || names.Contains(c.Name))
                 .Select(c => c.Name)
-                .Append("id")
-                .Distinct(StringComparer.Ordinal)
                 .ToList();
+            // A derived type's property can't go in the base collection's $select: a query that needs one is read without
+            // $select, so Graph sends each object's default properties for its own type. odataType comes from @odata.type,
+            // which Graph sends either way.
+            var derived = table.Columns.Where(c => c.Derived).Select(c => c.Name).ToHashSet(StringComparer.Ordinal);
+            List<string> select = needed.Any(c => derived.Contains(c) && c != GraphSchemaBuilder.OdataTypeColumn)
+                ? []
+                : [.. needed.Where(c => !derived.Contains(c)).Append("id").Distinct(StringComparer.Ordinal)];
             var named = symbol.Columns
                 .Where(c => !unlicensed.ContainsKey(c.Name))
                 .Where(c => namedRefs.Contains(c) || namedNames.Contains(c.Name))
@@ -301,7 +306,7 @@ public static class GraphQueryPlanner
     {
         var (column, ordering) = expression is OrderedExpression ordered ? (ordered.Expression, ordered.Ordering) : (expression, null);
         if (column is not NameReference { ReferencedSymbol: ColumnSymbol symbol }
-            || table.Columns.FirstOrDefault(c => c.Name == symbol.Name) is not { Collection: false, Type: "datetime" or "int" or "long" or "real" } graphColumn)
+            || table.Columns.FirstOrDefault(c => c.Name == symbol.Name) is not { Collection: false, Derived: false, Type: "datetime" or "int" or "long" or "real" } graphColumn)
             return null;
         var direction = ordering?.AscOrDescKeyword?.Text;
         var descending = direction switch

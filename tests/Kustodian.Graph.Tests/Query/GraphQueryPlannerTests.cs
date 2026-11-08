@@ -452,4 +452,35 @@ public sealed class GraphQueryPlannerTests
         Assert.Equal(5, Fetch(plan, "servicePrincipals").Top);
         Assert.Null(Fetch(plan, "applications").Top);
     }
+
+    private const string MethodConfigurations = "policies_authenticationMethodsPolicy_authenticationMethodConfigurations";
+
+    private static GraphFetch BetaFetch(string kql)
+        => Fetch(GraphQueryPlanner.Plan(GraphSchemaCatalog.Beta, kql, DateTimeOffset.UnixEpoch), MethodConfigurations);
+
+    // A derived type's property in the base collection's $select is refused: the read goes without $select, so Graph sends
+    // each object's own default properties.
+    [Theory]
+    [InlineData(MethodConfigurations + " | where id == \"Fido2\" | project includeTargets, keyRestrictions, isAttestationEnforced")]
+    [InlineData(MethodConfigurations)]
+    public void A_needed_derived_column_drops_select(string kql)
+        => Assert.Empty(BetaFetch(kql).Select);
+
+    [Fact]
+    public void Odata_type_alone_keeps_select_without_it()
+    {
+        var fetch = BetaFetch(MethodConfigurations + " | project id, state, odataType");
+
+        Assert.Equal(["id", "state"], fetch.Select.Order(StringComparer.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(MethodConfigurations + " | where odataType == \"microsoft.graph.fido2AuthenticationMethodConfiguration\"")]
+    [InlineData(MethodConfigurations + " | where isAttestationEnforced == true")]
+    public void A_derived_column_is_never_in_filter(string kql)
+        => Assert.Null(BetaFetch(kql).Filter);
+
+    [Fact]
+    public void A_derived_column_is_never_in_orderby()
+        => Assert.Null(BetaFetch(MethodConfigurations + " | top 1 by defaultLength").OrderBy);
 }

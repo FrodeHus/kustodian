@@ -26,6 +26,15 @@ Some Graph tables have relationship columns: `users.memberOf`, `users.manager`, 
 related to (`manager` holds one). An entry has `id`, `objectType` (such as `group` or `user`), `displayName`,
 `userPrincipalName`, `mail`, `appId` and `deviceId`.
 
+Two more `users` columns read something other than directory objects:
+
+- `authenticationMethods`: the user's registered sign-in methods (`GET /users/{id}/authentication/methods`). An entry has
+  `objectType` (such as `fido2AuthenticationMethod` or `passwordAuthenticationMethod`), `id`, `createdDateTime`, and the
+  fields of its type: `displayName`, `aaGuid` and `model` for a FIDO2 key, `phoneNumber` for a phone, and so on. A field
+  that doesn't apply to an entry's type is absent. Needs `UserAuthenticationMethod.Read.All`.
+- `authenticationRequirements`: one object, not a list (`GET /users/{id}/authentication/requirements`), with
+  `perUserMfaState` (`disabled`, `enforced` or `enabled`). Needs `Policy.Read.All`.
+
 Graph can't list these for a whole table, so Kustodian reads them one object at a time, and only when your query names the
 column. Use `mv-expand` to get one row per entry.
 
@@ -46,6 +55,17 @@ groups
 | where displayName == "SOC Analysts"
 | mv-expand m = members
 | project name = tostring(m.displayName), upn = tostring(m.userPrincipalName), type = tostring(m.objectType)
+```
+
+The FIDO2 keys of some accounts, and their per-user MFA state:
+
+```kql
+users
+| where userPrincipalName in ("bg1@contoso.com", "bg2@contoso.com")
+| mv-expand m = authenticationMethods
+| where m.objectType == "fido2AuthenticationMethod"
+| summarize keys = count(), models = make_set(tostring(m.model)), mfa = take_any(tostring(authenticationRequirements.perUserMfaState))
+    by userPrincipalName
 ```
 
 Limits:
@@ -69,6 +89,34 @@ You may see these notices after a run:
 
 Filter with something Graph can apply, such as `==` or `startswith`, before the query reads a relationship column. That keeps
 the number of objects small, so the read is quick and stays under the cap.
+
+## Derived types
+
+Some Graph collections hold objects of several types. `policies_authenticationMethodsPolicy_authenticationMethodConfigurations`
+lists a `fido2AuthenticationMethodConfiguration`, an `smsAuthenticationMethodConfiguration` and so on, and
+`identity_conditionalAccess_namedLocations` lists IP and country locations. Such a table has the base type's columns, then
+the derived types' own properties, then `odataType`:
+
+- A derived column is empty on rows of other types. Its description starts with the types that have it ("Only on
+  fido2AuthenticationMethodConfiguration.").
+- `odataType` is the row's type, `@odata.type` without its `#` (`microsoft.graph.fido2AuthenticationMethodConfiguration`).
+  Use it to keep one type's rows.
+- When two derived types have a property with the same name and different types, the column is `dynamic`.
+- Graph can't select, filter or sort a collection by a derived type's property. A query that uses a derived column reads the
+  table without `$select`, so Graph sends each object's default properties, and its `where` and `sort` on derived columns
+  run locally. A property Graph returns only when selected is then empty. `odataType` alone keeps the `$select`.
+- A table whose derived types would add more than 200 columns (`deviceManagement_deviceConfigurations`, `directoryObjects`)
+  gets only `odataType`.
+- A derived type's navigation properties aren't columns, except those Graph returns inline in the list: the method
+  configurations' `includeTargets`.
+
+The FIDO2 method policy:
+
+```kql
+policies_authenticationMethodsPolicy_authenticationMethodConfigurations
+| where odataType == "microsoft.graph.fido2AuthenticationMethodConfiguration"
+| project state, includeTargets, keyRestrictions, isAttestationEnforced
+```
 
 ## Single objects
 

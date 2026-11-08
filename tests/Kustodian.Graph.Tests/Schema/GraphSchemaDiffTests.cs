@@ -21,6 +21,8 @@ public sealed class GraphSchemaDiffTests
     [InlineData("keyMaterial", "The private key, base64-encoded.", true)]
     [InlineData("passwordPolicies", "Specifies password policies for the user.", false)]
     [InlineData("tokenLifetimePolicies", "", false)]
+    [InlineData("maximumDepTokens", "Maximum number of dep tokens allowed per-tenant.", false)]
+    [InlineData("certificateSerialNumber", "Certificate serial number.", false)]
     [InlineData("certificateExpirationDateTime", "When the certificate expires.", false)]
     [InlineData("displayName", "The name shown for the token.", false)]
     public void A_column_looks_secret_by_its_name_or_description(string name, string description, bool expected)
