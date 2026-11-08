@@ -8,10 +8,10 @@ overview is also on the [Solutions page](https://frodehus.github.io/kustodian/so
 
 ## Solutions that ship now
 
-- **Entra risky users**: risky users from Microsoft Entra ID Protection, with their recent sign-ins, and a weekly review
-  workbook.
-- **MFA and passkey adoption**: passkey and MFA registration by company: who has a passkey, who has only app or phone MFA,
-  and who has none.
+- **Entra ID**: three reviews in one solution. **Break-glass account compliance** checks that your emergency access
+  accounts are excluded from Conditional Access, hardened, permanent Global Administrators and unused, for the accounts
+  you list. **Risky users** lists users Entra ID Protection flags, with their recent sign-ins. **MFA and passkey adoption**
+  shows passkey and MFA registration by company.
 - **Defender vulnerability patch SLAs**: a patch SLA KPI per severity (for example 95% of critical exposures within 7
   days), the exposures past their window, and the trend of unique CVEs older than 90 days.
 

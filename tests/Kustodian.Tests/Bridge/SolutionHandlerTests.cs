@@ -13,7 +13,7 @@ namespace Kustodian.Tests.Bridge;
 /// <summary>The <c>solution.*</c> methods over the bridge, against the repo's own sample solution served from a fake GitHub.</summary>
 public sealed class SolutionHandlerTests : IDisposable
 {
-    private const string Id = "entra-risky-users";
+    private const string Id = "entra-id";
     private static readonly string SolutionsDir = Path.Combine(FindRoot(), "Solutions");
 
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "kustodian-sol-h-" + Guid.NewGuid().ToString("N"));
@@ -45,7 +45,7 @@ public sealed class SolutionHandlerTests : IDisposable
                 ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(File.ReadAllBytes(path)) }
                 : new HttpResponseMessage(HttpStatusCode.NotFound);
         }));
-        new SolutionHandler(new SolutionService(store, http, _library, _workbooks, _history, time, "1.0.0")).Register(_bridge);
+        new SolutionHandler(new SolutionService(store, http, _library, _workbooks, _history, time, "1.1.0")).Register(_bridge);
     }
 
     public void Dispose()
@@ -105,7 +105,7 @@ public sealed class SolutionHandlerTests : IDisposable
         Assert.Equal(JsonValueKind.Null, before.GetProperty("installed").ValueKind);
         Assert.Empty(before.GetProperty("modified").EnumerateArray());
 
-        var installed = (await CallAsync("solution.install", $$"""{"id":"{{Id}}","skip":["weekly-review"]}""")).GetProperty("result");
+        var installed = (await CallAsync("solution.install", $$"""{"id":"{{Id}}","skip":["break-glass-compliance","risky-users-review","mfa-adoption"]}""")).GetProperty("result");
         Assert.Equal(Id, installed.GetProperty("id").GetString());
         Assert.All(installed.GetProperty("items").EnumerateArray(), i => Assert.Equal("query", i.GetProperty("kind").GetString()));
         Assert.Empty((await _workbooks.ListAsync(TestContext.Current.CancellationToken)).Workbooks);

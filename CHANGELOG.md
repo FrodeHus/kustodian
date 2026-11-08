@@ -7,6 +7,11 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Entra ID solution**: one solution for Entra ID reviews. It adds a **Break-glass account compliance** workbook: the
+  accounts' Conditional Access exclusions, hardening, Global Administrator assignment, sign-ins, groups and tenant
+  guardrails, one row per check with PASS, FAIL, WARN, INFO or ERROR, for the accounts you list in a workbook parameter.
+  It replaces the **Entra risky users** and **MFA and passkey adoption** solutions, whose queries and workbooks it now holds.
+  See [Solutions/entra-id/README.md](Solutions/entra-id/README.md).
 - **Typed tool values**: an `each` tool's parameter can take **A value I type** instead of a column, the same text for every
   row, so one tool can set, say, the company you type on all the selected users. See [docs/external-tools.md](docs/external-tools.md).
 - **Resizable panes**: drag the edge of the side panel, or the line between the query and its results, to resize them.
@@ -19,7 +24,7 @@ follow [Semantic Versioning](https://semver.org/).
   items to install into a library folder named after it, with new ids; nothing runs on install. Uninstall removes what you
   haven't changed and keeps the rest in Saved, offline too and after a solution leaves the catalog. The last catalog is
   kept for offline use, every solution file downloaded is checked against its SHA-256 and size, and the catalog index has a
-  4 MB limit. **Entra risky users**, **MFA and passkey adoption** and **Defender vulnerability patch SLAs** ship first. See
+  4 MB limit. **Entra ID** and **Defender vulnerability patch SLAs** ship first. See
   [docs/solutions.md](docs/solutions.md).
 - **Workbooks**: a tab of Markdown, Chart, Table and Stat widgets on a grid, each running a query written in the widget or a
   linked saved one, on any source. Workbook parameters rerun only the widgets that use them, and widgets can show their own.
@@ -90,6 +95,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- A workbook list parameter without fixed choices now takes several values, one per line, in the parameter bar, the
+  Parameters dialog's Default and a widget's own control. Before, its single-line box held only one value.
 - Markdown widgets and solution READMEs render pipe tables (`| a | b |`) as tables instead of one line of text.
 - Discarding a workbook edit (or undoing back to the start) reruns any widget that ran a draft query while editing, so it no
   longer shows, or runs tool buttons on, rows from a query the workbook doesn't have.

@@ -106,6 +106,18 @@ function ShownControl({ param, choices, onChange }: { param: ResolvedParam; choi
       </select>
     );
   }
+  if (param.type === 'list') {
+    return (
+      <textarea
+        className="textbox mono h-auto w-40 py-0.5"
+        rows={2}
+        aria-label={param.name}
+        placeholder="One value per line"
+        value={param.value}
+        onChange={(e) => onChange(e.target.value, false)}
+      />
+    );
+  }
   return (
     <input
       className="textbox mono w-24"

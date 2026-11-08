@@ -1,0 +1,27 @@
+{
+  "name": "Break glass / Sign-in activity",
+  "folder": "Break glass",
+  "source": "graph",
+  "text": "let btg = users\n| where userPrincipalName in~ ({Accounts})\n| project userId = id, upn = userPrincipalName, enabled = coalesce(accountEnabled, false), synced = coalesce(onPremisesSyncEnabled, false), userType, assignedLicenses, passwordPolicies, lastPasswordChangeDateTime, signInActivity, memberOf, ownedObjects;\nlet use = btg\n| extend interactive = todatetime(signInActivity.lastSignInDateTime), nonInteractive = todatetime(signInActivity.lastNonInteractiveSignInDateTime);\nunion\n    (use | project Category = \"USE\", Check = \"USE.NoSignIns\", Target = upn,\n        Status = case(isnull(signInActivity), \"ERROR\", coalesce(interactive > ago({Lookback}), false) or coalesce(nonInteractive > ago({Lookback}), false), \"FAIL\", \"PASS\"),\n        Detail = case(isnull(signInActivity), \"Sign-in activity couldn't be read (needs Entra ID P1 and AuditLog.Read.All).\",\n            coalesce(interactive > ago({Lookback}), false) or coalesce(nonInteractive > ago({Lookback}), false), strcat(\"Signed in within the period (last interactive: \", iff(isnull(interactive), \"never\", format_datetime(interactive, \"yyyy-MM-dd HH:mm\")), \", last non-interactive: \", iff(isnull(nonInteractive), \"never\", format_datetime(nonInteractive, \"yyyy-MM-dd HH:mm\")), \"). Every break-glass sign-in must be accounted for: a planned test or an incident.\"),\n            strcat(\"No sign-ins within the period. Last interactive sign-in: \", iff(isnull(interactive), \"never\", format_datetime(interactive, \"yyyy-MM-dd HH:mm\")), \".\")))\n| extend Rank = case(Status == \"FAIL\", 0, Status == \"ERROR\", 1, Status == \"WARN\", 2, Status == \"INFO\", 3, 4)\n| order by Rank asc, Category asc, Check asc, Target asc\n| project Category, Check, Target, Status, Detail",
+  "parameters": [
+    {
+      "name": "Accounts",
+      "type": "list",
+      "value": "",
+      "required": true,
+      "choices": null
+    },
+    {
+      "name": "Lookback",
+      "type": "timespan",
+      "value": "30d",
+      "required": true,
+      "choices": [
+        "7d",
+        "14d",
+        "30d",
+        "90d"
+      ]
+    }
+  ]
+}
