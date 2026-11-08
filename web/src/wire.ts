@@ -422,6 +422,7 @@ export interface ArmResourceTypesAnswer {
 
 /** The themes made from a popular editor theme's palette (`shell/palettes.ts`). */
 export type PaletteTheme =
+  | 'aurora'
   | 'github-dark'
   | 'one-dark'
   | 'dracula'

@@ -26,9 +26,17 @@ export type Palette = {
   cm: string;
 };
 
-/** The ten most used editor themes (VS Code Marketplace installs and GitHub stars, November 2026), each in its flagship dark
+/** Aurora, Kustodian's own: the logo's and banner's cyan, blue, violet and mint on navy ink (`.theme-aurora` in styles.css adds its
+ * glow and tinted cards). Then the ten most used editor themes (VS Code Marketplace installs and GitHub stars, November 2026), each in its flagship dark
  * variant. The editor colours are the themes' own; the window's panels and lines are picked from each theme's UI colours. */
 export const PALETTES: Record<PaletteTheme, Palette> = {
+  aurora: {
+    name: 'Aurora',
+    bg: '#0a0c1c', panel: '#12152f', panel2: '#161a3a', raise: '#1e2350', line: '#272c55',
+    text: '#e8ecf8', muted: '#a6aecd', faint: '#8089b0',
+    accent: '#22e4f5', accentInk: '#04141c', warn: '#ffc46b', bad: '#ff8da0', ok: '#3ef0c0',
+    kw: '#c3a2ff', tbl: '#22e4f5', col: '#ffd27a', str: '#6ff0c8', num: '#ff9e6b', fn: '#7fb0ff', cm: '#8089b0',
+  },
   'github-dark': {
     name: 'GitHub Dark',
     bg: '#0d1117', panel: '#010409', panel2: '#161b22', raise: '#21262d', line: '#30363d',
