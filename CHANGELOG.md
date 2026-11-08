@@ -5,6 +5,11 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Aurora theme**: Kustodian's own dark theme, from the logo and banner: navy ink with cyan, blue, violet and mint, a soft
+  glow behind the workspace, and cards and workbook widgets tinted blue to violet. Pick it in Settings.
+
 ## [1.1.0] - 2026-11-08
 
 ### Added
