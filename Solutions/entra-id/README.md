@@ -23,7 +23,7 @@ and **ERROR** need action; **ERROR** means the check couldn't read what it needs
 | Category | Checks |
 | --- | --- |
 | `CA` | Each account is excluded from every enabled, report-only or disabled Conditional Access policy, directly or through a group. An exclusion by role doesn't count. |
-| `ACCT` | Enabled, cloud-only, a member, UPN on `*.onmicrosoft.com`, no licenses, password never expires, a FIDO2 security key and no other method, owns nothing, password age. |
+| `ACCT` | Enabled, cloud-only, a member, UPN on `*.onmicrosoft.com`, no licenses, password never expires, a FIDO2 security key and no other method, at least two FIDO2 keys (WARN with one), per-user MFA disabled, owns nothing, password age. |
 | `ROLE` | Permanent, active, tenant-wide Global Administrator (directly or through a role-assignable group), no PIM-eligible roles, no other roles. |
 | `GRP` | Each group is role-assignable, static, cloud-only, a plain security group, has no owners and only users, holds no account missing from Accounts, and is excluded from every enabled policy. |
 | `USE` | No sign-in, interactive or not, within **No sign-ins in the last**, from the account's sign-in activity. |
@@ -39,9 +39,11 @@ Different from the runbook:
 - Only FIDO2 security keys (`passKeyDeviceBound`) count as allowed methods. A passkey in Microsoft Authenticator is an
   "other method", since it lives on a phone.
 - Exclusions and roles are checked through the groups an account is a direct member of, not nested groups.
-- Not checked, because Graph tables can't show them yet: Security Defaults, per-user MFA and how many keys an account
-  has. Whether the break-glass keys' models are on an enforced allow-list is checked by hand, from the INFO row. The
-  Overview tab lists them.
+- The key count and per-user MFA state are read one account at a time (`users.authenticationMethods` and
+  `users.authenticationRequirements`), which needs `UserAuthenticationMethod.Read.All` and `Policy.Read.All`; without them
+  those checks are ERROR.
+- Not checked, because Graph tables can't show it yet: Security Defaults. Whether the break-glass keys' models are on an
+  enforced allow-list is checked by hand, from the INFO row. The Overview tab lists them.
 
 ## Risky users
 

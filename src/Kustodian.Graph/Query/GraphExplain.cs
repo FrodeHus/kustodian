@@ -106,7 +106,7 @@ public static class GraphExplain
             OrderBy = fetch.OrderBy?.OData,
             Count = fetch.Count is not null,
             Relationships = [.. relationships.Select(r => new ExplainRelationship(r.Name,
-                GraphRelationshipReader.Template(table.Path, r.Name, r.Collection), r.Permissions, limits.RelationshipEntriesPerObject))],
+                GraphRelationshipReader.Template(table.Path, r), r.Permissions, limits.RelationshipEntriesPerObject))],
             FilteredLocally = fetch.FilteredLocally,
             Headers = advanced ? [GraphCollectionReader.ConsistencyLevel + ": eventual"] : [],
             LicenseLeftOut = [.. fetch.LicenseLeftOut.Select(g => new ExplainLicenseGap(g.Column, g.Requirement.License, g.Requirement.Source))],

@@ -1,6 +1,6 @@
 {
   "source": "msgraph-metadata@690154db7b24571a66b5494ab14a14a96182ebbf; permissions https://raw.githubusercontent.com/microsoftgraph/microsoft-graph-devx-content/master/permissions/new/permissions.json",
-  "generatedAt": "2026-11-08T08:38:06.555927+00:00",
+  "generatedAt": "2026-11-08T08:54:55.050363+00:00",
   "tables": [
     {
       "name": "accessReviewDecisions",
@@ -71228,6 +71228,34 @@
             "Directory.Read.All",
             "User.Read.All"
           ]
+        },
+        {
+          "name": "authenticationMethods",
+          "type": "dynamic",
+          "description": "Represents all authentication methods registered to a user.",
+          "selectOnly": false,
+          "listable": false,
+          "collection": true,
+          "complexType": "kustodian.authenticationMethod",
+          "relationship": true,
+          "relationshipPath": "authentication/methods",
+          "permissions": [
+            "UserAuthenticationMethod.Read.All",
+            "UserAuthenticationMethod.Read"
+          ]
+        },
+        {
+          "name": "authenticationRequirements",
+          "type": "dynamic",
+          "description": "The settings and preferences for per-user Microsoft Entra multifactor authentication.",
+          "selectOnly": false,
+          "listable": false,
+          "complexType": "microsoft.graph.strongAuthenticationRequirements",
+          "relationship": true,
+          "relationshipPath": "authentication/requirements",
+          "permissions": [
+            "Policy.Read.All"
+          ]
         }
       ]
     },
@@ -71311,6 +71339,177 @@
     }
   ],
   "complexTypes": {
+    "kustodian.authenticationMethod": [
+      {
+        "name": "objectType",
+        "type": "string",
+        "collection": false,
+        "description": "The entry's type: @odata.type without #microsoft.graph."
+      },
+      {
+        "name": "id",
+        "type": "string",
+        "collection": false,
+        "description": "The unique identifier for an entity. Read-only."
+      },
+      {
+        "name": "createdDateTime",
+        "type": "datetime",
+        "collection": false,
+        "description": "The date and time the authentication method was registered to the user. Read-only. Optional. This optional value is null if the authentication method doesn't populate it. The timestamp type represents date and time information using ISO 8601 format and is always in UTC. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z."
+      },
+      {
+        "name": "lastUsedDateTime",
+        "type": "datetime",
+        "collection": false,
+        "description": "The date and time the authentication method was last used by the user. Read-only. Optional. This optional value is null if the authentication method doesn't populate it. The timestamp type represents date and time information using ISO 8601 format and is always in UTC. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z."
+      },
+      {
+        "name": "emailAddress",
+        "type": "string",
+        "collection": false,
+        "description": "The email address registered to this user."
+      },
+      {
+        "name": "configurationId",
+        "type": "string",
+        "collection": false,
+        "description": "A unique identifier used to manage the external auth method within Microsoft Entra ID."
+      },
+      {
+        "name": "displayName",
+        "type": "string",
+        "collection": false,
+        "description": "Custom name given to the registered external MFA."
+      },
+      {
+        "name": "aaGuid",
+        "type": "string",
+        "collection": false,
+        "description": "Authenticator Attestation GUID, an identifier that indicates the type (such as make and model) of the authenticator."
+      },
+      {
+        "name": "attestationCertificates",
+        "type": "string",
+        "collection": true,
+        "description": "The attestation certificate or certificates attached to this security key."
+      },
+      {
+        "name": "attestationLevel",
+        "type": "string",
+        "collection": false,
+        "description": "The attestation level of this FIDO2 security key. The possible values are: attested, notAttested, unknownFutureValue."
+      },
+      {
+        "name": "model",
+        "type": "string",
+        "collection": false,
+        "description": "The manufacturer-assigned model of the FIDO2 security key."
+      },
+      {
+        "name": "passkeyType",
+        "type": "string",
+        "collection": false,
+        "description": "The type of passkey allowed in the passkey profile. The possible values are: deviceBound, synced, unknownFutureValue."
+      },
+      {
+        "name": "publicKeyCredential",
+        "type": "dynamic",
+        "collection": false,
+        "complexType": "microsoft.graph.webauthnPublicKeyCredential",
+        "description": "Contains the WebAuthn public key credential information being registered. Only used for write requests. This property isn't returned on read operations."
+      },
+      {
+        "name": "clientAppName",
+        "type": "string",
+        "collection": false,
+        "description": "The app that the user has registered to use to approve push notifications. The possible values are: microsoftAuthenticator, outlookMobile, unknownFutureValue."
+      },
+      {
+        "name": "deviceTag",
+        "type": "string",
+        "collection": false,
+        "description": "Tags containing app metadata."
+      },
+      {
+        "name": "phoneAppVersion",
+        "type": "string",
+        "collection": false,
+        "description": "Numerical version of this instance of the Authenticator app."
+      },
+      {
+        "name": "password",
+        "type": "string",
+        "collection": false,
+        "description": "For security, the password is always returned as null from a LIST or GET operation."
+      },
+      {
+        "name": "creationDateTime",
+        "type": "datetime",
+        "collection": false,
+        "description": "The timestamp when this method was registered to the user."
+      },
+      {
+        "name": "phoneNumber",
+        "type": "string",
+        "collection": false,
+        "description": "The phone number to text or call for authentication. Phone numbers use the format '+<country code> <number>x<extension>', with extension optional. For example, +1 5555551234 or +1 5555551234x123 are valid. Numbers are rejected when creating/updating if they don't match the required format."
+      },
+      {
+        "name": "phoneType",
+        "type": "string",
+        "collection": false,
+        "description": "The type of this phone. The possible values are: mobile, alternateMobile, or office."
+      },
+      {
+        "name": "smsSignInState",
+        "type": "string",
+        "collection": false,
+        "description": "Whether a phone is ready to be used for SMS sign-in or not. The possible values are: notSupported, notAllowedByPolicy, notEnabled, phoneNumberNotUnique, ready, or notConfigured, unknownFutureValue."
+      },
+      {
+        "name": "keyStrength",
+        "type": "string",
+        "collection": false,
+        "description": "Key strength of this Platform Credential key. The possible values are: normal, weak, unknown."
+      },
+      {
+        "name": "platform",
+        "type": "string",
+        "collection": false,
+        "description": "Platform on which this Platform Credential key is present. The possible values are: unknown, windows, macOS,iOS, android, linux."
+      },
+      {
+        "name": "secretKey",
+        "type": "string",
+        "collection": false,
+        "description": "The secret key of the method. Always returns null."
+      },
+      {
+        "name": "isUsableOnce",
+        "type": "bool",
+        "collection": false,
+        "description": "Determines whether the pass is limited to a one-time use. If true, the pass can be used once; if false, the pass can be used multiple times within the Temporary Access Pass lifetime."
+      },
+      {
+        "name": "lifetimeInMinutes",
+        "type": "int",
+        "collection": false,
+        "description": "The lifetime of the Temporary Access Pass in minutes starting at startDateTime. Must be between 10 and 43200 inclusive (equivalent to 30 days)."
+      },
+      {
+        "name": "startDateTime",
+        "type": "datetime",
+        "collection": false,
+        "description": "The date and time when the Temporary Access Pass becomes available to use and when isUsable is true is enforced."
+      },
+      {
+        "name": "temporaryAccessPass",
+        "type": "string",
+        "collection": false,
+        "description": "The Temporary Access Pass used to authenticate. Returned only on creation of a new temporaryAccessPassAuthenticationMethod object; Hidden in subsequent read operations and returned as null with GET."
+      }
+    ],
     "kustodian.directoryObjectRef": [
       {
         "name": "id",
@@ -91586,6 +91785,14 @@
       }
     ],
     "microsoft.graph.stringDictionary": [],
+    "microsoft.graph.strongAuthenticationRequirements": [
+      {
+        "name": "perUserMfaState",
+        "type": "string",
+        "collection": false,
+        "description": "Sets the per-user MFA state for the user. The possible values are: disabled, enforced, enabled, unknownFutureValue. When you update a user's MFA state to enabled and the user has already registered an MFA method, their state changes automatically to enforced."
+      }
+    ],
     "microsoft.graph.subjectRightsRequestDetail": [
       {
         "name": "excludedItemCount",
@@ -93521,6 +93728,43 @@
         "collection": false,
         "complexType": "microsoft.graph.webApplicationFirewallDnsConfiguration",
         "description": "DNS-related details discovered during verification for the host, such as the DNS record name, record type, record value, whether the record is proxied through the provider, and whether the domain is verified."
+      }
+    ],
+    "microsoft.graph.webauthnAuthenticationExtensionsClientOutputs": [],
+    "microsoft.graph.webauthnAuthenticatorAttestationResponse": [
+      {
+        "name": "attestationObject",
+        "type": "string",
+        "collection": false,
+        "description": "Base64URL encoded, cryptographically protected attestation about the WebAuthn Authenticator."
+      },
+      {
+        "name": "clientDataJSON",
+        "type": "string",
+        "collection": false,
+        "description": ""
+      }
+    ],
+    "microsoft.graph.webauthnPublicKeyCredential": [
+      {
+        "name": "clientExtensionResults",
+        "type": "dynamic",
+        "collection": false,
+        "complexType": "microsoft.graph.webauthnAuthenticationExtensionsClientOutputs",
+        "description": "The untyped results from the execution of extensions requested by the client when creating a new public key credential."
+      },
+      {
+        "name": "id",
+        "type": "string",
+        "collection": false,
+        "description": "The credential ID created by the WebAuthn Authenticator."
+      },
+      {
+        "name": "response",
+        "type": "dynamic",
+        "collection": false,
+        "complexType": "microsoft.graph.webauthnAuthenticatorAttestationResponse",
+        "description": "Response data returned from a WebAuthn authenticator after it creates a new public key credential."
       }
     ],
     "microsoft.graph.win32LobAppDetection": [],

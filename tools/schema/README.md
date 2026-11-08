@@ -22,11 +22,14 @@ Exit codes: 0 ok, 2 usage, 3 an input could not be read or downloaded.
 ## Relationship columns
 
 `src/Kustodian.Graph/Schema/graph-relationships.json` lists, per table, the navigation properties exposed as relationship
-columns (`users.memberOf`, `groups.members`, ...): table name, then relationship name, each with `{}`. Only direct relationships
-belong there, never `transitive*`. The tool turns each into a get-only `dynamic` column of `kustodian.directoryObjectRef`
-entries, with the delegated permissions Microsoft lists for `GET /{table}/{id}/{name}`; one with none gets a warning in the
-output. A name that isn't a navigation property of the table's type, or a table the metadata doesn't have, stops the run with
-exit code 3.
+columns (`users.memberOf`, `groups.members`, ...): table name, then relationship name, each with `{}`, or with
+`{"path": "authentication/methods"}` when the column reads a path under the object other than its own name. Only direct
+relationships belong there, never `transitive*`. The tool walks the path through the metadata (navigation properties, and a
+complex-typed property as the last segment) and turns each into a get-only `dynamic` column, with the delegated permissions
+Microsoft lists for `GET /{table}/{id}/{path}`; one with none gets a warning in the output. Its entries are
+`kustodian.directoryObjectRef` when the target is a directory object; `kustodian.{type}` (`objectType`, then the properties of
+the type and its derived types) for other entities; the complex type itself for a property. A path segment that isn't in the
+metadata, a collection before the last segment, or a table the metadata doesn't have stops the run with exit code 3.
 
 ## Inputs
 

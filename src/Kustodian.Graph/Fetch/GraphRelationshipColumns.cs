@@ -83,7 +83,7 @@ internal sealed class GraphRelationshipColumns(HttpClient http, IGraphObjectCach
         var (refused, failed) = (0, 0);
         if (misses.Count > 0)
         {
-            requests.Add(GraphRelationshipReader.Template(path, column.Name, column.Collection));
+            requests.Add(GraphRelationshipReader.Template(path, column));
             var answered = await _reader.ReadAsync(accountKey, path, column, misses, lease, diagnostics, ct);
             (refused, failed) = (answered.Refused, answered.Failed);
             truncated += answered.Truncated.Count;
@@ -100,7 +100,7 @@ internal sealed class GraphRelationshipColumns(HttpClient http, IGraphObjectCach
                 $"{named}: read one object at a time for {Objects(misses.Count)}, {refused:N0} refused, {failed:N0} failed, {answered.Truncated.Count:N0} cut off at {limits.RelationshipEntriesPerObject:N0} entries"));
         }
         return new GraphRelationshipOutcome(column.Name, objects.Count, truncated, refused, failed, false, hits.Count,
-            objects.Sum(o => Limited(o[column.Name])));
+            GraphRelationshipReader.IsRef(column) ? objects.Sum(o => Limited(o[column.Name])) : 0);
     }
 
     /// <summary>The entries in one object's value without a <c>displayName</c> (only <c>id</c> and <c>objectType</c>): what Graph

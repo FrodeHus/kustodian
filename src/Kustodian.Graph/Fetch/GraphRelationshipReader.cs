@@ -7,8 +7,7 @@ using Kustodian.Graph.Schema;
 namespace Kustodian.Graph.Fetch;
 
 /// <summary>What reading one relationship for a set of objects gave: the value of each object that was read (an array of
-/// <c>kustodian.directoryObjectRef</c> entries for a collection; one entry, or null when there is none, for a single
-/// relationship), the objects whose collection was cut off at the entry cap, and how many objects Graph refused (401/403)
+/// entries for a collection; one entry, or null when there is none, for a single relationship), the objects whose collection was cut off at the entry cap, and how many objects Graph refused (401/403)
 /// or couldn't be read.</summary>
 public sealed record GraphRelationshipRead(
     IReadOnlyDictionary<string, JsonNode?> Values,
@@ -17,9 +16,11 @@ public sealed record GraphRelationshipRead(
     int Failed);
 
 /// <summary>
-/// Reads one relationship (<c>memberOf</c>, <c>manager</c>, ...) of each object: <c>GET /{path}/{id}/{relationship}</c> sent
+/// Reads one relationship (<c>memberOf</c>, <c>manager</c>, <c>authentication/methods</c>, ...) of each object:
+/// <c>GET /{path}/{id}/{relationship path}</c> sent
 /// through <c>POST /$batch</c> like <see cref="GraphBatchReader"/> (same batch size and batches in flight; <see cref="GraphBatchSender"/>
-/// retries a throttled item once). A collection is read with <c>$top=999</c>; an object whose read Graph refuses for the page size
+/// retries a throttled item once). A relationship to directory objects selects the <c>kustodian.directoryObjectRef</c> fields
+/// and reads a collection with <c>$top=999</c>; an object whose read Graph refuses for the page size
 /// (<c>directoryRoles</c> members) is read once more without it. A collection's next pages are plain GETs, followed only to https on graph.microsoft.com, until the object
 /// has <see cref="GraphLimits.RelationshipEntriesPerObject"/> entries. Every body counts against the lease.
 /// </summary>
@@ -30,14 +31,21 @@ public sealed class GraphRelationshipReader(HttpClient http, GraphLimits limits)
     private const string Select = "$select=id,displayName,userPrincipalName,mail,appId,deviceId";
     private static readonly string[] ShapeFields = ["displayName", "userPrincipalName", "mail", "appId", "deviceId"];
 
-    /// <summary>The relative URL of one object's read, with <c>{id}</c> for the id: what the fetch info shows.</summary>
-    public static string Template(string path, string relationship, bool collection)
-        => path + "/{id}/" + relationship + "?" + Select + (collection ? TopPart : "");
+    /// <summary>The relative URL of one object's read, with <c>{id}</c> for the id: what the fetch info shows. Any other shape
+    /// is read whole.</summary>
+    public static string Template(string path, GraphColumn relationship)
+        => path + "/{id}/" + relationship.ReadPath + (!IsRef(relationship) ? ""
+            : "?" + Select + (relationship.Collection ? TopPart : ""));
 
+    // shortcut: other shapes are read without $top (Graph's page size), fine for short lists like authentication methods;
+    // add a per-relationship page size if a long one is curated.
     private const string TopPart = "&$top=999";
 
+    /// <summary>Whether the column's entries are <c>kustodian.directoryObjectRef</c>s.</summary>
+    public static bool IsRef(GraphColumn relationship) => relationship.ComplexType == GraphSchemaJson.DirectoryObjectRef;
+
     private static string Url(string path, GraphColumn relationship, string id)
-        => "/" + Template(path, relationship.Name, relationship.Collection).Replace("{id}", Uri.EscapeDataString(id), StringComparison.Ordinal);
+        => "/" + Template(path, relationship).Replace("{id}", Uri.EscapeDataString(id), StringComparison.Ordinal);
 
     /// <summary>A directory object as a <c>kustodian.directoryObjectRef</c>: <c>id</c>, <c>objectType</c> (the <c>@odata.type</c>
     /// without its prefix), then the shape fields the object has. Anything else is dropped; an explicit null is kept.</summary>
@@ -46,13 +54,31 @@ public sealed class GraphRelationshipReader(HttpClient http, GraphLimits limits)
         var entry = new JsonObject();
         if (graphObject.TryGetPropertyValue("id", out var id))
             entry["id"] = id?.DeepClone();
-        if (graphObject["@odata.type"] is JsonValue type && type.TryGetValue<string>(out var typeName))
-            entry["objectType"] = typeName.StartsWith(TypePrefix, StringComparison.Ordinal) ? typeName[TypePrefix.Length..] : typeName;
+        if (ObjectType(graphObject) is { } objectType)
+            entry["objectType"] = objectType;
         foreach (var field in ShapeFields)
             if (graphObject.TryGetPropertyValue(field, out var value))
                 entry[field] = value?.DeepClone();
         return entry;
     }
+
+    /// <summary>An entry of any other shape: Graph's fields without the <c>@odata.*</c> annotations, with <c>objectType</c>
+    /// (the <c>@odata.type</c> without its prefix) first when Graph gives one.</summary>
+    public static JsonObject ShapedEntry(JsonObject graphObject)
+    {
+        var entry = new JsonObject();
+        if (ObjectType(graphObject) is { } objectType)
+            entry["objectType"] = objectType;
+        foreach (var (name, value) in graphObject)
+            if (!name.StartsWith("@odata.", StringComparison.Ordinal))
+                entry[name] = value?.DeepClone();
+        return entry;
+    }
+
+    private static string? ObjectType(JsonObject graphObject)
+        => graphObject["@odata.type"] is JsonValue type && type.TryGetValue<string>(out var typeName)
+            ? typeName.StartsWith(TypePrefix, StringComparison.Ordinal) ? typeName[TypePrefix.Length..] : typeName
+            : null;
 
     private enum Outcome { Read, Missing, Refused, Failed }
 
@@ -138,8 +164,9 @@ public sealed class GraphRelationshipReader(HttpClient http, GraphLimits limits)
     {
         if (page is null)
             return new Item(id, Outcome.Failed);
+        Func<JsonObject, JsonObject> entry = IsRef(relationship) ? Entry : ShapedEntry;
         if (!relationship.Collection)
-            return new Item(id, Outcome.Read, Entry(page));
+            return new Item(id, Outcome.Read, entry(page));
 
         var cap = limits.RelationshipEntriesPerObject;
         var entries = new List<JsonNode?>();
@@ -147,7 +174,7 @@ public sealed class GraphRelationshipReader(HttpClient http, GraphLimits limits)
         {
             if (page["value"] is not JsonArray values)
                 return new Item(id, Outcome.Failed);
-            entries.AddRange(values.OfType<JsonObject>().Select(o => (JsonNode)Entry(o)));
+            entries.AddRange(values.OfType<JsonObject>().Select(o => (JsonNode)entry(o)));
 
             var linkNode = page["@odata.nextLink"];
             string? link = null;
