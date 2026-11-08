@@ -8,17 +8,23 @@ public static partial class GraphSchemaBuilder
 {
     private static readonly HashSet<string> FilterOperators = ["eq", "ne", "not", "ge", "le", "lt", "gt", "in", "startsWith", "endsWith"];
 
-    /// <summary>Singletons whose collections only exist for a signed-in user (delegated access): an application-token reader reads
-    /// with an application token, so they are left out.</summary>
-    private static readonly string[] DelegatedOnlySingletons = ["me"];
+    /// <summary>Whether the path is a signed-in user's collection: under <c>me</c> (<c>me/messages</c>) or through a <c>me</c>
+    /// segment further down (<c>education/me/assignments</c>). These mostly repeat other tables per user, so they are left out.
+    /// <c>me</c> itself is a table: every sign-in Kustodian offers is delegated, so <c>GET /me</c> reads the signed-in user.</summary>
+    private static bool IsUnderMe(string path) => path != "me" && path.Split('/').Contains("me");
 
-    /// <summary>Whether the path is a signed-in user's: under a delegated-only singleton, or through a <c>me</c> segment
-    /// further down (<c>education/me/assignments</c>).</summary>
-    private static bool IsDelegatedOnly(string path)
+    /// <summary>Columns left out of their table because the value is a secret or a credential's content, keyed by table name
+    /// and column name. Kept by hand: <c>tools/schema</c> flags new columns that look like one for a person to add here.</summary>
+    public static readonly IReadOnlySet<(string Table, string Column)> SecretColumns = new HashSet<(string Table, string Column)>
     {
-        var segments = path.Split('/');
-        return DelegatedOnlySingletons.Contains(segments[0]) || segments.Contains("me");
-    }
+        // The code-signing certificate's password and its raw certificate (with the private key).
+        ("deviceAppManagement_symantecCodeSigningCertificate", "password"),
+        ("deviceAppManagement_symantecCodeSigningCertificate", "content"),
+        // The token that enrolls devices with Zebra's FOTA service.
+        ("deviceManagement_zebraFotaConnector", "enrollmentToken"),
+        // The Apple push notification certificate itself.
+        ("deviceManagement_applePushNotificationCertificate", "certificate"),
+    };
 
     /// <summary>Columns Graph returns only on a single object's GET although the metadata doesn't say so, keyed by table name
     /// and column name. Microsoft Learn's List users: the SharePoint profile properties and <c>mailboxSettings</c> "are only
@@ -52,7 +58,7 @@ public static partial class GraphSchemaBuilder
     {
         var tables = metadata.Collections
             .Where(c => metadata.Types.ContainsKey(c.EntityType))
-            .Where(c => !IsDelegatedOnly(c.Path))
+            .Where(c => !IsUnderMe(c.Path))
             // A single object becomes a table only when Microsoft lists a permission to read it: most singletons and many
             // contained objects are containers with nothing of their own to read.
             .Where(c => !c.Single || permissions.ContainsKey(GraphPermissions.NormalizePath("/" + c.Path)))
@@ -106,7 +112,7 @@ public static partial class GraphSchemaBuilder
     {
         var type = metadata.Types[collection.EntityType];
         var name = collection.Path.Replace('/', '_');
-        var columns = type.Properties.Select(p =>
+        var columns = type.Properties.Where(p => !SecretColumns.Contains((name, p.Name))).Select(p =>
         {
             var kusto = KustoType(metadata, p);
             return new GraphColumn(p.Name, kusto, p.Description, FilterOf(p.Description), SelectOnlyRegex().IsMatch(p.Description),

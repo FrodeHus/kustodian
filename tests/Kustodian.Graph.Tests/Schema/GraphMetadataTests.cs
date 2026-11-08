@@ -106,4 +106,33 @@ public sealed class GraphMetadataTests
         Assert.NotNull(schema.Find("reports_authenticationMethods_userRegistrationDetails"));
         Assert.Null(schema.Find("education_me_userRegistrationDetails"));
     }
+
+    // GET /me reads the signed-in user (every sign-in is delegated); the collections under it repeat other tables.
+    [Fact]
+    public void The_me_singleton_is_a_single_object_table_and_its_collections_are_not()
+    {
+        var schema = GraphSchemaCatalog.Beta;
+
+        var me = Assert.IsType<GraphTable>(schema.Find("me"));
+        Assert.True(me.Single);
+        Assert.Equal("microsoft.graph.user", me.EntityType);
+        Assert.NotEmpty(me.Permissions);
+        // A single GET, so the columns a list of users never returns are read here.
+        Assert.All(GraphSchemaBuilder.KnownGetOnly.Where(k => k.Table == "users"),
+            k => Assert.True(me.Columns.Single(c => c.Name == k.Column).Listable));
+        Assert.DoesNotContain(schema.Tables, t => t.Path.StartsWith("me/", StringComparison.Ordinal) || t.Path.Contains("/me/", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Secret_columns_are_left_out_of_the_bundled_schema()
+    {
+        foreach (var (table, column) in GraphSchemaBuilder.SecretColumns)
+        {
+            var found = Assert.IsType<GraphTable>(GraphSchemaCatalog.Beta.Find(table));
+            Assert.DoesNotContain(found.Columns, c => c.Name == column);
+        }
+        // The rest of the object stays.
+        Assert.Contains(GraphSchemaCatalog.Beta.Find("deviceManagement_applePushNotificationCertificate")!.Columns,
+            c => c.Name == "expirationDateTime");
+    }
 }

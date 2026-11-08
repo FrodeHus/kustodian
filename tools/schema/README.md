@@ -81,3 +81,15 @@ Column permissions are not published by Microsoft: `GraphPermissions.KnownColumn
 
 Columns Graph returns only on a single object's GET where the metadata doesn't say so (the `users` SharePoint profile columns
 and `mailboxSettings`) are marked not listable from `GraphSchemaBuilder.KnownGetOnly`, also a hand-kept list.
+
+## Single objects and secret columns
+
+A singleton (`me`) or a single-valued contained navigation (`policies/identitySecurityDefaultsEnforcementPolicy`) becomes a
+one-row table (`"single": true`) only when Microsoft lists a delegated read permission for its path. Paths under `me`
+(`me/messages`, `education/me/...`) are left out.
+
+Columns that hold a secret or a credential's content are left out of their table by `GraphSchemaBuilder.SecretColumns`, a
+hand-kept list. To catch new ones, the tool prints `Possible secret column: table.column` for every column new since the
+committed schema whose name or description looks like a password, secret, token, private key, credential or certificate
+(`GraphSchemaDiff.LooksSecret`). It only flags them. The graph-schema workflow lists them under "Possible secret columns:
+review before merging" in its pull request; add the real ones to `SecretColumns`.

@@ -1,6 +1,6 @@
 {
   "source": "msgraph-metadata@690154db7b24571a66b5494ab14a14a96182ebbf; permissions https://raw.githubusercontent.com/microsoftgraph/microsoft-graph-devx-content/master/permissions/new/permissions.json",
-  "generatedAt": "2026-11-08T08:37:26.330872+00:00",
+  "generatedAt": "2026-11-08T08:49:17.918781+00:00",
   "tables": [
     {
       "name": "accessReviewDecisions",
@@ -10579,12 +10579,6 @@
           "selectOnly": false
         },
         {
-          "name": "content",
-          "type": "string",
-          "description": "The Windows Symantec Code-Signing Certificate in the raw data format.",
-          "selectOnly": false
-        },
-        {
           "name": "expirationDateTime",
           "type": "datetime",
           "description": "The Cert Expiration Date.",
@@ -10600,12 +10594,6 @@
           "name": "issuerName",
           "type": "string",
           "description": "The Issuer Name for the cert.",
-          "selectOnly": false
-        },
-        {
-          "name": "password",
-          "type": "string",
-          "description": "The Password required for .pfx file.",
           "selectOnly": false
         },
         {
@@ -12312,12 +12300,6 @@
           "name": "appleIdentifier",
           "type": "string",
           "description": "Apple Id of the account used to create the MDM push certificate.",
-          "selectOnly": false
-        },
-        {
-          "name": "certificate",
-          "type": "string",
-          "description": "",
           "selectOnly": false
         },
         {
@@ -26865,12 +26847,6 @@
           "selectOnly": false
         },
         {
-          "name": "enrollmentToken",
-          "type": "string",
-          "description": "Tenant enrollment token from Zebra. The token is used to enroll Zebra devices in the FOTA Service via app config.",
-          "selectOnly": false
-        },
-        {
           "name": "fotaAppsApproved",
           "type": "bool",
           "description": "Flag indicating if required Firmware Over-the-Air (FOTA) Apps have been approved.",
@@ -38765,6 +38741,1000 @@
           "name": "status",
           "type": "string",
           "description": "The status of the invitation. Possible values: PendingAcceptance, Completed, InProgress, and Error",
+          "selectOnly": false
+        }
+      ]
+    },
+    {
+      "name": "me",
+      "path": "me",
+      "entityType": "microsoft.graph.user",
+      "description": "",
+      "docsUrl": "https://learn.microsoft.com/graph/api/resources/user?view=graph-rest-beta",
+      "directoryObject": true,
+      "single": true,
+      "permissions": [
+        "User.Read"
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "type": "string",
+          "description": "The unique identifier for an entity. Read-only.",
+          "selectOnly": false
+        },
+        {
+          "name": "deletedDateTime",
+          "type": "datetime",
+          "description": "Date and time when this object was deleted. Always null when the object hasn't been deleted.",
+          "selectOnly": false
+        },
+        {
+          "name": "aboutMe",
+          "type": "string",
+          "description": "A freeform text entry field for users to describe themselves. Requires $select to retrieve.",
+          "selectOnly": true
+        },
+        {
+          "name": "accountEnabled",
+          "type": "bool",
+          "description": "true if the account is enabled; otherwise, false. This property is required when creating the object. Supports $filter (eq, ne, not, and in). This property is subject to sensitive action restrictions; only specific privileged administrator roles can update it.",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "in"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "ageGroup",
+          "type": "string",
+          "description": "Sets the age group of the user. Allowed values: null, Minor, NotAdult, and Adult. For more information, see legal age group property definitions. Supports $filter (eq, ne, not, and in).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "in"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "assignedLicenses",
+          "type": "dynamic",
+          "description": "The licenses that are assigned to the user, including inherited (group-based) licenses. This property doesn't differentiate between directly assigned and inherited licenses. Use the licenseAssignmentStates property to identify the directly assigned and inherited licenses. Not nullable. Supports $filter (eq, not, /$count eq 0, /$count ne 0).",
+          "filter": [
+            "eq",
+            "not"
+          ],
+          "selectOnly": false,
+          "collection": true,
+          "complexType": "microsoft.graph.assignedLicense"
+        },
+        {
+          "name": "assignedPlans",
+          "type": "dynamic",
+          "description": "The plans that are assigned to the user. Read-only. Not nullable.Supports $filter (eq and not).",
+          "filter": [
+            "eq"
+          ],
+          "selectOnly": false,
+          "collection": true,
+          "complexType": "microsoft.graph.assignedPlan"
+        },
+        {
+          "name": "authorizationInfo",
+          "type": "dynamic",
+          "description": "Identifiers that can be used to identify and authenticate a user in non-Azure AD environments. This property can store identifiers for smartcard-based certificates that users use to access on-premises Active Directory deployments or federated access. It can also be used to store the Subject Alternate Name (SAN) that's associated with a Common Access Card (CAC). Nullable.Supports $filter (eq and startsWith).",
+          "filter": [
+            "eq"
+          ],
+          "selectOnly": false,
+          "complexType": "microsoft.graph.authorizationInfo"
+        },
+        {
+          "name": "birthday",
+          "type": "datetime",
+          "description": "The birthday of the user. The Timestamp type represents date and time information using ISO 8601 format and is always in UTC. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z Requires $select to retrieve.",
+          "selectOnly": true
+        },
+        {
+          "name": "businessPhones",
+          "type": "dynamic",
+          "description": "The telephone numbers for the user. Only one number can be set for this property. Read-only for users synced from on-premises directory. Supports $filter (eq, not, ge, le, startsWith). This property is subject to sensitive action restrictions; only specific privileged administrator roles can update it.",
+          "filter": [
+            "eq",
+            "not",
+            "ge",
+            "le",
+            "startsWith"
+          ],
+          "selectOnly": false,
+          "collection": true
+        },
+        {
+          "name": "city",
+          "type": "string",
+          "description": "The city where the user is located. Maximum length is 128 characters. Supports $filter (eq, ne, not, ge, le, in, startsWith, and eq on null values).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in",
+            "startsWith"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "cloudLicensing",
+          "type": "dynamic",
+          "description": "The relationships of a user to cloud licensing resources.",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.cloudLicensing.userCloudLicensing"
+        },
+        {
+          "name": "cloudRealtimeCommunicationInfo",
+          "type": "dynamic",
+          "description": "Microsoft realtime communication information related to the user.  Supports $filter (eq, ne,not).",
+          "filter": [
+            "eq",
+            "ne",
+            "not"
+          ],
+          "selectOnly": false,
+          "complexType": "microsoft.graph.cloudRealtimeCommunicationInfo"
+        },
+        {
+          "name": "companyName",
+          "type": "string",
+          "description": "The name of the company the user is associated with. This property can be useful for describing the company that an external user comes from. The maximum length is 64 characters.Supports $filter (eq, ne, not, ge, le, in, startsWith, and eq on null values).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in",
+            "startsWith"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "consentProvidedForMinor",
+          "type": "string",
+          "description": "Sets whether consent has been obtained for minors. Allowed values: null, Granted, Denied and NotRequired. Refer to the legal age group property definitions for further information. Supports $filter (eq, ne, not, and in).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "in"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "country",
+          "type": "string",
+          "description": "The ISO 3166-1 alpha-2 location code associated with the user; for example, US or GB. The property name is part of the Microsoft Graph API contract. Maximum length is 128 characters. Supports $filter (eq, ne, not, ge, le, in, startsWith, and eq on null values).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in",
+            "startsWith"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "createdDateTime",
+          "type": "datetime",
+          "description": "The date and time the user was created in ISO 8601 format and UTC. The value cannot be modified and is automatically populated when the entity is created. Nullable. For on-premises users, the value represents when they were first created in Microsoft Entra ID. Property is null for some users created before June 2018 and on-premises users synced to Microsoft Entra ID before June 2018. Read-only. Supports $filter (eq, ne, not , ge, le, in).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "creationType",
+          "type": "string",
+          "description": "Indicates whether the user account was created through one of the following methods:  As a regular school or work account (null). As an external account (Invitation). As a local account for an Azure Active Directory B2C tenant (LocalAccount). Through self-service sign-up by an internal user using email verification (EmailVerified). Through self-service sign-up by an external user signing up through a link that is part of a user flow (SelfServiceSignUp).  Read-only.Supports $filter (eq, ne, not, and in).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "in"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "customSecurityAttributes",
+          "type": "dynamic",
+          "description": "An open complex type that holds the value of a custom security attribute that is assigned to a directory object. Nullable. Requires $select to retrieve. Supports $filter (eq, ne, not, startsWith). The filter value is case-sensitive. To read this property, the calling app must be assigned the CustomSecAttributeAssignment.Read.All permission. To write this property, the calling app must be assigned the CustomSecAttributeAssignment.ReadWrite.All permissions. To read or write this property in delegated scenarios, the admin must be assigned the Attribute Assignment Administrator role. Supports $filter (eq, ne, not , ge, le, in).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "startsWith"
+          ],
+          "selectOnly": true,
+          "complexType": "microsoft.graph.customSecurityAttributeValue"
+        },
+        {
+          "name": "department",
+          "type": "string",
+          "description": "The name of the department where the user works. Maximum length is 64 characters.Supports $filter (eq, ne, not , ge, le, in, and eq on null values).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "deviceEnrollmentLimit",
+          "type": "int",
+          "description": "The limit on the maximum number of devices that the user is permitted to enroll. Allowed values are 5 or 1000.",
+          "selectOnly": false
+        },
+        {
+          "name": "deviceKeys",
+          "type": "dynamic",
+          "description": "",
+          "selectOnly": false,
+          "collection": true,
+          "complexType": "microsoft.graph.deviceKey"
+        },
+        {
+          "name": "displayName",
+          "type": "string",
+          "description": "The name displayed in the address book for the user. This value is usually the combination of the user's first name, middle initial, and last name. This property is required when a user is created, and it cannot be cleared during updates. Maximum length is 256 characters. Supports $filter (eq, ne, not , ge, le, in, startsWith, and eq on null values), $orderby, and $search.",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in",
+            "startsWith"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "employeeHireDate",
+          "type": "datetime",
+          "description": "The date and time when the user was hired or will start work if there is a future hire. Supports $filter (eq, ne, not , ge, le, in).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "employeeId",
+          "type": "string",
+          "description": "The employee identifier assigned to the user by the organization. The maximum length is 16 characters.Supports $filter (eq, ne, not , ge, le, in, startsWith, and eq on null values).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in",
+            "startsWith"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "employeeLeaveDateTime",
+          "type": "datetime",
+          "description": "The date and time when the user left or will leave the organization. To read this property, the calling app must be assigned the User-LifeCycleInfo.Read.All permission. To write this property, the calling app must be assigned the User.Read.All and User-LifeCycleInfo.ReadWrite.All permissions. To read this property in delegated scenarios, the admin needs at least one of the following Microsoft Entra roles: Lifecycle Workflows Administrator (least privilege), Global Reader. To write this property in delegated scenarios, the admin needs the Global Administrator role. Supports $filter (eq, ne, not , ge, le, in). For more information, see Configure the employeeLeaveDateTime property for a user.",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "employeeOrgData",
+          "type": "dynamic",
+          "description": "Represents organization data (for example, division and costCenter) associated with a user. Supports $filter (eq, ne, not , ge, le, in).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in"
+          ],
+          "selectOnly": false,
+          "complexType": "microsoft.graph.employeeOrgData"
+        },
+        {
+          "name": "employeeType",
+          "type": "string",
+          "description": "Captures enterprise worker type. For example, Employee, Contractor, Consultant, or Vendor. Supports $filter (eq, ne, not , ge, le, in, startsWith).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in",
+            "startsWith"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "externalUserState",
+          "type": "string",
+          "description": "For an external user invited to the tenant using the invitation API, this property represents the invited user's invitation status. For invited users, the state can be PendingAcceptance or Accepted, or null for all other users. Supports $filter (eq, ne, not , in).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "in"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "externalUserStateChangeDateTime",
+          "type": "string",
+          "description": "Shows the timestamp for the latest change to the externalUserState property. Supports $filter (eq, ne, not , in).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "in"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "faxNumber",
+          "type": "string",
+          "description": "The fax number of the user. Supports $filter (eq, ne, not , ge, le, in, startsWith, and eq on null values).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in",
+            "startsWith"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "givenName",
+          "type": "string",
+          "description": "The given name (first name) of the user. Maximum length is 64 characters. Supports $filter (eq, ne, not , ge, le, in, startsWith, and eq on null values).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in",
+            "startsWith"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "hireDate",
+          "type": "datetime",
+          "description": "The hire date of the user. The Timestamp type represents date and time information using ISO 8601 format and is always in UTC. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z.  Requires $select to retrieve.  Note: This property is specific to SharePoint Online. We recommend using the native employeeHireDate property to set and update hire date values using Microsoft Graph APIs.",
+          "selectOnly": true
+        },
+        {
+          "name": "identities",
+          "type": "dynamic",
+          "description": "Represents the identities that can be used to sign in to this user account. An identity can be provided by Microsoft (also known as a local account), by organizations, or by social identity providers such as Facebook, Google, and Microsoft and tied to a user account. It may contain multiple items with the same signInType value.  Supports $filter (eq) with limitations.",
+          "filter": [
+            "eq"
+          ],
+          "selectOnly": false,
+          "collection": true,
+          "complexType": "microsoft.graph.objectIdentity"
+        },
+        {
+          "name": "identityGovernance",
+          "type": "dynamic",
+          "description": "The identity governance settings for the user. You can get or update the user's approver delegate through the approverDelegate property. Nullable. Returned only on $select. Supports $expand.",
+          "selectOnly": true,
+          "complexType": "microsoft.graph.identityGovernanceUserSettings"
+        },
+        {
+          "name": "identityParentId",
+          "type": "string",
+          "description": "The object ID of the parent identity for agent users. Always null for regular user accounts. For agentUser resources, this property references the object ID of the associated agent identity.",
+          "selectOnly": false
+        },
+        {
+          "name": "imAddresses",
+          "type": "dynamic",
+          "description": "The instant message voice-over IP (VOIP) session initiation protocol (SIP) addresses for the user. Read-only. Supports $filter (eq, not, ge, le, startsWith).",
+          "filter": [
+            "eq",
+            "not",
+            "ge",
+            "le",
+            "startsWith"
+          ],
+          "selectOnly": false,
+          "collection": true
+        },
+        {
+          "name": "infoCatalogs",
+          "type": "dynamic",
+          "description": "Identifies the info segments assigned to the user.  Supports $filter (eq, not, ge, le, startsWith).",
+          "filter": [
+            "eq",
+            "not",
+            "ge",
+            "le",
+            "startsWith"
+          ],
+          "selectOnly": false,
+          "collection": true
+        },
+        {
+          "name": "interests",
+          "type": "dynamic",
+          "description": "A list for users to describe their interests. Requires $select to retrieve.",
+          "selectOnly": true,
+          "collection": true
+        },
+        {
+          "name": "isLicenseReconciliationNeeded",
+          "type": "bool",
+          "description": "Indicates whether the user is pending an exchange mailbox license assignment.  Read-only.  Supports $filter (eq where true only).",
+          "filter": [
+            "eq"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "isManagementRestricted",
+          "type": "bool",
+          "description": "true if the user is a member of a restricted management administrative unit. If not set, the default value is null and the default behavior is false. Read-only.  To manage a user who is a member of a restricted management administrative unit, the administrator or calling app must be assigned a Microsoft Entra role at the scope of the restricted management administrative unit.",
+          "selectOnly": false
+        },
+        {
+          "name": "isResourceAccount",
+          "type": "bool",
+          "description": "Do not use. Reserved for future use.",
+          "selectOnly": false
+        },
+        {
+          "name": "jobTitle",
+          "type": "string",
+          "description": "The user's job title. Maximum length is 128 characters. Supports $filter (eq, ne, not , ge, le, in, startsWith, and eq on null values).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in",
+            "startsWith"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "lastPasswordChangeDateTime",
+          "type": "datetime",
+          "description": "When this Microsoft Entra user last changed their password or when their password was created, whichever date the latest action was performed. The Timestamp type represents date and time information using ISO 8601 format and is always in UTC. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z. Read-only. Requires $select to retrieve.",
+          "selectOnly": true
+        },
+        {
+          "name": "legalAgeGroupClassification",
+          "type": "string",
+          "description": "Used by enterprise applications to determine the legal age group of the user. This property is read-only and calculated based on ageGroup and consentProvidedForMinor properties. Allowed values: null, Undefined, MinorWithOutParentalConsent, MinorWithParentalConsent, MinorNoParentalConsentRequired, NotAdult, and Adult. For more information, see legal age group property definitions. Requires $select to retrieve.",
+          "selectOnly": true
+        },
+        {
+          "name": "licenseAssignmentStates",
+          "type": "dynamic",
+          "description": "State of license assignments for this user. It also indicates licenses that are directly assigned and the ones the user inherited through group memberships. Read-only. Requires $select to retrieve.",
+          "selectOnly": true,
+          "collection": true,
+          "complexType": "microsoft.graph.licenseAssignmentState"
+        },
+        {
+          "name": "mail",
+          "type": "string",
+          "description": "The SMTP address for the user, for example, admin@contoso.com. Changes to this property also update the user's proxyAddresses collection to include the value as an SMTP address. This property can't contain accent characters.  NOTE: We don't recommend updating this property for Azure AD B2C user profiles. Use the otherMails property instead.  Supports $filter (eq, ne, not, ge, le, in, startsWith, endsWith, and eq on null values).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in",
+            "startsWith",
+            "endsWith"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "mailboxSettings",
+          "type": "dynamic",
+          "description": "Settings for the primary mailbox of the signed-in user. You can get or update settings for sending automatic replies to incoming messages, locale, and time zone. For more information, see User preferences for languages and regional formats. Requires $select to retrieve.",
+          "selectOnly": true,
+          "complexType": "microsoft.graph.mailboxSettings"
+        },
+        {
+          "name": "mailNickname",
+          "type": "string",
+          "description": "The mail alias for the user. This property must be specified when a user is created. Maximum length is 64 characters. Supports $filter (eq, ne, not, ge, le, in, startsWith, and eq on null values).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in",
+            "startsWith"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "mobilePhone",
+          "type": "string",
+          "description": "The primary cellular telephone number for the user. Read-only for users synced from the on-premises directory.  Supports $filter (eq, ne, not, ge, le, in, startsWith, and eq on null values) and $search. This property is subject to sensitive action restrictions; only specific privileged administrator roles can update it.",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in",
+            "startsWith"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "mySite",
+          "type": "string",
+          "description": "The URL for the user's site. Requires $select to retrieve.",
+          "selectOnly": true
+        },
+        {
+          "name": "officeLocation",
+          "type": "string",
+          "description": "The office location in the user's place of business. Maximum length is 128 characters. Supports $filter (eq, ne, not, ge, le, in, startsWith, and eq on null values).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in",
+            "startsWith"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "onPremisesDistinguishedName",
+          "type": "string",
+          "description": "Contains the on-premises Active Directory distinguished name or DN.",
+          "selectOnly": false
+        },
+        {
+          "name": "onPremisesDomainName",
+          "type": "string",
+          "description": "Contains the on-premises domainFQDN, also called dnsDomainName synchronized from the on-premises directory.",
+          "selectOnly": false
+        },
+        {
+          "name": "onPremisesExtensionAttributes",
+          "type": "dynamic",
+          "description": "Contains extensionAttributes1-15 for the user. These extension attributes are also known as Exchange custom attributes 1-15. Each attribute can store up to 1024 characters. For an onPremisesSyncEnabled user, the source of authority for this set of properties is the on-premises and is read-only. For a cloud-only user (where onPremisesSyncEnabled is false), these properties can be set during the creation or update of a user object.  For a cloud-only user previously synced from on-premises Active Directory, these properties are read-only in Microsoft Graph but can be fully managed through the Exchange Admin Center or the Exchange Online V2 module in PowerShell. Supports $filter (eq, ne, not, in).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "in"
+          ],
+          "selectOnly": false,
+          "complexType": "microsoft.graph.onPremisesExtensionAttributes"
+        },
+        {
+          "name": "onPremisesImmutableId",
+          "type": "string",
+          "description": "This property associates an on-premises Active Directory user account to their Microsoft Entra user object. This property must be specified when creating a new user account in the Graph if you're using a federated domain for the user's userPrincipalName (UPN) property. Note: The $ and _ characters can't be used when specifying this property. Supports $filter (eq, ne, not, ge, le, in). This property is subject to sensitive action restrictions; only specific privileged administrator roles can update it.",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "onPremisesLastSyncDateTime",
+          "type": "datetime",
+          "description": "Indicates the last time at which the object was synced with the on-premises directory; for example: '2013-02-16T03:04:54Z'. The Timestamp type represents date and time information using ISO 8601 format and is always in UTC. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z. Read-only. Supports $filter (eq, ne, not, ge, le, in).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "onPremisesProvisioningErrors",
+          "type": "dynamic",
+          "description": "Errors when using Microsoft synchronization product during provisioning.  Supports $filter (eq, not, ge, le).",
+          "filter": [
+            "eq",
+            "not",
+            "ge",
+            "le"
+          ],
+          "selectOnly": false,
+          "collection": true,
+          "complexType": "microsoft.graph.onPremisesProvisioningError"
+        },
+        {
+          "name": "onPremisesSamAccountName",
+          "type": "string",
+          "description": "Contains the on-premises sAMAccountName synchronized from the on-premises directory.  Supports $filter (eq, ne, not, ge, le, in, startsWith).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in",
+            "startsWith"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "onPremisesSecurityIdentifier",
+          "type": "string",
+          "description": "Contains the on-premises security identifier (SID) for the user synchronized from on-premises to the cloud. Must be in the format of SID, such as 'S-1-5-21-1180699209-877415012-3182824384-1006'. Supports $filter (eq including on null values).",
+          "filter": [
+            "eq"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "onPremisesSipInfo",
+          "type": "dynamic",
+          "description": "Contains all on-premises Session Initiation Protocol (SIP) information related to the user. Read-only.",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.onPremisesSipInfo"
+        },
+        {
+          "name": "onPremisesSyncEnabled",
+          "type": "bool",
+          "description": "true if this user object is currently being synced from an on-premises Active Directory (AD); otherwise, the user isn't being synced and can be managed in Microsoft Entra ID. Read-only. Supports $filter (eq, ne, not, in, and eq on null values).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "in"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "onPremisesUserPrincipalName",
+          "type": "string",
+          "description": "Contains the on-premises userPrincipalName synchronized from the on-premises directory. Supports $filter (eq, ne, not, ge, le, in, startsWith).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in",
+            "startsWith"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "otherMails",
+          "type": "dynamic",
+          "description": "A list of additional email addresses for the user; for example: ['bob@contoso.com', 'Robert@fabrikam.com']. Can store up to 250 values, each with a limit of 250 characters. NOTE: This property can't contain accent characters.Supports $filter (eq, not, ge, le, in, startsWith, endsWith, /$count eq 0, /$count ne 0). This property is subject to sensitive action restrictions; only specific privileged administrator roles can update it.",
+          "filter": [
+            "eq",
+            "not",
+            "ge",
+            "le",
+            "in",
+            "startsWith",
+            "endsWith"
+          ],
+          "selectOnly": false,
+          "collection": true
+        },
+        {
+          "name": "passwordPolicies",
+          "type": "string",
+          "description": "Specifies password policies for the user. This value is an enumeration with one possible value being DisableStrongPassword, which allows weaker passwords than the default policy to be specified. DisablePasswordExpiration can also be specified. The two may be specified together; for example: DisablePasswordExpiration, DisableStrongPassword. For more information on the default password policies, see Microsoft Entra password policies. Supports $filter (ne, not, and eq on null values).",
+          "filter": [
+            "ne",
+            "not",
+            "eq"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "passwordProfile",
+          "type": "dynamic",
+          "description": "Specifies the password profile for the user. The profile contains the user's password. This property is required when a user is created. The password in the profile must satisfy minimum requirements as specified by the passwordPolicies property. By default, a strong password is required. Supports $filter (eq, ne, not, in, and eq on null values).  User-PasswordProfile.ReadWrite.All is the least privileged permission to update this property.  In delegated scenarios, the User Administrator Microsoft Entra role is the least privileged admin role supported to update this property for nonadmin users. Privileged Authentication Administrator is the least privileged role that's allowed to update this property for all administrators in the tenant. In general, the signed-in user must have a higher privileged administrator role as indicated in Who can reset passwords.  In app-only scenarios, the calling app must be assigned a supported permission and at least the User Administrator Microsoft Entra role.This property is also subject to sensitive action restrictions.",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "in"
+          ],
+          "selectOnly": false,
+          "complexType": "microsoft.graph.passwordProfile"
+        },
+        {
+          "name": "pastProjects",
+          "type": "dynamic",
+          "description": "A list for users to enumerate their past projects. Requires $select to retrieve.",
+          "selectOnly": true,
+          "collection": true
+        },
+        {
+          "name": "postalCode",
+          "type": "string",
+          "description": "The postal code for the user's postal address. The postal code is specific to the user's country/region. In the United States of America, this attribute contains the ZIP code. Maximum length is 40 characters. Supports $filter (eq, ne, not, ge, le, in, startsWith, and eq on null values).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in",
+            "startsWith"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "preferredDataLocation",
+          "type": "string",
+          "description": "The preferred data location for the user. For more information, see OneDrive Online Multi-Geo.",
+          "selectOnly": false
+        },
+        {
+          "name": "preferredLanguage",
+          "type": "string",
+          "description": "The preferred language for the user. The preferred language format is based on RFC 4646. The name combines an ISO 639 two-letter lowercase culture code associated with the language and an ISO 3166 two-letter uppercase subculture code associated with the country or region. Example: 'en-US', or 'es-ES'. Supports $filter (eq, ne, not, ge, le, in, startsWith, and eq on null values).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in",
+            "startsWith"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "preferredName",
+          "type": "string",
+          "description": "The preferred name for the user. Not Supported. This attribute returns an empty string.Requires $select to retrieve.",
+          "selectOnly": true
+        },
+        {
+          "name": "print",
+          "type": "dynamic",
+          "description": "",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.userPrint"
+        },
+        {
+          "name": "provisionedPlans",
+          "type": "dynamic",
+          "description": "The plans that are provisioned for the user. Read-only. Not nullable. Supports $filter (eq, not, ge, le).",
+          "filter": [
+            "eq",
+            "not",
+            "ge",
+            "le"
+          ],
+          "selectOnly": false,
+          "collection": true,
+          "complexType": "microsoft.graph.provisionedPlan"
+        },
+        {
+          "name": "proxyAddresses",
+          "type": "dynamic",
+          "description": "For example: ['SMTP: bob@contoso.com', 'smtp: bob@sales.contoso.com']. Changes to the mail property also update this collection to include the value as an SMTP address. For more information, see mail and proxyAddresses properties. The proxy address prefixed with SMTP (capitalized) is the primary proxy address, while the ones prefixed with smtp are the secondary proxy addresses. For Azure AD B2C accounts, this property has a limit of 10 unique addresses. Read-only in Microsoft Graph; you can update this property only through the Microsoft 365 admin center. Not nullable. Supports $filter (eq, not, ge, le, startsWith, endsWith, /$count eq 0, /$count ne 0).",
+          "filter": [
+            "eq",
+            "not",
+            "ge",
+            "le",
+            "startsWith",
+            "endsWith"
+          ],
+          "selectOnly": false,
+          "collection": true
+        },
+        {
+          "name": "refreshTokensValidFromDateTime",
+          "type": "datetime",
+          "description": "Any refresh tokens or sessions tokens (session cookies) issued before this time are invalid, and applications get an error when using an invalid refresh or sessions token to acquire a delegated access token (to access APIs such as Microsoft Graph).  If it happens, the application must acquire a new refresh token by requesting the authorized endpoint. Read-only. Use invalidateAllRefreshTokens to reset.",
+          "selectOnly": false
+        },
+        {
+          "name": "responsibilities",
+          "type": "dynamic",
+          "description": "A list for the user to enumerate their responsibilities. Requires $select to retrieve.",
+          "selectOnly": true,
+          "collection": true
+        },
+        {
+          "name": "schools",
+          "type": "dynamic",
+          "description": "A list for the user to enumerate the schools they have attended. Requires $select to retrieve.",
+          "selectOnly": true,
+          "collection": true
+        },
+        {
+          "name": "securityIdentifier",
+          "type": "string",
+          "description": "Security identifier (SID) of the user, used in Windows scenarios. Read-only. Returned by default. Supports $select and $filter (eq, not, ge, le, startsWith).",
+          "selectOnly": false
+        },
+        {
+          "name": "serviceProvisioningErrors",
+          "type": "dynamic",
+          "description": "Errors published by a federated service describing a nontransient, service-specific error regarding the properties or link from a user object.",
+          "selectOnly": false,
+          "collection": true,
+          "complexType": "microsoft.graph.serviceProvisioningError"
+        },
+        {
+          "name": "showInAddressList",
+          "type": "bool",
+          "description": "Do not use in Microsoft Graph. Manage this property through the Microsoft 365 admin center instead. Represents whether the user should be included in the Outlook global address list. See Known issue.",
+          "selectOnly": false
+        },
+        {
+          "name": "signInActivity",
+          "type": "dynamic",
+          "description": "Get the last signed-in date and request ID of the sign-in for a given user. Read-only.Requires $select to retrieve. Supports $filter (eq, ne, not, ge, le) but not with any other filterable properties. Note:  Details for this property require a Microsoft Entra ID P1 or P2 license and the AuditLog.Read.All permission.This property is not returned for a user who has never signed in or last signed in before April 2020.",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le"
+          ],
+          "selectOnly": true,
+          "complexType": "microsoft.graph.signInActivity"
+        },
+        {
+          "name": "signInSessionsValidFromDateTime",
+          "type": "datetime",
+          "description": "Any refresh tokens or sessions tokens (session cookies) issued before this time are invalid, and applications get an error when using an invalid refresh or sessions token to acquire a delegated access token (to access APIs such as Microsoft Graph).  If this happens, the application must acquire a new refresh token by requesting the authorized endpoint. Read-only. Use revokeSignInSessions to reset.",
+          "selectOnly": false
+        },
+        {
+          "name": "skills",
+          "type": "dynamic",
+          "description": "A list for the user to enumerate their skills. Requires $select to retrieve.",
+          "selectOnly": true,
+          "collection": true
+        },
+        {
+          "name": "state",
+          "type": "string",
+          "description": "The state or province in the user's address. Maximum length is 128 characters. Supports $filter (eq, ne, not, ge, le, in, startsWith, and eq on null values).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in",
+            "startsWith"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "streetAddress",
+          "type": "string",
+          "description": "The street address of the user's place of business. Maximum length is 1024 characters. Supports $filter (eq, ne, not, ge, le, in, startsWith, and eq on null values).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in",
+            "startsWith"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "surname",
+          "type": "string",
+          "description": "The user's surname (family name or last name). Maximum length is 64 characters. Supports $filter (eq, ne, not, ge, le, in, startsWith, and eq on null values).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in",
+            "startsWith"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "usageLocation",
+          "type": "string",
+          "description": "A two-letter country/region code (ISO standard 3166). Required for users that are assigned licenses due to legal requirements to check for availability of services in countries/regions. Examples include: US, JP, and GB. Not nullable. Supports $filter (eq, ne, not, ge, le, in, startsWith, and eq on null values).",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in",
+            "startsWith"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "userPrincipalName",
+          "type": "string",
+          "description": "The user principal name (UPN) of the user. The UPN is an Internet-style sign-in name for the user based on the Internet standard RFC 822. By convention, this should map to the user's email name. The general format is alias@domain, where the domain must be present in the tenant's verified domain collection. This property is required when a user is created. The verified domains for the tenant can be accessed from the verifiedDomains property of organization.NOTE: This property can't contain accent characters. Only the following characters are allowed A - Z, a - z, 0 - 9, ' . - _ ! # ^ ~. For the complete list of allowed characters, see username policies. Supports $filter (eq, ne, not, ge, le, in, startsWith, endsWith) and $orderby. This property is subject to sensitive action restrictions; only specific privileged administrator roles can update it.",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "ge",
+            "le",
+            "in",
+            "startsWith",
+            "endsWith"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "userType",
+          "type": "string",
+          "description": "A String value that can be used to classify user types in your directory. The possible values are Member and Guest. Supports $filter (eq, ne, not, in, and eq on null values). NOTE: For more information about the permissions for member and guest users, see What are the default user permissions in Microsoft Entra ID?",
+          "filter": [
+            "eq",
+            "ne",
+            "not",
+            "in"
+          ],
           "selectOnly": false
         }
       ]

@@ -12,6 +12,40 @@ public sealed class GraphSchemaDiffTests
     private static GraphSchema Schema(params GraphTable[] tables) =>
         new("test", DateTimeOffset.UnixEpoch, tables, new Dictionary<string, IReadOnlyList<GraphField>>());
 
+    [Theory]
+    [InlineData("password", "", true)]
+    [InlineData("enrollmentToken", "", true)]
+    [InlineData("certificate", "", true)]
+    [InlineData("clientSecret", "", true)]
+    [InlineData("content", "The certificate in the raw data format.", true)]
+    [InlineData("keyMaterial", "The private key, base64-encoded.", true)]
+    [InlineData("passwordPolicies", "Specifies password policies for the user.", false)]
+    [InlineData("tokenLifetimePolicies", "", false)]
+    [InlineData("certificateExpirationDateTime", "When the certificate expires.", false)]
+    [InlineData("displayName", "The name shown for the token.", false)]
+    public void A_column_looks_secret_by_its_name_or_description(string name, string description, bool expected)
+    {
+        Assert.Equal(expected, GraphSchemaDiff.LooksSecret(Col(name, "string", description)));
+    }
+
+    // Only new columns are flagged, in new tables and existing ones; one already in the committed schema isn't.
+    [Fact]
+    public void New_secret_looking_columns_are_flagged_in_the_summary()
+    {
+        var before = Schema(Table("connectors", Col("id", "string"), Col("apiToken", "string")));
+        var after = Schema(
+            Table("connectors", Col("id", "string"), Col("apiToken", "string"), Col("enrollmentToken", "string"), Col("tokenLifetimePolicies", "dynamic")),
+            Table("certificates", Col("id", "string"), Col("password", "string")));
+
+        var diff = GraphSchemaDiff.Compare(before, after);
+
+        Assert.Equal(["certificates.password", "connectors.enrollmentToken"], diff.PossibleSecrets);
+        var lines = diff.ToSummary().Split('\n');
+        Assert.Contains(GraphSchemaDiff.PossibleSecretPrefix + "connectors.enrollmentToken", lines);
+        Assert.Contains("Possible secret column: certificates.password", lines);
+        Assert.Empty(GraphSchemaDiff.Compare(after, after).PossibleSecrets);
+    }
+
     [Fact]
     public void Diff_reports_tables_columns_and_types()
     {

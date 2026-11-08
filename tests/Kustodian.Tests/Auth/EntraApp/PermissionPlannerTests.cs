@@ -146,7 +146,7 @@ public sealed class PermissionPlannerTests
         var plan = PermissionPlanner.Plan(GraphPermissionCatalog.Bundled, GraphSchemaCatalog.Beta.Tables, GraphAreas.Bundled);
         var graph = plan.Groups.SelectMany(g => g.Subgroups).SelectMany(s => s.Permissions).Where(p => p.Resource == "Microsoft Graph" && p.Name != "ThreatHunting.Read.All").ToList();
         Assert.Equal(139, graph.Count);
-        Assert.Equal(545, plan.TablesWithData);
+        Assert.Equal(546, plan.TablesWithData);
         Assert.Equal(16, plan.WriteOnlyTables);
     }
 }

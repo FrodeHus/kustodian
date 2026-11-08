@@ -92,6 +92,7 @@
       "description": "Allows the app to create agent users, read and write the full set of profile properties, reports, and managers of agent ID users, delete and restore agent users in your organization, and read basic company properties, on your behalf.",
       "tables": [
         "admin/people/itemInsights",
+        "me",
         "users"
       ]
     },
@@ -101,6 +102,7 @@
       "description": "Allows the app to create agent users, read and write the full set of profile properties, reports, and managers of agent ID users in your organization, delete and restore agent users under an agent blueprint, and read basic company properties, on your behalf.",
       "tables": [
         "admin/people/itemInsights",
+        "me",
         "users"
       ]
     },
@@ -1507,6 +1509,7 @@
         "domains",
         "groupLifecyclePolicies",
         "groups",
+        "me",
         "oauth2PermissionGrants",
         "organization",
         "policies/adminConsentRequestPolicy",
@@ -1544,6 +1547,7 @@
         "directorySettingTemplates",
         "groupLifecyclePolicies",
         "groups",
+        "me",
         "oauth2PermissionGrants",
         "organization",
         "policies/adminConsentRequestPolicy",
@@ -3864,6 +3868,7 @@
       "description": "Allows you to sign in to the app with your organizational account and let the app read your profile. It also allows the app to read basic company information.",
       "tables": [
         "admin/people/itemInsights",
+        "me",
         "organization",
         "schemaExtensions"
       ]
@@ -3874,6 +3879,7 @@
       "description": "Allows the app to read the full set of user properties of all users in the organization and read company properties, on your behalf.",
       "tables": [
         "admin/people/itemInsights",
+        "me",
         "organization",
         "users"
       ]
@@ -3883,6 +3889,7 @@
       "adminConsent": false,
       "description": "Allows the app to read a basic set of profile properties of other users in your organization on your behalf. Includes display name, first and last name, email address, photo, id and security identifier. Also allows the app to read the full profile of the signed-in user.",
       "tables": [
+        "me",
         "users"
       ]
     },
@@ -3891,7 +3898,8 @@
       "adminConsent": false,
       "description": "Allows the app to read your profile and basic company information, and discover your group membership, reports and manager. It also allows the app to update your profile information on your behalf.",
       "tables": [
-        "admin/people/itemInsights"
+        "admin/people/itemInsights",
+        "me"
       ]
     },
     {
@@ -3900,6 +3908,7 @@
       "description": "Allows the app to read and write the full set of profile properties, reports, and managers of other users in your organization, and read basic company properties, on your behalf.",
       "tables": [
         "admin/people/itemInsights",
+        "me",
         "users"
       ]
     },
