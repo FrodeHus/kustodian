@@ -20,7 +20,7 @@
 
 ## Relationships
 
-Some Graph tables have relationship columns: `users.memberOf`, `users.manager`, `users.directReports`, `users.ownedObjects`,
+Some Graph tables have relationship columns: `users.memberOf`, `users.transitiveMemberOf`, `users.manager`, `users.directReports`, `users.ownedObjects`,
 `users.registeredDevices`, `users.ownedDevices`, `groups.members`, `groups.owners`, `servicePrincipals.owners`,
 `applications.owners`, `devices.registeredOwners` and `devices.registeredUsers`. Each holds a list of the objects the row is
 related to (`manager` holds one). An entry has `id`, `objectType` (such as `group` or `user`), `displayName`,
@@ -73,8 +73,9 @@ Limits:
 - Relationships are read for at most 100 objects per column and table. When more than 100 objects are listed, none of them
   have the relationship read, and the values are empty.
 - At most 1,000 entries are kept per object.
-- Only direct relationships are read. A group's members don't include members of its nested groups, and `memberOf` doesn't
-  include groups reached through other groups.
+- Only direct relationships are read, except `users.transitiveMemberOf`: every group the user is in, also through other
+  groups, as Conditional Access sees it. A group's members don't include members of its nested groups, and `memberOf`
+  doesn't include groups reached through other groups.
 
 You may see these notices after a run:
 

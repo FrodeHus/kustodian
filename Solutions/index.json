@@ -76,7 +76,7 @@
         "version": 1,
         "id": "entra-id",
         "name": "Entra ID",
-        "solutionVersion": "1.3.0",
+        "solutionVersion": "1.4.0",
         "description": "Microsoft Entra ID reviews: break-glass account compliance, risky users and their sign-ins, and MFA and passkey adoption.",
         "author": "Kustodian",
         "support": "kustodian",
@@ -94,6 +94,7 @@
             "Directory.Read.All",
             "IdentityRiskyUser.Read.All",
             "Policy.Read.All",
+            "Policy.Read.AuthenticationMethod",
             "RoleManagement.Read.Directory",
             "User.Read.All",
             "UserAuthenticationMethod.Read.All"
@@ -132,43 +133,43 @@
       "files": [
         {
           "path": "README.md",
-          "sha256": "247f2aadc20e2aaa2e95df5b8b50852a039f5c2ebeaec2d738e5b9d3092081d7",
-          "size": 5582
+          "sha256": "8317f784b6d17e01bbd3c435cd59c36cb929161a1142963907812b64bec087b1",
+          "size": 5714
         },
         {
           "path": "queries/btg-accounts.json",
-          "sha256": "43859de63efd7146e8fc421e64d26297f1452b2afab7a7546096690cd4239338",
-          "size": 6631
+          "sha256": "4730fbcfd026033855424d5441bf447572addb5d6ef27716961f8f5f90483d36",
+          "size": 6776
         },
         {
           "path": "queries/btg-conditional-access.json",
-          "sha256": "1c78b3f063c2fecc881f7455e16f346766b7597aca2106646b38dc4bfd725c32",
-          "size": 2822
+          "sha256": "eaff89764c65d745de16318af5b2fba94736d2c0f7fe936ca14a1afad450edee",
+          "size": 3489
         },
         {
           "path": "queries/btg-findings.json",
-          "sha256": "1db6e143a09ce54c4cae16650cd29f6bc9e122d88fcb2de43eb9b0e11d9b9db5",
-          "size": 16580
+          "sha256": "4b12306017fdc5f0f626366fb2ced4a73b417b8202d9a4b54406b14c321b828e",
+          "size": 19907
         },
         {
           "path": "queries/btg-groups.json",
-          "sha256": "c0a0ddc44dbf037cba8f12ebd4c98d196391e95a1463ce82d2a75bf20e49600f",
-          "size": 4876
+          "sha256": "781955cf4b08564cd28feb02c3ab91884132ccedc064fa80f4430c1f46aedd2c",
+          "size": 5558
         },
         {
           "path": "queries/btg-roles.json",
-          "sha256": "f13bf8ec1de59c33fbcfe68d6655ecf4fc070eca9dfb9fc33a86620b3309e10c",
-          "size": 3794
+          "sha256": "50f16bddbf9772bca2c09e8400989d4201409167bac3672f8943c7fd0e30e323",
+          "size": 4479
         },
         {
           "path": "queries/btg-sign-ins.json",
-          "sha256": "91d9502d2dc6b72130109d89f9f1f95c54784fb1df18b50eec4e7901a95e1e42",
-          "size": 2213
+          "sha256": "f00a33619230b23f4f70713fe2474f6d878355883cb6869964e358e7b3bcdce3",
+          "size": 2223
         },
         {
           "path": "queries/btg-tenant.json",
-          "sha256": "8dd4750dcec08bb39c4d67058c27b0a270e2083e7381ca4bca80f8e8ecd1fb08",
-          "size": 4764
+          "sha256": "37b7b0d900f0b6aad863c3d18e7747d2dec90ac9c3c420d585aae77f80d35b15",
+          "size": 6721
         },
         {
           "path": "queries/mfa-by-company.json",
@@ -192,13 +193,13 @@
         },
         {
           "path": "solution.json",
-          "sha256": "80a87067c030c6aeb2c9a2701dea80abfe6c2ae591c9876bdea427dbf1f2b2d1",
-          "size": 1121
+          "sha256": "6af9ebea8a9370b4bea7fcdb77d5dc27ff3dd78477dfa2a53e51db308130d788",
+          "size": 1163
         },
         {
           "path": "workbooks/break-glass-compliance.json",
-          "sha256": "8537c56985a76a6a71d3a80983b3b665d388ef6bd12224af91eec2bd556ac0fe",
-          "size": 64459
+          "sha256": "a0d94c4262fbf04adcb0bc8e069015786ef32b080c56d660bffe80acad763c47",
+          "size": 76451
         },
         {
           "path": "workbooks/mfa-adoption.json",

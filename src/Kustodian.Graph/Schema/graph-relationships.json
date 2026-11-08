@@ -1,6 +1,7 @@
 {
   "users": {
     "memberOf": {},
+    "transitiveMemberOf": {},
     "manager": {},
     "directReports": {},
     "ownedObjects": {},

@@ -9,7 +9,7 @@ public sealed class GraphRelationshipsTests
     {
         var expected = new Dictionary<string, string[]>
         {
-            ["users"] = ["memberOf", "manager", "directReports", "ownedObjects", "registeredDevices", "ownedDevices",
+            ["users"] = ["memberOf", "transitiveMemberOf", "manager", "directReports", "ownedObjects", "registeredDevices", "ownedDevices",
                 "authenticationMethods", "authenticationRequirements"],
             ["groups"] = ["members", "owners"],
             ["servicePrincipals"] = ["owners"],
@@ -22,7 +22,8 @@ public sealed class GraphRelationshipsTests
         Assert.Equal(expected.Keys.Order(), bundled.Keys.Order());
         foreach (var (table, names) in expected)
             Assert.Equal(names, bundled[table].Select(r => r.Name));
-        Assert.DoesNotContain(bundled.Values.SelectMany(v => v), r => r.ReadPath.StartsWith("transitive", StringComparison.Ordinal));
+        // users.transitiveMemberOf is the one transitive relationship (owner's call): nested reads are what throttles a large tenant.
+        Assert.Equal(["transitiveMemberOf"], bundled.Values.SelectMany(v => v).Where(r => r.ReadPath.StartsWith("transitive", StringComparison.Ordinal)).Select(r => r.Name));
         Assert.Equal("authentication/methods", bundled["users"].Single(r => r.Name == "authenticationMethods").Path);
         Assert.Null(bundled["users"].Single(r => r.Name == "memberOf").Path);
     }
