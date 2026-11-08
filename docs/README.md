@@ -69,3 +69,18 @@ You may see these notices after a run:
 
 Filter with something Graph can apply, such as `==` or `startswith`, before the query reads a relationship column. That keeps
 the number of objects small, so the read is quick and stays under the cap.
+
+## Single objects
+
+Some Graph paths hold one object, not a list: tenant settings and policies such as
+`policies/identitySecurityDefaultsEnforcementPolicy`, `policies/authenticationMethodsPolicy` or
+`policies/defaultAppManagementPolicy`. Each is a table with one row, named like the others (`/` becomes `_`):
+
+```kql
+policies_identitySecurityDefaultsEnforcementPolicy
+| project isEnabled
+```
+
+Kustodian reads one with a single request that selects the columns the query uses. Graph doesn't filter, sort or page a
+single object, so `where`, `take` and `count` run locally on the one row. Only the single objects that Microsoft lists a
+read permission for are tables; the rest are containers with nothing of their own to read.

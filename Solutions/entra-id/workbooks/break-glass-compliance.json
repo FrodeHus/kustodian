@@ -168,7 +168,7 @@
         "h": 16
       },
       "parameters": {},
-      "markdown": "### Not checked here\nGraph tables can't show these yet, so check them by hand:\n\n- **Security Defaults** are off (Entra admin center, Properties).\n- **Per-user MFA** is disabled for each account.\n- **Two FIDO2 keys** per account, stored in separate places. Registration details show whether a key exists, not how many.\n- **Key restrictions**: if the FIDO2 policy allows only some key models, the break-glass keys are on the list.\n- **FIDO2 targets**: the FIDO2 method includes the accounts (exclusions are checked on the Tenant tab).\n- **Nested groups**: exclusions and roles are checked through the groups an account is a direct member of.\n- That the credentials are stored safely and a test sign-in happens on schedule.",
+      "markdown": "### Not checked here\nGraph tables can't show these yet, so check them by hand:\n\n- **Per-user MFA** is disabled for each account.\n- **Two FIDO2 keys** per account, stored in separate places. Registration details show whether a key exists, not how many.\n- **Key restrictions**: if the FIDO2 policy allows only some key models, the break-glass keys are on the list.\n- **FIDO2 targets**: the FIDO2 method includes the accounts (exclusions are checked on the Tenant tab).\n- **Nested groups**: exclusions and roles are checked through the groups an account is a direct member of.\n- That the credentials are stored safely and a test sign-in happens on schedule.",
       "in": {
         "tabs": "wbtgtabs",
         "tab": "tbtgall"

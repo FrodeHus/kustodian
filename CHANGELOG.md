@@ -7,6 +7,11 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Single Graph objects**: Graph paths that hold one object, such as Security Defaults
+  (`policies_identitySecurityDefaultsEnforcementPolicy`), the authentication methods policy and the default app management
+  policy, are now tables with one row. `where`, `take` and `count` on them run locally. See
+  [docs/README.md](docs/README.md#single-objects). The **Entra ID** solution's break-glass workbook now checks that Security
+  Defaults are off (`TNT.SecurityDefaultsOff`).
 - **Entra ID solution**: one solution for Entra ID reviews. It adds a **Break-glass account compliance** workbook: the
   accounts' Conditional Access exclusions, hardening, Global Administrator assignment, sign-ins, groups and tenant
   guardrails, one row per check with PASS, FAIL, WARN, INFO or ERROR, for the accounts you list in a workbook parameter.
