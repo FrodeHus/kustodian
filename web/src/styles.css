@@ -180,7 +180,7 @@ body {
   .rail { width: 48px; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; }
   .rail button { width: 36px; height: 36px; border-radius: 8px; border: 0; background: transparent; color: var(--faint); display: flex; align-items: center; justify-content: center; }
   .rail button[aria-pressed='true'] { background: var(--accent-soft); color: var(--accent); }
-  .side { width: 268px; flex-shrink: 0; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+  .side { width: var(--side-w, 268px); flex-shrink: 0; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
   .side h2 { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 12px 14px 8px; }
   .search { margin: 0 12px 8px; height: 30px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); padding: 0 10px; font: inherit; width: calc(100% - 24px); }
   .search:focus, .textbox:focus { outline: 1px solid var(--accent); outline-offset: -1px; }
@@ -211,6 +211,11 @@ body {
   .row-more:hover { color: var(--text); }
   .side-foot { margin-top: auto; padding: 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
   /* The row details sheet is placed against the workspace, so it spans its full height. */
+  /* Drag handles between panes: thin hit area, the accent line shows on hover, drag and focus. */
+  .splitter { flex-shrink: 0; position: relative; z-index: 1; touch-action: none; background: transparent; }
+  .splitter:hover, .splitter:active, .splitter:focus-visible { background: var(--accent); outline: none; }
+  .splitter-v { width: 4px; margin: 0 -2px; cursor: col-resize; }
+  .splitter-h { height: 4px; margin: -2px 0; cursor: row-resize; }
   .workspace { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; }
 
   .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--bg); }

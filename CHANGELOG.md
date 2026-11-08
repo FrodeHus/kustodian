@@ -7,6 +7,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Resizable panes**: drag the edge of the side panel, or the line between the query and its results, to resize them.
+  Tab to either and use the arrow keys to do the same from the keyboard.
 - **Workbook tabs**: workbooks can group widgets in tabs. Only the tab you're looking at runs its queries; the others show
   "not run" or "out of date" until you open them. Widgets move between tabs by drag or **Move to…**. A workbook with tabs
   needs this version or later. See [docs/workbooks.md](docs/workbooks.md#tabs).
