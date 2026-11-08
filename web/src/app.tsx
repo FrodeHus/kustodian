@@ -1,4 +1,4 @@
-import { Component, Suspense, lazy, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Component, Suspense, lazy, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { call } from './bridge';
 import { blockAt } from './editor/block-at';
 import type { KqlEditorHandle } from './editor/kql-editor';
@@ -38,6 +38,7 @@ import { TitleBar } from './shell/title-bar';
 import { SignIn } from './signin/sign-in';
 import { PANELS, type PanelName } from './side/panels';
 import { Rail, SidePanel } from './side/side-panel';
+import { Splitter } from './shell/splitter';
 import { runParameters, sentText, useTabs, type RunMode, type Tab, type TabCursor } from './tabs/tab-store';
 import { TabStrip } from './tabs/tab-strip';
 import { SaveButton } from './toolbar/save-button';
@@ -191,6 +192,9 @@ export function App() {
   const [accountsError, setAccountsError] = useState<Shown | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [panel, setPanel] = useState<PanelName>('schema');
+  // Dragged sizes in px; null keeps the stylesheet's.
+  const [sideWidth, setSideWidth] = useState<number | null>(null);
+  const [editorHeight, setEditorHeight] = useState<number | null>(null);
   /** A workbook tab's side panel: none until one is chosen on the rail, so the workbook gets the width. */
   const [workbookPanel, setWorkbookPanel] = useState<PanelName | null>(null);
   const [paramsOpen, setParamsOpen] = useState(false);
@@ -650,22 +654,25 @@ export function App() {
         )}
         {/* Hidden rather than unmounted while signing in, so the editor keeps each tab's undo history. */}
         <div className="flex min-h-0 flex-1 flex-col" hidden={signingIn} inert={settingsOpen}>
-          <div className="panes">
+          <div className="panes" style={sideWidth === null ? undefined : ({ '--side-w': `${sideWidth}px` } as CSSProperties)}>
             <Rail
               panel={workbook ? workbookPanel : panel}
               onChoose={workbook ? (p) => setWorkbookPanel((shown) => (shown === p ? null : p)) : setPanel}
             />
             {(workbook ? workbookPanel : panel) && (
-              <SidePanel
-                panel={(workbook ? workbookPanel : panel) ?? panel}
-                source={active?.source ?? 'graph'}
-                text={active?.text ?? ''}
-                onInsert={insert}
-                accountKey={accountKey}
-                onSignIn={() => setAccountsOpen(true)}
-              />
+              <>
+                <SidePanel
+                  panel={(workbook ? workbookPanel : panel) ?? panel}
+                  source={active?.source ?? 'graph'}
+                  text={active?.text ?? ''}
+                  onInsert={insert}
+                  accountKey={accountKey}
+                  onSignIn={() => setAccountsOpen(true)}
+                />
+                <Splitter orientation="vertical" label="Resize the side panel" size={sideWidth} onSize={setSideWidth} min={180} reserve={360} />
+              </>
             )}
-            <main className="workspace">
+            <main className="workspace" style={editorHeight === null ? undefined : ({ '--editor-h': `${editorHeight}px` } as CSSProperties)}>
               {active ? (
                 <>
                   {!raw && !workbook && (
@@ -689,17 +696,20 @@ export function App() {
                   {/* A raw tab has no query: the editor stays mounted for the other tabs, hidden. The parameters view takes its
                       place, at its size, so the results below keep theirs. */}
                   {showingParams && (
-                    <div className="min-h-[160px] shrink-0 basis-[38%] overflow-y-auto border-b border-line">
+                    <div className="min-h-[160px] shrink-0 basis-(--editor-h,38%) overflow-y-auto border-b border-line">
                       <ParamsForm tab={active} query={runnableText} onRun={() => runActive('block')} />
                     </div>
                   )}
-                  <div className="relative min-h-[160px] shrink-0 basis-[38%] border-b border-line" hidden={raw || workbook || showingParams}>
+                  <div className="relative min-h-[160px] shrink-0 basis-(--editor-h,38%) border-b border-line" hidden={raw || workbook || showingParams}>
                     <EditorFailed>
                       <Suspense fallback={<p className="faint m-0 p-4 text-[12px]">Loading the editor…</p>}>
                         <KqlEditor ref={editor} schemas={schemas} onRun={(mode) => void useTabs.getState().run(active.id, mode)} />
                       </Suspense>
                     </EditorFailed>
                   </div>
+                  {!raw && !workbook && (
+                    <Splitter orientation="horizontal" label="Resize the query editor" size={editorHeight} onSize={setEditorHeight} min={160} reserve={200} />
+                  )}
                   {workbook ? (
                     // A workbook that breaks its view shows the error in its tab; the app and the other tabs stay.
                     <ErrorBoundary key={active.id}>
