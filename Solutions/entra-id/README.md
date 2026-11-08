@@ -4,7 +4,7 @@ Reviews for Microsoft Entra ID, in three parts. Install the parts you need: each
 
 | Part | Workbook | Queries | Needs |
 | --- | --- | --- | --- |
-| Break-glass accounts | `break-glass-compliance` | `btg-*` | `Directory.Read.All`, `Policy.Read.All`, `RoleManagement.Read.Directory`, `AuditLog.Read.All`; Global Reader; Entra ID P1 |
+| Break-glass accounts | `break-glass-compliance` | `btg-*` | `Directory.Read.All`, `Policy.Read.All`, `Policy.Read.AuthenticationMethod`, `RoleManagement.Read.Directory`, `AuditLog.Read.All`, `UserAuthenticationMethod.Read.All`; Global Reader; Entra ID P1 |
 | Risky users | `risky-users-review` | `risky-users`, `risky-signins` | `IdentityRiskyUser.Read.All`; Entra ID P2 |
 | MFA and passkey adoption | `mfa-adoption` | `mfa-by-company`, `users-missing-passkey` | `AuditLog.Read.All`, `User.Read.All`; Reports Reader; Entra ID P1 |
 
@@ -18,7 +18,8 @@ Enter the accounts in **Break-glass accounts**, one UPN per line, and the groups
 by display name. Both keep your last value on this computer. Every widget uses them.
 
 Each check gives a row with a category, a check id (the same ids as the runbook), a target, a status and a detail. **FAIL**
-and **ERROR** need action; **ERROR** means the check couldn't read what it needs, which is a blind spot, not a pass.
+and **ERROR** need action; **ERROR** means the check couldn't read what it needs, which is a blind spot, not a pass. A check that needs a list Graph didn't return (an account's groups or owned objects, a
+group's owners or members) is ERROR, never PASS.
 
 | Category | Checks |
 | --- | --- |
@@ -28,7 +29,7 @@ and **ERROR** need action; **ERROR** means the check couldn't read what it needs
 | `GRP` | Each group is role-assignable, static, cloud-only, a plain security group, has no owners and only users, holds no account missing from Accounts, and is excluded from every enabled policy. |
 | `USE` | No sign-in, interactive or not, within **No sign-ins in the last**, from the account's sign-in activity. |
 | `TNT` | At least two accounts, Entra ID P1 or P2, Security Defaults off, the FIDO2 method enabled for each account (all users, the account or a group it is in) and not excluding any, and, as INFO, the key models an enforced allow-list lets register. |
-| `SYS` | Each UPN in Accounts belongs to a user. |
+| `SYS` | Each UPN in Accounts belongs to a user, and each name in Break-glass groups to a group. |
 
 The **Overview** tab shows every category except `GRP`. The group checks are on the **Groups** tab only: Graph can't
 filter on an empty list, so with no group given they read every group in the tenant, which is slow in a large one. A tab
