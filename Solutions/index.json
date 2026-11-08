@@ -133,8 +133,8 @@
       "files": [
         {
           "path": "README.md",
-          "sha256": "b30b32b4af5b84dfad75180176b4a7ed80dd183cb06340b3cb716ae1fc0c76db",
-          "size": 5839
+          "sha256": "ba0f6aeddecf49751ee9d6ec6900ce5d42f22ca7e48ea5278089e8cf3fba9f24",
+          "size": 5821
         },
         {
           "path": "queries/btg-accounts.json",
@@ -148,8 +148,8 @@
         },
         {
           "path": "queries/btg-findings.json",
-          "sha256": "46c5926986c6c9f7f167ae8fd9bc2e3ff4784a0b1d63cdaead04a0e9fe29bf5f",
-          "size": 18960
+          "sha256": "6ceb60240bfd2d20435de9c06c01bf8a316afb611f2ab8c3da25e2f69dd8d399",
+          "size": 19857
         },
         {
           "path": "queries/btg-groups.json",
@@ -168,8 +168,8 @@
         },
         {
           "path": "queries/btg-tenant.json",
-          "sha256": "5677adfff7366d71e4986b0ae5c85fd71bc7607e6e4a40e4bdafa3363b53f2a4",
-          "size": 5771
+          "sha256": "0512fd00c2141b26bf35e4ca00bfc5b7e3daf482b7f582284d48c60e8b9de3bf",
+          "size": 6691
         },
         {
           "path": "queries/mfa-by-company.json",
@@ -198,8 +198,8 @@
         },
         {
           "path": "workbooks/break-glass-compliance.json",
-          "sha256": "8ab514af6d0ce118dceaf9e7496b98162879e4bd2845fff513a74aa7c07ceb23",
-          "size": 73771
+          "sha256": "8e6f46144742364546867178f9a695f0d852d30ca5e8b5d820fcec49ef242b1f",
+          "size": 76336
         },
         {
           "path": "workbooks/mfa-adoption.json",
