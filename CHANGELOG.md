@@ -109,6 +109,9 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Graph queries that run locally: a `project` of only constants (`project x = 'none'`) on no rows returns no rows instead
+  of one, and a `where` on a condition that reads no column (`where false`) returns an empty result instead of failing with
+  "Sequence contains no elements". `where false | count` now counts 0 instead of returning no row.
 - A workbook list parameter without fixed choices now takes several values, one per line, in the parameter bar, the
   Parameters dialog's Default and a widget's own control. Before, its single-line box held only one value.
 - Markdown widgets and solution READMEs render pipe tables (`| a | b |`) as tables instead of one line of text.
