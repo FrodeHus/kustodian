@@ -6,9 +6,9 @@ import { errorText } from '../shell/errors';
 import { ErrorReportActions, type Shown } from '../shell/error-report';
 import { reportIdOf } from '../shell/report-id';
 import { MOD } from '../shell/keys';
-import { SourceBadge, WorkbookIcon } from '../tabs/source-badge';
+import { SourceBadge } from '../tabs/source-badge';
 import { useTabs } from '../tabs/tab-store';
-import type { LibraryList, SavedQuery, Source, WorkbookList, WorkbookSummary } from '../wire';
+import type { LibraryList, Pins, SavedQuery, Source, WorkbookList, WorkbookSummary } from '../wire';
 import { parseWorkbook } from '../workbooks/model';
 import { importWorkbook } from '../workbooks/sharing';
 import { useWorkbooks } from '../workbooks/workbook-store';
@@ -21,12 +21,34 @@ function skippedText(n: number): string {
 
 const LIST_FAILED = 'The saved queries couldn’t be read';
 const WORKBOOKS_FAILED = 'The workbooks couldn’t be read';
+const NO_PINS: Pins = { queries: [], workbooks: [] };
+
+const prefixOf = (name: string) => {
+  const i = name.indexOf(' / ');
+  return i > 0 ? name.slice(0, i) : null;
+};
+
+/** Queries whose names share a "Prefix / " with another query become a group of that prefix; the rest stay as they are. */
+function byPrefix(queries: SavedQuery[]): { groups: [string, SavedQuery[]][]; rest: SavedQuery[] } {
+  const groups = new Map<string, SavedQuery[]>();
+  for (const q of queries) {
+    const p = prefixOf(q.name);
+    if (p !== null) {
+      groups.set(p, [...(groups.get(p) ?? []), q]);
+    }
+  }
+  const shared = [...groups].filter(([, qs]) => qs.length > 1);
+  const grouped = new Set(shared.flatMap(([, qs]) => qs));
+  return { groups: shared, rest: queries.filter((q) => !grouped.has(q)) };
+}
 
 /**
- * The Saved panel (spec 6.6): the library's folders as groups that fold, then the queries in no folder, with a search. It lists
+ * The Saved panel (spec 6.6), in two tabs, Queries and Workbooks, each with a search. Queries: the library's folders as
+ * groups that fold, then the queries in no folder; queries named "Prefix / name" that share a prefix fold under it. It lists
  * the queries of the active tab's `source` (spec 6.1), or every source's with "All sources". A query opens on click; its menu
- * renames it or deletes it (after asking). The workbooks, of every source, follow in a "Workbooks" group: one opens in a
- * workbook tab on click, and its menu deletes it (after asking).
+ * pins it, renames it or deletes it (after asking). Workbooks, of every source, in their folders: one opens in a workbook tab on
+ * click, and its menu pins it or deletes it (after asking). Pinned items, in the order they were pinned, sit in a Pinned group at
+ * the top of their tab instead of in their folder; the pins live in `pins.json` (`pins.get`, `pins.set`).
  */
 export function SavedPanel({ source = 'graph' }: { source?: Source }) {
   const revision = useRevisions((s) => s.library);
@@ -39,7 +61,34 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [all, setAll] = useState(false);
   const [workbooks, setWorkbooks] = useState<WorkbookList | null>(null);
-  const [workbooksFolded, setWorkbooksFolded] = useState(false);
+  const [kind, setKind] = useState<'queries' | 'workbooks'>('queries');
+  const [pins, setPins] = useState<Pins>(NO_PINS);
+
+  useEffect(() => {
+    let live = true;
+    call<Pins | null>('pins.get').then(
+      (p) => live && setPins(p ?? NO_PINS),
+      (e: unknown) => live && setProblem({ text: `The pins couldn’t be read: ${errorText(e)}`, reportId: reportIdOf(e) }),
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  /** Pins the query or workbook `id`, at the end of the pinned ones, or unpins it; puts the pins back if they can't be stored. */
+  const togglePin = (list: keyof Pins, id: string) => {
+    const before = pins;
+    const ids = before[list];
+    const after = { ...before, [list]: ids.includes(id) ? ids.filter((i) => i !== id) : [...ids, id] };
+    setPins(after);
+    call('pins.set', { pins: after }).then(
+      () => setProblem(null),
+      (e: unknown) => {
+        setPins(before);
+        setProblem({ text: `The pins couldn’t be saved: ${errorText(e)}`, reportId: reportIdOf(e) });
+      },
+    );
+  };
 
   useEffect(() => {
     let live = true;
@@ -138,7 +187,8 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
   const needle = search.trim().toLowerCase();
   const queries = (list?.queries ?? []).filter((q) => (all || q.source === source) && (!needle || q.name.toLowerCase().includes(needle)));
 
-  const row = (q: SavedQuery) => {
+  /** `shown` is the name without the prefix of the group it is in. */
+  const row = (q: SavedQuery, shown = q.name) => {
     if (deleting === q.id) {
       return (
         <li key={q.id}>
@@ -174,11 +224,12 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
       <li key={q.id} className="side-item">
         <button type="button" className="side-open" aria-label={q.name} title={q.text} onClick={() => openSaved(q)}>
           {all && <SourceBadge source={q.source} titled />}
-          <span className="truncate">{q.name}</span>
+          <span className="truncate">{shown}</span>
         </button>
         <RowMenu
           name={q.name}
           actions={[
+            { label: pins.queries.includes(q.id) ? 'Unpin' : 'Pin', run: () => togglePin('queries', q.id) },
             {
               label: 'Rename',
               run: () => {
@@ -201,101 +252,125 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
     ) : (
       <li key={w.id} className="side-item">
         <button type="button" className="side-open" aria-label={w.name} onClick={() => openWorkbook(w)}>
-          <WorkbookIcon />
           <span className="truncate">{w.name}</span>
         </button>
-        <RowMenu name={w.name} actions={[{ label: 'Delete', run: () => setDeleting(w.id) }]} />
+        <RowMenu
+          name={w.name}
+          actions={[
+            { label: pins.workbooks.includes(w.id) ? 'Unpin' : 'Pin', run: () => togglePin('workbooks', w.id) },
+            { label: 'Delete', run: () => setDeleting(w.id) },
+          ]}
+        />
       </li>
     );
+  /** The pinned items among `items`, in the order they were pinned, and the others; a pin whose item is gone is skipped. */
+  const pinnedOf = <T extends { id: string }>(items: T[], ids: string[]) => ({
+    pinned: ids.flatMap((id) => items.filter((i) => i.id === id)),
+    others: items.filter((i) => !ids.includes(i.id)),
+  });
   const shownWorkbooks = (workbooks?.workbooks ?? []).filter((w) => !needle || w.name.toLowerCase().includes(needle));
-  const workbooksOpen = needle !== '' || !workbooksFolded;
+  const { pinned: pinnedWorkbooks, others: otherWorkbooks } = pinnedOf(shownWorkbooks, pins.workbooks);
   // Workbook folders fold as query folders do, keyed apart from them (a query folder and a workbook folder can share a name).
   const workbookFolders = (workbooks?.folders ?? [])
-    .map((f) => ({ name: f, key: `workbooks/${f}`, items: shownWorkbooks.filter((w) => w.folder === f) }))
+    .map((f) => ({ name: f, key: `workbooks/${f}`, items: otherWorkbooks.filter((w) => w.folder === f) }))
     .filter((f) => f.items.length > 0);
-  const looseWorkbooks = shownWorkbooks.filter((w) => !w.folder || !workbooks?.folders.includes(w.folder));
+  const looseWorkbooks = otherWorkbooks.filter((w) => !w.folder || !workbooks?.folders.includes(w.folder));
 
-  /** A folder that folds, under `key` in the folded state; a search shows its matches in every folder. */
-  const folder = (key: string, name: string, rows: ReactNode[]) => {
+  /** A folder of `count` items that folds, under `key` in the folded state; a search shows its matches in every folder. */
+  const folder = (key: string, name: string, count: number, rows: ReactNode[]) => {
     const open = needle !== '' || !folded[key];
     return (
       <li key={`folder:${key}`}>
         <button type="button" className="side-open folder" aria-label={name} aria-expanded={open} onClick={() => setFolded((s) => ({ ...s, [key]: open }))}>
-          <span aria-hidden="true">{open ? '▾' : '▸'}</span>
+          <svg className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+            <path d="M9 6l6 6-6 6" />
+          </svg>
           <span className="truncate">{name}</span>
           <span className="ty" aria-hidden="true">
-            {rows.length}
+            {count}
           </span>
         </button>
-        {open && <ul className="side-list pl-3">{rows}</ul>}
+        {open && <ul className="side-list ml-[13px] border-l border-line pr-0 pl-1.5">{rows}</ul>}
       </li>
     );
   };
-  const folders = (list?.folders ?? []).map((f) => ({ name: f, queries: queries.filter((q) => q.folder === f) })).filter((f) => f.queries.length > 0);
-  const loose = queries.filter((q) => !q.folder || !list?.folders.includes(q.folder));
+  /** Queries with their shared prefixes folded into groups, keyed under `key`. */
+  const grouped = (key: string, qs: SavedQuery[]) => {
+    const { groups, rest } = byPrefix(qs);
+    return [
+      ...groups.map(([p, gs]) => folder(`${key}/${p}`, p, gs.length, gs.map((q) => row(q, q.name.slice(p.length + 3))))),
+      ...rest.map((q) => row(q)),
+    ];
+  };
+  const { pinned: pinnedQueries, others: otherQueries } = pinnedOf(queries, pins.queries);
+  const folders = (list?.folders ?? []).map((f) => ({ name: f, queries: otherQueries.filter((q) => q.folder === f) })).filter((f) => f.queries.length > 0);
+  const loose = otherQueries.filter((q) => !q.folder || !list?.folders.includes(q.folder));
+  const tab = (k: typeof kind, label: string, count: number) => (
+    <button type="button" role="tab" className="rtab h-8 flex-1" aria-selected={kind === k} onClick={() => setKind(k)}>
+      {label} <span className="faint text-[11px] font-normal">{count}</span>
+    </button>
+  );
+  const what = kind === 'queries' ? 'query' : 'workbook';
 
   return (
     <aside className="side" aria-label="Saved">
       <PanelHeading title="Saved" source={source} all={all} onAll={setAll} />
+      <div role="tablist" aria-label="Saved" className="mx-3 mb-2 flex border-b border-line">
+        {tab('queries', 'Queries', queries.length)}
+        {tab('workbooks', 'Workbooks', shownWorkbooks.length)}
+      </div>
       <input
         className="search"
         type="search"
-        aria-label="Find a saved query"
-        placeholder="Find a saved query"
+        aria-label={`Find a saved ${what}`}
+        placeholder={`Find a saved ${what}`}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
-      <div className="min-h-0 flex-1 overflow-y-auto pb-3">
+      <div role="tabpanel" aria-label={kind === 'queries' ? 'Queries' : 'Workbooks'} className="min-h-0 flex-1 overflow-y-auto pb-3">
         {problem && (
           <p role="alert" className="m-0 px-[14px] pb-2 text-[12px] text-bad">
             {problem.text}
             <ErrorReportActions reportId={problem.reportId} uiSections={{ message: problem.text }} />
           </p>
         )}
-        {list && list.skipped > 0 && <p className="m-0 px-[14px] pb-2 text-[12px] text-warn">{skippedText(list.skipped)}</p>}
-        {workbooks && workbooks.skipped > 0 && (
-          <p className="m-0 px-[14px] pb-2 text-[12px] text-warn">
-            {workbooks.skipped === 1 ? '1 workbook couldn’t be read and was moved aside.' : `${workbooks.skipped} workbooks couldn’t be read and were moved aside.`}
-          </p>
+        {kind === 'queries' ? (
+          <>
+            {list && list.skipped > 0 && <p className="m-0 px-[14px] pb-2 text-[12px] text-warn">{skippedText(list.skipped)}</p>}
+            {list && queries.length === 0 && (
+              <p className="faint m-0 px-[14px] text-[12px]">{needle ? 'No saved query matches.' : `No saved queries yet. Save a query with ${MOD} S.`}</p>
+            )}
+            <ul className="side-list">
+              {pinnedQueries.length > 0 && folder('\0pinned', 'Pinned', pinnedQueries.length, pinnedQueries.map((q) => row(q)))}
+              {folders.map((f) => folder(f.name, f.name, f.queries.length, grouped(f.name, f.queries)))}
+              {grouped('', loose)}
+            </ul>
+          </>
+        ) : (
+          <>
+            {workbooks && workbooks.skipped > 0 && (
+              <p className="m-0 px-[14px] pb-2 text-[12px] text-warn">
+                {workbooks.skipped === 1 ? '1 workbook couldn’t be read and was moved aside.' : `${workbooks.skipped} workbooks couldn’t be read and were moved aside.`}
+              </p>
+            )}
+            {workbooks && shownWorkbooks.length === 0 && (
+              <p className="faint m-0 px-[14px] text-[12px]">{needle ? 'No workbook matches.' : 'No workbooks yet.'}</p>
+            )}
+            <ul className="side-list">
+              {pinnedWorkbooks.length > 0 && folder('workbooks/\0pinned', 'Pinned', pinnedWorkbooks.length, pinnedWorkbooks.map(workbookRow))}
+              {workbookFolders.map((f) => folder(f.key, f.name, f.items.length, f.items.map(workbookRow)))}
+              {looseWorkbooks.map(workbookRow)}
+            </ul>
+          </>
         )}
-        {list && queries.length === 0 && shownWorkbooks.length === 0 && (
-          <p className="faint m-0 px-[14px] text-[12px]">
-            {needle ? 'No saved query matches.' : `Nothing saved yet. Save a query with ${MOD} S.`}
-          </p>
-        )}
-        <ul className="side-list">
-          {folders.map((f) => folder(f.name, f.name, f.queries.map(row)))}
-          {loose.map(row)}
-          {(needle === '' || shownWorkbooks.length > 0) && (
-            <li>
-              <button
-                type="button"
-                className="side-open folder"
-                aria-label="Workbooks"
-                aria-expanded={workbooksOpen}
-                onClick={() => setWorkbooksFolded(workbooksOpen)}
-              >
-                <span aria-hidden="true">{workbooksOpen ? '▾' : '▸'}</span>
-                <span className="truncate">Workbooks</span>
-                <span className="ty" aria-hidden="true">
-                  {shownWorkbooks.length}
-                </span>
-              </button>
-              {workbooksOpen && (
-                <ul className="side-list pl-3">
-                  <li>
-                    <button type="button" className="side-open" onClick={() => void importFile()}>
-                      Import…
-                    </button>
-                  </li>
-                  {workbookFolders.map((f) => folder(f.key, f.name, f.items.map(workbookRow)))}
-                  {looseWorkbooks.map(workbookRow)}
-                </ul>
-              )}
-            </li>
-          )}
-        </ul>
       </div>
+      {kind === 'workbooks' && (
+        <div className="side-foot">
+          <button type="button" className="btn" onClick={() => void importFile()}>
+            Import workbook…
+          </button>
+        </div>
+      )}
     </aside>
   );
 }

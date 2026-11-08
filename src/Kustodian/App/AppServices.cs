@@ -52,6 +52,7 @@ public sealed class AppServices : IAsyncDisposable
     private readonly SolutionService _solutions;
     private readonly SessionService _session;
     private readonly SnippetService _snippets;
+    private readonly PinHandler _pins;
     private readonly ExternalToolService _tools;
     private readonly AllowedFilePaths _allowedFiles;
     private readonly GraphSchema _schema = GraphSchemaCatalog.Beta;
@@ -73,6 +74,7 @@ public sealed class AppServices : IAsyncDisposable
         _solutions = new SolutionService(store, _github, _library, _workbooks, _history, time, AppVersion.Text, new StderrLogger<SolutionService>());
         _session = new SessionService(store);
         _snippets = new SnippetService(store, new StderrLogger<SnippetService>());
+        _pins = new PinHandler(store);
         _tools = new ExternalToolService(store.Root);
         _allowedFiles = new AllowedFilePaths(_session, new StderrLogger<AllowedFilePaths>());
         Limits = SettingsService.ToGraphLimits(startup.Limits);
@@ -146,6 +148,7 @@ public sealed class AppServices : IAsyncDisposable
         new SolutionHandler(_solutions).Register(bridge);
         new SessionHandler(_session, _allowedFiles).Register(bridge);
         new SnippetHandler(_snippets).Register(bridge);
+        _pins.Register(bridge);
         var dialogs = new PhotinoFileDialogs(Window);
         new ExternalToolHandler(_tools, dialogs).Register(bridge);
         new FileHandler(dialogs, _allowedFiles).Register(bridge);

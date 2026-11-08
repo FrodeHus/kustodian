@@ -12,6 +12,14 @@ follow [Semantic Versioning](https://semver.org/).
 - **Defender for Cloud solution**: secure score, recommendations, compliance, Defender for Servers Plan 2 coverage, attack
   paths and alerts from Azure Resource Graph and advanced hunting, with a posture workbook. See
   [docs/solutions.md](docs/solutions.md#solutions-that-ship-now).
+- **Pinned saved items**: pin a saved query or workbook from its row menu to keep it in a Pinned group at the top of the
+  Saved panel, in the order you pinned them.
+
+### Changed
+
+- **Saved panel**: queries and workbooks are now on separate **Queries** and **Workbooks** tabs, each with its own search.
+  Queries named `Prefix / name` fold under a `Prefix` folder when two or more share it. **Import workbook…** is at the
+  bottom of the Workbooks tab.
 
 ## [1.1.0] - 2026-11-08
 

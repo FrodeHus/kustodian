@@ -88,6 +88,81 @@ describe('SavedPanel', () => {
     expect(screen.queryByRole('button', { name: 'All apps' })).toBeNull();
   });
 
+  it('saved_folds_queries_sharing_a_name_prefix_under_it', async () => {
+    library = {
+      queries: [
+        query('a', 'Break glass / Role assignments', 'Identity'),
+        query('b', 'Break glass / Sign-ins', 'Identity'),
+        query('c', 'MFA / Adoption', 'Identity'),
+        query('d', 'Break glass / Loose', null),
+      ],
+      folders: ['Identity'],
+      skipped: 0,
+    };
+    render(<SavedPanel />);
+
+    const group = await screen.findByRole('button', { name: 'Break glass', expanded: true });
+    const rows = group.nextElementSibling as HTMLElement;
+    // Shown without the prefix, still named in full.
+    expect(within(rows).getByRole('button', { name: 'Break glass / Sign-ins' }).textContent).toBe('Sign-ins');
+    expect(within(rows).queryByRole('button', { name: 'Break glass / Loose' })).toBeNull();
+    // A prefix no other query in the folder shares stays in the name.
+    expect(screen.getByRole('button', { name: 'MFA / Adoption' }).textContent).toBe('MFA / Adoption');
+    expect(screen.queryByRole('button', { name: 'MFA' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Break glass / Loose' }).textContent).toBe('Break glass / Loose');
+
+    fireEvent.click(group);
+    expect(screen.queryByRole('button', { name: 'Break glass / Sign-ins' })).toBeNull();
+  });
+
+  it('saved_pins_a_query_to_the_top_and_unpins_it', async () => {
+    let pins = { queries: ['gone'], workbooks: [] as string[] };
+    const answer = bridge.call.getMockImplementation()!;
+    bridge.call.mockImplementation((method: string, params?: { pins?: typeof pins }) => {
+      if (method === 'pins.get') {
+        return Promise.resolve(pins);
+      }
+      if (method === 'pins.set') {
+        pins = params!.pins!;
+        return Promise.resolve(pins);
+      }
+      return answer(method, params);
+    });
+    render(<SavedPanel />);
+
+    // A pin whose query is gone shows nothing.
+    await screen.findByRole('button', { name: 'Stale guests' });
+    expect(screen.queryByRole('button', { name: 'Pinned' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'More for Stale guests' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Pin' }));
+    await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('pins.set', { pins: { queries: ['gone', 'q1'], workbooks: [] } }));
+    // It moves out of its folder into Pinned.
+    const pinned = screen.getByRole('button', { name: 'Pinned', expanded: true }).nextElementSibling as HTMLElement;
+    expect(within(pinned).getByRole('button', { name: 'Stale guests' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Identity' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'More for Stale guests' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Unpin' }));
+    await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('pins.set', { pins: { queries: ['gone'], workbooks: [] } }));
+    expect(screen.queryByRole('button', { name: 'Pinned' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Identity' })).toBeTruthy();
+  });
+
+  it('saved_puts_the_pins_back_when_they_cant_be_saved', async () => {
+    const answer = bridge.call.getMockImplementation()!;
+    bridge.call.mockImplementation((method: string, params?: unknown) =>
+      method === 'pins.set' ? Promise.reject(new Error('disk full')) : answer(method, params as never),
+    );
+    render(<SavedPanel />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'More for All apps' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Pin' }));
+
+    expect((await screen.findByRole('alert')).textContent).toContain('The pins couldn’t be saved');
+    expect(screen.queryByRole('button', { name: 'Pinned' })).toBeNull();
+  });
+
   it('saved_rename_saves_and_retitles_open_tabs', async () => {
     render(<SavedPanel />);
     fireEvent.click(await screen.findByRole('button', { name: 'All apps' }));
@@ -174,8 +249,8 @@ describe('SavedPanel', () => {
     });
     render(<SavedPanel />);
 
-    expect(await screen.findByRole('button', { name: 'Workbooks', expanded: true })).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Hygiene' }));
+    fireEvent.click(await screen.findByRole('tab', { name: /Workbooks/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Hygiene' }));
     await waitFor(() => expect(useTabs.getState().tabs).toHaveLength(1));
     expect(bridge.call).toHaveBeenCalledWith('workbook.get', { id: doc.id });
     expect(useTabs.getState().tabs[0]).toMatchObject({ source: 'workbook', title: 'Hygiene', savedId: doc.id, workbook: doc, dirty: false });
@@ -190,7 +265,7 @@ describe('SavedPanel', () => {
     expect(useTabs.getState().tabs[0]?.savedId).toBeUndefined();
   });
 
-  it('saved_groups_workbooks_by_their_folder_and_with_only_workbooks_doesnt_say_nothing_saved', async () => {
+  it('saved_groups_workbooks_by_their_folder_in_the_workbooks_tab', async () => {
     library = { queries: [], folders: [], skipped: 0 };
     const summary = (id: string, name: string, folder: string | null) => ({ id, name, folder, modifiedAt: '2026-11-01T00:00:00Z', widgets: 0 });
     // "Identity" is also a query folder name elsewhere; the workbook folder folds on its own.
@@ -198,13 +273,15 @@ describe('SavedPanel', () => {
     const answer = bridge.call.getMockImplementation()!;
     bridge.call.mockImplementation((method: string, params?: { id?: string }) => (method === 'workbook.list' ? Promise.resolve(workbooks) : answer(method, params)));
     render(<SavedPanel />);
+    expect(await screen.findByText(/No saved queries yet/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('tab', { name: /Workbooks/ }));
 
     const group = await screen.findByRole('button', { name: 'Identity', expanded: true });
     const folderList = group.nextElementSibling as HTMLElement;
     expect(within(folderList).getByRole('button', { name: 'Hygiene' })).toBeTruthy();
     expect(within(folderList).queryByRole('button', { name: 'Costs' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Costs' })).toBeTruthy();
-    expect(screen.queryByText(/Nothing saved yet/)).toBeNull();
+    expect(screen.queryByText(/No workbooks yet/)).toBeNull();
 
     fireEvent.click(group);
     expect(screen.getByRole('button', { name: 'Identity', expanded: false })).toBeTruthy();
@@ -219,7 +296,8 @@ describe('SavedPanel', () => {
     );
     render(<SavedPanel />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Import…' }));
+    fireEvent.click(await screen.findByRole('tab', { name: /Workbooks/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Import workbook…' }));
 
     expect(bridge.call).toHaveBeenCalledWith('file.open', { filters: [{ name: 'Kustodian workbook', extensions: ['json'] }] });
     expect((await screen.findByRole('alert')).textContent).toContain('The workbook couldn’t be imported: ');
