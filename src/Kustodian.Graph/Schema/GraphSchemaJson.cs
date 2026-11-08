@@ -104,6 +104,8 @@ public static class GraphSchemaJson
             w.WriteString("knownPermission", column.KnownPermission);
         if (column.Relationship)
             w.WriteBoolean("relationship", true);
+        if (column.Derived)
+            w.WriteBoolean("derived", true);
         if (column.Permissions.Count > 0)
         {
             w.WriteStartArray("permissions");
@@ -170,6 +172,7 @@ public static class GraphSchemaJson
     {
         KnownPermission = e.TryGetProperty("knownPermission", out var known) ? known.GetString() : null,
         Relationship = e.TryGetProperty("relationship", out var relationship) && relationship.GetBoolean(),
+        Derived = e.TryGetProperty("derived", out var derived) && derived.GetBoolean(),
         Permissions = e.TryGetProperty("permissions", out var permissions)
             ? permissions.EnumerateArray().Select(x => x.GetString()!).ToList()
             : [],

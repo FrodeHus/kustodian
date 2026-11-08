@@ -7,6 +7,10 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Derived-type columns**: Graph tables that list objects of several types, such as the authentication method
+  configurations or named locations, now have the derived types' properties as columns (empty on other types' rows) and an
+  `odataType` column, so `keyRestrictions` and `includeTargets` of the FIDO2 policy can be queried. A query that uses one is
+  read without `$select`. See [docs/README.md](docs/README.md#derived-types).
 - **Entra ID solution**: one solution for Entra ID reviews. It adds a **Break-glass account compliance** workbook: the
   accounts' Conditional Access exclusions, hardening, Global Administrator assignment, sign-ins, groups and tenant
   guardrails, one row per check with PASS, FAIL, WARN, INFO or ERROR, for the accounts you list in a workbook parameter.

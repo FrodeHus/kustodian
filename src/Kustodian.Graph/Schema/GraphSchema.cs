@@ -51,6 +51,12 @@ public sealed record GraphColumn(
     /// <summary>For a relationship column, the read-only delegated permissions any of which lets Graph read it: the ones
     /// Microsoft marks least-privileged first, then the rest, each part sorted ordinally; empty otherwise.</summary>
     public IReadOnlyList<string> Permissions { get; init; } = [];
+
+    /// <summary>True for a column only some of the table's objects have: a property of a type derived from the table's entity
+    /// type (null on rows of other types), or <c>odataType</c>. Graph refuses it in the base collection's <c>$select</c>,
+    /// <c>$filter</c> and <c>$orderby</c>, so it is never sent there; a query that needs one is read without <c>$select</c>
+    /// (Graph's default properties of each object's own type).</summary>
+    public bool Derived { get; init; }
 }
 
 /// <summary>A field of a complex type, for completion inside a dynamic column.</summary>
