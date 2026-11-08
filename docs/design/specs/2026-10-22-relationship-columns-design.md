@@ -26,7 +26,8 @@ kind without new code for each.
 ## 3. Non-goals
 
 - Transitive relationships (`transitiveMemberOf`, `transitiveMembers`). Direct is enough, and nested reads are what gets a
-  large tenant throttled (**Owner**).
+  large tenant throttled (**Owner**). Changed on 2026-11-08: `users.transitiveMemberOf` is added for the break-glass checks,
+  which need nested groups as Conditional Access sees them; it reads one list per user, under the same cap (**Owner**).
 - Reading every entry of a very large relationship. Entries are cut off at a cap; a user who needs more rewrites the query
   (**Owner**).
 - Sending a filter on the entries to Graph (`$filter` on `/memberOf`). Filters on entries run locally after `mv-expand`

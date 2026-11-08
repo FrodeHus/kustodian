@@ -19,7 +19,8 @@ public sealed record GraphRelationship(string Name, string? Path = null)
 /// <summary>The navigation properties exposed as relationship columns: per table, the relationships worth a column. The list
 /// is <c>graph-relationships.json</c>, embedded in this assembly: table name → relationship name → <c>{}</c>, or
 /// <c>{"path": "authentication/methods"}</c> when the column reads something further down than a navigation property of its
-/// own name. Only direct relationships are listed, never <c>transitive*</c>.</summary>
+/// own name. Only direct relationships are listed, except <c>users.transitiveMemberOf</c>: Conditional Access and role
+/// checks need nested groups, and nested reads are what throttles a large tenant, so no other <c>transitive*</c>.</summary>
 public static class GraphRelationships
 {
     private static readonly Lazy<IReadOnlyDictionary<string, IReadOnlyList<GraphRelationship>>> BundledList = new(LoadBundled);

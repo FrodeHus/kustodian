@@ -133,43 +133,43 @@
       "files": [
         {
           "path": "README.md",
-          "sha256": "ba0f6aeddecf49751ee9d6ec6900ce5d42f22ca7e48ea5278089e8cf3fba9f24",
-          "size": 5821
+          "sha256": "8317f784b6d17e01bbd3c435cd59c36cb929161a1142963907812b64bec087b1",
+          "size": 5714
         },
         {
           "path": "queries/btg-accounts.json",
-          "sha256": "da8264aaca5f026aaa1328d1fb1b774cf20558710423745693eb7860085520e5",
-          "size": 6766
+          "sha256": "4730fbcfd026033855424d5441bf447572addb5d6ef27716961f8f5f90483d36",
+          "size": 6776
         },
         {
           "path": "queries/btg-conditional-access.json",
-          "sha256": "33f63e5731078ba21bf20a44c5c2b63bff70375aa66211b8e64c5b5bb67fd421",
-          "size": 3459
+          "sha256": "eaff89764c65d745de16318af5b2fba94736d2c0f7fe936ca14a1afad450edee",
+          "size": 3489
         },
         {
           "path": "queries/btg-findings.json",
-          "sha256": "6ceb60240bfd2d20435de9c06c01bf8a316afb611f2ab8c3da25e2f69dd8d399",
-          "size": 19857
+          "sha256": "4b12306017fdc5f0f626366fb2ced4a73b417b8202d9a4b54406b14c321b828e",
+          "size": 19907
         },
         {
           "path": "queries/btg-groups.json",
-          "sha256": "22afc9a93090d8efd9a5cc2a250e78d8201d4c94b9ff7db9e270858589a7f9b5",
-          "size": 5548
+          "sha256": "781955cf4b08564cd28feb02c3ab91884132ccedc064fa80f4430c1f46aedd2c",
+          "size": 5558
         },
         {
           "path": "queries/btg-roles.json",
-          "sha256": "2552d4d84d24ad45bde8e67e62975949ca05cf7071278080a29674b31df0f07a",
-          "size": 4449
+          "sha256": "50f16bddbf9772bca2c09e8400989d4201409167bac3672f8943c7fd0e30e323",
+          "size": 4479
         },
         {
           "path": "queries/btg-sign-ins.json",
-          "sha256": "91d9502d2dc6b72130109d89f9f1f95c54784fb1df18b50eec4e7901a95e1e42",
-          "size": 2213
+          "sha256": "f00a33619230b23f4f70713fe2474f6d878355883cb6869964e358e7b3bcdce3",
+          "size": 2223
         },
         {
           "path": "queries/btg-tenant.json",
-          "sha256": "0512fd00c2141b26bf35e4ca00bfc5b7e3daf482b7f582284d48c60e8b9de3bf",
-          "size": 6691
+          "sha256": "37b7b0d900f0b6aad863c3d18e7747d2dec90ac9c3c420d585aae77f80d35b15",
+          "size": 6721
         },
         {
           "path": "queries/mfa-by-company.json",
@@ -198,8 +198,8 @@
         },
         {
           "path": "workbooks/break-glass-compliance.json",
-          "sha256": "8e6f46144742364546867178f9a695f0d852d30ca5e8b5d820fcec49ef242b1f",
-          "size": 76336
+          "sha256": "a0d94c4262fbf04adcb0bc8e069015786ef32b080c56d660bffe80acad763c47",
+          "size": 76451
         },
         {
           "path": "workbooks/mfa-adoption.json",

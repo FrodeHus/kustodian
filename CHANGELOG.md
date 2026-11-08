@@ -11,6 +11,9 @@ follow [Semantic Versioning](https://semver.org/).
   (FIDO2 keys with their model and AAGUID, phones, passwords, ...), and `users.authenticationRequirements` holds their
   per-user MFA state. Both are read one object at a time like the other relationship columns, with the same 100-object cap
   and notices. See [docs/README.md](docs/README.md#relationships).
+- **Nested group membership**: `users.transitiveMemberOf` lists every group a user is in, also through other groups, as
+  Conditional Access sees it. It is the only transitive relationship column. The break-glass checks now count exclusions,
+  roles and FIDO2 targets through nested groups. See [docs/README.md](docs/README.md#relationships).
 - **Derived-type columns**: Graph tables that list objects of several types, such as the authentication method
   configurations or named locations, now have the derived types' properties as columns (empty on other types' rows) and an
   `odataType` column, so `keyRestrictions` and `includeTargets` of the FIDO2 policy can be queried. A query that uses one is

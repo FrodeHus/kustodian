@@ -39,7 +39,6 @@ Different from the runbook:
 
 - Only FIDO2 security keys (`passKeyDeviceBound`) count as allowed methods. A passkey in Microsoft Authenticator is an
   "other method", since it lives on a phone.
-- Exclusions and roles are checked through the groups an account is a direct member of, not nested groups.
 - The key count and per-user MFA state are read one account at a time (`users.authenticationMethods` and
   `users.authenticationRequirements`), which needs `UserAuthenticationMethod.Read.All` and `Policy.Read.All`; without them
   those checks are ERROR.
