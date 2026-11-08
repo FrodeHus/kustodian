@@ -9,6 +9,14 @@ follow [Semantic Versioning](https://semver.org/).
 
 - **Aurora theme**: Kustodian's own dark theme, from the logo and banner: navy ink with cyan, blue, violet and mint, a soft
   glow behind the workspace, and cards and workbook widgets tinted blue to violet. Pick it in Settings.
+- **Pinned saved items**: pin a saved query or workbook from its row menu to keep it in a Pinned group at the top of the
+  Saved panel, in the order you pinned them.
+
+### Changed
+
+- **Saved panel**: queries and workbooks are now on separate **Queries** and **Workbooks** tabs, each with its own search.
+  Queries named `Prefix / name` fold under a `Prefix` folder when two or more share it. **Import workbook…** is at the
+  bottom of the Workbooks tab.
 
 ## [1.1.0] - 2026-11-08
 
