@@ -390,6 +390,25 @@ body {
   }
 }
 
+/* Aurora: Kustodian's own palette (shell/palettes.ts) plus the banner's glow behind the workspace, cards and widgets tinted blue to
+ * violet, and the banner's source colours (hunting violet, Resource Graph mint). On screen only. */
+@layer components {
+  @media screen {
+    .theme-aurora .workspace {
+      background:
+        radial-gradient(900px 520px at 100% 0%, rgba(47, 92, 255, 0.2), transparent 65%),
+        radial-gradient(800px 480px at 0% 100%, rgba(139, 61, 255, 0.14), transparent 65%),
+        var(--bg);
+    }
+    .theme-aurora .toolbar { background: transparent; }
+    .theme-aurora .side { background: linear-gradient(180deg, rgba(34, 228, 245, 0.04), rgba(139, 61, 255, 0.04)), var(--panel); }
+    .theme-aurora .card { background: linear-gradient(160deg, rgba(47, 92, 255, 0.09), rgba(139, 61, 255, 0.06)), var(--panel); border-color: rgba(76, 110, 255, 0.3); border-radius: 14px; }
+    :root.theme-aurora .src.graph { background: rgba(34, 228, 245, 0.16); color: #22e4f5; }
+    :root.theme-aurora .src.hunt { background: rgba(169, 124, 255, 0.18); color: #bfa0ff; }
+    :root.theme-aurora .src.arg { background: rgba(62, 240, 192, 0.16); color: #3ef0c0; }
+  }
+}
+
 /* Print or save as PDF (the workbook menu): only the workbook marked .wb-printing, in the light theme with its backgrounds kept,
  * at the page's width (narrower than the window, so one widget a row, as on a narrow screen), widgets never split. Every ancestor stops clipping it to the window.
  * shortcut: a table widget prints the rows its scroll box shows (the grid is virtualised); render all rows if asked for. */

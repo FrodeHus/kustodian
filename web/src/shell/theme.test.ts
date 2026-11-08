@@ -99,13 +99,17 @@ describe('theme', () => {
     applyTheme('gruvbox-dark');
     expect(accent()).toBe('#fabd2f');
 
+    // Aurora, Kustodian's own palette, also gets its class for the glow and tinted cards.
+    applyTheme('aurora');
+    expect([accent(), document.documentElement.classList.contains('theme-aurora')]).toEqual(['#22e4f5', true]);
+
     applyTheme('light');
-    expect(accent()).toBe('');
+    expect([accent(), document.documentElement.classList.contains('theme-aurora')]).toEqual(['', false]);
     expect(isLight()).toBe(true);
   });
 
   it('every_theme_has_a_name_and_survives_the_start_url', () => {
-    expect(THEMES).toHaveLength(15);
+    expect(THEMES).toHaveLength(16);
     for (const theme of THEMES) {
       expect(themeName(theme)).toMatch(/^[A-Z]/);
       expect(initialTheme(`?theme=${theme}`)).toBe(theme);

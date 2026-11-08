@@ -43,6 +43,7 @@ function show(theme: Theme, light: boolean) {
   // Both glass themes share `.theme-glass`; liquid glass adds its own class on top.
   root.toggle('theme-glass', isGlass(theme));
   root.toggle('theme-liquid-glass', theme === 'liquid-glass');
+  root.toggle('theme-aurora', theme === 'aurora');
   // A palette theme sets the tokens over the dark ones, on screen only (print is always light); any other theme clears them.
   paletteSheet().textContent = isPalette(theme)
     ? `@media screen { :root { ${Object.entries(paletteVars(PALETTES[theme])).map(([name, value]) => `${name}: ${value};`).join(' ')} } }`
