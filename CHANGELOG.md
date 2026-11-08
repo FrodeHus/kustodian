@@ -5,6 +5,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-08
+
 ### Added
 
 - **Authentication methods and requirements**: `users.authenticationMethods` lists each user's registered sign-in methods
