@@ -33,6 +33,24 @@ public static partial class GraphSchemaBuilder
         ("groups", "unseenConversationsCount"), ("groups", "unseenMessagesCount"),
     };
 
+    /// <summary>The column holding each row's type: <c>@odata.type</c> without its <c>#</c>
+    /// (<c>microsoft.graph.fido2AuthenticationMethodConfiguration</c>), or the table's entity type when Graph sends none.
+    /// Only on tables whose entity type has derived types.</summary>
+    public const string OdataTypeColumn = "odataType";
+
+    /// <summary>Navigation properties of derived types that Graph returns inline in a list without <c>$expand</c>, keyed by table
+    /// and name; they become derived columns like structural properties. Microsoft Learn's Get authenticationMethodsPolicy
+    /// shows each method configuration's <c>includeTargets</c> in the list.</summary>
+    public static readonly IReadOnlySet<(string Table, string Column)> InlineNavigations = new HashSet<(string Table, string Column)>
+    {
+        ("policies_authenticationMethodsPolicy_authenticationMethodConfigurations", "includeTargets"),
+    };
+
+    /// <summary>The most derived-type columns a table gets. Beyond it (<c>deviceManagement_deviceConfigurations</c> has 1,407,
+    /// <c>directoryObjects</c> 315, where the derived types have tables of their own) the table gets only
+    /// <see cref="OdataTypeColumn"/>: the schema would grow by a fifth for two tables.</summary>
+    public const int MaxDerivedColumns = 200;
+
     /// <summary>Builds the schema with no relationship columns.</summary>
     public static GraphSchema Build(GraphMetadata metadata, IReadOnlyDictionary<string, IReadOnlyList<string>> permissions,
         string source, DateTimeOffset generatedAt)
@@ -53,10 +71,11 @@ public static partial class GraphSchemaBuilder
         ICollection<string>? warnings = null)
     {
         var shapes = new Dictionary<string, string>(StringComparer.Ordinal);
+        var derived = metadata.Types.Values.Where(t => t.Kind == "EntityType" && t.BaseType is not null).ToLookup(t => t.BaseType!);
         var tables = metadata.Collections
             .Where(c => metadata.Types.ContainsKey(c.EntityType))
             .Where(c => !IsDelegatedOnly(c.Path))
-            .Select(c => BuildTable(metadata, permissions, relationshipPermissions, relationships, c, shapes, warnings))
+            .Select(c => BuildTable(metadata, derived, permissions, relationshipPermissions, relationships, c, shapes, warnings))
             .GroupBy(t => t.Name)
             .Select(g => g.First())
             .ToList();
@@ -143,7 +162,8 @@ public static partial class GraphSchemaBuilder
         }
     }
 
-    private static GraphTable BuildTable(GraphMetadata metadata, IReadOnlyDictionary<string, IReadOnlyList<string>> permissions,
+    private static GraphTable BuildTable(GraphMetadata metadata, ILookup<string, CsdlType> derived,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> permissions,
         IReadOnlyDictionary<string, IReadOnlyList<string>> relationshipPermissions,
         IReadOnlyDictionary<string, IReadOnlyList<GraphRelationship>> relationships, CsdlCollection collection,
         Dictionary<string, string> shapes, ICollection<string>? warnings)
@@ -161,6 +181,7 @@ public static partial class GraphSchemaBuilder
                 KnownPermission = GraphPermissions.KnownColumns.GetValueOrDefault((name, p.Name)),
             };
         }).ToList();
+        columns.AddRange(DerivedColumns(metadata, derived, type, name, columns.Select(c => c.Name).ToHashSet(StringComparer.Ordinal)));
         foreach (var relationship in relationships.GetValueOrDefault(name) ?? [])
         {
             var (target, isCollection, description) = Resolve(metadata, type, name, relationship);
@@ -191,6 +212,81 @@ public static partial class GraphSchemaBuilder
             Permissions = [.. tablePermissions.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)],
         };
     }
+
+    /// <summary>The columns of the types derived from <paramref name="type"/> (at any depth): each derived type's own structural
+    /// properties, and its <see cref="InlineNavigations"/>, then <see cref="OdataTypeColumn"/>; none when nothing derives from it, only
+    /// <see cref="OdataTypeColumn"/> past <see cref="MaxDerivedColumns"/>.
+    /// A name sibling types share is one column, typed as they type it, or <c>dynamic</c> when their types differ (and then
+    /// without a complex type). A name the table already has, a stream, and a property Graph returns only on a single GET are
+    /// left out: none can be read in a list without <c>$select</c>.</summary>
+    private static List<GraphColumn> DerivedColumns(GraphMetadata metadata, ILookup<string, CsdlType> derived, CsdlType type,
+        string table, HashSet<string> taken)
+    {
+        var descendants = new List<CsdlType>();
+        var seen = new HashSet<string>(StringComparer.Ordinal) { type.FullName };
+        var pending = new Queue<CsdlType>([type]);
+        while (pending.TryDequeue(out var current))
+        {
+            foreach (var child in derived[current.FullName].OrderBy(t => t.FullName, StringComparer.Ordinal))
+            {
+                if (!seen.Add(child.FullName))
+                    continue;
+                descendants.Add(child);
+                pending.Enqueue(child);
+            }
+        }
+        if (descendants.Count == 0)
+            return [];
+
+        var properties = descendants.SelectMany(d => d.Properties
+                .Where(p => !taken.Contains(p.Name) && p.TypeName != "Edm.Stream" && !GetOnlyRegex().IsMatch(p.Description))
+                .Select(p => (Type: d, Property: p))
+            .Concat(d.Navigations.Where(n => !taken.Contains(n.Name) && InlineNavigations.Contains((table, n.Name)))
+                .Select(n => (Type: d, Property: new CsdlProperty(n.Name, n.TypeName, n.IsCollection, n.Description)))))
+            // A property a descendant inherits from another descendant counts once, for the type that declares it.
+            .GroupBy(x => x.Property.Name, StringComparer.Ordinal);
+        var columns = new List<GraphColumn>();
+        foreach (var group in properties)
+        {
+            var declared = group.Where(x => !group.Any(y => y.Type != x.Type && Inherits(x.Type, y.Type))).ToList();
+            var kusto = declared.Select(x => KustoType(metadata, x.Property)).Distinct().ToList();
+            var complex = declared.Select(x => ComplexOf(metadata, x.Property)).Distinct().ToList();
+            var first = declared[0].Property;
+            var on = string.Join(", ", declared.Select(x => ShortName(x.Type.FullName)));
+            var description = declared.Select(x => x.Property.Description).FirstOrDefault(d => d.Length > 0) ?? "";
+            columns.Add(new GraphColumn(first.Name, kusto.Count == 1 ? kusto[0] : "dynamic",
+                $"Only on {on}." + (description.Length > 0 ? " " + description : ""), [], false,
+                complex.Count == 1 && kusto.Count == 1 ? complex[0] : null,
+                kusto.Count == 1 && declared.All(x => x.Property.IsCollection))
+            {
+                Derived = true,
+            });
+        }
+        if (columns.Count > MaxDerivedColumns)
+            columns.Clear();
+        if (!taken.Contains(OdataTypeColumn))
+            columns.Add(new GraphColumn(OdataTypeColumn, "string",
+                $"The object's type: @odata.type without #, such as {descendants[0].FullName}; {type.FullName} when Graph sends none.",
+                [], false, null)
+            {
+                Derived = true,
+            });
+        return columns;
+
+        bool Inherits(CsdlType child, CsdlType ancestor)
+        {
+            var steps = new HashSet<string>(StringComparer.Ordinal);
+            for (var b = child.BaseType; b is not null && steps.Add(b); b = metadata.Types.GetValueOrDefault(b)?.BaseType)
+            {
+                if (b == ancestor.FullName)
+                    return true;
+            }
+            return false;
+        }
+    }
+
+    private static string ShortName(string fullName)
+        => fullName.StartsWith("microsoft.graph.", StringComparison.Ordinal) ? fullName["microsoft.graph.".Length..] : fullName;
 
     private const string DirectoryObjectType = "microsoft.graph.directoryObject";
 

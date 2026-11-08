@@ -92,6 +92,8 @@ public sealed class GraphSchemaDiff
                     lines.Add($"{name}: {column.Name} known permission {old.KnownPermission ?? "none"} → {column.KnownPermission ?? "none"}");
                 if (old.Relationship != column.Relationship)
                     lines.Add($"{name}: {column.Name} relationship {old.Relationship} → {column.Relationship}");
+                if (old.Derived != column.Derived)
+                    lines.Add($"{name}: {column.Name} derived {old.Derived} → {column.Derived}");
                 if (!old.Permissions.SequenceEqual(column.Permissions))
                     lines.Add($"{name}: {column.Name} permissions [{string.Join(", ", old.Permissions)}] → [{string.Join(", ", column.Permissions)}]");
                 if (old.Description != column.Description)

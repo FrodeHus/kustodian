@@ -76,7 +76,7 @@
         "version": 1,
         "id": "entra-id",
         "name": "Entra ID",
-        "solutionVersion": "1.1.0",
+        "solutionVersion": "1.2.0",
         "description": "Microsoft Entra ID reviews: break-glass account compliance, risky users and their sign-ins, and MFA and passkey adoption.",
         "author": "Kustodian",
         "support": "kustodian",
@@ -132,8 +132,8 @@
       "files": [
         {
           "path": "README.md",
-          "sha256": "0626bcd938bec8958d581f86366e42afa2f6311df6f4b4fd42771b2dc32d991e",
-          "size": 5469
+          "sha256": "092523539af88d69d5b20de2dcdda9a85666cfba2401b6309370a1760da53e94",
+          "size": 5614
         },
         {
           "path": "queries/btg-accounts.json",
@@ -147,8 +147,8 @@
         },
         {
           "path": "queries/btg-findings.json",
-          "sha256": "61298da041877f7cf702a12969ec8dac765fb65b68acf052be7eef723892bb60",
-          "size": 14756
+          "sha256": "495086811ceb53b0023867519b968a2c4707da7f8fd8b03451c9668aabab837d",
+          "size": 16098
         },
         {
           "path": "queries/btg-groups.json",
@@ -167,8 +167,8 @@
         },
         {
           "path": "queries/btg-tenant.json",
-          "sha256": "b2374c66b4b12b1aad6de1e0ae3129629782dc9d145b2e46184158e443d71d52",
-          "size": 2940
+          "sha256": "ca4db4be69203a6053c42d6665e56360cc3484f16d51d2357b6f3b5ee56dbef3",
+          "size": 4282
         },
         {
           "path": "queries/mfa-by-company.json",
@@ -192,13 +192,13 @@
         },
         {
           "path": "solution.json",
-          "sha256": "112cd07802002c609b901404ef21241198fa0de84348098f73a49cf72391ce1e",
+          "sha256": "a8b0bf155890afc82f996332e890f87ab2c17d19914a52119fd2a1a25490592a",
           "size": 1121
         },
         {
           "path": "workbooks/break-glass-compliance.json",
-          "sha256": "faf3a743c3bb8fec26ece55986bdd2c0f70532edb33ae8bd22e8a7368e33bcc3",
-          "size": 60568
+          "sha256": "9d5c63c3a8c188a7ca293af148d9438ad5062eb3567338a5e1b18688e0e0741d",
+          "size": 64526
         },
         {
           "path": "workbooks/mfa-adoption.json",

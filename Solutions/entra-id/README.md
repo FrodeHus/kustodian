@@ -27,7 +27,7 @@ and **ERROR** need action; **ERROR** means the check couldn't read what it needs
 | `ROLE` | Permanent, active, tenant-wide Global Administrator (directly or through a role-assignable group), no PIM-eligible roles, no other roles. |
 | `GRP` | Each group is role-assignable, static, cloud-only, a plain security group, has no owners and only users, holds no account missing from Accounts, and is excluded from every enabled policy. |
 | `USE` | No sign-in, interactive or not, within **No sign-ins in the last**, from the account's sign-in activity. |
-| `TNT` | At least two accounts, Entra ID P1 or P2, the FIDO2 method enabled and not excluding any account. |
+| `TNT` | At least two accounts, Entra ID P1 or P2, the FIDO2 method enabled for each account (all users, the account or a group it is in) and not excluding any, and, as INFO, the key models an enforced allow-list lets register. |
 | `SYS` | Each UPN in Accounts belongs to a user. |
 
 The **Overview** tab shows every category except `GRP`. The group checks are on the **Groups** tab only: Graph can't
@@ -42,8 +42,8 @@ Different from the runbook:
 - The key count and per-user MFA state are read one account at a time (`users.authenticationMethods` and
   `users.authenticationRequirements`), which needs `UserAuthenticationMethod.Read.All` and `Policy.Read.All`; without them
   those checks are ERROR.
-- Not checked, because Graph tables can't show them yet: Security Defaults, FIDO2 key restrictions and the FIDO2 method's
-  include targets. The Overview tab lists them to check by hand.
+- Not checked, because Graph tables can't show it yet: Security Defaults. Whether the break-glass keys' models are on an
+  enforced allow-list is checked by hand, from the INFO row. The Overview tab lists them.
 
 ## Risky users
 

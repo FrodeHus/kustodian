@@ -874,4 +874,39 @@ public sealed class GraphRunnerTests
         // Graph's answer is kept for a full report.
         Assert.Contains("Off.", refused.ReadFailure?.Body, StringComparison.Ordinal);
     }
+
+    // Graph's list holds each method's own type; the derived columns are filled on that type's rows and empty on the others,
+    // and odataType comes from @odata.type.
+    [Fact]
+    public async Task Run_over_mixed_derived_types_fills_each_rows_own_columns()
+    {
+        await using var h = NewHost();
+        h.Graph.Answer = (_, _) => Task.FromResult(FakeGraph.Collection([
+            new Dictionary<string, object?>
+            {
+                ["@odata.type"] = "#microsoft.graph.fido2AuthenticationMethodConfiguration", ["id"] = "Fido2", ["state"] = "enabled",
+                ["isAttestationEnforced"] = true,
+                ["keyRestrictions"] = new { isEnforced = true, enforcementType = "allow", aaGuids = new[] { "a" } },
+                ["includeTargets"] = new[] { new { targetType = "group", id = "all_users" } },
+            },
+            new Dictionary<string, object?>
+            {
+                ["@odata.type"] = "#microsoft.graph.smsAuthenticationMethodConfiguration", ["id"] = "Sms", ["state"] = "disabled",
+                ["includeTargets"] = Array.Empty<object>(),
+            },
+        ]));
+
+        var r = await h.RunAsync("policies_authenticationMethodsPolicy_authenticationMethodConfigurations"
+            + " | project id, odataType, isAttestationEnforced, enforced = tobool(keyRestrictions.isEnforced),"
+            + " target = tostring(includeTargets[0].id)", ct: Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        Assert.Equal(["Fido2", "Sms"], Column(r, "id"));
+        Assert.Equal(["microsoft.graph.fido2AuthenticationMethodConfiguration", "microsoft.graph.smsAuthenticationMethodConfiguration"],
+            Column(r, "odataType"));
+        Assert.Equal(["True", null], Column(r, "isAttestationEnforced"));
+        Assert.Equal(["True", null], Column(r, "enforced"));
+        Assert.Equal(["all_users", ""], Column(r, "target"));
+        Assert.DoesNotContain(Assert.Single(r.Tables).Requests, q => q.Contains("$select", StringComparison.Ordinal));
+    }
 }
