@@ -1,0 +1,7 @@
+{
+  "name": "Defender for Cloud / How long resources have been unhealthy",
+  "folder": "Defender for Cloud",
+  "source": "arg",
+  "text": "// Adapted from 'Time Indicators' by Microsoft (https://github.com/Azure/Microsoft-Defender-for-Cloud/tree/main/Kusto/Azure%20Resource%20Graph/Time%20Indicators), MIT License, Copyright (c) Microsoft Corporation.\nSecurityResources\n| where type =~ 'microsoft.security/assessments'\n| where tostring(properties.status.code) =~ 'unhealthy'\n| extend FirstEvaluated = todatetime(properties.status.firstEvaluationDate), UnhealthySince = todatetime(properties.status.statusChangeDate)\n| extend DaysUnhealthy = datetime_diff('day', now(), UnhealthySince)\n| project DaysUnhealthy, UnhealthySince, FirstEvaluated, Severity = tostring(properties.metadata.severity), Recommendation = tostring(properties.displayName), Resource = tolower(substring(id, 0, indexof(id, '/providers/Microsoft.Security/assessments/'))), subscriptionId\n| order by DaysUnhealthy desc",
+  "parameters": []
+}

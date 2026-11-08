@@ -1,0 +1,7 @@
+{
+  "name": "Defender for Cloud / Attack paths by type and risk",
+  "folder": "Defender for Cloud",
+  "source": "arg",
+  "text": "// Adapted from the Defender CSPM workbook by Microsoft (https://github.com/microsoft/Application-Insights-Workbooks/blob/master/Workbooks/Azure%20Security%20Center/Defender%20CSPM/DefenderCSPM.workbook), MIT License, Copyright (c) Microsoft Corporation.\nSecurityResources\n| where type == 'microsoft.security/attackpaths'\n| summarize Paths = count() by AttackPath = tostring(properties.displayName), Risk = tostring(properties.riskLevel)\n| order by Paths desc",
+  "parameters": []
+}

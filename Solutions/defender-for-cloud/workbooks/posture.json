@@ -1,0 +1,539 @@
+{
+  "kind": "kustodian.workbook",
+  "version": 1,
+  "id": "c4e7a2d1-5b38-4f96-8e0a-2d71b6f93c45",
+  "name": "Defender for Cloud posture",
+  "folder": null,
+  "parameters": [
+    {
+      "name": "Severity",
+      "type": "list",
+      "value": "High",
+      "required": true,
+      "choices": [
+        "High",
+        "Medium",
+        "Low"
+      ],
+      "label": "Recommendation severity",
+      "multi": true,
+      "all": false,
+      "remember": false,
+      "huntingTimespan": false
+    },
+    {
+      "name": "AlertSeverity",
+      "type": "list",
+      "value": "High",
+      "required": true,
+      "choices": [
+        "High",
+        "Medium",
+        "Low",
+        "Informational"
+      ],
+      "label": "Alert severity",
+      "multi": true,
+      "all": false,
+      "remember": false,
+      "huntingTimespan": false
+    },
+    {
+      "name": "Lookback",
+      "type": "timespan",
+      "value": "7d",
+      "required": true,
+      "choices": [
+        "1d",
+        "7d",
+        "14d",
+        "30d"
+      ],
+      "label": "XDR data from the last",
+      "multi": false,
+      "all": false,
+      "remember": false,
+      "huntingTimespan": false
+    }
+  ],
+  "widgets": [
+    {
+      "id": "wmdc01",
+      "type": "markdown",
+      "title": "",
+      "layout": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 5
+      },
+      "parameters": {},
+      "markdown": "## Defender for Cloud posture\nSecure score, recommendations, regulatory compliance and plan coverage come from Azure Resource Graph across the subscriptions you can read. Alerts, control-plane activity and exposure come from Defender XDR advanced hunting."
+    },
+    {
+      "id": "wmdc02",
+      "type": "stat",
+      "title": "Secure score (%)",
+      "layout": {
+        "x": 0,
+        "y": 5,
+        "w": 3,
+        "h": 6
+      },
+      "parameters": {},
+      "query": {
+        "source": "arg",
+        "text": "SecurityResources\n| where type == 'microsoft.security/securescores' and name == 'ascScore'\n| summarize Score = round(100.0 * sum(todouble(properties.score.current)) / sum(todouble(properties.score.max)), 1)",
+        "options": null,
+        "parameters": [],
+        "saved": null
+      },
+      "stat": {
+        "value": "Score",
+        "compare": null
+      }
+    },
+    {
+      "id": "wmdc03",
+      "type": "stat",
+      "title": "Machines on Servers Plan 2 (%)",
+      "layout": {
+        "x": 3,
+        "y": 5,
+        "w": 3,
+        "h": 6
+      },
+      "parameters": {},
+      "query": {
+        "source": "arg",
+        "text": "Resources\n| where type in~ ('microsoft.compute/virtualmachines', 'microsoft.hybridcompute/machines')\n| project Machine = name, Kind = iff(type =~ 'microsoft.hybridcompute/machines', 'Arc', 'Azure VM'), subscriptionId, resourceGroup, location, Resource = tolower(id)\n// Resource Graph allows one join to SecurityResources, so the subscription's plan and every resource-level plan come in one bag.\n| join kind=leftouter (SecurityResources\n    | where type == 'microsoft.security/pricings' and name == 'VirtualMachines'\n    | extend Path = tolower(id)\n    | extend Key = iff(Path contains '/resourcegroups/', substring(Path, 0, indexof(Path, '/providers/microsoft.security/pricings/')), 'subscription')\n    | summarize Plans = make_bag(pack(Key, strcat(tostring(properties.pricingTier), '|', tostring(properties.subPlan)))) by subscriptionId) on subscriptionId\n| extend SubscriptionPlan = split(tostring(Plans['subscription']), '|'), OverridePlan = tostring(Plans[Resource])\n| extend Tier = tostring(SubscriptionPlan[0]), SubPlan = tostring(SubscriptionPlan[1])\n| extend SubscriptionCoverage = case(Tier == 'Standard' and SubPlan == 'P2', 'Plan 2', Tier == 'Standard' and SubPlan == 'P1', 'Plan 1', Tier == 'Standard', 'Standard', 'Not covered'), Overridden = isnotempty(OverridePlan)\n| extend Tier = iff(Overridden, tostring(split(OverridePlan, '|')[0]), Tier), SubPlan = iff(Overridden, tostring(split(OverridePlan, '|')[1]), SubPlan)\n| extend Coverage = case(Tier == 'Standard' and SubPlan == 'P2', 'Plan 2', Tier == 'Standard' and SubPlan == 'P1', 'Plan 1', Tier == 'Standard', 'Standard', 'Not covered')\n| summarize Covered = countif(Coverage == 'Plan 2'), Total = count()\n| project Plan2Pct = iff(Total == 0, real(null), round(100.0 * Covered / Total, 1))",
+        "options": null,
+        "parameters": [],
+        "saved": null
+      },
+      "stat": {
+        "value": "Plan2Pct",
+        "compare": null
+      }
+    },
+    {
+      "id": "wmdc04",
+      "type": "stat",
+      "title": "Unhealthy high-severity resources",
+      "layout": {
+        "x": 6,
+        "y": 5,
+        "w": 3,
+        "h": 6
+      },
+      "parameters": {},
+      "query": {
+        "source": "arg",
+        "text": "SecurityResources\n| where type == 'microsoft.security/assessments'\n| where tostring(properties.status.code) == 'Unhealthy' and tostring(properties.metadata.severity) == 'High'\n| summarize Resources = count()",
+        "options": null,
+        "parameters": [],
+        "saved": null
+      },
+      "stat": {
+        "value": "Resources",
+        "compare": null
+      }
+    },
+    {
+      "id": "wmdc05",
+      "type": "stat",
+      "title": "Active alerts at chosen severity",
+      "layout": {
+        "x": 9,
+        "y": 5,
+        "w": 3,
+        "h": 6
+      },
+      "parameters": {},
+      "query": {
+        "source": "arg",
+        "text": "SecurityResources\n| where type == 'microsoft.security/locations/alerts'\n| where tostring(properties.Status) == 'Active' and tostring(properties.Severity) in ({AlertSeverity})\n| summarize Alerts = count()",
+        "options": null,
+        "parameters": [],
+        "saved": null
+      },
+      "stat": {
+        "value": "Alerts",
+        "compare": null
+      }
+    },
+    {
+      "id": "wmdc06",
+      "type": "table",
+      "title": "Secure score per subscription",
+      "layout": {
+        "x": 0,
+        "y": 11,
+        "w": 6,
+        "h": 14
+      },
+      "parameters": {},
+      "query": {
+        "source": "arg",
+        "text": "// Adapted from Microsoft Learn sample 'Secure score per subscription' (https://learn.microsoft.com/azure/defender-for-cloud/resource-graph-samples).\nSecurityResources\n| where type == 'microsoft.security/securescores' and name == 'ascScore'\n| extend ScorePct = round(todouble(properties.score.percentage) * 100, 1), Current = todouble(properties.score.current), Max = todouble(properties.score.max)\n| join kind=leftouter (ResourceContainers | where type == 'microsoft.resources/subscriptions' | project subscriptionId, Subscription = name) on subscriptionId\n| project Subscription, subscriptionId, ScorePct, Current, Max\n| order by ScorePct asc",
+        "options": null,
+        "parameters": [],
+        "saved": {
+          "id": "secure-score",
+          "name": "Defender for Cloud / Secure score per subscription"
+        }
+      },
+      "selection": "multi",
+      "tools": []
+    },
+    {
+      "id": "wmdc07",
+      "type": "chart",
+      "title": "Unhealthy resources by severity",
+      "layout": {
+        "x": 6,
+        "y": 11,
+        "w": 6,
+        "h": 14
+      },
+      "parameters": {},
+      "query": {
+        "source": "arg",
+        "text": "SecurityResources\n| where type == 'microsoft.security/assessments' and tostring(properties.status.code) == 'Unhealthy'\n| summarize Resources = count() by Severity = tostring(properties.metadata.severity)",
+        "options": null,
+        "parameters": [],
+        "saved": null
+      },
+      "chart": {
+        "type": "pie",
+        "x": "Severity",
+        "series": [
+          "Resources"
+        ]
+      }
+    },
+    {
+      "id": "wmdc08",
+      "type": "table",
+      "title": "Defender for Servers Plan 2 coverage",
+      "layout": {
+        "x": 0,
+        "y": 25,
+        "w": 12,
+        "h": 14
+      },
+      "parameters": {},
+      "query": {
+        "source": "arg",
+        "text": "Resources\n| where type in~ ('microsoft.compute/virtualmachines', 'microsoft.hybridcompute/machines')\n| project Machine = name, Kind = iff(type =~ 'microsoft.hybridcompute/machines', 'Arc', 'Azure VM'), subscriptionId, resourceGroup, location, Resource = tolower(id)\n// Resource Graph allows one join to SecurityResources, so the subscription's plan and every resource-level plan come in one bag.\n| join kind=leftouter (SecurityResources\n    | where type == 'microsoft.security/pricings' and name == 'VirtualMachines'\n    | extend Path = tolower(id)\n    | extend Key = iff(Path contains '/resourcegroups/', substring(Path, 0, indexof(Path, '/providers/microsoft.security/pricings/')), 'subscription')\n    | summarize Plans = make_bag(pack(Key, strcat(tostring(properties.pricingTier), '|', tostring(properties.subPlan)))) by subscriptionId) on subscriptionId\n| extend SubscriptionPlan = split(tostring(Plans['subscription']), '|'), OverridePlan = tostring(Plans[Resource])\n| extend Tier = tostring(SubscriptionPlan[0]), SubPlan = tostring(SubscriptionPlan[1])\n| extend SubscriptionCoverage = case(Tier == 'Standard' and SubPlan == 'P2', 'Plan 2', Tier == 'Standard' and SubPlan == 'P1', 'Plan 1', Tier == 'Standard', 'Standard', 'Not covered'), Overridden = isnotempty(OverridePlan)\n| extend Tier = iff(Overridden, tostring(split(OverridePlan, '|')[0]), Tier), SubPlan = iff(Overridden, tostring(split(OverridePlan, '|')[1]), SubPlan)\n| extend Coverage = case(Tier == 'Standard' and SubPlan == 'P2', 'Plan 2', Tier == 'Standard' and SubPlan == 'P1', 'Plan 1', Tier == 'Standard', 'Standard', 'Not covered')\n| summarize Machines = count(), OnPlan2 = countif(Coverage == 'Plan 2'), AzureVms = countif(Kind == 'Azure VM'), ArcMachines = countif(Kind == 'Arc'), ResourceOverrides = countif(Overridden) by subscriptionId, SubscriptionPlan = SubscriptionCoverage\n| extend Plan2Pct = round(100.0 * OnPlan2 / Machines, 1)\n| join kind=leftouter (ResourceContainers | where type == 'microsoft.resources/subscriptions' | project subscriptionId, Subscription = name) on subscriptionId\n| project Subscription, subscriptionId, SubscriptionPlan, Plan2Pct, OnPlan2, Machines, AzureVms, ArcMachines, ResourceOverrides\n| order by Plan2Pct asc, Machines desc",
+        "options": null,
+        "parameters": [],
+        "saved": {
+          "id": "servers-plan2-coverage",
+          "name": "Defender for Cloud / Defender for Servers Plan 2 coverage per subscription"
+        }
+      },
+      "selection": "multi",
+      "tools": []
+    },
+    {
+      "id": "wmdc09",
+      "type": "table",
+      "title": "Controls with the most score to gain",
+      "layout": {
+        "x": 0,
+        "y": 39,
+        "w": 6,
+        "h": 16
+      },
+      "parameters": {},
+      "query": {
+        "source": "arg",
+        "text": "// Adapted from Microsoft Learn sample 'Controls secure score per subscription' (https://learn.microsoft.com/azure/defender-for-cloud/resource-graph-samples).\nSecurityResources\n| where type == 'microsoft.security/securescores/securescorecontrols'\n| extend Control = tostring(properties.displayName), Current = todouble(properties.score.current), Max = todouble(properties.score.max), Unhealthy = toint(properties.unhealthyResourceCount), Healthy = toint(properties.healthyResourceCount)\n| summarize Current = sum(Current), Max = sum(Max), Unhealthy = sum(Unhealthy), Healthy = sum(Healthy), Subscriptions = dcount(subscriptionId) by Control\n| extend PotentialGain = round(Max - Current, 2)\n| where PotentialGain > 0\n| project Control, PotentialGain, Unhealthy, Healthy, Subscriptions\n| order by PotentialGain desc",
+        "options": null,
+        "parameters": [],
+        "saved": {
+          "id": "secure-score-controls",
+          "name": "Defender for Cloud / Security controls by potential score gain"
+        }
+      },
+      "selection": "multi",
+      "tools": []
+    },
+    {
+      "id": "wmdc10",
+      "type": "table",
+      "title": "Regulatory compliance",
+      "layout": {
+        "x": 6,
+        "y": 39,
+        "w": 6,
+        "h": 16
+      },
+      "parameters": {},
+      "query": {
+        "source": "arg",
+        "text": "// Adapted from Microsoft Learn sample 'Regulatory compliance state per compliance standard' (https://learn.microsoft.com/azure/defender-for-cloud/resource-graph-samples).\nSecurityResources\n| where type == 'microsoft.security/regulatorycompliancestandards'\n| extend Passed = toint(properties.passedControls), Failed = toint(properties.failedControls), Skipped = toint(properties.skippedControls)\n| summarize Passed = sum(Passed), Failed = sum(Failed), Skipped = sum(Skipped), Subscriptions = dcount(subscriptionId) by Standard = name\n| extend PassedPct = round(100.0 * Passed / max_of(Passed + Failed, 1), 1)\n| order by PassedPct asc",
+        "options": null,
+        "parameters": [],
+        "saved": {
+          "id": "regulatory-compliance",
+          "name": "Defender for Cloud / Regulatory compliance by standard"
+        }
+      },
+      "selection": "multi",
+      "tools": []
+    },
+    {
+      "id": "wmdc11",
+      "type": "table",
+      "title": "Unhealthy resources",
+      "layout": {
+        "x": 0,
+        "y": 55,
+        "w": 12,
+        "h": 16
+      },
+      "parameters": {},
+      "query": {
+        "source": "arg",
+        "text": "// Adapted from Microsoft Learn sample 'List Microsoft Defender recommendations' (https://learn.microsoft.com/azure/defender-for-cloud/resource-graph-samples).\nSecurityResources\n| where type == 'microsoft.security/assessments'\n| where tostring(properties.status.code) == 'Unhealthy'\n| extend Severity = tostring(properties.metadata.severity)\n| where Severity in ({Severity})\n| extend Recommendation = tostring(properties.displayName), Resource = tolower(substring(id, 0, indexof(id, '/providers/Microsoft.Security/assessments/'))), Source = tostring(properties.resourceDetails.Source), Portal = tostring(properties.links.azurePortal)\n| extend Rank = case(Severity == 'High', 1, Severity == 'Medium', 2, 3)\n| project Severity, Recommendation, Resource, Source, subscriptionId, resourceGroup, Portal, Rank\n| order by Rank asc, Recommendation asc\n| project-away Rank",
+        "options": null,
+        "parameters": [
+          {
+            "name": "Severity",
+            "type": "list",
+            "value": "High",
+            "required": true,
+            "choices": [
+              "High",
+              "Medium",
+              "Low"
+            ]
+          }
+        ],
+        "saved": {
+          "id": "unhealthy-resources",
+          "name": "Defender for Cloud / Unhealthy resources by recommendation"
+        }
+      },
+      "selection": "multi",
+      "tools": []
+    },
+    {
+      "id": "wmdc12",
+      "type": "table",
+      "title": "Active alerts (Resource Graph)",
+      "layout": {
+        "x": 0,
+        "y": 71,
+        "w": 12,
+        "h": 14
+      },
+      "parameters": {},
+      "query": {
+        "source": "arg",
+        "text": "// Adapted from Microsoft Learn sample 'Display all active Microsoft Defender for Cloud alerts' (https://learn.microsoft.com/azure/defender-for-cloud/resource-graph-samples).\nSecurityResources\n| where type == 'microsoft.security/locations/alerts'\n| where tostring(properties.Status) == 'Active'\n| extend Severity = tostring(properties.Severity)\n| where Severity in ({AlertSeverity})\n| project Generated = todatetime(properties.TimeGeneratedUtc), Severity, Alert = tostring(properties.AlertDisplayName), Entity = tostring(properties.CompromisedEntity), Intent = tostring(properties.Intent), subscriptionId, Portal = tostring(properties.AlertUri)\n| order by Generated desc",
+        "options": null,
+        "parameters": [
+          {
+            "name": "AlertSeverity",
+            "type": "list",
+            "value": "High",
+            "required": true,
+            "choices": [
+              "High",
+              "Medium",
+              "Low",
+              "Informational"
+            ]
+          }
+        ],
+        "saved": {
+          "id": "active-alerts",
+          "name": "Defender for Cloud / Active security alerts"
+        }
+      },
+      "selection": "multi",
+      "tools": []
+    },
+    {
+      "id": "wmdc13",
+      "type": "chart",
+      "title": "Defender for Cloud alerts over time (XDR)",
+      "layout": {
+        "x": 0,
+        "y": 85,
+        "w": 12,
+        "h": 14
+      },
+      "parameters": {},
+      "query": {
+        "source": "hunting",
+        "text": "AlertInfo\n| where Timestamp > ago({Lookback})\n| where ServiceSource == \"Microsoft Defender for Cloud\"\n| summarize Alerts = dcount(AlertId) by Timestamp = bin(Timestamp, 1d), Severity",
+        "options": null,
+        "parameters": [
+          {
+            "name": "Lookback",
+            "type": "timespan",
+            "value": "7d",
+            "required": true,
+            "choices": [
+              "1d",
+              "7d",
+              "14d",
+              "30d"
+            ]
+          }
+        ],
+        "saved": null
+      },
+      "chart": {
+        "type": "timechart",
+        "x": "Timestamp",
+        "series": [
+          "Alerts"
+        ],
+        "split": "Severity"
+      }
+    },
+    {
+      "id": "wmdc14",
+      "type": "table",
+      "title": "Sensitive control-plane operations (XDR)",
+      "layout": {
+        "x": 0,
+        "y": 99,
+        "w": 12,
+        "h": 14
+      },
+      "parameters": {},
+      "query": {
+        "source": "hunting",
+        "text": "CloudAuditEvents\n| where Timestamp > ago({Lookback})\n| where DataSource == \"Azure\"\n| where OperationName has_any (\n    \"Microsoft.Authorization/roleAssignments/write\",\n    \"Microsoft.Authorization/roleAssignments/delete\",\n    \"Microsoft.Security/pricings/write\",\n    \"Microsoft.Security/securityContacts/delete\",\n    \"Microsoft.Security/autoProvisioningSettings/write\",\n    \"Microsoft.Insights/diagnosticSettings/delete\",\n    \"Microsoft.KeyVault/vaults/accessPolicies/write\",\n    \"Microsoft.Network/networkSecurityGroups/securityRules/write\")\n| project Timestamp, OperationName, ActionType, ResourceId, IPAddress, CountryCode, IsAnonymousProxy, UserAgent, RawEventData\n| order by Timestamp desc",
+        "options": null,
+        "parameters": [
+          {
+            "name": "Lookback",
+            "type": "timespan",
+            "value": "7d",
+            "required": true,
+            "choices": [
+              "1d",
+              "7d",
+              "14d",
+              "30d"
+            ]
+          }
+        ],
+        "saved": {
+          "id": "sensitive-arm-operations",
+          "name": "Defender for Cloud / Sensitive Azure control-plane operations"
+        }
+      },
+      "selection": "multi",
+      "tools": []
+    },
+    {
+      "id": "wmdc15",
+      "type": "table",
+      "title": "Machines not on Servers Plan 2",
+      "layout": {
+        "x": 0,
+        "y": 113,
+        "w": 12,
+        "h": 14
+      },
+      "parameters": {},
+      "query": {
+        "source": "arg",
+        "text": "Resources\n| where type in~ ('microsoft.compute/virtualmachines', 'microsoft.hybridcompute/machines')\n| project Machine = name, Kind = iff(type =~ 'microsoft.hybridcompute/machines', 'Arc', 'Azure VM'), subscriptionId, resourceGroup, location, Resource = tolower(id)\n// Resource Graph allows one join to SecurityResources, so the subscription's plan and every resource-level plan come in one bag.\n| join kind=leftouter (SecurityResources\n    | where type == 'microsoft.security/pricings' and name == 'VirtualMachines'\n    | extend Path = tolower(id)\n    | extend Key = iff(Path contains '/resourcegroups/', substring(Path, 0, indexof(Path, '/providers/microsoft.security/pricings/')), 'subscription')\n    | summarize Plans = make_bag(pack(Key, strcat(tostring(properties.pricingTier), '|', tostring(properties.subPlan)))) by subscriptionId) on subscriptionId\n| extend SubscriptionPlan = split(tostring(Plans['subscription']), '|'), OverridePlan = tostring(Plans[Resource])\n| extend Tier = tostring(SubscriptionPlan[0]), SubPlan = tostring(SubscriptionPlan[1])\n| extend SubscriptionCoverage = case(Tier == 'Standard' and SubPlan == 'P2', 'Plan 2', Tier == 'Standard' and SubPlan == 'P1', 'Plan 1', Tier == 'Standard', 'Standard', 'Not covered'), Overridden = isnotempty(OverridePlan)\n| extend Tier = iff(Overridden, tostring(split(OverridePlan, '|')[0]), Tier), SubPlan = iff(Overridden, tostring(split(OverridePlan, '|')[1]), SubPlan)\n| extend Coverage = case(Tier == 'Standard' and SubPlan == 'P2', 'Plan 2', Tier == 'Standard' and SubPlan == 'P1', 'Plan 1', Tier == 'Standard', 'Standard', 'Not covered')\n| where Coverage != 'Plan 2'\n| project Machine, Kind, Coverage, SubscriptionCoverage, Overridden, subscriptionId, resourceGroup, location, Resource\n| order by Coverage asc, Machine asc",
+        "options": null,
+        "parameters": [],
+        "saved": {
+          "id": "servers-not-on-plan2",
+          "name": "Defender for Cloud / Machines not covered by Defender for Servers Plan 2"
+        }
+      },
+      "selection": "multi",
+      "tools": []
+    },
+    {
+      "id": "wmdc16",
+      "type": "chart",
+      "title": "Recommendation governance",
+      "layout": {
+        "x": 0,
+        "y": 127,
+        "w": 4,
+        "h": 14
+      },
+      "parameters": {},
+      "query": {
+        "source": "arg",
+        "text": "// Adapted from the Defender for Cloud Governance workbook by Microsoft (https://github.com/microsoft/Application-Insights-Workbooks/blob/master/Workbooks/Azure%20Security%20Center/Governance/Governance.workbook), MIT License, Copyright (c) Microsoft Corporation.\nSecurityResources\n| where type == 'microsoft.security/assessments'\n    and isnull(properties.resourceDetails.AwsResourceId)\n    and isnull(properties.resourceDetails.GcpResourceId)\n    and isnotempty(properties.displayName)\n| project id, StatusCode = tostring(properties.status.code)\n| join kind=leftouter (\n    SecurityResources\n    | where type == 'microsoft.security/assessments/governanceassignments'\n    | project id = tostring(properties.assignedResourceId), RemediationDue = bin(todatetime(properties.remediationDueDate), 1d)\n  ) on id\n| extend Status = case(\n    StatusCode != 'Unhealthy', 'Completed',\n    isnull(RemediationDue), 'Unassigned',\n    RemediationDue < bin(now(), 1d), 'Overdue',\n    'On time')\n| summarize Assessments = count() by Status",
+        "options": null,
+        "parameters": [],
+        "saved": {
+          "id": "governance-status",
+          "name": "Defender for Cloud / Recommendation governance status"
+        }
+      },
+      "chart": {
+        "type": "pie",
+        "x": "Status",
+        "series": [
+          "Assessments"
+        ]
+      }
+    },
+    {
+      "id": "wmdc17",
+      "type": "table",
+      "title": "Attack paths",
+      "layout": {
+        "x": 4,
+        "y": 127,
+        "w": 8,
+        "h": 14
+      },
+      "parameters": {},
+      "query": {
+        "source": "arg",
+        "text": "// Adapted from the Defender CSPM workbook by Microsoft (https://github.com/microsoft/Application-Insights-Workbooks/blob/master/Workbooks/Azure%20Security%20Center/Defender%20CSPM/DefenderCSPM.workbook), MIT License, Copyright (c) Microsoft Corporation.\nSecurityResources\n| where type == 'microsoft.security/attackpaths'\n| summarize Paths = count() by AttackPath = tostring(properties.displayName), Risk = tostring(properties.riskLevel)\n| order by Paths desc",
+        "options": null,
+        "parameters": [],
+        "saved": {
+          "id": "attack-paths",
+          "name": "Defender for Cloud / Attack paths by type and risk"
+        }
+      },
+      "selection": "multi",
+      "tools": []
+    },
+    {
+      "id": "wmdc18",
+      "type": "table",
+      "title": "Longest unhealthy",
+      "layout": {
+        "x": 0,
+        "y": 141,
+        "w": 12,
+        "h": 14
+      },
+      "parameters": {},
+      "query": {
+        "source": "arg",
+        "text": "// Adapted from 'Time Indicators' by Microsoft (https://github.com/Azure/Microsoft-Defender-for-Cloud/tree/main/Kusto/Azure%20Resource%20Graph/Time%20Indicators), MIT License, Copyright (c) Microsoft Corporation.\nSecurityResources\n| where type =~ 'microsoft.security/assessments'\n| where tostring(properties.status.code) =~ 'unhealthy'\n| extend FirstEvaluated = todatetime(properties.status.firstEvaluationDate), UnhealthySince = todatetime(properties.status.statusChangeDate)\n| extend DaysUnhealthy = datetime_diff('day', now(), UnhealthySince)\n| project DaysUnhealthy, UnhealthySince, FirstEvaluated, Severity = tostring(properties.metadata.severity), Recommendation = tostring(properties.displayName), Resource = tolower(substring(id, 0, indexof(id, '/providers/Microsoft.Security/assessments/'))), subscriptionId\n| order by DaysUnhealthy desc",
+        "options": null,
+        "parameters": [],
+        "saved": {
+          "id": "unhealthy-since",
+          "name": "Defender for Cloud / How long resources have been unhealthy"
+        }
+      },
+      "selection": "multi",
+      "tools": []
+    }
+  ]
+}

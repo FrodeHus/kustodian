@@ -1,0 +1,20 @@
+{
+  "name": "Defender for Cloud / Active security alerts",
+  "folder": "Defender for Cloud",
+  "source": "arg",
+  "text": "// Adapted from Microsoft Learn sample 'Display all active Microsoft Defender for Cloud alerts' (https://learn.microsoft.com/azure/defender-for-cloud/resource-graph-samples).\nSecurityResources\n| where type == 'microsoft.security/locations/alerts'\n| where tostring(properties.Status) == 'Active'\n| extend Severity = tostring(properties.Severity)\n| where Severity in ({AlertSeverity})\n| project Generated = todatetime(properties.TimeGeneratedUtc), Severity, Alert = tostring(properties.AlertDisplayName), Entity = tostring(properties.CompromisedEntity), Intent = tostring(properties.Intent), subscriptionId, Portal = tostring(properties.AlertUri)\n| order by Generated desc",
+  "parameters": [
+    {
+      "name": "AlertSeverity",
+      "type": "list",
+      "value": "High",
+      "required": true,
+      "choices": [
+        "High",
+        "Medium",
+        "Low",
+        "Informational"
+      ]
+    }
+  ]
+}

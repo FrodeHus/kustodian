@@ -4,6 +4,175 @@
     {
       "manifest": {
         "version": 1,
+        "id": "defender-for-cloud",
+        "name": "Defender for Cloud",
+        "solutionVersion": "1.0.0",
+        "description": "Microsoft Defender for Cloud posture: secure score, recommendations, vulnerability findings, regulatory compliance, plan and Defender for Servers Plan 2 coverage, alerts, and control-plane hunting.",
+        "author": "Kustodian",
+        "support": "kustodian",
+        "categories": [
+          "Cloud security",
+          "Security"
+        ],
+        "sources": [
+          "arg",
+          "hunting"
+        ],
+        "minAppVersion": "1.1.0",
+        "requires": {
+          "graph": [
+            "ThreatHunting.Read.All"
+          ],
+          "roles": [
+            "Security Reader"
+          ],
+          "licenses": null,
+          "azure": "Reader or Security Reader on the subscriptions you query"
+        },
+        "content": {
+          "queries": [
+            "secure-score",
+            "secure-score-controls",
+            "top-recommendations",
+            "unhealthy-resources",
+            "vulnerability-findings",
+            "active-alerts",
+            "regulatory-compliance",
+            "defender-plans",
+            "servers-plan2-coverage",
+            "servers-not-on-plan2",
+            "plan-extensions",
+            "unhealthy-since",
+            "exempt-recommendations",
+            "attack-paths",
+            "governance-status",
+            "xdr-alerts",
+            "sensitive-arm-operations",
+            "internet-exposed-vulnerable-vms",
+            "mde-onboarding-azure-vms"
+          ],
+          "workbooks": [
+            "posture"
+          ],
+          "tools": []
+        }
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "sha256": "9592a6603a837bae62e39d70cc192f55a6e7f5acd4c2058b06ebbf66bcb2b8b7",
+          "size": 6097
+        },
+        {
+          "path": "queries/active-alerts.json",
+          "sha256": "2dba128cce54b5ae89f02c90d1911137b19c4ada05b4ab9903c6efb3882bfb29",
+          "size": 1039
+        },
+        {
+          "path": "queries/attack-paths.json",
+          "sha256": "071828794b64d73a741502023805d83a861738b896f2ba081425b86bf5e86f4f",
+          "size": 617
+        },
+        {
+          "path": "queries/defender-plans.json",
+          "sha256": "aeff34260197cb1553d804a80c3a7f40acfdeb5d46526f9c8b0703003114a2bb",
+          "size": 757
+        },
+        {
+          "path": "queries/exempt-recommendations.json",
+          "sha256": "c6ae403c938ea45d61d181f220ca0f3681b96b51b25267f869ebdd312ce0c4f7",
+          "size": 994
+        },
+        {
+          "path": "queries/governance-status.json",
+          "sha256": "da7fdd7724a49173a3a51a454189edcf19398e1a795ad67ffe6f6fd4d4721eaf",
+          "size": 1197
+        },
+        {
+          "path": "queries/internet-exposed-vulnerable-vms.json",
+          "sha256": "67970f6b20e4b9bcdf045cd2ea90e8d20d150ad34a6fc10745515b148b204f51",
+          "size": 694
+        },
+        {
+          "path": "queries/mde-onboarding-azure-vms.json",
+          "sha256": "6384567bf31f7619c5c09694cfc27787a64d73d7d8031072dc589f3184d2ec30",
+          "size": 1447
+        },
+        {
+          "path": "queries/plan-extensions.json",
+          "sha256": "5fd0acaeeda28922058f15c9f1b1efcadee1ff2a60da57e166cbf5bc2eb02a2d",
+          "size": 879
+        },
+        {
+          "path": "queries/regulatory-compliance.json",
+          "sha256": "b17eec18747e86ebe9be3edd98ef0d41acd5c30f6c193f3b5b8f0e3c7e5a91f4",
+          "size": 797
+        },
+        {
+          "path": "queries/secure-score-controls.json",
+          "sha256": "510a4ed1fd5d5c0d9877538e43ba8c7c778d49db1ced7ea708b12889a9d1b113",
+          "size": 987
+        },
+        {
+          "path": "queries/secure-score.json",
+          "sha256": "30909dca4f3c2a9f6cbd249213c2249ad37be21f0106e182df3e6226a62bf77c",
+          "size": 804
+        },
+        {
+          "path": "queries/sensitive-arm-operations.json",
+          "sha256": "f8e69f6094ae7da3d92ece2133f5c0c069bd0b993c3525cefcd629cddac1703c",
+          "size": 1090
+        },
+        {
+          "path": "queries/servers-not-on-plan2.json",
+          "sha256": "b55fb826b5a4987bc16924d255949e14d2d61670caa0f2721afbeedeeadd528b",
+          "size": 1982
+        },
+        {
+          "path": "queries/servers-plan2-coverage.json",
+          "sha256": "9b6a2b0f481fcf2078f989fc2db9a25aa6a3b47b2c9e633e0ecc8130b19bb2be",
+          "size": 2434
+        },
+        {
+          "path": "queries/top-recommendations.json",
+          "sha256": "78259f5eff0acaa7112c61e14fc0d1b19f82c5d72b732e191ced5508c5bb9859",
+          "size": 840
+        },
+        {
+          "path": "queries/unhealthy-resources.json",
+          "sha256": "f5f6341bd3e8b096891e9394d8dfb56be54ab8f13d81d0afbf23b3ed7787a7b5",
+          "size": 1220
+        },
+        {
+          "path": "queries/unhealthy-since.json",
+          "sha256": "77c73c00d91806d2202d2a3762a3236af0c034d61db654787ba837d8d8427943",
+          "size": 1016
+        },
+        {
+          "path": "queries/vulnerability-findings.json",
+          "sha256": "c6290e979f62b78048a947121e33d9540df48f31da8eccbd4ab0f58e3a4bb02a",
+          "size": 1116
+        },
+        {
+          "path": "queries/xdr-alerts.json",
+          "sha256": "09d93b9d8d3d06311073e1f672fbc0c31158e7f1e4496bec44f3495a33b55e4a",
+          "size": 1011
+        },
+        {
+          "path": "solution.json",
+          "sha256": "acc145cd3e63c46db93c6a0f1ba7dc765fbe72d8f4b236695dcb24ac58b95c20",
+          "size": 1371
+        },
+        {
+          "path": "workbooks/posture.json",
+          "sha256": "fd8d98ee2f81eec580bdd27a7f0268766d12edc4659a43fffffb746a6d7b33ff",
+          "size": 25107
+        }
+      ]
+    },
+    {
+      "manifest": {
+        "version": 1,
         "id": "defender-vulnerability-sla",
         "name": "Defender vulnerability patch SLAs",
         "solutionVersion": "1.0.0",

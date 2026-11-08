@@ -1,0 +1,20 @@
+{
+  "name": "Defender for Cloud / Sensitive Azure control-plane operations",
+  "folder": "Defender for Cloud",
+  "source": "hunting",
+  "text": "CloudAuditEvents\n| where Timestamp > ago({Lookback})\n| where DataSource == \"Azure\"\n| where OperationName has_any (\n    \"Microsoft.Authorization/roleAssignments/write\",\n    \"Microsoft.Authorization/roleAssignments/delete\",\n    \"Microsoft.Security/pricings/write\",\n    \"Microsoft.Security/securityContacts/delete\",\n    \"Microsoft.Security/autoProvisioningSettings/write\",\n    \"Microsoft.Insights/diagnosticSettings/delete\",\n    \"Microsoft.KeyVault/vaults/accessPolicies/write\",\n    \"Microsoft.Network/networkSecurityGroups/securityRules/write\")\n| project Timestamp, OperationName, ActionType, ResourceId, IPAddress, CountryCode, IsAnonymousProxy, UserAgent, RawEventData\n| order by Timestamp desc",
+  "parameters": [
+    {
+      "name": "Lookback",
+      "type": "timespan",
+      "value": "7d",
+      "required": true,
+      "choices": [
+        "1d",
+        "7d",
+        "14d",
+        "30d"
+      ]
+    }
+  ]
+}
