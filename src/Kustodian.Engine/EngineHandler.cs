@@ -70,6 +70,7 @@ public static class EngineHandler
         var dropped = 0;
         foreach (var table in request.Tables)
             context.AddTable(TableLoader.Load(table, ref dropped));
+        kql = NoRowsRewrite.Rewrite(kql, context.Tables().Select(t => t.Type));
 
         var result = context.RunQueryWithoutDemandBasedTableLoading(kql);
         // KustoLoco reports an exception as its message and nothing else, the GC heap limit's too. That one is the query's
