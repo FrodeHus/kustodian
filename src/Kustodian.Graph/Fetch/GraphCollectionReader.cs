@@ -532,7 +532,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         var table = fetch.Table.Name;
         if (!refresh && await _probes.GetDefaultsAsync(accountKey, path, ct) is { } kept)
             return kept.Columns;
-        var url = path + "?$top=1";
+        var url = fetch.Table.Single ? path : path + "?$top=1";
         requests.Add(url);
         using var sent = await SendAsync(accountKey, new Uri(url, UriKind.Relative), DiagnosticKinds.Probe, table, diagnostics, ct);
         var (response, body) = (sent.Response, sent.Body);
@@ -557,7 +557,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
             root = null;
         }
         // Annotations (@odata.type, tags@odata.type) aren't columns.
-        var columns = root?["value"] is JsonArray { Count: > 0 } value && value[0] is JsonObject first
+        var columns = (fetch.Table.Single ? root as JsonObject : root?["value"] is JsonArray { Count: > 0 } value ? value[0] as JsonObject : null) is { } first
             ? first.Select(p => p.Key).Where(k => !k.Contains('@', StringComparison.Ordinal)).ToList()
             : [];
         if (columns.Count == 0)
@@ -624,7 +624,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         var filter = Filter(clauses);
         if (fetch.Count is not null)
             return CountUrl(fetch.Table, filter);
-        return ListUrl(fetch.Table.Path, fetch.Select, filter, Math.Min(fetch.Top ?? PageSize, PageSize), fetch.OrderBy,
+        return ListUrl(fetch.Table.Path, fetch.Select, filter, fetch.Table.Single ? null : Math.Min(fetch.Top ?? PageSize, PageSize), fetch.OrderBy,
             Advanced(fetch.Table, clauses, fetch.OrderBy));
     }
 
@@ -659,7 +659,8 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         List<string> requests, List<JsonObject> objects, RunDiagnostics? diagnostics, bool canLeaveOut, bool leftOut, CancellationToken ct)
     {
         var (select, filter, limit) = (list.Select, list.Filter, list.Limit);
-        var top = PageTop(limit, list.TopMax);
+        // A single object is one GET: no $top, and its answer is the object itself.
+        var top = fetch.Table.Single ? null : PageTop(limit, list.TopMax);
         Uri? next = new(ListUrl(fetch.Table.Path, select, filter, top, list.OrderBy, list.Advanced), UriKind.Relative);
         for (var page = 0; next is not null; page++)
         {
@@ -721,7 +722,9 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
 
             await lease.AddAsync(body.Length, ct);
             var root = JsonNode.Parse(body) as JsonObject;
-            if (root?["value"] is JsonArray value)
+            if (fetch.Table.Single && root is not null)
+                objects.Add(root);
+            else if (root?["value"] is JsonArray value)
                 objects.AddRange(value.OfType<JsonObject>());
             if (limit is { } most && objects.Count >= most)
             {
@@ -884,7 +887,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         {
             if (probes++ >= MaxProbes)
                 return ProbeAnswer.OutOfProbes;
-            var url = fetch.Table.Path + "?$select=" + Uri.EscapeDataString(string.Join(",", group.Prepend("id"))) + "&$top=1";
+            var url = fetch.Table.Path + "?$select=" + Uri.EscapeDataString(string.Join(",", group.Prepend("id"))) + (fetch.Table.Single ? "" : "&$top=1");
             requests.Add(url);
             using var sent = await SendAsync(accountKey, new Uri(url, UriKind.Relative), DiagnosticKinds.Probe, fetch.Table.Name, diagnostics, ct);
             var (response, body) = (sent.Response, sent.Body);

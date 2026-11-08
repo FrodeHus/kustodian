@@ -53,6 +53,9 @@ public static partial class GraphSchemaBuilder
         var tables = metadata.Collections
             .Where(c => metadata.Types.ContainsKey(c.EntityType))
             .Where(c => !IsDelegatedOnly(c.Path))
+            // A single object becomes a table only when Microsoft lists a permission to read it: most singletons and many
+            // contained objects are containers with nothing of their own to read.
+            .Where(c => !c.Single || permissions.ContainsKey(GraphPermissions.NormalizePath("/" + c.Path)))
             .Select(c => BuildTable(metadata, permissions, relationshipPermissions, relationships, c, warnings))
             .GroupBy(t => t.Name)
             .Select(g => g.First())
@@ -109,7 +112,9 @@ public static partial class GraphSchemaBuilder
             return new GraphColumn(p.Name, kusto, p.Description, FilterOf(p.Description), SelectOnlyRegex().IsMatch(p.Description),
                 ComplexOf(metadata, p), p.IsCollection,
                 // A stream (application.logo) is media read from its own URL; selecting it in a list makes Graph answer 404.
-                Listable: p.TypeName != "Edm.Stream" && !GetOnlyRegex().IsMatch(p.Description) && !KnownGetOnly.Contains((name, p.Name)))
+                // A single object's read is a single GET, so what Graph returns only on one is listed there.
+                Listable: p.TypeName != "Edm.Stream"
+                    && (collection.Single || !GetOnlyRegex().IsMatch(p.Description) && !KnownGetOnly.Contains((name, p.Name))))
             {
                 KnownPermission = GraphPermissions.KnownColumns.GetValueOrDefault((name, p.Name)),
             };
@@ -137,6 +142,7 @@ public static partial class GraphSchemaBuilder
             DocsUrl(type.FullName), columns, IsDirectoryObject(metadata, type))
         {
             Permissions = [.. tablePermissions.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)],
+            Single = collection.Single,
         };
     }
 

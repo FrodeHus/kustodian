@@ -91,7 +91,7 @@ public sealed class SharedRunFindings(GraphSchema schema, GraphLimits limits, Gr
                 continue;
             foreach (var local in fetch.Local)
             {
-                if (PushdownReasons.Code(local.Reason) is not { Code: not ("notLeading" or "unlicensed") } reason)
+                if (PushdownReasons.Code(local.Reason) is not { Code: not ("notLeading" or "singleObject" or "unlicensed") } reason)
                     continue;
                 var properties = Properties(table, ("reason", reason.Code));
                 if (reason.Column is { } column && table.Columns.Any(c => c.Name == column))

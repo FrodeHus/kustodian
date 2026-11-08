@@ -155,7 +155,7 @@ public sealed class FilterExplanationTests
             PushdownReasons.CaseInsensitive, PushdownReasons.AdvancedQuery, PushdownReasons.CaseFolded, PushdownReasons.EmptyString,
             PushdownReasons.IsNotNullOnText, PushdownReasons.Not, PushdownReasons.OrSide, PushdownReasons.NotLeading,
             PushdownReasons.FixedValue, PushdownReasons.Inexact, PushdownReasons.WordsInArray, PushdownReasons.Folded,
-            PushdownReasons.DirectoryOnly,
+            PushdownReasons.DirectoryOnly, PushdownReasons.SingleObject,
         ];
         var codes = fixedReasons.Select(r => PushdownReasons.Code(r)).ToList();
 

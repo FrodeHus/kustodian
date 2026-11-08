@@ -24,6 +24,10 @@ public sealed record GraphTable(
 {
     /// <summary>The least-privileged delegated permissions for listing the table, sorted; empty when Microsoft lists none.</summary>
     public IReadOnlyList<string> Permissions { get; init; } = [];
+
+    /// <summary>True for a single object (<c>policies/identitySecurityDefaultsEnforcementPolicy</c>): read with one GET, no
+    /// paging, <c>$filter</c>, <c>$top</c>, <c>$orderby</c> or <c>$count</c>, as a table of one row.</summary>
+    public bool Single { get; init; }
 }
 
 /// <summary>A column: its Kusto type, the operators Graph's <c>$filter</c> accepts on it, whether it is only returned on

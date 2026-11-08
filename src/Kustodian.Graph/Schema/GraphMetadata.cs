@@ -20,8 +20,10 @@ public sealed record CsdlType(string FullName, string Kind, IReadOnlyList<CsdlPr
 
 /// <summary>Something Graph lets you list: an entity set (<c>/applications</c>) or a contained collection of a singleton
 /// (<c>/security/incidents</c>), also one reached through single-valued contained navigations
-/// (<c>/reports/authenticationMethods/userRegistrationDetails</c>).</summary>
-public sealed record CsdlCollection(string Path, string EntityType);
+/// (<c>/reports/authenticationMethods/userRegistrationDetails</c>). <paramref name="Single"/> is set for one object rather than a
+/// list: a singleton itself (<c>/policies</c>) or a single-valued contained navigation of one
+/// (<c>/policies/identitySecurityDefaultsEnforcementPolicy</c>).</summary>
+public sealed record CsdlCollection(string Path, string EntityType, bool Single = false);
 
 /// <summary>The parts of Graph's CSDL the schema needs, read from the msgraph-metadata "with descriptions" document.</summary>
 public sealed class GraphMetadata
@@ -130,7 +132,8 @@ public sealed class GraphMetadata
             .Select(s => new CsdlCollection((string)s.Attribute("Name")!, Resolve((string)s.Attribute("EntityType")!)))
             .ToList();
         // A singleton's contained collections (security/incidents, identityProtection/riskyUsers, ...), also those under
-        // single-valued contained navigations (reports/authenticationMethods/userRegistrationDetails).
+        // single-valued contained navigations (reports/authenticationMethods/userRegistrationDetails); the singleton and those
+        // single objects too (policies/identitySecurityDefaultsEnforcementPolicy).
         void AddContained(string path, string typeName, int hops, HashSet<string> visiting)
         {
             if (!types.TryGetValue(typeName, out var type) || !visiting.Add(typeName))
@@ -140,13 +143,21 @@ public sealed class GraphMetadata
                 var navPath = $"{path}/{nav.Name}";
                 if (nav.IsCollection)
                     collections.Add(new CsdlCollection(navPath, nav.TypeName));
-                else if (hops < MaxSingleHops)
-                    AddContained(navPath, nav.TypeName, hops + 1, visiting);
+                else
+                {
+                    collections.Add(new CsdlCollection(navPath, nav.TypeName, Single: true));
+                    if (hops < MaxSingleHops)
+                        AddContained(navPath, nav.TypeName, hops + 1, visiting);
+                }
             }
             visiting.Remove(typeName);
         }
         foreach (var singleton in container.Elements(Edm + "Singleton"))
-            AddContained((string)singleton.Attribute("Name")!, Resolve((string)singleton.Attribute("Type")!), 0, []);
+        {
+            var (name, type) = ((string)singleton.Attribute("Name")!, Resolve((string)singleton.Attribute("Type")!));
+            collections.Add(new CsdlCollection(name, type, Single: true));
+            AddContained(name, type, 0, []);
+        }
         return new GraphMetadata { Types = types, Collections = collections };
     }
 
