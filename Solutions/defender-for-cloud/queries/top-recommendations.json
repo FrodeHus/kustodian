@@ -1,0 +1,7 @@
+{
+  "name": "Defender for Cloud / Recommendations by unhealthy resources",
+  "folder": "Defender for Cloud",
+  "source": "arg",
+  "text": "// Adapted from Microsoft Learn sample 'Count healthy, unhealthy, and not applicable resources per recommendation' (https://learn.microsoft.com/azure/defender-for-cloud/resource-graph-samples).\nSecurityResources\n| where type == 'microsoft.security/assessments'\n| extend State = tostring(properties.status.code)\n| where State in ('Healthy', 'Unhealthy')\n| summarize Unhealthy = countif(State == 'Unhealthy'), Healthy = countif(State == 'Healthy') by Recommendation = tostring(properties.displayName), Severity = tostring(properties.metadata.severity)\n| where Unhealthy > 0\n| extend HealthyPct = round(100.0 * Healthy / (Healthy + Unhealthy), 1)\n| order by Unhealthy desc",
+  "parameters": []
+}

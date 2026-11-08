@@ -1,0 +1,7 @@
+{
+  "name": "Defender for Cloud / Defender for Endpoint onboarding of Azure VMs",
+  "folder": "Defender for Cloud",
+  "source": "hunting",
+  "text": "// Adapted from 'MDE-AzureVM-MDE-Onboarding' by Alex Verboon (https://github.com/alexverboon/Hunting-Queries-Detection-Rules/blob/main/Defender%20For%20Endpoint/MDE-AzureVM-MDE-Onboarding.md), MIT License, Copyright (c) 2023 Alex Verboon.\nExposureGraphNodes\n| where NodeLabel =~ \"microsoft.compute/virtualmachines\"\n| where Categories has \"virtual_machine\"\n| extend AzureResourceId = tostring(EntityIds[0].id)\n| extend\n    SubscriptionId = extract(@\"(?i)/subscriptions/([^/]+)\", 1, AzureResourceId),\n    ResourceGroup = extract(@\"(?i)/resourcegroups/([^/]+)\", 1, AzureResourceId)\n| extend\n    VMName = tostring(split(AzureResourceId, \"/\")[-1]),\n    DeviceName = tostring(NodeProperties.rawData.deviceName),\n    LastSeen = todatetime(NodeProperties.rawData.lastSeen),\n    OnboardingStatus = tostring(NodeProperties.rawData.onboardingStatus),\n    OSPlatform = tostring(NodeProperties.rawData.osPlatformFriendlyName),\n    DeviceGroup = tostring(NodeProperties.rawData.machineGroup),\n    SensorHealthState = tostring(NodeProperties.rawData.sensorHealthState)\n| project SubscriptionId, ResourceGroup, VMName, DeviceName, OSPlatform, OnboardingStatus, SensorHealthState, DeviceGroup, LastSeen, AzureResourceId\n| order by OnboardingStatus asc, VMName asc",
+  "parameters": []
+}

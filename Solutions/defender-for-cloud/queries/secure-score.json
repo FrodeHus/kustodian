@@ -1,0 +1,7 @@
+{
+  "name": "Defender for Cloud / Secure score per subscription",
+  "folder": "Defender for Cloud",
+  "source": "arg",
+  "text": "// Adapted from Microsoft Learn sample 'Secure score per subscription' (https://learn.microsoft.com/azure/defender-for-cloud/resource-graph-samples).\nSecurityResources\n| where type == 'microsoft.security/securescores' and name == 'ascScore'\n| extend ScorePct = round(todouble(properties.score.percentage) * 100, 1), Current = todouble(properties.score.current), Max = todouble(properties.score.max)\n| join kind=leftouter (ResourceContainers | where type == 'microsoft.resources/subscriptions' | project subscriptionId, Subscription = name) on subscriptionId\n| project Subscription, subscriptionId, ScorePct, Current, Max\n| order by ScorePct asc",
+  "parameters": []
+}

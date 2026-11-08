@@ -1,0 +1,7 @@
+{
+  "name": "Defender for Cloud / Security controls by potential score gain",
+  "folder": "Defender for Cloud",
+  "source": "arg",
+  "text": "// Adapted from Microsoft Learn sample 'Controls secure score per subscription' (https://learn.microsoft.com/azure/defender-for-cloud/resource-graph-samples).\nSecurityResources\n| where type == 'microsoft.security/securescores/securescorecontrols'\n| extend Control = tostring(properties.displayName), Current = todouble(properties.score.current), Max = todouble(properties.score.max), Unhealthy = toint(properties.unhealthyResourceCount), Healthy = toint(properties.healthyResourceCount)\n| summarize Current = sum(Current), Max = sum(Max), Unhealthy = sum(Unhealthy), Healthy = sum(Healthy), Subscriptions = dcount(subscriptionId) by Control\n| extend PotentialGain = round(Max - Current, 2)\n| where PotentialGain > 0\n| project Control, PotentialGain, Unhealthy, Healthy, Subscriptions\n| order by PotentialGain desc",
+  "parameters": []
+}

@@ -1,0 +1,7 @@
+{
+  "name": "Defender for Cloud / Recommendation governance status",
+  "folder": "Defender for Cloud",
+  "source": "arg",
+  "text": "// Adapted from the Defender for Cloud Governance workbook by Microsoft (https://github.com/microsoft/Application-Insights-Workbooks/blob/master/Workbooks/Azure%20Security%20Center/Governance/Governance.workbook), MIT License, Copyright (c) Microsoft Corporation.\nSecurityResources\n| where type == 'microsoft.security/assessments'\n    and isnull(properties.resourceDetails.AwsResourceId)\n    and isnull(properties.resourceDetails.GcpResourceId)\n    and isnotempty(properties.displayName)\n| project id, StatusCode = tostring(properties.status.code)\n| join kind=leftouter (\n    SecurityResources\n    | where type == 'microsoft.security/assessments/governanceassignments'\n    | project id = tostring(properties.assignedResourceId), RemediationDue = bin(todatetime(properties.remediationDueDate), 1d)\n  ) on id\n| extend Status = case(\n    StatusCode != 'Unhealthy', 'Completed',\n    isnull(RemediationDue), 'Unassigned',\n    RemediationDue < bin(now(), 1d), 'Overdue',\n    'On time')\n| summarize Assessments = count() by Status",
+  "parameters": []
+}

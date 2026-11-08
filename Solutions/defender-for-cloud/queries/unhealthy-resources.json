@@ -1,0 +1,19 @@
+{
+  "name": "Defender for Cloud / Unhealthy resources by recommendation",
+  "folder": "Defender for Cloud",
+  "source": "arg",
+  "text": "// Adapted from Microsoft Learn sample 'List Microsoft Defender recommendations' (https://learn.microsoft.com/azure/defender-for-cloud/resource-graph-samples).\nSecurityResources\n| where type == 'microsoft.security/assessments'\n| where tostring(properties.status.code) == 'Unhealthy'\n| extend Severity = tostring(properties.metadata.severity)\n| where Severity in ({Severity})\n| extend Recommendation = tostring(properties.displayName), Resource = tolower(substring(id, 0, indexof(id, '/providers/Microsoft.Security/assessments/'))), Source = tostring(properties.resourceDetails.Source), Portal = tostring(properties.links.azurePortal)\n| extend Rank = case(Severity == 'High', 1, Severity == 'Medium', 2, 3)\n| project Severity, Recommendation, Resource, Source, subscriptionId, resourceGroup, Portal, Rank\n| order by Rank asc, Recommendation asc\n| project-away Rank",
+  "parameters": [
+    {
+      "name": "Severity",
+      "type": "list",
+      "value": "High",
+      "required": true,
+      "choices": [
+        "High",
+        "Medium",
+        "Low"
+      ]
+    }
+  ]
+}

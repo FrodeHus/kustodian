@@ -1,0 +1,7 @@
+{
+  "name": "Defender for Cloud / Regulatory compliance by standard",
+  "folder": "Defender for Cloud",
+  "source": "arg",
+  "text": "// Adapted from Microsoft Learn sample 'Regulatory compliance state per compliance standard' (https://learn.microsoft.com/azure/defender-for-cloud/resource-graph-samples).\nSecurityResources\n| where type == 'microsoft.security/regulatorycompliancestandards'\n| extend Passed = toint(properties.passedControls), Failed = toint(properties.failedControls), Skipped = toint(properties.skippedControls)\n| summarize Passed = sum(Passed), Failed = sum(Failed), Skipped = sum(Skipped), Subscriptions = dcount(subscriptionId) by Standard = name\n| extend PassedPct = round(100.0 * Passed / max_of(Passed + Failed, 1), 1)\n| order by PassedPct asc",
+  "parameters": []
+}

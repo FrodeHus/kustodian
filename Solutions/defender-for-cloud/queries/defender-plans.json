@@ -1,0 +1,7 @@
+{
+  "name": "Defender for Cloud / Defender plans per subscription",
+  "folder": "Defender for Cloud",
+  "source": "arg",
+  "text": "// Adapted from Microsoft Learn sample 'Show Defender for Cloud plan pricing tier per subscription' (https://learn.microsoft.com/azure/defender-for-cloud/resource-graph-samples).\nSecurityResources\n| where type == 'microsoft.security/pricings'\n| extend Tier = tostring(properties.pricingTier), SubPlan = tostring(properties.subPlan)\n| join kind=leftouter (ResourceContainers | where type == 'microsoft.resources/subscriptions' | project subscriptionId, Subscription = name) on subscriptionId\n| project Subscription, subscriptionId, Plan = name, Tier, SubPlan\n| order by Subscription asc, Plan asc",
+  "parameters": []
+}

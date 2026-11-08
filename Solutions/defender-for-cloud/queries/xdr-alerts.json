@@ -1,0 +1,20 @@
+{
+  "name": "Defender for Cloud / Defender for Cloud alerts in Defender XDR",
+  "folder": "Defender for Cloud",
+  "source": "hunting",
+  "text": "// Adapted from the AlertInfo and AlertEvidence schema reference on Microsoft Learn (https://learn.microsoft.com/defender-xdr/advanced-hunting-alertinfo-table).\nAlertInfo\n| where Timestamp > ago({Lookback})\n| where ServiceSource == \"Microsoft Defender for Cloud\"\n| summarize arg_max(Timestamp, *) by AlertId\n| join kind=leftouter (\n    AlertEvidence\n    | where Timestamp > ago({Lookback})\n    | where isnotempty(ResourceID)\n    | summarize Resources = make_set(ResourceID, 10) by AlertId\n  ) on AlertId\n| project Timestamp, Severity, Title, Category, AttackTechniques, DetectionSource, Resources, AlertId\n| order by Timestamp desc",
+  "parameters": [
+    {
+      "name": "Lookback",
+      "type": "timespan",
+      "value": "7d",
+      "required": true,
+      "choices": [
+        "1d",
+        "7d",
+        "14d",
+        "30d"
+      ]
+    }
+  ]
+}
