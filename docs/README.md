@@ -26,6 +26,15 @@ Some Graph tables have relationship columns: `users.memberOf`, `users.manager`, 
 related to (`manager` holds one). An entry has `id`, `objectType` (such as `group` or `user`), `displayName`,
 `userPrincipalName`, `mail`, `appId` and `deviceId`.
 
+Two more `users` columns read something other than directory objects:
+
+- `authenticationMethods`: the user's registered sign-in methods (`GET /users/{id}/authentication/methods`). An entry has
+  `objectType` (such as `fido2AuthenticationMethod` or `passwordAuthenticationMethod`), `id`, `createdDateTime`, and the
+  fields of its type: `displayName`, `aaGuid` and `model` for a FIDO2 key, `phoneNumber` for a phone, and so on. A field
+  that doesn't apply to an entry's type is absent. Needs `UserAuthenticationMethod.Read.All`.
+- `authenticationRequirements`: one object, not a list (`GET /users/{id}/authentication/requirements`), with
+  `perUserMfaState` (`disabled`, `enforced` or `enabled`). Needs `Policy.Read.All`.
+
 Graph can't list these for a whole table, so Kustodian reads them one object at a time, and only when your query names the
 column. Use `mv-expand` to get one row per entry.
 
@@ -46,6 +55,17 @@ groups
 | where displayName == "SOC Analysts"
 | mv-expand m = members
 | project name = tostring(m.displayName), upn = tostring(m.userPrincipalName), type = tostring(m.objectType)
+```
+
+The FIDO2 keys of some accounts, and their per-user MFA state:
+
+```kql
+users
+| where userPrincipalName in ("bg1@contoso.com", "bg2@contoso.com")
+| mv-expand m = authenticationMethods
+| where m.objectType == "fido2AuthenticationMethod"
+| summarize keys = count(), models = make_set(tostring(m.model)), mfa = take_any(tostring(authenticationRequirements.perUserMfaState))
+    by userPrincipalName
 ```
 
 Limits:

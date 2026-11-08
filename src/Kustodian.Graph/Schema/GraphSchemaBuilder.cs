@@ -37,23 +37,26 @@ public static partial class GraphSchemaBuilder
     public static GraphSchema Build(GraphMetadata metadata, IReadOnlyDictionary<string, IReadOnlyList<string>> permissions,
         string source, DateTimeOffset generatedAt)
         => Build(metadata, permissions, new Dictionary<string, IReadOnlyList<string>>(),
-            new Dictionary<string, IReadOnlyList<string>>(), source, generatedAt);
+            new Dictionary<string, IReadOnlyList<GraphRelationship>>(), source, generatedAt);
 
     /// <summary>Builds the schema. <paramref name="permissions"/> (from <see cref="GraphPermissions.ReadDelegated"/>) gives the
     /// tables' permissions, <paramref name="relationshipPermissions"/> (from
     /// <see cref="GraphPermissions.ReadRelationshipDelegated"/>) the relationship columns'. <paramref name="relationships"/>
-    /// maps a table name to the navigation properties that become relationship columns; a name or table the metadata doesn't
+    /// maps a table name to the relationships that become relationship columns; a path segment or table the metadata doesn't
     /// have throws <see cref="GraphRelationshipException"/>. A relationship Microsoft lists no delegated permission for is
-    /// added to <paramref name="warnings"/>.</summary>
+    /// added to <paramref name="warnings"/>. A relationship to directory objects has <c>kustodian.directoryObjectRef</c>
+    /// entries; one to other entities has their properties (and their derived types') plus <c>objectType</c>, as
+    /// <c>kustodian.{type}</c>; one to a complex-typed property has that complex type.</summary>
     public static GraphSchema Build(GraphMetadata metadata, IReadOnlyDictionary<string, IReadOnlyList<string>> permissions,
         IReadOnlyDictionary<string, IReadOnlyList<string>> relationshipPermissions,
-        IReadOnlyDictionary<string, IReadOnlyList<string>> relationships, string source, DateTimeOffset generatedAt,
+        IReadOnlyDictionary<string, IReadOnlyList<GraphRelationship>> relationships, string source, DateTimeOffset generatedAt,
         ICollection<string>? warnings = null)
     {
+        var shapes = new Dictionary<string, string>(StringComparer.Ordinal);
         var tables = metadata.Collections
             .Where(c => metadata.Types.ContainsKey(c.EntityType))
             .Where(c => !IsDelegatedOnly(c.Path))
-            .Select(c => BuildTable(metadata, permissions, relationshipPermissions, relationships, c, warnings))
+            .Select(c => BuildTable(metadata, permissions, relationshipPermissions, relationships, c, shapes, warnings))
             .GroupBy(t => t.Name)
             .Select(g => g.First())
             .ToList();
@@ -65,9 +68,12 @@ public static partial class GraphSchemaBuilder
         }
 
         var complexTypes = new SortedDictionary<string, IReadOnlyList<GraphField>>(StringComparer.Ordinal);
-        if (tables.Any(t => t.Columns.Any(c => c.Relationship)))
+        if (tables.Any(t => t.Columns.Any(c => c.ComplexType == GraphSchemaJson.DirectoryObjectRef)))
             complexTypes[GraphSchemaJson.DirectoryObjectRef] = DirectoryObjectRefFields;
-        var pending = new Stack<string>(tables.SelectMany(t => t.Columns).Where(c => !c.Relationship).Select(c => c.ComplexType).OfType<string>());
+        foreach (var (shape, entityType) in shapes)
+            complexTypes[shape] = EntityShape(metadata, entityType);
+        var pending = new Stack<string>(tables.SelectMany(t => t.Columns).Select(c => c.ComplexType)
+            .Concat(complexTypes.Values.SelectMany(f => f).Select(f => f.ComplexType)).OfType<string>());
         while (pending.TryPop(out var name))
         {
             if (complexTypes.ContainsKey(name))
@@ -97,9 +103,50 @@ public static partial class GraphSchemaBuilder
 
     private static GraphField RefField(string name, string description) => new(name, "string", false, null, description);
 
+    /// <summary>The entries of a relationship to entities that aren't directory objects: <c>objectType</c>, then the entity
+    /// type's properties, then those its derived types add (FIDO2's <c>aaGuid</c>), each name once. A field that doesn't
+    /// apply to an entry's type is absent from it.</summary>
+    private static IReadOnlyList<GraphField> EntityShape(GraphMetadata metadata, string entityType)
+    {
+        var derived = metadata.Types.Values.Where(t => t.FullName != entityType && DerivesFrom(metadata, t, entityType))
+            .OrderBy(t => t.FullName, StringComparer.Ordinal);
+        var fields = new List<GraphField> { RefField("objectType", "The entry's type: @odata.type without #microsoft.graph.") };
+        foreach (var p in new[] { metadata.Types[entityType] }.Concat(derived).SelectMany(t => t.Properties))
+            if (!fields.Any(f => f.Name == p.Name))
+                fields.Add(ToField(metadata, p));
+        return fields;
+    }
+
+    /// <summary>The type a relationship's path ends at, read from the table's type one segment at a time: a navigation
+    /// property, or a complex-typed property as the last segment. Segments before the last must be single-valued.</summary>
+    private static (CsdlType Type, bool Collection, string Description) Resolve(GraphMetadata metadata, CsdlType type,
+        string table, GraphRelationship relationship)
+    {
+        var segments = relationship.ReadPath.Split('/');
+        for (var i = 0; ; i++)
+        {
+            var last = i == segments.Length - 1;
+            var nav = type.Navigations.FirstOrDefault(n => n.Name == segments[i]);
+            var property = last && nav is null
+                ? type.Properties.FirstOrDefault(p => p.Name == segments[i] && ComplexOf(metadata, p) is not null)
+                : null;
+            var (typeName, collection, description) = nav is not null ? (nav.TypeName, nav.IsCollection, nav.Description)
+                : property is not null ? (property.TypeName, property.IsCollection, property.Description)
+                : throw new GraphRelationshipException(
+                    $"The curated relationship {table}.{relationship.Name} reads {segments[i]}, which isn't a navigation property of {type.FullName}.");
+            if (!metadata.Types.TryGetValue(typeName, out var next) || (!last && collection))
+                throw new GraphRelationshipException(
+                    $"The curated relationship {table}.{relationship.Name} goes through {segments[i]}, which isn't a single entity.");
+            if (last)
+                return (next, collection, description);
+            type = next;
+        }
+    }
+
     private static GraphTable BuildTable(GraphMetadata metadata, IReadOnlyDictionary<string, IReadOnlyList<string>> permissions,
         IReadOnlyDictionary<string, IReadOnlyList<string>> relationshipPermissions,
-        IReadOnlyDictionary<string, IReadOnlyList<string>> relationships, CsdlCollection collection, ICollection<string>? warnings)
+        IReadOnlyDictionary<string, IReadOnlyList<GraphRelationship>> relationships, CsdlCollection collection,
+        Dictionary<string, string> shapes, ICollection<string>? warnings)
     {
         var type = metadata.Types[collection.EntityType];
         var name = collection.Path.Replace('/', '_');
@@ -116,18 +163,23 @@ public static partial class GraphSchemaBuilder
         }).ToList();
         foreach (var relationship in relationships.GetValueOrDefault(name) ?? [])
         {
-            var nav = type.Navigations.FirstOrDefault(n => n.Name == relationship)
-                ?? throw new GraphRelationshipException(
-                    $"The curated relationship {name}.{relationship} isn't a navigation property of {type.FullName}.");
+            var (target, isCollection, description) = Resolve(metadata, type, name, relationship);
+            string shape;
+            if (target.Kind == "ComplexType")
+                shape = target.FullName;
+            else if (IsDirectoryObject(metadata, target))
+                shape = GraphSchemaJson.DirectoryObjectRef;
+            else
+                shapes[shape = "kustodian." + target.FullName[(target.FullName.LastIndexOf('.') + 1)..]] = target.FullName;
+            var path = $"/{collection.Path}/{{id}}/{relationship.ReadPath}";
             // Already least-privileged first, then ordinal; kept in that order.
-            var columnPermissions = relationshipPermissions.GetValueOrDefault(
-                GraphPermissions.NormalizePath($"/{collection.Path}/{{id}}/{relationship}")) ?? [];
+            var columnPermissions = relationshipPermissions.GetValueOrDefault(GraphPermissions.NormalizePath(path)) ?? [];
             if (columnPermissions.Count == 0)
-                warnings?.Add($"{name}.{relationship}: Microsoft lists no delegated permission for GET /{collection.Path}/{{id}}/{relationship}.");
-            columns.Add(new GraphColumn(nav.Name, "dynamic", nav.Description, [], false, GraphSchemaJson.DirectoryObjectRef,
-                nav.IsCollection, Listable: false)
+                warnings?.Add($"{name}.{relationship.Name}: Microsoft lists no delegated permission for GET {path}.");
+            columns.Add(new GraphColumn(relationship.Name, "dynamic", description, [], false, shape, isCollection, Listable: false)
             {
                 Relationship = true,
+                RelationshipPath = relationship.Path,
                 Permissions = columnPermissions,
             });
         }
@@ -144,13 +196,17 @@ public static partial class GraphSchemaBuilder
 
     /// <summary>Whether the type is <c>directoryObject</c> or derives from it, walking the base chain (guarded against a
     /// cycle in the metadata).</summary>
-    private static bool IsDirectoryObject(GraphMetadata metadata, CsdlType type)
+    private static bool IsDirectoryObject(GraphMetadata metadata, CsdlType type) => DerivesFrom(metadata, type, DirectoryObjectType);
+
+    /// <summary>Whether the type is <paramref name="baseType"/> or derives from it, walking the base chain (guarded against a
+    /// cycle in the metadata).</summary>
+    private static bool DerivesFrom(GraphMetadata metadata, CsdlType type, string baseType)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
         for (CsdlType? current = type; current is not null && seen.Add(current.FullName);
              current = current.BaseType is { } b ? metadata.Types.GetValueOrDefault(b) : null)
         {
-            if (current.FullName == DirectoryObjectType)
+            if (current.FullName == baseType)
                 return true;
         }
         return false;

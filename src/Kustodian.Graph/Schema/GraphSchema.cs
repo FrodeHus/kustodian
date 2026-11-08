@@ -48,6 +48,13 @@ public sealed record GraphColumn(
     /// at a time (<c>GET /{table}/{id}/{relationship}</c> in <c>$batch</c>) rather than selected with <c>$select</c>.</summary>
     public bool Relationship { get; init; }
 
+    /// <summary>For a relationship column read further down than a navigation property of its own name, the path under each
+    /// object (<c>authentication/methods</c>); null otherwise.</summary>
+    public string? RelationshipPath { get; init; }
+
+    /// <summary>The path a relationship column reads under each object: <see cref="RelationshipPath"/>, else its name.</summary>
+    public string ReadPath => RelationshipPath ?? Name;
+
     /// <summary>For a relationship column, the read-only delegated permissions any of which lets Graph read it: the ones
     /// Microsoft marks least-privileged first, then the rest, each part sorted ordinally; empty otherwise.</summary>
     public IReadOnlyList<string> Permissions { get; init; } = [];

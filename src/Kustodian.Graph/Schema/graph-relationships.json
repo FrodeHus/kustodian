@@ -5,7 +5,9 @@
     "directReports": {},
     "ownedObjects": {},
     "registeredDevices": {},
-    "ownedDevices": {}
+    "ownedDevices": {},
+    "authenticationMethods": { "path": "authentication/methods" },
+    "authenticationRequirements": { "path": "authentication/requirements" }
   },
   "groups": {
     "members": {},

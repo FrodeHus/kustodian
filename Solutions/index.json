@@ -76,7 +76,7 @@
         "version": 1,
         "id": "entra-id",
         "name": "Entra ID",
-        "solutionVersion": "1.0.0",
+        "solutionVersion": "1.1.0",
         "description": "Microsoft Entra ID reviews: break-glass account compliance, risky users and their sign-ins, and MFA and passkey adoption.",
         "author": "Kustodian",
         "support": "kustodian",
@@ -95,7 +95,8 @@
             "IdentityRiskyUser.Read.All",
             "Policy.Read.All",
             "RoleManagement.Read.Directory",
-            "User.Read.All"
+            "User.Read.All",
+            "UserAuthenticationMethod.Read.All"
           ],
           "roles": [
             "Global Reader"
@@ -131,13 +132,13 @@
       "files": [
         {
           "path": "README.md",
-          "sha256": "d1321ae3e4db7385bf9b41c0921c2319e89a38f18c9fafd774e013572982e4e6",
-          "size": 5195
+          "sha256": "0626bcd938bec8958d581f86366e42afa2f6311df6f4b4fd42771b2dc32d991e",
+          "size": 5469
         },
         {
           "path": "queries/btg-accounts.json",
-          "sha256": "9ac89f28058790438486bfe84cd85341f1867c4773de60ea9176f0ae45719700",
-          "size": 5094
+          "sha256": "43859de63efd7146e8fc421e64d26297f1452b2afab7a7546096690cd4239338",
+          "size": 6631
         },
         {
           "path": "queries/btg-conditional-access.json",
@@ -146,8 +147,8 @@
         },
         {
           "path": "queries/btg-findings.json",
-          "sha256": "f0fadcf6ade6056ce4e4138f5079251ba8840047d876d00aa9c62f35cc174336",
-          "size": 13219
+          "sha256": "61298da041877f7cf702a12969ec8dac765fb65b68acf052be7eef723892bb60",
+          "size": 14756
         },
         {
           "path": "queries/btg-groups.json",
@@ -191,13 +192,13 @@
         },
         {
           "path": "solution.json",
-          "sha256": "ea69b2df9ef690014a966ec9a0583e01adca27aafc0f4f3593b1d86af82dfd5b",
-          "size": 1078
+          "sha256": "112cd07802002c609b901404ef21241198fa0de84348098f73a49cf72391ce1e",
+          "size": 1121
         },
         {
           "path": "workbooks/break-glass-compliance.json",
-          "sha256": "de21a952c9c1e79dfa274c30449cb08818f48407c2f1c1f8dc0238d05cca5e02",
-          "size": 56131
+          "sha256": "faf3a743c3bb8fec26ece55986bdd2c0f70532edb33ae8bd22e8a7368e33bcc3",
+          "size": 60568
         },
         {
           "path": "workbooks/mfa-adoption.json",

@@ -2,7 +2,7 @@
   "version": 1,
   "id": "entra-id",
   "name": "Entra ID",
-  "solutionVersion": "1.0.0",
+  "solutionVersion": "1.1.0",
   "description": "Microsoft Entra ID reviews: break-glass account compliance, risky users and their sign-ins, and MFA and passkey adoption.",
   "author": "Kustodian",
   "support": "kustodian",
@@ -16,7 +16,8 @@
       "IdentityRiskyUser.Read.All",
       "Policy.Read.All",
       "RoleManagement.Read.Directory",
-      "User.Read.All"
+      "User.Read.All",
+      "UserAuthenticationMethod.Read.All"
     ],
     "roles": ["Global Reader"],
     "licenses": ["AAD_PREMIUM", "AAD_PREMIUM_P2"]

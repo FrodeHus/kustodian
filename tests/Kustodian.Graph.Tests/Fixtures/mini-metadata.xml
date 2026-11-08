@@ -50,6 +50,25 @@
         </Property>
         <NavigationProperty Name="owners" Type="Collection(graph.directoryObject)" />
         <NavigationProperty Name="primaryOwner" Type="graph.directoryObject" />
+        <NavigationProperty Name="authentication" Type="graph.authentication" />
+      </EntityType>
+      <EntityType Name="authentication" BaseType="graph.entity">
+        <Property Name="requirements" Type="graph.strongAuthenticationRequirements" />
+        <NavigationProperty Name="methods" Type="Collection(graph.authenticationMethod)">
+          <Annotation Term="Org.OData.Core.V1.Description" String="The registered authentication methods." />
+        </NavigationProperty>
+      </EntityType>
+      <EntityType Name="authenticationMethod" BaseType="graph.entity" Abstract="true">
+        <Property Name="createdDateTime" Type="Edm.DateTimeOffset" />
+      </EntityType>
+      <EntityType Name="passwordAuthenticationMethod" BaseType="graph.authenticationMethod">
+        <Property Name="password" Type="Edm.String" />
+      </EntityType>
+      <EntityType Name="fido2AuthenticationMethod" BaseType="graph.authenticationMethod">
+        <Property Name="displayName" Type="Edm.String" />
+        <Property Name="aaGuid" Type="Edm.String" />
+        <Property Name="model" Type="Edm.String" />
+        <Property Name="publicKeyCredential" Type="graph.signInActivity" />
       </EntityType>
       <EntityType Name="incident" BaseType="graph.entity">
         <Property Name="status" Type="Edm.String" />
@@ -75,6 +94,13 @@
         <Property Name="name" Type="Edm.String" />
         <Property Name="children" Type="Collection(graph.node)" />
       </ComplexType>
+      <ComplexType Name="strongAuthenticationRequirements">
+        <Property Name="perUserMfaState" Type="graph.perUserMfaState" />
+      </ComplexType>
+      <EnumType Name="perUserMfaState">
+        <Member Name="disabled" Value="0" />
+        <Member Name="enforced" Value="1" />
+      </EnumType>
       <ComplexType Name="unreachable">
         <Property Name="x" Type="Edm.String" />
       </ComplexType>

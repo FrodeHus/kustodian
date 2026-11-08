@@ -5,7 +5,7 @@ namespace Kustodian.Graph.Schema;
 
 /// <summary>The committed file format. Written by hand with a fixed property order so a regeneration without
 /// upstream changes produces no diff: tables sorted by name, columns and fields in CSDL order, <c>\n</c> line ends,
-/// 2-space indent, a table's <c>directoryObject</c> omitted when false, <c>permissions</c> and a column's <c>knownPermission</c> and <c>permissions</c> omitted when empty, a column's <c>relationship</c> omitted when false, <c>filter</c> omitted when empty, a column's
+/// 2-space indent, a table's <c>directoryObject</c> omitted when false, <c>permissions</c> and a column's <c>knownPermission</c> and <c>permissions</c> omitted when empty, a column's <c>relationship</c> omitted when false and <c>relationshipPath</c> when null, <c>filter</c> omitted when empty, a column's
 /// <c>listable</c> omitted when true, <c>collection</c> omitted when false and <c>complexType</c> omitted when null.</summary>
 public static class GraphSchemaJson
 {
@@ -104,6 +104,8 @@ public static class GraphSchemaJson
             w.WriteString("knownPermission", column.KnownPermission);
         if (column.Relationship)
             w.WriteBoolean("relationship", true);
+        if (column.RelationshipPath is not null)
+            w.WriteString("relationshipPath", column.RelationshipPath);
         if (column.Permissions.Count > 0)
         {
             w.WriteStartArray("permissions");
@@ -170,6 +172,7 @@ public static class GraphSchemaJson
     {
         KnownPermission = e.TryGetProperty("knownPermission", out var known) ? known.GetString() : null,
         Relationship = e.TryGetProperty("relationship", out var relationship) && relationship.GetBoolean(),
+        RelationshipPath = e.TryGetProperty("relationshipPath", out var relationshipPath) ? relationshipPath.GetString() : null,
         Permissions = e.TryGetProperty("permissions", out var permissions)
             ? permissions.EnumerateArray().Select(x => x.GetString()!).ToList()
             : [],

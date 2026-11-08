@@ -7,6 +7,10 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Authentication methods and requirements**: `users.authenticationMethods` lists each user's registered sign-in methods
+  (FIDO2 keys with their model and AAGUID, phones, passwords, ...), and `users.authenticationRequirements` holds their
+  per-user MFA state. Both are read one object at a time like the other relationship columns, with the same 100-object cap
+  and notices. See [docs/README.md](docs/README.md#relationships).
 - **Entra ID solution**: one solution for Entra ID reviews. It adds a **Break-glass account compliance** workbook: the
   accounts' Conditional Access exclusions, hardening, Global Administrator assignment, sign-ins, groups and tenant
   guardrails, one row per check with PASS, FAIL, WARN, INFO or ERROR, for the accounts you list in a workbook parameter.

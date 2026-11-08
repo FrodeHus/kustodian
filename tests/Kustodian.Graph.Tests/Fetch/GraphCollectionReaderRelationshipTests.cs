@@ -89,7 +89,7 @@ public sealed partial class GraphCollectionReaderTests
         Assert.Contains("/applications/a1/owners?", sent);
         Assert.All(result.Objects, o => Assert.Equal(2, Assert.IsType<JsonArray>(o["owners"]).Count));
         Assert.Equal("""{"id":"a0-u1","objectType":"user","displayName":"One"}""", result.Objects[0]["owners"]![0]!.ToJsonString());
-        Assert.Contains(GraphRelationshipReader.Template("applications", "owners", true), result.Requests);
+        Assert.Contains(GraphRelationshipReader.Template("applications", FixtureApplications.Columns.Single(c => c.Name == "owners")), result.Requests);
         Assert.Empty(result.PerObject);
         Assert.False(result.PerObjectCapped);
         var outcome = Assert.Single(result.Relationships);

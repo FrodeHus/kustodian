@@ -195,7 +195,7 @@ public sealed class GraphSchemaBuilderTests
         Assert.False(Column("appId").Collection);
     }
 
-    private static GraphSchema BuildWith(IReadOnlyDictionary<string, IReadOnlyList<string>> relationships, ICollection<string>? warnings = null)
+    private static GraphSchema BuildWith(IReadOnlyDictionary<string, IReadOnlyList<GraphRelationship>> relationships, ICollection<string>? warnings = null)
     {
         using var stream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Fixtures", "mini-metadata.xml"));
         using var permissions = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Schema", "permissions-excerpt.json"));
@@ -210,7 +210,7 @@ public sealed class GraphSchemaBuilderTests
     public void Curated_relationship_becomes_a_get_only_dynamic_column()
     {
         var warnings = new List<string>();
-        var schema = BuildWith(new Dictionary<string, IReadOnlyList<string>> { ["applications"] = ["owners", "primaryOwner"] }, warnings);
+        var schema = BuildWith(new Dictionary<string, IReadOnlyList<GraphRelationship>> { ["applications"] = ["owners", "primaryOwner"] }, warnings);
         var columns = schema.Find("applications")!.Columns;
 
         var owners = columns.Single(c => c.Name == "owners");
@@ -232,7 +232,7 @@ public sealed class GraphSchemaBuilderTests
     [Fact]
     public void Directory_object_ref_shape_is_in_complex_types()
     {
-        var schema = BuildWith(new Dictionary<string, IReadOnlyList<string>> { ["applications"] = ["owners"] });
+        var schema = BuildWith(new Dictionary<string, IReadOnlyList<GraphRelationship>> { ["applications"] = ["owners"] });
 
         var fields = schema.ComplexTypes[GraphSchemaJson.DirectoryObjectRef];
         Assert.Equal(["id", "objectType", "displayName", "userPrincipalName", "mail", "appId", "deviceId"], fields.Select(f => f.Name));
@@ -247,16 +247,65 @@ public sealed class GraphSchemaBuilderTests
     public void Unknown_curated_name_fails()
     {
         var e = Assert.Throws<GraphRelationshipException>(
-            () => BuildWith(new Dictionary<string, IReadOnlyList<string>> { ["applications"] = ["nope"] }));
+            () => BuildWith(new Dictionary<string, IReadOnlyList<GraphRelationship>> { ["applications"] = ["nope"] }));
 
         Assert.Contains("applications.nope", e.Message);
+    }
+
+    [Fact]
+    public void Relationship_path_to_other_entities_has_their_shape()
+    {
+        var schema = BuildWith(new Dictionary<string, IReadOnlyList<GraphRelationship>>
+        {
+            ["applications"] = [new("authenticationMethods", "authentication/methods")],
+        });
+
+        var column = schema.Find("applications")!.Columns.Single(c => c.Name == "authenticationMethods");
+        Assert.True(column.Relationship);
+        Assert.True(column.Collection);
+        Assert.Equal("authentication/methods", column.RelationshipPath);
+        Assert.Equal("The registered authentication methods.", column.Description);
+        Assert.Equal("kustodian.authenticationMethod", column.ComplexType);
+        // objectType, the base type's properties, then the derived types' (sorted by type name), each once.
+        Assert.Equal(["objectType", "id", "createdDateTime", "displayName", "aaGuid", "model", "publicKeyCredential", "password"],
+            schema.ComplexTypes["kustodian.authenticationMethod"].Select(f => f.Name));
+        Assert.Equal("datetime", schema.ComplexTypes["kustodian.authenticationMethod"].Single(f => f.Name == "createdDateTime").Type);
+        // A field's complex type is in the schema too.
+        Assert.Contains("microsoft.graph.signInActivity", schema.ComplexTypes.Keys);
+        Assert.DoesNotContain(GraphSchemaJson.DirectoryObjectRef, schema.ComplexTypes.Keys);
+    }
+
+    [Fact]
+    public void Relationship_path_to_a_complex_property_has_that_type()
+    {
+        var schema = BuildWith(new Dictionary<string, IReadOnlyList<GraphRelationship>>
+        {
+            ["applications"] = [new("authenticationRequirements", "authentication/requirements")],
+        });
+
+        var column = schema.Find("applications")!.Columns.Single(c => c.Name == "authenticationRequirements");
+        Assert.False(column.Collection);
+        Assert.Equal("microsoft.graph.strongAuthenticationRequirements", column.ComplexType);
+        Assert.Equal(["perUserMfaState"], schema.ComplexTypes[column.ComplexType!].Select(f => f.Name));
+    }
+
+    [Fact]
+    public void Relationship_path_with_an_unknown_segment_fails()
+    {
+        var e = Assert.Throws<GraphRelationshipException>(() => BuildWith(new Dictionary<string, IReadOnlyList<GraphRelationship>>
+        {
+            ["applications"] = [new("methods", "authentication/nope")],
+        }));
+
+        Assert.Contains("applications.methods", e.Message);
+        Assert.Contains("nope", e.Message);
     }
 
     [Fact]
     public void Unknown_curated_table_fails()
     {
         var e = Assert.Throws<GraphRelationshipException>(
-            () => BuildWith(new Dictionary<string, IReadOnlyList<string>> { ["nowhere"] = ["owners"] }));
+            () => BuildWith(new Dictionary<string, IReadOnlyList<GraphRelationship>> { ["nowhere"] = ["owners"] }));
 
         Assert.Contains("nowhere", e.Message);
     }
