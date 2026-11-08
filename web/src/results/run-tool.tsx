@@ -6,7 +6,10 @@ import { reportIdOf } from '../shell/report-id';
 import { newId } from '../shell/ids';
 import type { ExternalTool, ResultColumn, ToolList, ToolOutcome } from '../wire';
 import type { Row } from './export';
-import { commandLine, defaultMapping, fillArgs, toolColumns, type ColumnMapping } from './tool-args';
+import { commandLine, defaultMapping, fillArgs, toolColumns, type ColumnMapping, type TypedValues } from './tool-args';
+
+/** The select's value for "a value I type"; no column name has a NUL. */
+const TYPED = '\u0000typed';
 
 const rowCount = (n: number) => `${n.toLocaleString('en-US')} ${n === 1 ? 'row' : 'rows'}`;
 
@@ -57,8 +60,8 @@ export function ToolItems({
 }
 
 /**
- * Runs a tool on rows once the user has mapped a column to each of its parameters (a column of the same name is chosen for
- * them) and seen what will run: the command line for the first row (or the one batch run) and how many rows. While it runs it shows how far it got and can be stopped; then it shows each run's command line and output.
+ * Runs a tool on rows once the user has mapped a column, or typed a value, for each of its parameters (a column of the same
+ * name is chosen for them, else a value to type) and seen what will run: the command line for the first row (or the one batch run) and how many rows. While it runs it shows how far it got and can be stopped; then it shows each run's command line and output.
  * Closing it stops a run still going.
  */
 export function RunToolDialog({
@@ -87,14 +90,17 @@ export function RunToolDialog({
   const [outcomes, setOutcomes] = useState<ToolOutcome[]>([]);
   const [error, setError] = useState<Shown | null>(null);
   const [mapping, setMapping] = useState<ColumnMapping>(() => initialMapping ?? defaultMapping(tool, columns));
+  const [values, setValues] = useState<TypedValues>(() => Object.fromEntries(Object.keys(mapping).filter((p) => !mapping[p]).map((p) => [p, ''])));
   const abort = useRef<AbortController | null>(null);
   useEffect(() => () => abort.current?.abort(), []);
 
   const batch = tool.mode === 'batch';
   const first = rows[0];
   const parameters = Object.keys(mapping);
-  const mapped = parameters.every((p) => mapping[p]);
-  const preview = commandLine(tool.command, batch || !first || !mapped ? tool.args : fillArgs(tool, columns, first, mapping));
+  const typed = (p: string) => Object.hasOwn(values, p);
+  // An empty typed value would run every row with nothing there, e.g. clear a field on all of them.
+  const mapped = parameters.every((p) => (typed(p) ? values[p] : mapping[p]));
+  const preview = commandLine(tool.command, batch || !first || !mapped ? tool.args : fillArgs(tool, columns, first, mapping, values));
 
   const run = () => {
     const runId = newId();
@@ -107,7 +113,7 @@ export function RunToolDialog({
         setDone(progress.done);
       }
     });
-    call<{ outcomes: ToolOutcome[] }>('tools.run', { runId, name: tool.name, columns: columns.map((c) => c.name), rows, mapping }, controller.signal)
+    call<{ outcomes: ToolOutcome[] }>('tools.run', { runId, name: tool.name, columns: columns.map((c) => c.name), rows, mapping, values }, controller.signal)
       .then(
         (answer) => setOutcomes(answer.outcomes),
         (e: unknown) => setError({ text: errorText(e), reportId: reportIdOf(e) }),
@@ -153,24 +159,39 @@ export function RunToolDialog({
         </b>
         {!batch && parameters.length > 0 && (
           <fieldset className="m-0 flex flex-col gap-2 border-0 p-0" disabled={stage !== 'confirm'}>
-            <legend className="mb-2 p-0 text-[12.5px]">Choose the column for each parameter:</legend>
+            <legend className="mb-2 p-0 text-[12.5px]">Choose the column, or type the value, for each parameter:</legend>
             {parameters.map((p) => (
-              <label key={p} className="flex items-center gap-3 text-[12.5px]">
-                <span className="mono w-[160px] shrink-0 truncate">{`{${p}}`}</span>
+              <div key={p} className="flex items-center gap-3 text-[12.5px]">
+                <label htmlFor={`${id}-${p}`} className="mono w-[160px] shrink-0 truncate">{`{${p}}`}</label>
                 <select
+                  id={`${id}-${p}`}
                   className="textbox min-w-0 flex-1"
-                  value={mapping[p]}
-                  aria-invalid={!mapping[p]}
-                  onChange={(e) => setMapping({ ...mapping, [p]: e.target.value })}
+                  value={typed(p) ? TYPED : mapping[p]}
+                  aria-invalid={!typed(p) && !mapping[p]}
+                  onChange={(e) => {
+                    const rest = Object.fromEntries(Object.entries(values).filter(([k]) => k !== p));
+                    setValues(e.target.value === TYPED ? { ...rest, [p]: '' } : rest);
+                    setMapping({ ...mapping, [p]: e.target.value === TYPED ? '' : e.target.value });
+                  }}
                 >
                   <option value="">Choose a column…</option>
+                  <option value={TYPED}>A value I type</option>
                   {columns.map((c) => (
                     <option key={c.name} value={c.name}>
                       {c.name}
                     </option>
                   ))}
                 </select>
-              </label>
+                {typed(p) && (
+                  <input
+                    className="textbox min-w-0 flex-1"
+                    aria-label={`Value for {${p}}`}
+                    aria-invalid={!values[p]}
+                    value={values[p]}
+                    onChange={(e) => setValues({ ...values, [p]: e.target.value })}
+                  />
+                )}
+              </div>
             ))}
           </fieldset>
         )}

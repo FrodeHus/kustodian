@@ -910,7 +910,7 @@ export function createMockTransport(): Transport {
         // As `/bin/echo name={displayName}` would answer, row by row.
         const at = params?.columns?.indexOf(params.mapping?.displayName || 'displayName') ?? -1;
         const outcomes = (params?.rows ?? []).map((row) => {
-          const value = row[at];
+          const value = params?.values?.displayName ?? row[at];
           const args = [`name=${value === null || value === undefined ? '' : typeof value === 'string' ? value : JSON.stringify(value)}`];
           return { args, exitCode: 0, output: `${args[0]}\n`, error: '' };
         });

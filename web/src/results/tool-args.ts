@@ -30,10 +30,15 @@ export const startMapping = (tool: ExternalTool, columns: ResultColumn[], saved:
   );
 };
 
-/** The arguments a tool gets for a row, as the host fills them in from the mapped columns. */
-export const fillArgs = (tool: ExternalTool, columns: ResultColumn[], row: Row, mapping: ColumnMapping): string[] =>
+/** Text the user typed for a parameter, the same for every row; a parameter that isn't a key takes a column. */
+export type TypedValues = Record<string, string>;
+
+/** The arguments a tool gets for a row, as the host fills them in from the typed values, else the mapped columns. */
+export const fillArgs = (tool: ExternalTool, columns: ResultColumn[], row: Row, mapping: ColumnMapping, values: TypedValues = {}): string[] =>
   tool.args.map((a) =>
-    a.replace(PLACEHOLDER, (_, name: string) => cellText(row[columns.findIndex((c) => c.name === (mapping[name] || name))])),
+    a.replace(PLACEHOLDER, (_, name: string) =>
+      Object.hasOwn(values, name) ? (values[name] as string) : cellText(row[columns.findIndex((c) => c.name === (mapping[name] || name))]),
+    ),
   );
 
 /** A command line to read: an argument with anything but plain characters in single quotes. The host never runs it as text. */

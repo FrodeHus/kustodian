@@ -89,6 +89,25 @@ describe('run tool', () => {
     expect(output.textContent).toContain('name=Portal');
   });
 
+  it('runs_with_a_typed_value_once_it_isnt_empty_and_sends_it', async () => {
+    const tool: ExternalTool = { name: 'Echo', command: '/bin/echo', args: ['name={displayName}'], mode: 'each' };
+    render(<RunToolDialog tool={tool} columns={[{ name: 'id', type: 'string' }]} rows={[['1'], ['2']]} onClose={() => undefined} />);
+
+    // No column of that name, so it starts as a value to type.
+    const run = screen.getByRole('button', { name: 'Run' }) as HTMLButtonElement;
+    expect(run.disabled).toBe(true);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Value for {displayName}' }), { target: { value: 'Contoso' } });
+    expect(screen.getByText('/bin/echo name=Contoso')).toBeTruthy();
+    fireEvent.click(run);
+
+    const output = await screen.findByLabelText('Output');
+    expect(output.textContent).toContain('$ /bin/echo name=Contoso\nname=Contoso\n\n$ /bin/echo name=Contoso');
+  });
+
+  it('fills_a_typed_value_over_any_column', () => {
+    expect(fillArgs(echo, columns, ['a', null], defaultMapping(echo, columns), { displayName: 'x y' })).toEqual(['id=x y', '']);
+  });
+
   describe('start_from_a_saved_mapping', () => {
     const idTool: ExternalTool = { name: 'Open', command: '/bin/echo', args: ['{id}'], mode: 'each' };
     const cols = [

@@ -189,6 +189,21 @@ public sealed class ExternalToolHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task A_typed_value_fills_a_parameter_the_same_for_every_row()
+    {
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "Uses /bin/echo.");
+        WriteTools("""{"tools":[{"name":"echo","command":"/bin/echo","args":["{id}","company={company}"],"mode":"each"}]}""");
+
+        var response = await CallAsync("tools.run", """
+            {"runId":"r","name":"echo","columns":["id"],"rows":[["a"],["b"]],"values":{"company":"Contoso; rm -rf"}}
+            """);
+
+        var outcomes = response.GetProperty("result").GetProperty("outcomes");
+        Assert.Equal("a company=Contoso; rm -rf\n", outcomes[0].GetProperty("output").GetString());
+        Assert.Equal("b company=Contoso; rm -rf\n", outcomes[1].GetProperty("output").GetString());
+    }
+
+    [Fact]
     public async Task A_mapping_to_a_column_the_result_lacks_is_refused()
     {
         WriteTools("""{"tools":[{"name":"echo","command":"/bin/echo","args":["{upn}"],"mode":"each"}]}""");
