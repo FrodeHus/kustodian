@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "id": "defender-for-cloud",
+  "name": "Defender for Cloud",
+  "solutionVersion": "1.0.0",
+  "description": "Microsoft Defender for Cloud posture: secure score, recommendations, vulnerability findings, regulatory compliance, plan and Defender for Servers Plan 2 coverage, alerts, and control-plane hunting.",
+  "author": "Kustodian",
+  "support": "kustodian",
+  "categories": [
+    "Cloud security",
+    "Security"
+  ],
+  "sources": [
+    "arg",
+    "hunting"
+  ],
+  "minAppVersion": "1.1.0",
+  "requires": {
+    "graph": [
+      "ThreatHunting.Read.All"
+    ],
+    "roles": [
+      "Security Reader"
+    ],
+    "licenses": null,
+    "azure": "Reader or Security Reader on the subscriptions you query"
+  },
+  "content": {
+    "queries": [
+      "secure-score",
+      "secure-score-controls",
+      "top-recommendations",
+      "unhealthy-resources",
+      "vulnerability-findings",
+      "active-alerts",
+      "regulatory-compliance",
+      "defender-plans",
+      "servers-plan2-coverage",
+      "servers-not-on-plan2",
+      "plan-extensions",
+      "unhealthy-since",
+      "exempt-recommendations",
+      "attack-paths",
+      "governance-status",
+      "xdr-alerts",
+      "sensitive-arm-operations",
+      "internet-exposed-vulnerable-vms",
+      "mde-onboarding-azure-vms"
+    ],
+    "workbooks": [
+      "posture"
+    ],
+    "tools": []
+  }
+}

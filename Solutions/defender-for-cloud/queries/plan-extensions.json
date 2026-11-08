@@ -1,0 +1,7 @@
+{
+  "name": "Defender for Cloud / Defender plan features per subscription",
+  "folder": "Defender for Cloud",
+  "source": "arg",
+  "text": "// Adapted from the Defender for Cloud Coverage workbook by Microsoft (https://github.com/microsoft/Application-Insights-Workbooks/blob/master/Workbooks/Azure%20Security%20Center/Coverage/Coverage.workbook), MIT License, Copyright (c) Microsoft Corporation.\nSecurityResources\n| where type =~ 'microsoft.security/pricings'\n| where tolower(id) !contains '/resourcegroups/'\n| where tostring(properties.pricingTier) == 'Standard'\n| mv-expand Extension = properties.extensions\n| project subscriptionId, Plan = name, SubPlan = tostring(properties.subPlan), Feature = tostring(Extension.name), Enabled = tostring(Extension.isEnabled)\n| where isnotempty(Feature)\n| order by subscriptionId asc, Plan asc, Feature asc",
+  "parameters": []
+}

@@ -1,0 +1,7 @@
+{
+  "name": "Defender for Cloud / Internet-exposed VMs vulnerable to remote code execution",
+  "folder": "Defender for Cloud",
+  "source": "hunting",
+  "text": "// Adapted from the exposure graph query examples on Microsoft Learn (https://learn.microsoft.com/security-exposure-management/query-enterprise-exposure-graph).\nExposureGraphNodes\n| where set_has_element(Categories, \"virtual_machine\")\n| extend RawData = NodeProperties.rawData\n| where isnotnull(RawData.exposedToInternet)\n| where isnotnull(RawData.vulnerableToRCE)\n| project VmName = NodeName, NodeLabel, NodeId, ExposedToInternet = RawData.exposedToInternet, VulnerableToRCE = RawData.vulnerableToRCE",
+  "parameters": []
+}

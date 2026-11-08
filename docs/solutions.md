@@ -14,6 +14,11 @@ overview is also on the [Solutions page](https://frodehus.github.io/kustodian/so
   shows passkey and MFA registration by company.
 - **Defender vulnerability patch SLAs**: a patch SLA KPI per severity (for example 95% of critical exposures within 7
   days), the exposures past their window, and the trend of unique CVEs older than 90 days.
+- **Defender for Cloud**: a posture workbook and 19 queries over Azure Resource Graph and advanced hunting. They cover
+  secure score, recommendations and how long they have been unhealthy, vulnerability findings, regulatory compliance,
+  Defender plans and their features, Defender for Servers Plan 2 coverage per subscription and per machine (including
+  per-resource overrides), attack paths, governance status, alerts, sensitive control-plane operations, internet-exposed
+  VMs and Defender for Endpoint onboarding.
 
 ## The panel
 

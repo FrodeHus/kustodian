@@ -1,0 +1,7 @@
+{
+  "name": "Defender for Cloud / Exempted and policy-disabled recommendations",
+  "folder": "Defender for Cloud",
+  "source": "arg",
+  "text": "// Adapted from 'ASC exempt and disabled recommendations' by Microsoft (https://github.com/Azure/Microsoft-Defender-for-Cloud/tree/main/Kusto/Azure%20Resource%20Graph/ASC%20exempt%20and%20disabled%20recommendations), MIT License, Copyright (c) Microsoft Corporation.\nSecurityResources\n| where type == 'microsoft.security/assessments'\n| extend Cause = tostring(properties.status.cause)\n| where Cause in ('Exempt', 'OffByPolicy')\n| project Recommendation = tostring(properties.displayName), Severity = tostring(properties.metadata.severity), Cause, Description = tostring(properties.status.description), Resource = tolower(extract('^(.+)/providers/Microsoft.Security/assessments/.+$', 1, id)), Source = tostring(properties.resourceDetails.Source), subscriptionId, resourceGroup\n| order by Severity asc, Recommendation asc",
+  "parameters": []
+}
