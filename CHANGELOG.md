@@ -7,6 +7,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Aurora theme**: Kustodian's own dark theme, from the logo and banner: navy ink with cyan, blue, violet and mint, a soft
+  glow behind the workspace, and cards and workbook widgets tinted blue to violet. Pick it in Settings.
 - **Defender for Cloud solution**: secure score, recommendations, compliance, Defender for Servers Plan 2 coverage, attack
   paths and alerts from Azure Resource Graph and advanced hunting, with a posture workbook. See
   [docs/solutions.md](docs/solutions.md#solutions-that-ship-now).

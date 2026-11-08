@@ -33,8 +33,8 @@ public sealed record AppSettings(int Version, string Theme, string RawDefaultVer
     /// <summary>The themes the UI offers (<c>web/src/shell/theme.ts</c>, <c>THEMES</c>); keep the two lists in step.</summary>
     public static IReadOnlyList<string> Themes { get; } =
     [
-        "dark", "light", "system", "glass", "liquid-glass", "github-dark", "one-dark", "dracula", "material", "monokai",
-        "ayu-dark", "night-owl", "tokyo-night", "catppuccin-mocha", "gruvbox-dark",
+        "dark", "light", "system", "glass", "liquid-glass", "aurora", "github-dark", "one-dark", "dracula", "material",
+        "monokai", "ayu-dark", "night-owl", "tokyo-night", "catppuccin-mocha", "gruvbox-dark",
     ];
 
     public static AppSettings Default { get; } = new(CurrentVersion, "dark", "beta", new SignInDefaults(null, null), LimitSettings.Default);
