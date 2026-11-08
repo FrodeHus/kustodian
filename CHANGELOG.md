@@ -7,6 +7,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Typed tool values**: an `each` tool's parameter can take **A value I type** instead of a column, the same text for every
+  row, so one tool can set, say, the company you type on all the selected users. See [docs/external-tools.md](docs/external-tools.md).
 - **Resizable panes**: drag the edge of the side panel, or the line between the query and its results, to resize them.
   Tab to either and use the arrow keys to do the same from the keyboard.
 - **Workbook tabs**: workbooks can group widgets in tabs. Only the tab you're looking at runs its queries; the others show

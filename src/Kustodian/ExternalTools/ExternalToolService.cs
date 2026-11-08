@@ -104,10 +104,12 @@ public sealed partial class ExternalToolService(string root, Action<string>? ope
 
     /// <summary>Runs the tool named <paramref name="name"/> on <paramref name="rows"/> (each a value per column of
     /// <paramref name="columns"/>), one row at a time in <c>each</c> mode, reporting how many are done after each. Each
-    /// <c>{parameter}</c> takes the column <paramref name="mapping"/> names for it, or the column of the same name. Throws
-    /// <see cref="ToolRejectedException"/> when the tool can't run, before anything starts.</summary>
+    /// <c>{parameter}</c> takes the text <paramref name="values"/> gives it, the same for every row, else the column
+    /// <paramref name="mapping"/> names for it, or the column of the same name. Throws <see cref="ToolRejectedException"/> when
+    /// the tool can't run, before anything starts.</summary>
     public async Task<IReadOnlyList<ToolOutcome>> RunAsync(string name, IReadOnlyList<string> columns, IReadOnlyList<JsonElement[]> rows,
-        IReadOnlyDictionary<string, string>? mapping = null, Action<int>? done = null, CancellationToken ct = default)
+        IReadOnlyDictionary<string, string>? mapping = null, Action<int>? done = null, CancellationToken ct = default,
+        IReadOnlyDictionary<string, string>? values = null)
     {
         var list = await ListAsync(ct);
         if (list.Problem is { } problem)
@@ -124,6 +126,11 @@ public sealed partial class ExternalToolService(string root, Action<string>? ope
         var at = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var parameter in tool.Args.SelectMany(a => Placeholder().Matches(a)).Select(m => m.Groups[1].Value).Distinct())
         {
+            if (values is not null && values.ContainsKey(parameter))
+            {
+                continue;
+            }
+
             var column = mapping is not null && mapping.TryGetValue(parameter, out var mapped) ? mapped : parameter;
             at[parameter] = IndexOf(columns, column);
             if (at[parameter] < 0)
@@ -136,7 +143,8 @@ public sealed partial class ExternalToolService(string root, Action<string>? ope
         var outcomes = new List<ToolOutcome>(rows.Count);
         foreach (var row in rows)
         {
-            var args = tool.Args.Select(a => Placeholder().Replace(a, m => CellText(row[at[m.Groups[1].Value]]))).ToList();
+            var args = tool.Args.Select(a => Placeholder().Replace(a, m =>
+                values is not null && values.TryGetValue(m.Groups[1].Value, out var typed) ? typed : CellText(row[at[m.Groups[1].Value]]))).ToList();
             outcomes.Add(await RunOnceAsync(tool.Command, args, null, ct));
             done?.Invoke(outcomes.Count);
         }

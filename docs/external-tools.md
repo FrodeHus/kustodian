@@ -26,9 +26,11 @@ there first if there is no file. Saving from Settings rewrites the file, so its 
   column mapped to it: text as it is, null as nothing, and dynamic values as JSON.
 - `batch` runs it once and writes the rows to its stdin as a JSON array of objects. Its `args` can't have parameters.
 
-Before an `each` tool runs, its dialog maps a result column to each parameter, the way a custom detection rule maps entities.
-A column with the parameter's name (ignoring case) is chosen to start with; the menu shows "map …" after a tool with a
-parameter no column matches, and it can't run until every parameter has a column.
+Before an `each` tool runs, its dialog maps a result column to each parameter, the way a custom detection rule maps entities,
+or takes **A value I type** for it: text you fill in there, the same for every row. A column with the parameter's name
+(ignoring case) is chosen to start with, else a value to type; the menu shows "map …" after a tool with a parameter no column
+matches, and it can't run until every parameter has a column or a value that isn't empty. A tool with
+`"args": [..., "{id}", "--company", "{company}"]`, say, sets the company you type on every selected user.
 
 Before anything runs, Kustodian also shows the command line for the first row and how many rows it will run on. Afterwards
 it shows each command line with its output (the first 64K characters of stdout and of stderr) and any exit code that isn't 0.

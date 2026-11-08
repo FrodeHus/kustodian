@@ -7,8 +7,9 @@ namespace Kustodian.Messaging.Handlers;
 /// <summary><c>tools.list</c> answers <c>{tools, problem, path, missing}</c>; <c>tools.save</c> takes <c>{tools}</c>, writes them to
 /// <c>tools.json</c> and answers the list as <c>tools.list</c> does; <c>tools.pickCommand</c> answers <c>{path}</c> for the file the user
 /// chose in the open dialog, or null when it was cancelled; <c>tools.edit</c> opens <c>tools.json</c> in an editor;
-/// <c>tools.run</c> takes <c>{runId, name, columns, rows, mapping}</c> (<c>mapping</c>, optional, names the column for each
-/// <c>{parameter}</c>; one it leaves out takes the column of the same name) and answers <c>{outcomes}</c>, sending <c>tools.progress</c>
+/// <c>tools.run</c> takes <c>{runId, name, columns, rows, mapping, values}</c> (<c>values</c>, optional, gives text the user typed
+/// for a <c>{parameter}</c>, the same for every row; <c>mapping</c>, optional, names the column for each other one; one both leave
+/// out takes the column of the same name) and answers <c>{outcomes}</c>, sending <c>tools.progress</c>
 /// (<c>{runId, done, total}</c>) after each row; <c>tools.cancel</c> takes <c>{runId}</c> and stops that run, which answers with
 /// the error code <c>cancelled</c>. A tool that can't run is a <c>bad_request</c> whose message says why.</summary>
 public sealed class ExternalToolHandler(ExternalToolService tools, IFileDialogs dialogs)
@@ -56,7 +57,7 @@ public sealed class ExternalToolHandler(ExternalToolService tools, IFileDialogs 
     private async Task<object?> RunAsync(Bridge bridge, RunParams p, CancellationToken closing)
     {
         if (string.IsNullOrEmpty(p.RunId) || p.Name is null || p.Columns is null || p.Rows is null
-            || p.Rows.Any(r => r is null || r.Length != p.Columns.Length))
+            || p.Rows.Any(r => r is null || r.Length != p.Columns.Length) || p.Values?.Values.Any(v => v is null) == true)
         {
             throw new BridgeException(BridgeErrorCodes.BadRequest, "A run needs a runId, a tool name, columns and rows.");
         }
@@ -71,7 +72,7 @@ public sealed class ExternalToolHandler(ExternalToolService tools, IFileDialogs 
         try
         {
             return await Rejected(async () => new RunAnswer(await tools.RunAsync(p.Name, p.Columns, p.Rows, p.Mapping,
-                done => bridge.Emit("tools.progress", new Progress(runId, done, p.Rows.Length)), cts.Token)));
+                done => bridge.Emit("tools.progress", new Progress(runId, done, p.Rows.Length)), cts.Token, p.Values)));
         }
         finally
         {
@@ -95,7 +96,7 @@ public sealed class ExternalToolHandler(ExternalToolService tools, IFileDialogs 
     }
 
     private sealed record RunParams(string? RunId, string? Name, string[]? Columns, JsonElement[][]? Rows,
-        Dictionary<string, string>? Mapping);
+        Dictionary<string, string>? Mapping, Dictionary<string, string>? Values);
 
     private sealed record CancelParams(string? RunId);
 
