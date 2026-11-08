@@ -168,7 +168,7 @@
         "h": 16
       },
       "parameters": {},
-      "markdown": "### Not checked here\nGraph tables can't show these yet, so check them by hand:\n\n- **Security Defaults** are off (Entra admin center, Properties).\n- **Key models**: if the FIDO2 policy allows only some key models (an INFO row on the Tenant tab lists them), the break-glass keys are on the list.\n- **Nested groups**: exclusions and roles are checked through the groups an account is a direct member of.\n- That the credentials are stored safely and a test sign-in happens on schedule.",
+      "markdown": "### Not checked here\nGraph tables can't show these yet, so check them by hand:\n\n- **Key models**: if the FIDO2 policy allows only some key models (an INFO row on the Tenant tab lists them), the break-glass keys are on the list.\n- **Nested groups**: exclusions and roles are checked through the groups an account is a direct member of.\n- That the credentials are stored safely and a test sign-in happens on schedule.",
       "in": {
         "tabs": "wbtgtabs",
         "tab": "tbtgall"

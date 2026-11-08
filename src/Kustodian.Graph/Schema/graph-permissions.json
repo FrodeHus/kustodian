@@ -91,6 +91,8 @@
       "adminConsent": true,
       "description": "Allows the app to create agent users, read and write the full set of profile properties, reports, and managers of agent ID users, delete and restore agent users in your organization, and read basic company properties, on your behalf.",
       "tables": [
+        "admin/people/itemInsights",
+        "me",
         "users"
       ]
     },
@@ -99,6 +101,8 @@
       "adminConsent": true,
       "description": "Allows the app to create agent users, read and write the full set of profile properties, reports, and managers of agent ID users in your organization, delete and restore agent users under an agent blueprint, and read basic company properties, on your behalf.",
       "tables": [
+        "admin/people/itemInsights",
+        "me",
         "users"
       ]
     },
@@ -191,6 +195,7 @@
       "adminConsent": false,
       "description": "Allows the app to read your approval items, approval requests and approval responses (created by you or assigned to you). Doesn't include permission to create, cancel, or update anything.",
       "tables": [
+        "solutions/approval",
         "solutions/approval/approvalItems"
       ]
     },
@@ -199,6 +204,7 @@
       "adminConsent": false,
       "description": "Allows you to create approvals, cancel approvals created by you and read any of your approvals (created by you or assigned to you).",
       "tables": [
+        "solutions/approval",
         "solutions/approval/approvalItems"
       ]
     },
@@ -207,6 +213,7 @@
       "adminConsent": false,
       "description": "Allows you to create approvals, cancel approvals created by you and read any of your approvals (created by you or assigned to you).",
       "tables": [
+        "solutions/approval",
         "solutions/approval/approvalItems"
       ]
     },
@@ -482,11 +489,13 @@
         "deviceManagement/virtualEndpoint/cloudApps",
         "deviceManagement/virtualEndpoint/cloudPCs",
         "deviceManagement/virtualEndpoint/cloudPcPools",
+        "deviceManagement/virtualEndpoint/crossCloudGovernmentOrganizationMapping",
         "deviceManagement/virtualEndpoint/deviceImages",
         "deviceManagement/virtualEndpoint/externalPartnerSettings",
         "deviceManagement/virtualEndpoint/galleryImages",
         "deviceManagement/virtualEndpoint/managedLicenses",
         "deviceManagement/virtualEndpoint/onPremisesConnections",
+        "deviceManagement/virtualEndpoint/organizationSettings",
         "deviceManagement/virtualEndpoint/provisioningPolicies",
         "deviceManagement/virtualEndpoint/servicePlans",
         "deviceManagement/virtualEndpoint/snapshots",
@@ -512,11 +521,13 @@
         "deviceManagement/virtualEndpoint/auditEvents",
         "deviceManagement/virtualEndpoint/cloudPCs",
         "deviceManagement/virtualEndpoint/cloudPcPools",
+        "deviceManagement/virtualEndpoint/crossCloudGovernmentOrganizationMapping",
         "deviceManagement/virtualEndpoint/deviceImages",
         "deviceManagement/virtualEndpoint/externalPartnerSettings",
         "deviceManagement/virtualEndpoint/galleryImages",
         "deviceManagement/virtualEndpoint/managedLicenses",
         "deviceManagement/virtualEndpoint/onPremisesConnections",
+        "deviceManagement/virtualEndpoint/organizationSettings",
         "deviceManagement/virtualEndpoint/provisioningPolicies",
         "deviceManagement/virtualEndpoint/servicePlans",
         "deviceManagement/virtualEndpoint/snapshots",
@@ -759,6 +770,7 @@
       "adminConsent": true,
       "description": "Allows the app to read the properties, group assignments and status of apps, app configurations and app protection policies managed by Microsoft Intune.",
       "tables": [
+        "deviceAppManagement",
         "deviceAppManagement/androidManagedAppProtections",
         "deviceAppManagement/defaultManagedAppProtections",
         "deviceAppManagement/deviceAppManagementTasks",
@@ -773,15 +785,18 @@
         "deviceAppManagement/mobileAppCategories",
         "deviceAppManagement/mobileAppConfigurations",
         "deviceAppManagement/mobileApps",
+        "deviceAppManagement/symantecCodeSigningCertificate",
         "deviceAppManagement/targetedManagedAppConfigurations",
         "deviceAppManagement/wdacSupplementalPolicies",
         "deviceAppManagement/windowsInformationProtectionDeviceRegistrations",
         "deviceAppManagement/windowsInformationProtectionPolicies",
         "deviceAppManagement/windowsInformationProtectionWipeActions",
         "deviceAppManagement/windowsManagedAppProtections",
+        "deviceManagement",
         "deviceManagement/auditEvents",
         "deviceManagement/configManagerCollections",
         "deviceManagement/intuneBrandingProfiles",
+        "deviceManagement/reports",
         "deviceManagement/reports/cachedReportConfigurations",
         "deviceManagement/reports/exportJobs",
         "deviceManagement/windowsInformationProtectionAppLearningSummaries",
@@ -794,6 +809,7 @@
       "adminConsent": true,
       "description": "Allows the app to read and write the properties, group assignments and status of apps, app configurations and app protection policies managed by Microsoft Intune.",
       "tables": [
+        "deviceAppManagement",
         "deviceAppManagement/androidManagedAppProtections",
         "deviceAppManagement/defaultManagedAppProtections",
         "deviceAppManagement/deviceAppManagementTasks",
@@ -808,15 +824,18 @@
         "deviceAppManagement/mobileAppCategories",
         "deviceAppManagement/mobileAppConfigurations",
         "deviceAppManagement/mobileApps",
+        "deviceAppManagement/symantecCodeSigningCertificate",
         "deviceAppManagement/targetedManagedAppConfigurations",
         "deviceAppManagement/wdacSupplementalPolicies",
         "deviceAppManagement/windowsInformationProtectionDeviceRegistrations",
         "deviceAppManagement/windowsInformationProtectionPolicies",
         "deviceAppManagement/windowsInformationProtectionWipeActions",
         "deviceAppManagement/windowsManagedAppProtections",
+        "deviceManagement",
         "deviceManagement/auditEvents",
         "deviceManagement/configManagerCollections",
         "deviceManagement/intuneBrandingProfiles",
+        "deviceManagement/reports",
         "deviceManagement/reports/cachedReportConfigurations",
         "deviceManagement/reports/exportJobs",
         "deviceManagement/windowsInformationProtectionAppLearningSummaries",
@@ -845,6 +864,7 @@
       "adminConsent": true,
       "description": "Allows the app to read properties of Microsoft Intune-managed device configuration and device compliance policies and their assignment to groups.",
       "tables": [
+        "deviceAppManagement",
         "deviceAppManagement/defaultManagedAppProtections",
         "deviceAppManagement/deviceAppManagementTasks",
         "deviceAppManagement/managedAppPolicies",
@@ -856,11 +876,16 @@
         "deviceAppManagement/windowsInformationProtectionPolicies",
         "deviceAppManagement/windowsInformationProtectionWipeActions",
         "deviceAppManagement/windowsManagedAppProtections",
+        "deviceManagement",
+        "deviceManagement/advancedThreatProtectionOnboardingStateSummary",
         "deviceManagement/advancedThreatProtectionOnboardingStateSummary/advancedThreatProtectionOnboardingDeviceSettingStates",
         "deviceManagement/androidDeviceOwnerEnrollmentProfiles",
         "deviceManagement/androidForWorkAppConfigurationSchemas",
         "deviceManagement/androidForWorkEnrollmentProfiles",
+        "deviceManagement/androidForWorkSettings",
+        "deviceManagement/androidManagedStoreAccountEnterpriseSettings",
         "deviceManagement/androidManagedStoreAppConfigurationSchemas",
+        "deviceManagement/applePushNotificationCertificate",
         "deviceManagement/assignmentFilters",
         "deviceManagement/cartToClassAssociations",
         "deviceManagement/categories",
@@ -873,6 +898,7 @@
         "deviceManagement/complianceManagementPartners",
         "deviceManagement/compliancePolicies",
         "deviceManagement/complianceSettings",
+        "deviceManagement/conditionalAccessSettings",
         "deviceManagement/configManagerCollections",
         "deviceManagement/configurationCategories",
         "deviceManagement/configurationPolicies",
@@ -882,10 +908,13 @@
         "deviceManagement/detectedApps",
         "deviceManagement/deviceCategories",
         "deviceManagement/deviceCompliancePolicies",
+        "deviceManagement/deviceCompliancePolicyDeviceStateSummary",
         "deviceManagement/deviceCompliancePolicySettingStateSummaries",
         "deviceManagement/deviceComplianceScripts",
         "deviceManagement/deviceConfigurationConflictSummary",
+        "deviceManagement/deviceConfigurationDeviceStateSummaries",
         "deviceManagement/deviceConfigurationRestrictedAppsViolations",
+        "deviceManagement/deviceConfigurationUserStateSummaries",
         "deviceManagement/deviceConfigurations",
         "deviceManagement/deviceConfigurationsAllManagedDeviceCertificateStates",
         "deviceManagement/deviceCustomAttributeShellScripts",
@@ -896,6 +925,8 @@
         "deviceManagement/domainJoinConnectors",
         "deviceManagement/embeddedSIMActivationCodePools",
         "deviceManagement/exchangeConnectors",
+        "deviceManagement/exchangeOnPremisesPolicy",
+        "deviceManagement/exchangeOnPremisesPolicy/conditionalAccessSettings",
         "deviceManagement/groupPolicyCategories",
         "deviceManagement/groupPolicyConfigurations",
         "deviceManagement/groupPolicyDefinitions",
@@ -919,6 +950,8 @@
         "deviceManagement/operationApprovalRequests",
         "deviceManagement/remoteActionAudits",
         "deviceManagement/remoteAssistancePartners",
+        "deviceManagement/remoteAssistanceSettings",
+        "deviceManagement/reports",
         "deviceManagement/reports/cachedReportConfigurations",
         "deviceManagement/reports/exportJobs",
         "deviceManagement/resourceOperations",
@@ -930,6 +963,7 @@
         "deviceManagement/settingDefinitions",
         "deviceManagement/templateSettings",
         "deviceManagement/templates",
+        "deviceManagement/tenantAttachRBAC",
         "deviceManagement/userExperienceAnalyticsAnomaly",
         "deviceManagement/userExperienceAnalyticsAnomalyDevice",
         "deviceManagement/userExperienceAnalyticsAppHealthApplicationPerformance",
@@ -941,15 +975,19 @@
         "deviceManagement/userExperienceAnalyticsAppHealthDevicePerformance",
         "deviceManagement/userExperienceAnalyticsAppHealthDevicePerformanceDetails",
         "deviceManagement/userExperienceAnalyticsAppHealthOSVersionPerformance",
+        "deviceManagement/userExperienceAnalyticsAppHealthOverview",
         "deviceManagement/userExperienceAnalyticsBaselines",
         "deviceManagement/userExperienceAnalyticsBatteryHealthAppImpact",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthCapacityDetails",
         "deviceManagement/userExperienceAnalyticsBatteryHealthDeviceAppImpact",
         "deviceManagement/userExperienceAnalyticsBatteryHealthDevicePerformance",
         "deviceManagement/userExperienceAnalyticsBatteryHealthDeviceRuntimeHistory",
         "deviceManagement/userExperienceAnalyticsBatteryHealthModelPerformance",
         "deviceManagement/userExperienceAnalyticsBatteryHealthOsPerformance",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthRuntimeDetails",
         "deviceManagement/userExperienceAnalyticsDeviceMetricHistory",
         "deviceManagement/userExperienceAnalyticsDevicePerformance",
+        "deviceManagement/userExperienceAnalyticsDeviceScope",
         "deviceManagement/userExperienceAnalyticsDeviceScopes",
         "deviceManagement/userExperienceAnalyticsDeviceScores",
         "deviceManagement/userExperienceAnalyticsDeviceStartupHistory",
@@ -960,9 +998,11 @@
         "deviceManagement/userExperienceAnalyticsMetricHistory",
         "deviceManagement/userExperienceAnalyticsModelScores",
         "deviceManagement/userExperienceAnalyticsNotAutopilotReadyDevice",
+        "deviceManagement/userExperienceAnalyticsOverview",
         "deviceManagement/userExperienceAnalyticsRemoteConnection",
         "deviceManagement/userExperienceAnalyticsResourcePerformance",
         "deviceManagement/userExperienceAnalyticsScoreHistory",
+        "deviceManagement/userExperienceAnalyticsWorkFromAnywhereHardwareReadinessMetric",
         "deviceManagement/userExperienceAnalyticsWorkFromAnywhereMetrics",
         "deviceManagement/userExperienceAnalyticsWorkFromAnywhereModelPerformance",
         "deviceManagement/userPfxCertificates",
@@ -972,8 +1012,12 @@
         "deviceManagement/windowsQualityUpdateProfiles",
         "deviceManagement/windowsUpdateCatalogItems",
         "deviceManagement/zebraFotaArtifacts",
+        "deviceManagement/zebraFotaConnector",
         "deviceManagement/zebraFotaDeployments",
         "organization",
+        "reports",
+        "roleManagement",
+        "roleManagement/deviceManagement",
         "tenantRelationships/managedTenants/aggregatedPolicyCompliances",
         "users"
       ]
@@ -983,6 +1027,7 @@
       "adminConsent": true,
       "description": "Allows the app to read and write properties of Microsoft Intune-managed device configuration and device compliance policies and their assignment to groups.",
       "tables": [
+        "deviceAppManagement",
         "deviceAppManagement/defaultManagedAppProtections",
         "deviceAppManagement/deviceAppManagementTasks",
         "deviceAppManagement/managedAppPolicies",
@@ -994,11 +1039,16 @@
         "deviceAppManagement/windowsInformationProtectionPolicies",
         "deviceAppManagement/windowsInformationProtectionWipeActions",
         "deviceAppManagement/windowsManagedAppProtections",
+        "deviceManagement",
+        "deviceManagement/advancedThreatProtectionOnboardingStateSummary",
         "deviceManagement/advancedThreatProtectionOnboardingStateSummary/advancedThreatProtectionOnboardingDeviceSettingStates",
         "deviceManagement/androidDeviceOwnerEnrollmentProfiles",
         "deviceManagement/androidForWorkAppConfigurationSchemas",
         "deviceManagement/androidForWorkEnrollmentProfiles",
+        "deviceManagement/androidForWorkSettings",
+        "deviceManagement/androidManagedStoreAccountEnterpriseSettings",
         "deviceManagement/androidManagedStoreAppConfigurationSchemas",
+        "deviceManagement/applePushNotificationCertificate",
         "deviceManagement/assignmentFilters",
         "deviceManagement/cartToClassAssociations",
         "deviceManagement/categories",
@@ -1011,6 +1061,7 @@
         "deviceManagement/complianceManagementPartners",
         "deviceManagement/compliancePolicies",
         "deviceManagement/complianceSettings",
+        "deviceManagement/conditionalAccessSettings",
         "deviceManagement/configManagerCollections",
         "deviceManagement/configurationCategories",
         "deviceManagement/configurationPolicies",
@@ -1020,10 +1071,13 @@
         "deviceManagement/detectedApps",
         "deviceManagement/deviceCategories",
         "deviceManagement/deviceCompliancePolicies",
+        "deviceManagement/deviceCompliancePolicyDeviceStateSummary",
         "deviceManagement/deviceCompliancePolicySettingStateSummaries",
         "deviceManagement/deviceComplianceScripts",
         "deviceManagement/deviceConfigurationConflictSummary",
+        "deviceManagement/deviceConfigurationDeviceStateSummaries",
         "deviceManagement/deviceConfigurationRestrictedAppsViolations",
+        "deviceManagement/deviceConfigurationUserStateSummaries",
         "deviceManagement/deviceConfigurations",
         "deviceManagement/deviceConfigurationsAllManagedDeviceCertificateStates",
         "deviceManagement/deviceCustomAttributeShellScripts",
@@ -1034,6 +1088,8 @@
         "deviceManagement/domainJoinConnectors",
         "deviceManagement/embeddedSIMActivationCodePools",
         "deviceManagement/exchangeConnectors",
+        "deviceManagement/exchangeOnPremisesPolicy",
+        "deviceManagement/exchangeOnPremisesPolicy/conditionalAccessSettings",
         "deviceManagement/groupPolicyCategories",
         "deviceManagement/groupPolicyConfigurations",
         "deviceManagement/groupPolicyDefinitions",
@@ -1057,6 +1113,8 @@
         "deviceManagement/operationApprovalRequests",
         "deviceManagement/remoteActionAudits",
         "deviceManagement/remoteAssistancePartners",
+        "deviceManagement/remoteAssistanceSettings",
+        "deviceManagement/reports",
         "deviceManagement/reports/cachedReportConfigurations",
         "deviceManagement/reports/exportJobs",
         "deviceManagement/resourceOperations",
@@ -1068,6 +1126,7 @@
         "deviceManagement/settingDefinitions",
         "deviceManagement/templateSettings",
         "deviceManagement/templates",
+        "deviceManagement/tenantAttachRBAC",
         "deviceManagement/userExperienceAnalyticsAnomaly",
         "deviceManagement/userExperienceAnalyticsAnomalyDevice",
         "deviceManagement/userExperienceAnalyticsAppHealthApplicationPerformance",
@@ -1079,15 +1138,19 @@
         "deviceManagement/userExperienceAnalyticsAppHealthDevicePerformance",
         "deviceManagement/userExperienceAnalyticsAppHealthDevicePerformanceDetails",
         "deviceManagement/userExperienceAnalyticsAppHealthOSVersionPerformance",
+        "deviceManagement/userExperienceAnalyticsAppHealthOverview",
         "deviceManagement/userExperienceAnalyticsBaselines",
         "deviceManagement/userExperienceAnalyticsBatteryHealthAppImpact",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthCapacityDetails",
         "deviceManagement/userExperienceAnalyticsBatteryHealthDeviceAppImpact",
         "deviceManagement/userExperienceAnalyticsBatteryHealthDevicePerformance",
         "deviceManagement/userExperienceAnalyticsBatteryHealthDeviceRuntimeHistory",
         "deviceManagement/userExperienceAnalyticsBatteryHealthModelPerformance",
         "deviceManagement/userExperienceAnalyticsBatteryHealthOsPerformance",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthRuntimeDetails",
         "deviceManagement/userExperienceAnalyticsDeviceMetricHistory",
         "deviceManagement/userExperienceAnalyticsDevicePerformance",
+        "deviceManagement/userExperienceAnalyticsDeviceScope",
         "deviceManagement/userExperienceAnalyticsDeviceScopes",
         "deviceManagement/userExperienceAnalyticsDeviceScores",
         "deviceManagement/userExperienceAnalyticsDeviceStartupHistory",
@@ -1098,9 +1161,11 @@
         "deviceManagement/userExperienceAnalyticsMetricHistory",
         "deviceManagement/userExperienceAnalyticsModelScores",
         "deviceManagement/userExperienceAnalyticsNotAutopilotReadyDevice",
+        "deviceManagement/userExperienceAnalyticsOverview",
         "deviceManagement/userExperienceAnalyticsRemoteConnection",
         "deviceManagement/userExperienceAnalyticsResourcePerformance",
         "deviceManagement/userExperienceAnalyticsScoreHistory",
+        "deviceManagement/userExperienceAnalyticsWorkFromAnywhereHardwareReadinessMetric",
         "deviceManagement/userExperienceAnalyticsWorkFromAnywhereMetrics",
         "deviceManagement/userExperienceAnalyticsWorkFromAnywhereModelPerformance",
         "deviceManagement/userPfxCertificates",
@@ -1110,8 +1175,12 @@
         "deviceManagement/windowsQualityUpdateProfiles",
         "deviceManagement/windowsUpdateCatalogItems",
         "deviceManagement/zebraFotaArtifacts",
+        "deviceManagement/zebraFotaConnector",
         "deviceManagement/zebraFotaDeployments",
         "organization",
+        "reports",
+        "roleManagement",
+        "roleManagement/deviceManagement",
         "tenantRelationships/managedTenants/aggregatedPolicyCompliances",
         "users"
       ]
@@ -1121,6 +1190,8 @@
       "adminConsent": true,
       "description": "Allows the app to read the properties of devices managed by Microsoft Intune.",
       "tables": [
+        "deviceManagement",
+        "deviceManagement/applePushNotificationCertificate",
         "deviceManagement/autopilotEvents",
         "deviceManagement/cloudPCConnectivityIssues",
         "deviceManagement/comanagedDevices",
@@ -1133,8 +1204,10 @@
         "deviceManagement/managedDevices",
         "deviceManagement/mobileAppTroubleshootingEvents",
         "deviceManagement/remoteActionAudits",
+        "deviceManagement/reports",
         "deviceManagement/reports/cachedReportConfigurations",
         "deviceManagement/reports/exportJobs",
+        "deviceManagement/tenantAttachRBAC",
         "deviceManagement/troubleshootingEvents",
         "deviceManagement/userExperienceAnalyticsAnomaly",
         "deviceManagement/userExperienceAnalyticsAnomalyDevice",
@@ -1147,15 +1220,19 @@
         "deviceManagement/userExperienceAnalyticsAppHealthDevicePerformance",
         "deviceManagement/userExperienceAnalyticsAppHealthDevicePerformanceDetails",
         "deviceManagement/userExperienceAnalyticsAppHealthOSVersionPerformance",
+        "deviceManagement/userExperienceAnalyticsAppHealthOverview",
         "deviceManagement/userExperienceAnalyticsBaselines",
         "deviceManagement/userExperienceAnalyticsBatteryHealthAppImpact",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthCapacityDetails",
         "deviceManagement/userExperienceAnalyticsBatteryHealthDeviceAppImpact",
         "deviceManagement/userExperienceAnalyticsBatteryHealthDevicePerformance",
         "deviceManagement/userExperienceAnalyticsBatteryHealthDeviceRuntimeHistory",
         "deviceManagement/userExperienceAnalyticsBatteryHealthModelPerformance",
         "deviceManagement/userExperienceAnalyticsBatteryHealthOsPerformance",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthRuntimeDetails",
         "deviceManagement/userExperienceAnalyticsDeviceMetricHistory",
         "deviceManagement/userExperienceAnalyticsDevicePerformance",
+        "deviceManagement/userExperienceAnalyticsDeviceScope",
         "deviceManagement/userExperienceAnalyticsDeviceScopes",
         "deviceManagement/userExperienceAnalyticsDeviceScores",
         "deviceManagement/userExperienceAnalyticsDeviceStartupHistory",
@@ -1166,12 +1243,15 @@
         "deviceManagement/userExperienceAnalyticsMetricHistory",
         "deviceManagement/userExperienceAnalyticsModelScores",
         "deviceManagement/userExperienceAnalyticsNotAutopilotReadyDevice",
+        "deviceManagement/userExperienceAnalyticsOverview",
         "deviceManagement/userExperienceAnalyticsRemoteConnection",
         "deviceManagement/userExperienceAnalyticsResourcePerformance",
         "deviceManagement/userExperienceAnalyticsScoreHistory",
+        "deviceManagement/userExperienceAnalyticsWorkFromAnywhereHardwareReadinessMetric",
         "deviceManagement/userExperienceAnalyticsWorkFromAnywhereMetrics",
         "deviceManagement/userExperienceAnalyticsWorkFromAnywhereModelPerformance",
         "deviceManagement/windowsMalwareInformation",
+        "reports",
         "tenantRelationships/managedTenants/deviceCompliancePolicySettingStateSummaries",
         "tenantRelationships/managedTenants/managedDeviceComplianceTrends",
         "tenantRelationships/managedTenants/managedDeviceCompliances",
@@ -1185,6 +1265,7 @@
       "adminConsent": true,
       "description": "Allows the app to read and write the properties of devices managed by Microsoft Intune. Does not allow high impact operations such as remote wipe and password reset on the device's owner.",
       "tables": [
+        "deviceManagement",
         "deviceManagement/autopilotEvents",
         "deviceManagement/cloudPCConnectivityIssues",
         "deviceManagement/comanagedDevices",
@@ -1197,8 +1278,10 @@
         "deviceManagement/managedDevices",
         "deviceManagement/mobileAppTroubleshootingEvents",
         "deviceManagement/remoteActionAudits",
+        "deviceManagement/reports",
         "deviceManagement/reports/cachedReportConfigurations",
         "deviceManagement/reports/exportJobs",
+        "deviceManagement/tenantAttachRBAC",
         "deviceManagement/troubleshootingEvents",
         "deviceManagement/userExperienceAnalyticsAnomaly",
         "deviceManagement/userExperienceAnalyticsAnomalyDevice",
@@ -1211,15 +1294,19 @@
         "deviceManagement/userExperienceAnalyticsAppHealthDevicePerformance",
         "deviceManagement/userExperienceAnalyticsAppHealthDevicePerformanceDetails",
         "deviceManagement/userExperienceAnalyticsAppHealthOSVersionPerformance",
+        "deviceManagement/userExperienceAnalyticsAppHealthOverview",
         "deviceManagement/userExperienceAnalyticsBaselines",
         "deviceManagement/userExperienceAnalyticsBatteryHealthAppImpact",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthCapacityDetails",
         "deviceManagement/userExperienceAnalyticsBatteryHealthDeviceAppImpact",
         "deviceManagement/userExperienceAnalyticsBatteryHealthDevicePerformance",
         "deviceManagement/userExperienceAnalyticsBatteryHealthDeviceRuntimeHistory",
         "deviceManagement/userExperienceAnalyticsBatteryHealthModelPerformance",
         "deviceManagement/userExperienceAnalyticsBatteryHealthOsPerformance",
+        "deviceManagement/userExperienceAnalyticsBatteryHealthRuntimeDetails",
         "deviceManagement/userExperienceAnalyticsDeviceMetricHistory",
         "deviceManagement/userExperienceAnalyticsDevicePerformance",
+        "deviceManagement/userExperienceAnalyticsDeviceScope",
         "deviceManagement/userExperienceAnalyticsDeviceScopes",
         "deviceManagement/userExperienceAnalyticsDeviceScores",
         "deviceManagement/userExperienceAnalyticsDeviceStartupHistory",
@@ -1230,12 +1317,15 @@
         "deviceManagement/userExperienceAnalyticsMetricHistory",
         "deviceManagement/userExperienceAnalyticsModelScores",
         "deviceManagement/userExperienceAnalyticsNotAutopilotReadyDevice",
+        "deviceManagement/userExperienceAnalyticsOverview",
         "deviceManagement/userExperienceAnalyticsRemoteConnection",
         "deviceManagement/userExperienceAnalyticsResourcePerformance",
         "deviceManagement/userExperienceAnalyticsScoreHistory",
+        "deviceManagement/userExperienceAnalyticsWorkFromAnywhereHardwareReadinessMetric",
         "deviceManagement/userExperienceAnalyticsWorkFromAnywhereMetrics",
         "deviceManagement/userExperienceAnalyticsWorkFromAnywhereModelPerformance",
         "deviceManagement/windowsMalwareInformation",
+        "reports",
         "tenantRelationships/managedTenants/deviceCompliancePolicySettingStateSummaries",
         "tenantRelationships/managedTenants/managedDeviceComplianceTrends",
         "tenantRelationships/managedTenants/managedDeviceCompliances",
@@ -1249,14 +1339,17 @@
       "adminConsent": true,
       "description": "Allows the app to read the properties relating to the Microsoft Intune Role-Based Access Control (RBAC) settings.",
       "tables": [
+        "deviceManagement",
         "deviceManagement/operationApprovalPolicies",
         "deviceManagement/operationApprovalRequests",
         "deviceManagement/resourceOperations",
         "deviceManagement/roleAssignments",
         "deviceManagement/roleDefinitions",
         "deviceManagement/roleScopeTags",
+        "roleManagement",
         "roleManagement/cloudPC/roleAssignments",
         "roleManagement/cloudPC/roleDefinitions",
+        "roleManagement/deviceManagement",
         "roleManagement/deviceManagement/roleAssignments",
         "roleManagement/deviceManagement/roleDefinitions"
       ]
@@ -1266,14 +1359,17 @@
       "adminConsent": true,
       "description": "Allows the app to read and write the properties relating to the Microsoft Intune Role-Based Access Control (RBAC) settings.",
       "tables": [
+        "deviceManagement",
         "deviceManagement/operationApprovalPolicies",
         "deviceManagement/operationApprovalRequests",
         "deviceManagement/resourceOperations",
         "deviceManagement/roleAssignments",
         "deviceManagement/roleDefinitions",
         "deviceManagement/roleScopeTags",
+        "roleManagement",
         "roleManagement/cloudPC/roleAssignments",
         "roleManagement/cloudPC/roleDefinitions",
+        "roleManagement/deviceManagement",
         "roleManagement/deviceManagement/roleAssignments",
         "roleManagement/deviceManagement/roleDefinitions"
       ]
@@ -1302,21 +1398,28 @@
       "description": "Allows the app to read Microsoft Intune service properties including device enrollment and third party service connection configuration.",
       "tables": [
         "deviceAppManagement/vppTokens",
+        "deviceManagement",
         "deviceManagement/appleUserInitiatedEnrollmentProfiles",
         "deviceManagement/complianceManagementPartners",
+        "deviceManagement/conditionalAccessSettings",
         "deviceManagement/depOnboardingSettings",
         "deviceManagement/deviceEnrollmentConfigurations",
         "deviceManagement/deviceManagementPartners",
         "deviceManagement/exchangeConnectors",
+        "deviceManagement/exchangeOnPremisesPolicy",
+        "deviceManagement/exchangeOnPremisesPolicy/conditionalAccessSettings",
         "deviceManagement/importedDeviceIdentities",
         "deviceManagement/importedWindowsAutopilotDeviceIdentities",
         "deviceManagement/mobileThreatDefenseConnectors",
         "deviceManagement/notificationMessageTemplates",
         "deviceManagement/remoteAssistancePartners",
+        "deviceManagement/remoteAssistanceSettings",
+        "deviceManagement/reports",
         "deviceManagement/resourceAccessProfiles",
         "deviceManagement/termsAndConditions",
         "deviceManagement/windowsAutopilotDeploymentProfiles",
         "deviceManagement/windowsAutopilotDeviceIdentities",
+        "deviceManagement/windowsAutopilotSettings",
         "organization",
         "users"
       ]
@@ -1327,22 +1430,30 @@
       "description": "Allows the app to read and write Microsoft Intune service properties including device enrollment and third party service connection configuration.",
       "tables": [
         "deviceAppManagement/vppTokens",
+        "deviceManagement",
+        "deviceManagement/applePushNotificationCertificate",
         "deviceManagement/appleUserInitiatedEnrollmentProfiles",
         "deviceManagement/complianceManagementPartners",
+        "deviceManagement/conditionalAccessSettings",
         "deviceManagement/dataSharingConsents",
         "deviceManagement/depOnboardingSettings",
         "deviceManagement/deviceEnrollmentConfigurations",
         "deviceManagement/deviceManagementPartners",
         "deviceManagement/exchangeConnectors",
+        "deviceManagement/exchangeOnPremisesPolicy",
+        "deviceManagement/exchangeOnPremisesPolicy/conditionalAccessSettings",
         "deviceManagement/importedDeviceIdentities",
         "deviceManagement/importedWindowsAutopilotDeviceIdentities",
         "deviceManagement/mobileThreatDefenseConnectors",
         "deviceManagement/notificationMessageTemplates",
         "deviceManagement/remoteAssistancePartners",
+        "deviceManagement/remoteAssistanceSettings",
+        "deviceManagement/reports",
         "deviceManagement/resourceAccessProfiles",
         "deviceManagement/termsAndConditions",
         "deviceManagement/windowsAutopilotDeploymentProfiles",
         "deviceManagement/windowsAutopilotDeviceIdentities",
+        "deviceManagement/windowsAutopilotSettings",
         "organization",
         "users"
       ]
@@ -1398,8 +1509,10 @@
         "domains",
         "groupLifecyclePolicies",
         "groups",
+        "me",
         "oauth2PermissionGrants",
         "organization",
+        "policies/adminConsentRequestPolicy",
         "privilegedRoleAssignmentRequests",
         "roleManagement/cloudPC/roleDefinitions",
         "roleManagement/deviceManagement/roleDefinitions",
@@ -1434,8 +1547,10 @@
         "directorySettingTemplates",
         "groupLifecyclePolicies",
         "groups",
+        "me",
         "oauth2PermissionGrants",
         "organization",
+        "policies/adminConsentRequestPolicy",
         "policies/featureRolloutPolicies",
         "roleManagement/cloudPC/roleDefinitions",
         "roleManagement/deviceManagement/roleDefinitions",
@@ -1455,6 +1570,7 @@
       "adminConsent": true,
       "description": "Allows the app to read Azure AD recommendations, on your behalf.",
       "tables": [
+        "directory/recommendationConfiguration",
         "directory/recommendations"
       ]
     },
@@ -1523,6 +1639,7 @@
         "identityGovernance/entitlementManagement/assignmentRequests",
         "identityGovernance/entitlementManagement/connectedOrganizations",
         "identityGovernance/entitlementManagement/externalOriginResourceConnectors",
+        "identityGovernance/entitlementManagement/settings",
         "roleManagement/entitlementManagement/roleAssignments",
         "roleManagement/entitlementManagement/roleDefinitions"
       ]
@@ -1543,6 +1660,7 @@
         "identityGovernance/entitlementManagement/assignmentRequests",
         "identityGovernance/entitlementManagement/connectedOrganizations",
         "identityGovernance/entitlementManagement/externalOriginResourceConnectors",
+        "identityGovernance/entitlementManagement/settings",
         "roleManagement/entitlementManagement/roleAssignments",
         "roleManagement/entitlementManagement/roleDefinitions"
       ]
@@ -1680,6 +1798,7 @@
         "planner/buckets",
         "planner/plans",
         "planner/tasks",
+        "policies/ownerlessGroupPolicy",
         "settings"
       ]
     },
@@ -1700,6 +1819,7 @@
         "planner/buckets",
         "planner/plans",
         "planner/tasks",
+        "policies/ownerlessGroupPolicy",
         "settings"
       ]
     },
@@ -1951,6 +2071,7 @@
       "description": "Allows an app to read information protection sensitivity labels and label policy settings, on behalf of the signed-in user.",
       "tables": [
         "informationProtection/policy/labels",
+        "security/informationProtection/labelPolicySettings",
         "security/informationProtection/sensitivityLabels"
       ]
     },
@@ -2058,6 +2179,7 @@
       "description": "Allows the app to list and read all workflows, tasks and related lifecycle workflows resources on your behalf.",
       "tables": [
         "identityGovernance/lifecycleWorkflows/customTaskExtensions",
+        "identityGovernance/lifecycleWorkflows/settings",
         "identityGovernance/lifecycleWorkflows/taskDefinitions",
         "identityGovernance/lifecycleWorkflows/workflowTemplates",
         "identityGovernance/lifecycleWorkflows/workflows"
@@ -2069,6 +2191,7 @@
       "description": "Allows the app to create, update, list, read and delete all workflows, tasks and related lifecycle workflows resources on your behalf.",
       "tables": [
         "identityGovernance/lifecycleWorkflows/customTaskExtensions",
+        "identityGovernance/lifecycleWorkflows/settings",
         "identityGovernance/lifecycleWorkflows/taskDefinitions",
         "identityGovernance/lifecycleWorkflows/workflowTemplates",
         "identityGovernance/lifecycleWorkflows/workflows"
@@ -2113,6 +2236,9 @@
       "adminConsent": true,
       "description": "Allows the app to read multi-tenant organization details and tenants on your behalf.",
       "tables": [
+        "policies/crossTenantAccessPolicy/templates",
+        "tenantRelationships/multiTenantOrganization",
+        "tenantRelationships/multiTenantOrganization/joinRequest",
         "tenantRelationships/multiTenantOrganization/tenants"
       ]
     },
@@ -2121,6 +2247,7 @@
       "adminConsent": false,
       "description": "Allows the app to read multi-tenant organization basic details and active tenants on your behalf.",
       "tables": [
+        "tenantRelationships/multiTenantOrganization",
         "tenantRelationships/multiTenantOrganization/tenants"
       ]
     },
@@ -2129,6 +2256,9 @@
       "adminConsent": true,
       "description": "Allows the app to read multi-tenant organization details and tenants on your behalf.",
       "tables": [
+        "policies/crossTenantAccessPolicy/templates",
+        "tenantRelationships/multiTenantOrganization",
+        "tenantRelationships/multiTenantOrganization/joinRequest",
         "tenantRelationships/multiTenantOrganization/tenants"
       ]
     },
@@ -2171,6 +2301,9 @@
         "networkAccess/filteringProfiles",
         "networkAccess/forwardingPolicies",
         "networkAccess/forwardingProfiles",
+        "networkAccess/settings/conditionalAccess",
+        "networkAccess/settings/crossTenantAccess",
+        "networkAccess/settings/customBlockPage",
         "networkAccess/threatIntelligencePolicies",
         "networkAccess/tls/externalCertificateAuthorityCertificates",
         "networkAccess/tlsInspectionPolicies"
@@ -2192,6 +2325,9 @@
         "networkAccess/logs/generativeAIInsights",
         "networkAccess/logs/remoteNetworks",
         "networkAccess/logs/traffic",
+        "networkAccess/settings/conditionalAccess",
+        "networkAccess/settings/crossTenantAccess",
+        "networkAccess/settings/customBlockPage",
         "networkAccess/threatIntelligencePolicies",
         "networkAccess/tlsInspectionPolicies"
       ]
@@ -2239,6 +2375,86 @@
       ]
     },
     {
+      "name": "OrgSettings-AppsAndServices.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read organization-wide apps and services settings on your behalf.",
+      "tables": [
+        "admin/appsAndServices"
+      ]
+    },
+    {
+      "name": "OrgSettings-AppsAndServices.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write organization-wide apps and services settings on your behalf.",
+      "tables": [
+        "admin/appsAndServices"
+      ]
+    },
+    {
+      "name": "OrgSettings-DynamicsVoice.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read organization-wide Dynamics customer voice settings on your behalf.",
+      "tables": [
+        "admin/dynamics"
+      ]
+    },
+    {
+      "name": "OrgSettings-DynamicsVoice.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write organization-wide Dynamics customer voice settings on your behalf.",
+      "tables": [
+        "admin/dynamics"
+      ]
+    },
+    {
+      "name": "OrgSettings-Forms.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read organization-wide Microsoft Forms settings on your behalf.",
+      "tables": [
+        "admin/forms"
+      ]
+    },
+    {
+      "name": "OrgSettings-Forms.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write organization-wide Microsoft Forms settings on your behalf.",
+      "tables": [
+        "admin/forms"
+      ]
+    },
+    {
+      "name": "OrgSettings-Microsoft365Install.Read.All",
+      "adminConsent": true,
+      "description": "",
+      "tables": [
+        "admin/microsoft365Apps/installationOptions"
+      ]
+    },
+    {
+      "name": "OrgSettings-Microsoft365Install.ReadWrite.All",
+      "adminConsent": true,
+      "description": "",
+      "tables": [
+        "admin/microsoft365Apps/installationOptions"
+      ]
+    },
+    {
+      "name": "OrgSettings-Todo.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read organization-wide Microsoft To Do settings on your behalf.",
+      "tables": [
+        "admin/todo"
+      ]
+    },
+    {
+      "name": "OrgSettings-Todo.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write organization-wide Microsoft To Do settings on your behalf.",
+      "tables": [
+        "admin/todo"
+      ]
+    },
+    {
       "name": "Organization.Read.All",
       "adminConsent": true,
       "description": "Allows the app to read the organization and related resources, on your behalf. Related resources include things like subscribed skus and tenant branding information.",
@@ -2261,7 +2477,8 @@
       "adminConsent": true,
       "description": "Allows the app to read security alerts of customer with CSP relationship on behalf of you.",
       "tables": [
-        "security/partner/securityAlerts"
+        "security/partner/securityAlerts",
+        "security/partner/securityScore"
       ]
     },
     {
@@ -2293,9 +2510,14 @@
       "adminConsent": true,
       "description": "Allows the application to read tenant-wide people settings on your behalf.",
       "tables": [
+        "admin/people",
+        "admin/people/itemInsights",
+        "admin/people/namePronunciation",
+        "admin/people/photoUpdateSettings",
         "admin/people/profileCardProperties",
         "admin/people/profilePropertySettings",
-        "admin/people/profileSources"
+        "admin/people/profileSources",
+        "admin/people/pronouns"
       ]
     },
     {
@@ -2303,9 +2525,14 @@
       "adminConsent": true,
       "description": "Allows the application to read and write tenant-wide people settings on your behalf.",
       "tables": [
+        "admin/people",
+        "admin/people/itemInsights",
+        "admin/people/namePronunciation",
+        "admin/people/photoUpdateSettings",
         "admin/people/profileCardProperties",
         "admin/people/profilePropertySettings",
-        "admin/people/profileSources"
+        "admin/people/profileSources",
+        "admin/people/pronouns"
       ]
     },
     {
@@ -2332,13 +2559,25 @@
         "identity/conditionalAccess/namedLocations",
         "identity/conditionalAccess/policies",
         "identity/conditionalAccess/templates",
+        "identity/continuousAccessEvaluationPolicy",
+        "identityGovernance/accessReviews/policy",
+        "policies/accessReviewPolicy",
         "policies/activityBasedTimeoutPolicies",
+        "policies/adminConsentRequestPolicy",
         "policies/appManagementPolicies",
+        "policies/authenticationFlowsPolicy",
+        "policies/authenticationMethodsPolicy",
         "policies/authenticationStrengthPolicies",
         "policies/authorizationPolicy",
+        "policies/b2cAuthenticationMethodsPolicy",
         "policies/claimsMappingPolicies",
         "policies/crossTenantAccessPolicy/partners",
+        "policies/defaultAppManagementPolicy",
+        "policies/deviceRegistrationPolicy",
+        "policies/externalIdentitiesPolicy",
+        "policies/federatedTokenValidationPolicy",
         "policies/homeRealmDiscoveryPolicies",
+        "policies/identitySecurityDefaultsEnforcementPolicy",
         "policies/mobileAppManagementPolicies",
         "policies/mobileDeviceManagementPolicies",
         "policies/tokenIssuancePolicies",
@@ -2352,6 +2591,7 @@
       "adminConsent": true,
       "description": "Allows the app to read the authentication method policies for your tenant, on your behalf.",
       "tables": [
+        "policies/authenticationMethodsPolicy",
         "policies/authenticationStrengthPolicies"
       ]
     },
@@ -2369,6 +2609,14 @@
       "description": "Allows the app to read your organization's conditional access policies on your behalf.",
       "tables": [
         "identity/conditionalAccess/authenticationContextClassReferences"
+      ]
+    },
+    {
+      "name": "Policy.Read.DeviceConfiguration",
+      "adminConsent": true,
+      "description": "Allows the app to read your organization's device configuration policies on your behalf.  For example, device registration policy can limit initial provisioning controls using quota restrictions, additional authentication and authorization checks.",
+      "tables": [
+        "policies/deviceRegistrationPolicy"
       ]
     },
     {
@@ -2396,6 +2644,15 @@
       ]
     },
     {
+      "name": "Policy.ReadWrite.AccessReview",
+      "adminConsent": true,
+      "description": "Allows the app to read and write your organization's directory access review default policy on your behalf.",
+      "tables": [
+        "identityGovernance/accessReviews/policy",
+        "policies/accessReviewPolicy"
+      ]
+    },
+    {
       "name": "Policy.ReadWrite.ApplicationConfiguration",
       "adminConsent": true,
       "description": "Allows the app to read and write your organization's application configuration policies on your behalf.  This includes policies such as activityBasedTimeoutPolicy, claimsMappingPolicy, homeRealmDiscoveryPolicy, tokenIssuancePolicy  and tokenLifetimePolicy.",
@@ -2403,9 +2660,18 @@
         "policies/activityBasedTimeoutPolicies",
         "policies/appManagementPolicies",
         "policies/claimsMappingPolicies",
+        "policies/defaultAppManagementPolicy",
         "policies/homeRealmDiscoveryPolicies",
         "policies/tokenIssuancePolicies",
         "policies/tokenLifetimePolicies"
+      ]
+    },
+    {
+      "name": "Policy.ReadWrite.AuthenticationFlows",
+      "adminConsent": true,
+      "description": "Allows the app to read and write the authentication flow policies for your tenant, on your behalf.",
+      "tables": [
+        "policies/authenticationFlowsPolicy"
       ]
     },
     {
@@ -2413,6 +2679,7 @@
       "adminConsent": true,
       "description": "Allows the app to read and write the authentication method policies for your tenant, on your behalf.",
       "tables": [
+        "policies/authenticationMethodsPolicy",
         "policies/authenticationStrengthPolicies"
       ]
     },
@@ -2443,11 +2710,43 @@
       ]
     },
     {
+      "name": "Policy.ReadWrite.ConsentRequest",
+      "adminConsent": true,
+      "description": "Allows the app to read and write your organization's consent request policy on your behalf.",
+      "tables": [
+        "policies/adminConsentRequestPolicy"
+      ]
+    },
+    {
       "name": "Policy.ReadWrite.CrossTenantAccess",
       "adminConsent": true,
       "description": "Allows the app to read and write your organization's cross tenant access policies on your behalf.",
       "tables": [
         "policies/crossTenantAccessPolicy/partners"
+      ]
+    },
+    {
+      "name": "Policy.ReadWrite.DeviceConfiguration",
+      "adminConsent": true,
+      "description": "Allows the app to read and write your organization's device configuration policies on your behalf.  For example, device registration policy can limit initial provisioning controls using quota restrictions, additional authentication and authorization checks.",
+      "tables": [
+        "policies/deviceRegistrationPolicy"
+      ]
+    },
+    {
+      "name": "Policy.ReadWrite.ExternalIdentities",
+      "adminConsent": true,
+      "description": "Allows the application to read and update the organization's external identities policy on your behalf.  For example, external identities policy controls if users invited to access resources in your organization via B2B collaboration or B2B direct connect are allowed to self-service leave.",
+      "tables": [
+        "policies/externalIdentitiesPolicy"
+      ]
+    },
+    {
+      "name": "Policy.ReadWrite.FedTokenValidation",
+      "adminConsent": true,
+      "description": "Allows the app to read and write your organization's federated token validation policy on your behalf.",
+      "tables": [
+        "policies/federatedTokenValidationPolicy"
       ]
     },
     {
@@ -2481,6 +2780,14 @@
       "description": "Allows the app to manage policies related to consent and permission grants for applications, on behalf of the signed-in user.",
       "tables": [
         "policies/permissionGrantPolicies"
+      ]
+    },
+    {
+      "name": "Policy.ReadWrite.SecurityDefaults",
+      "adminConsent": true,
+      "description": "Allows the app to read and write your organization's security defaults policy on your behalf.",
+      "tables": [
+        "policies/identitySecurityDefaultsEnforcementPolicy"
       ]
     },
     {
@@ -2781,14 +3088,32 @@
       ]
     },
     {
+      "name": "ReportSettings.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read admin report settings, such as whether to display concealed information in reports, on your behalf.",
+      "tables": [
+        "admin/reportSettings"
+      ]
+    },
+    {
+      "name": "ReportSettings.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and update admin report settings, such as whether to display concealed information in reports, on your behalf.",
+      "tables": [
+        "admin/reportSettings"
+      ]
+    },
+    {
       "name": "Reports.Read.All",
       "adminConsent": true,
       "description": "Allows an app to read all service usage reports on your behalf. Services that provide usage reports include Office 365 and Azure Active Directory.",
       "tables": [
         "reports/applicationSignInDetailedSummary",
+        "reports/azureADPremiumLicenseInsight",
         "reports/credentialUserRegistrationDetails",
         "reports/dailyPrintUsageByPrinter",
         "reports/dailyPrintUsageByUser",
+        "reports/microsoftAppsFileStorageContainerUsageSummary",
         "reports/monthlyPrintUsageByPrinter",
         "reports/monthlyPrintUsageByUser",
         "reports/userCredentialUsageDetails",
@@ -3120,6 +3445,7 @@
       "adminConsent": true,
       "description": "Allows the app to read all the identity security sensors on your behalf.",
       "tables": [
+        "security/identities/sensorCandidateActivationConfiguration",
         "security/identities/sensorCandidates",
         "security/identities/sensors"
       ]
@@ -3129,6 +3455,7 @@
       "adminConsent": true,
       "description": "Allows the app to read and write identity security sensors on your behalf.",
       "tables": [
+        "security/identities/sensorCandidateActivationConfiguration",
         "security/identities/sensorCandidates"
       ]
     },
@@ -3179,6 +3506,22 @@
       "description": "Allows the app to read your tenant's service announcement messages on your behalf. Messages may include information about new or changed features.",
       "tables": [
         "admin/serviceAnnouncement/messages"
+      ]
+    },
+    {
+      "name": "SharePointTenantSettings.Read.All",
+      "adminConsent": true,
+      "description": "Allows the application to read the tenant-level settings in SharePoint and OneDrive on your behalf.",
+      "tables": [
+        "admin/sharepoint/settings"
+      ]
+    },
+    {
+      "name": "SharePointTenantSettings.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the application to read and change the tenant-level settings of SharePoint and OneDrive on your behalf.",
+      "tables": [
+        "admin/sharepoint/settings"
       ]
     },
     {
@@ -3295,6 +3638,30 @@
       ]
     },
     {
+      "name": "Teamwork.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read the teamwork settings of your organization, on your behalf.",
+      "tables": [
+        "teamwork"
+      ]
+    },
+    {
+      "name": "TeamworkAppSettings.Read.All",
+      "adminConsent": false,
+      "description": "Allows the app to read the Teams app settings on your behalf.",
+      "tables": [
+        "teamwork/teamsAppSettings"
+      ]
+    },
+    {
+      "name": "TeamworkAppSettings.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write the Teams app settings on your behalf.",
+      "tables": [
+        "teamwork/teamsAppSettings"
+      ]
+    },
+    {
       "name": "TeamworkDevice.Read.All",
       "adminConsent": true,
       "description": "Allow the app to read the management data for Teams devices on your behalf.",
@@ -3391,10 +3758,27 @@
       ]
     },
     {
+      "name": "TenantGovernance-Setting.Read.All",
+      "adminConsent": true,
+      "description": "Allows the application to read Tenant Governance settings on your behalf.",
+      "tables": [
+        "directory/tenantGovernance/settings"
+      ]
+    },
+    {
+      "name": "TenantGovernance-Setting.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the application to read Tenant Governance settings and update them on your behalf.",
+      "tables": [
+        "directory/tenantGovernance/settings"
+      ]
+    },
+    {
       "name": "TermStore.Read.All",
       "adminConsent": true,
       "description": "Allows the app to read the term store data that you have access to. This includes all sets, groups and terms in the term store.",
       "tables": [
+        "termStore",
         "termStore/groups"
       ]
     },
@@ -3403,6 +3787,7 @@
       "adminConsent": true,
       "description": "Allows the app to read or modify data that you have access to. This includes all sets, groups and terms in the term store.",
       "tables": [
+        "termStore",
         "termStore/groups"
       ]
     },
@@ -3482,6 +3867,8 @@
       "adminConsent": false,
       "description": "Allows you to sign in to the app with your organizational account and let the app read your profile. It also allows the app to read basic company information.",
       "tables": [
+        "admin/people/itemInsights",
+        "me",
         "organization",
         "schemaExtensions"
       ]
@@ -3491,6 +3878,8 @@
       "adminConsent": true,
       "description": "Allows the app to read the full set of user properties of all users in the organization and read company properties, on your behalf.",
       "tables": [
+        "admin/people/itemInsights",
+        "me",
         "organization",
         "users"
       ]
@@ -3500,7 +3889,17 @@
       "adminConsent": false,
       "description": "Allows the app to read a basic set of profile properties of other users in your organization on your behalf. Includes display name, first and last name, email address, photo, id and security identifier. Also allows the app to read the full profile of the signed-in user.",
       "tables": [
+        "me",
         "users"
+      ]
+    },
+    {
+      "name": "User.ReadWrite",
+      "adminConsent": false,
+      "description": "Allows the app to read your profile and basic company information, and discover your group membership, reports and manager. It also allows the app to update your profile information on your behalf.",
+      "tables": [
+        "admin/people/itemInsights",
+        "me"
       ]
     },
     {
@@ -3508,6 +3907,8 @@
       "adminConsent": true,
       "description": "Allows the app to read and write the full set of profile properties, reports, and managers of other users in your organization, and read basic company properties, on your behalf.",
       "tables": [
+        "admin/people/itemInsights",
+        "me",
         "users"
       ]
     },

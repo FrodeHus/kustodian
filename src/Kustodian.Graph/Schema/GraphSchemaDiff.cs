@@ -1,23 +1,45 @@
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Kustodian.Graph.Schema;
 
 /// <summary>What changed between two schemas: tables and columns added or removed, type changes, and description-only
 /// changes as a count. <c>Source</c> and <c>GeneratedAt</c> are not compared.</summary>
-public sealed class GraphSchemaDiff
+public sealed partial class GraphSchemaDiff
 {
     private readonly List<string> _lines;
 
     private readonly bool _contentDiffers;
 
-    private GraphSchemaDiff(List<string> lines, int descriptionsChanged, bool contentDiffers)
+    private GraphSchemaDiff(List<string> lines, int descriptionsChanged, bool contentDiffers, List<string> possibleSecrets)
     {
         _lines = lines;
+        PossibleSecrets = possibleSecrets;
         DescriptionsChanged = descriptionsChanged;
         _contentDiffers = contentDiffers;
     }
 
     public int DescriptionsChanged { get; }
+
+    /// <summary>The new columns (in new tables too) whose name or description looks like a secret or a credential's content,
+    /// as <c>table.column</c>, for a person to review: add them to <see cref="GraphSchemaBuilder.SecretColumns"/> or let them be.</summary>
+    public IReadOnlyList<string> PossibleSecrets { get; }
+
+    /// <summary>Whether the column's name or description looks like it holds a secret: a password, secret, token, private key,
+    /// credential or certificate. A name that is about one rather than one (<c>passwordPolicies</c>,
+    /// <c>tokenLifetimePolicies</c>, <c>certificateExpirationDateTime</c>, <c>maximumDepTokens</c>) doesn't count by its name.</summary>
+    public static bool LooksSecret(GraphColumn column)
+        => SecretNameRegex().IsMatch(column.Name) && !AboutSecretRegex().IsMatch(column.Name)
+            || SecretDescriptionRegex().IsMatch(column.Description);
+
+    [GeneratedRegex("password|secret|token|privatekey|credential|certificate|pfx|pkcs", RegexOptions.IgnoreCase)]
+    private static partial Regex SecretNameRegex();
+
+    [GeneratedRegex("^(maximum|minimum|max|min|is|has|allow)[A-Z]|(Policies|Policy|DateTime|Date|Time|Lifetime|Id|Ids|Count|Type|Types|Name|Names|State|Status|Enabled|Required|Settings|Preferences|Configuration|Configurations|Length|Thumbprint|Issuer|Subject|SerialNumber|Reason|Url|Uri)$")]
+    private static partial Regex AboutSecretRegex();
+
+    [GeneratedRegex(@"private key|secret value|password value|plain ?text password|certificate content|raw data|\bbase64\b|the (password|secret|token) (itself|for|used to|that)", RegexOptions.IgnoreCase)]
+    private static partial Regex SecretDescriptionRegex();
 
     /// <summary>True when the two schemas would write identical files (apart from Source and GeneratedAt), so every
     /// persisted field counts, whether or not the summary has a line for it.</summary>
@@ -35,19 +57,31 @@ public sealed class GraphSchemaDiff
             sb.Append(line).Append('\n');
         if (DescriptionsChanged > 0)
             sb.Append(DescriptionsChanged).Append(" descriptions changed").Append('\n');
+        foreach (var column in PossibleSecrets)
+            sb.Append(PossibleSecretPrefix).Append(column).Append('\n');
         return sb.ToString().TrimEnd('\n');
     }
+
+    /// <summary>What each <see cref="PossibleSecrets"/> line of the summary starts with; the graph-schema workflow lists those
+    /// lines in its pull request.</summary>
+    public const string PossibleSecretPrefix = "Possible secret column: ";
 
     public static GraphSchemaDiff Compare(GraphSchema before, GraphSchema after)
     {
         var lines = new List<string>();
+        var secrets = new List<string>();
+        void Flag(string table, IEnumerable<GraphColumn> added)
+            => secrets.AddRange(added.Where(LooksSecret).Select(c => $"{table}.{c.Name}"));
         var descriptions = 0;
 
         var oldTables = before.Tables.ToDictionary(t => t.Name, StringComparer.Ordinal);
         var newTables = after.Tables.ToDictionary(t => t.Name, StringComparer.Ordinal);
 
         foreach (var name in newTables.Keys.Except(oldTables.Keys).Order(StringComparer.Ordinal))
+        {
             lines.Add($"+ table {name}");
+            Flag(name, newTables[name].Columns.Where(c => !c.Relationship));
+        }
         foreach (var name in oldTables.Keys.Except(newTables.Keys).Order(StringComparer.Ordinal))
             lines.Add($"- table {name}");
 
@@ -64,6 +98,8 @@ public sealed class GraphSchemaDiff
                 lines.Add($"{name}: docs url {o.DocsUrl} → {n.DocsUrl}");
             if (o.DirectoryObject != n.DirectoryObject)
                 lines.Add($"{name}: directoryObject {o.DirectoryObject} → {n.DirectoryObject}");
+            if (o.Single != n.Single)
+                lines.Add($"{name}: single {o.Single} → {n.Single}");
             if (!o.Permissions.SequenceEqual(n.Permissions))
                 lines.Add($"{name}: permissions [{string.Join(", ", o.Permissions)}] → [{string.Join(", ", n.Permissions)}]");
 
@@ -71,6 +107,7 @@ public sealed class GraphSchemaDiff
             var newColumns = n.Columns.ToDictionary(c => c.Name, StringComparer.Ordinal);
             foreach (var column in n.Columns.Where(c => !oldColumns.ContainsKey(c.Name)))
                 lines.Add($"{name}: + column {column.Name}");
+            Flag(name, n.Columns.Where(c => !c.Relationship && !oldColumns.ContainsKey(c.Name)));
             foreach (var column in o.Columns.Where(c => !newColumns.ContainsKey(c.Name)))
                 lines.Add($"{name}: - column {column.Name}");
             foreach (var column in n.Columns.Where(c => oldColumns.ContainsKey(c.Name)))
@@ -130,7 +167,7 @@ public sealed class GraphSchemaDiff
                 lines.Add($"{name}: fields reordered");
         }
 
-        return new GraphSchemaDiff(lines, descriptions, !GraphSchemaJson.SameContent(before, after));
+        return new GraphSchemaDiff(lines, descriptions, !GraphSchemaJson.SameContent(before, after), secrets);
     }
 
     /// <summary>Whether the names both sides share come in the same order (additions and removals don't count).</summary>

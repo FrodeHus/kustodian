@@ -61,8 +61,41 @@ public sealed class GraphMetadataTests
         var paths = Load().Collections.Select(c => c.Path).ToList();
 
         Assert.DoesNotContain("reports/authenticationMethods/deep/items", paths);
+        // The single object at the second hop is listed, but nothing under it.
+        Assert.Contains("reports/authenticationMethods/deep", paths);
         Assert.DoesNotContain(paths, p => p.StartsWith("reports/related/", StringComparison.Ordinal));
-        Assert.DoesNotContain(paths, p => p.StartsWith("cycle/", StringComparison.Ordinal));
+        Assert.DoesNotContain(paths, p => p.StartsWith("cycle/self/", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Singletons_and_single_valued_contained_navigations_are_single_objects()
+    {
+        var collections = Load().Collections;
+
+        var nav = Assert.Single(collections, c => c.Path == "reports/authenticationMethods");
+        Assert.True(nav.Single);
+        Assert.Equal("microsoft.graph.authenticationMethodsRoot", nav.EntityType);
+        Assert.True(Assert.Single(collections, c => c.Path == "reports").Single);
+        Assert.False(Assert.Single(collections, c => c.Path == "reports/authenticationMethods/userRegistrationDetails").Single);
+        // Not contained: not under the singleton's path.
+        Assert.DoesNotContain(collections, c => c.Path == "reports/related");
+    }
+
+    [Fact]
+    public void A_single_object_is_a_table_only_with_a_permission_to_read_it()
+    {
+        var permissions = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
+        {
+            [GraphPermissions.NormalizePath("/reports/authenticationMethods")] = ["AuditLog.Read.All"],
+        };
+        var schema = GraphSchemaBuilder.Build(Load(), permissions, "test", DateTimeOffset.UnixEpoch);
+
+        var table = Assert.IsType<GraphTable>(schema.Find("reports_authenticationMethods"));
+        Assert.True(table.Single);
+        Assert.Equal(["AuditLog.Read.All"], table.Permissions);
+        Assert.Equal(["id"], table.Columns.Select(c => c.Name));
+        Assert.Null(schema.Find("reports"));
+        Assert.False(schema.Find("reports_authenticationMethods_userRegistrationDetails")!.Single);
     }
 
     [Fact]
@@ -72,5 +105,34 @@ public sealed class GraphMetadataTests
 
         Assert.NotNull(schema.Find("reports_authenticationMethods_userRegistrationDetails"));
         Assert.Null(schema.Find("education_me_userRegistrationDetails"));
+    }
+
+    // GET /me reads the signed-in user (every sign-in is delegated); the collections under it repeat other tables.
+    [Fact]
+    public void The_me_singleton_is_a_single_object_table_and_its_collections_are_not()
+    {
+        var schema = GraphSchemaCatalog.Beta;
+
+        var me = Assert.IsType<GraphTable>(schema.Find("me"));
+        Assert.True(me.Single);
+        Assert.Equal("microsoft.graph.user", me.EntityType);
+        Assert.NotEmpty(me.Permissions);
+        // A single GET, so the columns a list of users never returns are read here.
+        Assert.All(GraphSchemaBuilder.KnownGetOnly.Where(k => k.Table == "users"),
+            k => Assert.True(me.Columns.Single(c => c.Name == k.Column).Listable));
+        Assert.DoesNotContain(schema.Tables, t => t.Path.StartsWith("me/", StringComparison.Ordinal) || t.Path.Contains("/me/", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Secret_columns_are_left_out_of_the_bundled_schema()
+    {
+        foreach (var (table, column) in GraphSchemaBuilder.SecretColumns)
+        {
+            var found = Assert.IsType<GraphTable>(GraphSchemaCatalog.Beta.Find(table));
+            Assert.DoesNotContain(found.Columns, c => c.Name == column);
+        }
+        // The rest of the object stays.
+        Assert.Contains(GraphSchemaCatalog.Beta.Find("deviceManagement_applePushNotificationCertificate")!.Columns,
+            c => c.Name == "expirationDateTime");
     }
 }

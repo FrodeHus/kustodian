@@ -15,6 +15,12 @@ follow [Semantic Versioning](https://semver.org/).
   configurations or named locations, now have the derived types' properties as columns (empty on other types' rows) and an
   `odataType` column, so `keyRestrictions` and `includeTargets` of the FIDO2 policy can be queried. A query that uses one is
   read without `$select`. See [docs/README.md](docs/README.md#derived-types).
+- **Single Graph objects**: Graph paths that hold one object, such as Security Defaults
+  (`policies_identitySecurityDefaultsEnforcementPolicy`), the authentication methods policy and the default app management
+  policy, are now tables with one row, and so is `me`, the signed-in user. `where`, `take` and `count` on them run locally.
+  Columns that hold a secret (a certificate's password or content, an enrollment token) are left out. See
+  [docs/README.md](docs/README.md#single-objects). The **Entra ID** solution's break-glass workbook now checks that Security
+  Defaults are off (`TNT.SecurityDefaultsOff`).
 - **Entra ID solution**: one solution for Entra ID reviews. It adds a **Break-glass account compliance** workbook: the
   accounts' Conditional Access exclusions, hardening, Global Administrator assignment, sign-ins, groups and tenant
   guardrails, one row per check with PASS, FAIL, WARN, INFO or ERROR, for the accounts you list in a workbook parameter.

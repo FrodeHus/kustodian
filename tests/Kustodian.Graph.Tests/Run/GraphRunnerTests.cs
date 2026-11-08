@@ -90,6 +90,29 @@ public sealed class GraphRunnerTests
         Assert.Equal(0, h.Budget.Used);
     }
 
+    // A single object is one row; its where runs locally in the engine, so Graph is sent no $filter.
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public async Task Run_over_a_single_object_reads_one_row_and_filters_it_locally(bool enabled, int rows)
+    {
+        await using var h = NewHost();
+        h.Graph.Answer = (_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(JsonSerializer.Serialize(new { id = "00000000-0000-0000-0000-000000000005", isEnabled = enabled })),
+        });
+
+        var r = await h.RunAsync("policies_identitySecurityDefaultsEnforcementPolicy | where isEnabled | project isEnabled", ct: Ct);
+
+        Assert.Equal(RunOutcome.Ok, r.Outcome);
+        Assert.Equal(["isEnabled"], r.Columns.Select(c => c.Name));
+        Assert.Equal(rows, r.Rows.Count);
+        var request = Assert.Single(h.Graph.Requests);
+        Assert.StartsWith("/beta/policies/identitySecurityDefaultsEnforcementPolicy?$select=", request, StringComparison.Ordinal);
+        Assert.DoesNotContain("$filter", request, StringComparison.Ordinal);
+        Assert.DoesNotContain("$top", request, StringComparison.Ordinal);
+    }
+
     // Graph counts; the engine prints the count under the query's column name. No object is read.
     [Theory]
     [InlineData("applications | count", "Count")]

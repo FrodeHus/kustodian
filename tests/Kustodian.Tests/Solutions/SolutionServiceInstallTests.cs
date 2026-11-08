@@ -15,6 +15,9 @@ namespace Kustodian.Tests.Solutions;
 public sealed class SolutionServiceInstallTests : IDisposable
 {
     private const string Id = "entra-id";
+
+    /// <summary>The bundled solution's version, so a bump in Solutions/ doesn't move these tests.</summary>
+    private string BundledVersion => _index.Solutions.Single(e => e.Manifest.Id == Id).Manifest.SolutionVersion;
     private const string Folder = "Entra ID";
     private const string IndexUrl = SolutionService.BaseUrl + "index.json";
     private static readonly string SolutionsDir = Path.Combine(FindRoot(), "Solutions");
@@ -142,7 +145,7 @@ public sealed class SolutionServiceInstallTests : IDisposable
             Assert.Equal(Folder, q.Folder);
             Assert.True(Guid.TryParseExact(q.Id, "D", out _));
             var itemId = q.Origin!.ItemId;
-            Assert.Equal(new SolutionOrigin(Id, "1.2.0", itemId, SolutionHash.Sha256(_files[$"queries/{itemId}.json"]),
+            Assert.Equal(new SolutionOrigin(Id, BundledVersion, itemId, SolutionHash.Sha256(_files[$"queries/{itemId}.json"]),
                 SolutionHash.Query(InputOf(q))), q.Origin);
         }
 
@@ -154,7 +157,7 @@ public sealed class SolutionServiceInstallTests : IDisposable
         var saved = wb["widgets"]![2]!["query"]!["saved"]!;
         Assert.Equal(riskyUsers.Id, saved["id"]!.GetValue<string>());
         Assert.Equal(riskyUsers.Name, saved["name"]!.GetValue<string>());
-        Assert.Equal(new SolutionOrigin(Id, "1.2.0", "risky-users-review", SolutionHash.Sha256(_files["workbooks/risky-users-review.json"]),
+        Assert.Equal(new SolutionOrigin(Id, BundledVersion, "risky-users-review", SolutionHash.Sha256(_files["workbooks/risky-users-review.json"]),
             SolutionHash.Workbook(wb)), wb["origin"].Deserialize<SolutionOrigin>(JsonFileStore.Options));
 
         var expected = queries.Select(q => new InstalledItem("query", q.Origin!.ItemId, q.Id))
@@ -166,7 +169,7 @@ public sealed class SolutionServiceInstallTests : IDisposable
         Assert.Equal(expected, listed.Items.OrderBy(i => i.ItemId));
         Assert.Equal(_time.GetUtcNow(), listed.InstalledAt);
 
-        Assert.Equal("1.2.0", (await svc.ListAsync(false, Ct)).Solutions.Single(s => s.Manifest.Id == Id).InstalledVersion);
+        Assert.Equal(BundledVersion, (await svc.ListAsync(false, Ct)).Solutions.Single(s => s.Manifest.Id == Id).InstalledVersion);
     }
 
     [Fact]
@@ -357,7 +360,7 @@ public sealed class SolutionServiceInstallTests : IDisposable
         Assert.True(File.Exists(InstalledPath + ".corrupt"));
 
         await svc.InstallAsync(Id, Skip(), Ct);
-        Assert.Equal("1.2.0", (await svc.ListAsync(false, Ct)).Solutions.Single(s => s.Manifest.Id == Id).InstalledVersion);
+        Assert.Equal(BundledVersion, (await svc.ListAsync(false, Ct)).Solutions.Single(s => s.Manifest.Id == Id).InstalledVersion);
     }
 
     /// <summary>Takes the solution out of the index, as a withdrawal upstream would.</summary>
@@ -409,7 +412,7 @@ public sealed class SolutionServiceInstallTests : IDisposable
         var item = (await svc.ListAsync(true, Ct)).Solutions.Single(s => s.Manifest.Id == Id);
         Assert.Equal(snapshot.Name, item.Manifest.Name);
         Assert.Equal(snapshot.Content.Queries, item.Manifest.Content.Queries);
-        Assert.Equal("1.2.0", item.InstalledVersion);
+        Assert.Equal(snapshot.SolutionVersion, item.InstalledVersion);
         Assert.True(item.Compatible);
 
         var (manifest, readme) = await svc.GetAsync(Id, Ct);
