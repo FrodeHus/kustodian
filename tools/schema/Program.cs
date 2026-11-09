@@ -2,11 +2,12 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using Kustodian.Graph.Schema;
 
-// Regenerates src/Kustodian.Graph/Schema/graph-beta.json from Microsoft Graph's described beta CSDL and Microsoft's
+// Regenerates GraphSchema/graph-beta.json from Microsoft Graph's described beta CSDL and Microsoft's
 // permissions data.
 //   dotnet run --project tools/schema -- [--metadata <path|url>] [--permissions <path|url>] [--out <path>] [--permissions-out <path>]
 // With no arguments it downloads both inputs, writes the file and prints what changed. It also writes graph-permissions.json
-// (every delegated permission that can read a table) beside the schema.
+// (every delegated permission that can read a table) beside the schema, and manifest.json (both files' hashes, which the app
+// reads from the repository to find a newer schema) when the two are in one folder.
 
 // Exit codes: 0 ok, 2 usage, 3 an input couldn't be read or downloaded.
 const string MetadataPath = "clean_beta_metadata/cleanMetadataWithDescriptionsAndAnnotationsbeta.xml";
@@ -39,9 +40,9 @@ for (var i = 0; i < args.Length; i++)
     }
 }
 
-var schemaPath = outPath ?? Path.Combine(FindSolutionRoot(), "src", "Kustodian.Graph", "Schema", "graph-beta.json");
+var schemaPath = outPath ?? Path.Combine(FindSolutionRoot(), "GraphSchema", GraphSchemaManifest.SchemaFile);
 
-var catalogPath = permissionsOutPath ?? Path.Combine(Path.GetDirectoryName(schemaPath)!, "graph-permissions.json");
+var catalogPath = permissionsOutPath ?? Path.Combine(Path.GetDirectoryName(schemaPath)!, GraphSchemaManifest.PermissionsFile);
 
 using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
 http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("kustodian-schema", "1.0"));
@@ -101,11 +102,23 @@ Console.WriteLine($"Wrote {catalogPath}");
 if (diff is { IsEmpty: true })
 {
     Console.WriteLine("Nothing to write.");
-    return 0;
+}
+else
+{
+    await File.WriteAllTextAsync(schemaPath, GraphSchemaJson.Write(generated));
+    Console.WriteLine($"Wrote {schemaPath}");
 }
 
-await File.WriteAllTextAsync(schemaPath, GraphSchemaJson.Write(generated));
-Console.WriteLine($"Wrote {schemaPath}");
+// Rewritten every run, like the permissions file, so its hashes match both files. Only the files in GraphSchema/ get one.
+var schemaDir = Path.GetDirectoryName(Path.GetFullPath(schemaPath))!;
+if (Path.GetDirectoryName(Path.GetFullPath(catalogPath)) == schemaDir
+    && Path.GetFileName(schemaPath) == GraphSchemaManifest.SchemaFile && Path.GetFileName(catalogPath) == GraphSchemaManifest.PermissionsFile)
+{
+    var manifestPath = Path.Combine(schemaDir, GraphSchemaManifest.FileName);
+    await File.WriteAllTextAsync(manifestPath, GraphSchemaManifest.Describe(schemaDir).Write());
+    Console.WriteLine($"Wrote {manifestPath}");
+}
+
 return 0;
 
 // A URL is downloaded, anything else is a local file.

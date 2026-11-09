@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "generatedAt": "2026-11-08T09:14:21.291331+00:00",
+  "files": [
+    {
+      "path": "graph-beta.json",
+      "sha256": "d1cac407ef8b3e357ddd5144cee0065c8a494e064e1486741636e6905344b53a",
+      "size": 4091281
+    },
+    {
+      "path": "graph-permissions.json",
+      "sha256": "a6eb9d34497e3e82298c0a6b71a27f744ca36b24662e8ead941e0ab539753427",
+      "size": 166974
+    }
+  ]
+}

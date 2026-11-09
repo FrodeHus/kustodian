@@ -12,15 +12,17 @@ namespace Kustodian.Messaging.Handlers;
 /// a GUID before it goes into any address. Nobody signed in, or a sign-in that has to be renewed, is <c>signInNeeded</c>; an
 /// <see cref="EntraAppException"/> is <c>failed</c> with its message.</summary>
 public sealed class EntraAppHandler(
-    EntraAppClient client, Func<Task<AccountInfo?>> activeAccount, ISystemBrowser browser, Func<string>? newState = null)
+    EntraAppClient client, Func<Task<AccountInfo?>> activeAccount, ISystemBrowser browser, Func<string>? newState = null,
+    GraphPermissionCatalog? permissions = null, GraphSchema? schema = null)
 {
     public const string SignInMessage = "Sign in again to create an app registration.";
     public const string CannotCreateReason = "This sign-in can't create app registrations (it needs Application.ReadWrite.All).";
 
     private static readonly string[] CreateScopes = ["Application.ReadWrite.All", "Directory.AccessAsUser.All"];
 
-    private static readonly Lazy<PermissionPlan> Plan = new(() =>
-        PermissionPlanner.Plan(GraphPermissionCatalog.Bundled, GraphSchemaCatalog.Beta.Tables, GraphAreas.Bundled));
+    // The schema and catalog in use (downloaded or built in); the built-in ones when not given.
+    private readonly Lazy<PermissionPlan> _plan = new(() => PermissionPlanner.Plan(permissions ?? GraphPermissionCatalog.Bundled,
+        (schema ?? GraphSchemaCatalog.Beta).Tables, GraphAreas.Bundled));
 
     private readonly Func<string> _newState = newState ?? (() => Convert.ToHexString(RandomNumberGenerator.GetBytes(16)));
 
@@ -62,7 +64,7 @@ public sealed class EntraAppHandler(
     {
         var account = await activeAccount() ?? throw SignInNeeded();
         var defaultName = $"Kustodian ({account.Username})";
-        var plan = Plan.Value;
+        var plan = _plan.Value;
         if (CannotCreate(account))
         {
             return Answer(false, CannotCreateReason, defaultName, "", "", plan);
@@ -84,7 +86,7 @@ public sealed class EntraAppHandler(
             throw new BridgeException(BridgeErrorCodes.BadRequest, "The app name must be 1 to 120 characters.");
         }
 
-        var offered = Plan.Value.Groups.SelectMany(g => g.Subgroups).SelectMany(s => s.Permissions).ToList();
+        var offered = _plan.Value.Groups.SelectMany(g => g.Subgroups).SelectMany(s => s.Permissions).ToList();
         var chosen = new List<PlannedPermission>();
         foreach (var wanted in args.Permissions ?? [])
         {
@@ -134,7 +136,7 @@ public sealed class EntraAppHandler(
     {
         var args = BridgeJson.Params<ConsentParams>(p);
         var appId = RequireGuid(args.AppId);
-        var known = Plan.Value.Groups.SelectMany(g => g.Subgroups).SelectMany(s => s.Permissions)
+        var known = _plan.Value.Groups.SelectMany(g => g.Subgroups).SelectMany(s => s.Permissions)
             .Select(x => x.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToDictionary(n => n, StringComparer.OrdinalIgnoreCase);
         var scopes = (args.AdminScopes ?? []).Where(known.ContainsKey).Select(n => known[n]).Distinct(StringComparer.Ordinal).ToList();
         var account = await activeAccount() ?? throw SignInNeeded();
