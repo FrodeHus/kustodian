@@ -29,6 +29,13 @@ follow [Semantic Versioning](https://semver.org/).
   Queries named `Prefix / name` fold under a `Prefix` folder when two or more share it. **Import workbook…** is at the
   bottom of the Workbooks tab.
 
+### Fixed
+
+- **Break-glass workbook**: the tenant checks failed with "Resource not found for segment
+  'authenticationMethodsPolicy/authenticationMethodConfigurations'". Graph doesn't list the authentication method
+  configurations, so `policies_authenticationMethodsPolicy_authenticationMethodConfigurations` is now read from the
+  policy, which returns them all, and its `where`s run locally.
+
 ## [1.1.0] - 2026-11-08
 
 ### Added

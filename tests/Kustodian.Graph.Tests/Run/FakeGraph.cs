@@ -62,6 +62,6 @@ public sealed class FakeGraph : HttpMessageHandler
         return Json(HttpStatusCode.OK, new { responses });
     }
 
-    private static HttpResponseMessage Json(HttpStatusCode status, object body)
+    public static HttpResponseMessage Json(HttpStatusCode status, object body)
         => new(status) { Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json") };
 }

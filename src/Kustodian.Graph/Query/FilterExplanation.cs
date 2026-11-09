@@ -35,9 +35,9 @@ public static class PushdownReasons
     public const string Not = "not() is never sent to Graph";
     public const string OrSide = "One side of this or can't be sent to Graph";
     public const string NotLeading = "Not part of a leading where";
-    /// <summary>The table is a single object (<see cref="Schema.GraphTable.Single"/>), read with one GET that takes no
+    /// <summary>The table is read whole (<see cref="Schema.GraphTable.ReadWhole"/>), with one GET that takes no
     /// <c>$filter</c>.</summary>
-    public const string SingleObject = "A single object is read whole; Graph doesn't filter it";
+    public const string SingleObject = "The table is read whole; Graph doesn't filter it";
     /// <summary>The right side isn't a literal (a column, a function), the left side isn't a plain column, or the condition
     /// isn't one the translator knows.</summary>
     public const string FixedValue = "Graph can only compare a column with a fixed value";

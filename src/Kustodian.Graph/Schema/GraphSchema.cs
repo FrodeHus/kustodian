@@ -28,6 +28,23 @@ public sealed record GraphTable(
     /// <summary>True for a single object (<c>policies/identitySecurityDefaultsEnforcementPolicy</c>): read with one GET, no
     /// paging, <c>$filter</c>, <c>$top</c>, <c>$orderby</c> or <c>$count</c>, as a table of one row.</summary>
     public bool Single { get; init; }
+
+    /// <summary>Collections Graph doesn't list, read from the parent object that returns them inline. Microsoft Learn documents
+    /// only a GET by id under <c>authenticationMethodConfigurations</c>; listing it answers "Resource not found for segment",
+    /// while Get authenticationMethodsPolicy returns every configuration.</summary>
+    public static readonly IReadOnlySet<string> ReadFromParent = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "policies/authenticationMethodsPolicy/authenticationMethodConfigurations",
+    };
+
+    /// <summary>For a table in <see cref="ReadFromParent"/>, the parent's path and the property that holds the collection.</summary>
+    public (string Path, string Property)? Parent => ReadFromParent.Contains(Path)
+        ? (Path[..Path.LastIndexOf('/')], Path[(Path.LastIndexOf('/') + 1)..])
+        : null;
+
+    /// <summary>True when the table is read with one GET that takes no <c>$filter</c>, <c>$top</c>, <c>$orderby</c> or
+    /// <c>$count</c>: a single object, or a collection read from its parent.</summary>
+    public bool ReadWhole => Single || Parent is not null;
 }
 
 /// <summary>A column: its Kusto type, the operators Graph's <c>$filter</c> accepts on it, whether it is only returned on
