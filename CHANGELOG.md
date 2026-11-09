@@ -32,6 +32,9 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Vulnerability management tables in advanced hunting**: `DeviceTvmSoftwareVulnerabilities` and the other `DeviceTvm*`
+  tables were missing from the schema panel and completion, because Graph's hunting schema doesn't list them. They now come
+  from the bundled schema when the tenant's leaves them out.
 - **Break-glass workbook**: the tenant checks failed with "Resource not found for segment
   'authenticationMethodsPolicy/authenticationMethodConfigurations'". Graph doesn't list the authentication method
   configurations, so `policies_authenticationMethodsPolicy_authenticationMethodConfigurations` is now read from the

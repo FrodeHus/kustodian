@@ -26,7 +26,11 @@ public class HuntingSchemaSourceTests
         Assert.Equal("tenant", view.Origin);
         Assert.Null(view.FallbackReason);
         Assert.Equal(_time.GetUtcNow(), view.RetrievedAt);
-        Assert.Equal(["DeviceProcessEvents", "DeviceNetworkEvents"], view.Tables.Select(t => t.Name));
+        // The tenant's tables, then the bundled DeviceTvm* ones getHuntingSchema leaves out.
+        Assert.Equal(["DeviceProcessEvents", "DeviceNetworkEvents"], view.Tables.Take(2).Select(t => t.Name));
+        Assert.Equal(BuiltInHuntingSchema.Tables.Where(t => t.Name.StartsWith("DeviceTvm", StringComparison.Ordinal)),
+            view.Tables.Skip(2));
+        Assert.Contains(view.Tables, t => t.Name == "DeviceTvmSoftwareVulnerabilities" && t.Columns.Count > 0);
         var processes = view.Tables[0];
         Assert.Equal("Process creation and related events", processes.Description);
         Assert.Equal(new HuntingColumn("Timestamp", "datetime", "Date and time when the record was generated"), processes.Columns[0]);
