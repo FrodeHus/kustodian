@@ -74,7 +74,8 @@ public sealed class HuntingSchemaSource(HttpClient graph, TimeProvider time)
             var (tables, functions) = await ReadAsync(accountKey, linked.Token);
             (view, keep) = tables.Count == 0
                 ? (BuiltIn("The tenant's schema has no tables. The built-in schema is shown."), RetryAfter)
-                : (new HuntingSchemaView(SchemaOrigin.Tenant, null, now, tables, functions ?? BuiltInHuntingSchema.Functions), CacheFor);
+                : (new HuntingSchemaView(SchemaOrigin.Tenant, null, now, WithTvmTables(tables), functions ?? BuiltInHuntingSchema.Functions),
+                    CacheFor);
         }
         catch (Exception ex) when (!ct.IsCancellationRequested && ConsentRequiredException.FindIn(ex) is null)
         {
@@ -96,6 +97,15 @@ public sealed class HuntingSchemaSource(HttpClient graph, TimeProvider time)
 
         _cache[accountKey] = (view, now + keep);
         return view;
+    }
+
+    /// <summary><paramref name="tables"/> with the bundled <c>DeviceTvm*</c> tables it doesn't list: <c>getHuntingSchema</c> leaves
+    /// out the vulnerability management tables, though advanced hunting runs queries on them.</summary>
+    private static List<HuntingTable> WithTvmTables(IReadOnlyList<HuntingTable> tables)
+    {
+        var names = tables.Select(t => t.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return [.. tables, .. BuiltInHuntingSchema.Tables.Where(t =>
+            t.Name.StartsWith("DeviceTvm", StringComparison.Ordinal) && !names.Contains(t.Name))];
     }
 
     private static string RefreshReason(Exception ex) => ex switch
