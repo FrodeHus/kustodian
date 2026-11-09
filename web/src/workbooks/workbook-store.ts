@@ -42,6 +42,8 @@ export interface WorkbookState {
   activeTabs: Record<string, string>;
   /** Widgets (on tabs not shown) whose shown result is out of date, by widget id: view state, never in the doc. */
   stale: Record<string, true>;
+  /** The parameter bar is folded to a line of its values: view state, never in the doc. */
+  paramsCollapsed?: true;
 }
 
 /** The tab a tabs widget shows: the active one if it still exists, else the first. */
@@ -94,6 +96,7 @@ export interface WorkbookActions {
   setSelection(tabId: string, widgetId: string, selected: number[]): void;
   setShown(tabId: string, widgetId: string, shown: number[]): void; // no state change when equal to the current one
   setSince(tabId: string, widgetId: string, since: string): void; // no rerun; the history view refetches
+  setParamsCollapsed(tabId: string, collapsed: boolean): void;
 }
 
 type Store = { byTab: Record<string, WorkbookState> } & WorkbookActions;
@@ -603,6 +606,10 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
 
     setSince(tabId, widgetId, since) {
       update(tabId, (s) => ({ since: { ...s.since, [widgetId]: since } }));
+    },
+
+    setParamsCollapsed(tabId, collapsed) {
+      update(tabId, () => ({ paramsCollapsed: collapsed ? true : undefined }));
     },
 
     setShown(tabId, widgetId, shown) {
