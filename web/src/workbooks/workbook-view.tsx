@@ -118,7 +118,7 @@ function ParamControl({ tabId, param, value }: { tabId: string; param: WorkbookP
     // One value per line, as a query tab's list takes them; Enter starts a new line, so it reruns as typing stops.
     control = (
       <textarea
-        className="textbox mono h-auto w-56 py-1"
+        className="textbox mono h-auto resize-y py-1"
         rows={2}
         aria-label={label}
         placeholder="One value per line"
@@ -129,7 +129,7 @@ function ParamControl({ tabId, param, value }: { tabId: string; param: WorkbookP
   } else {
     control = (
       <input
-        className="textbox mono w-40"
+        className="textbox mono"
         style={{ height: 28 }}
         aria-label={label}
         value={value}
@@ -142,9 +142,10 @@ function ParamControl({ tabId, param, value }: { tabId: string; param: WorkbookP
   const problem = param.huntingTimespan ? huntingTimespanProblem(label, value) : null;
   return (
     <div className="flex min-w-0 flex-col gap-1 text-[12.5px]">
-      <span className="muted flex items-center gap-1.5 text-[11.5px]" aria-hidden="true">
-        {value !== param.value && <span className="mod" title="Changed from the default" />}
-        {label}
+      {/* One line, so the controls in a row line up; the whole label shows on hover. */}
+      <span className="muted flex min-w-0 items-center gap-1.5 text-[11.5px]" aria-hidden="true" title={label}>
+        {value !== param.value && <span className="mod shrink-0" title="Changed from the default" />}
+        <span className="truncate">{label}</span>
       </span>
       {control}
       {problem && (
