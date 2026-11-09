@@ -17,6 +17,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Graph queries that run locally use KustoLoco 1.5.1, which fixes constant-only `project` and constant `where` over no
+  rows itself. Kustodian no longer rewrites those queries before it runs them.
 - **Saved panel**: queries and workbooks are now on separate **Queries** and **Workbooks** tabs, each with its own search.
   Queries named `Prefix / name` fold under a `Prefix` folder when two or more share it. **Import workbook…** is at the
   bottom of the Workbooks tab.
