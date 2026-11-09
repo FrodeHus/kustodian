@@ -3,8 +3,8 @@ using Kustodian.Graph.Schema;
 
 namespace Kustodian.Engine.Tests;
 
-/// <summary>Operators that read no column, over no rows (<see cref="NoRowsRewrite"/>).</summary>
-public sealed class NoRowsRewriteTests
+/// <summary>Operators that read no column, over no rows: KustoLoco 1.5.0 got these wrong (fixed in 1.5.1).</summary>
+public sealed class NoRowsTests
 {
     private static EngineResponse Run(string kql) => EngineHandler.Handle(new EngineRequest(kql,
         new DateTimeOffset(2026, 10, 20, 0, 0, 0, TimeSpan.Zero),
