@@ -22,7 +22,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 - **Workbook parameters**: each parameter's label sits above its control in a grid. A list that takes several values picks
   them from a menu of checks, and a few short choices show as a row of buttons. A dot marks a value changed from its default,
-  and Reset puts them back. The panel collapses to one line of values.
+  and Reset puts them back. The panel collapses to one line of values. Fields fill their column and labels stay on one line
+  (the whole label shows on hover), so a row of controls lines up.
 - Graph queries that run locally use KustoLoco 1.5.1, which fixes constant-only `project` and constant `where` over no
   rows itself. Kustodian no longer rewrites those queries before it runs them.
 - **Saved panel**: queries and workbooks are now on separate **Queries** and **Workbooks** tabs, each with its own search.
