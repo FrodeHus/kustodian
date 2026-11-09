@@ -167,7 +167,7 @@ public static class GraphQueryPlanner
             // A table read more than once (a self-join) is never filtered: one fetch has to serve every use.
             // A single object takes no $filter: its leading wheres run locally over the one row.
             var explanation = LeadingPredicates(code, symbol) is not { } predicates ? new FilterExplanation(null, [], [])
-                : table.Single ? new FilterExplanation(null, [],
+                : table.ReadWhole ? new FilterExplanation(null, [],
                     [.. predicates.Select(p => new LocalCondition(GraphFilterTranslator.Text(p), PushdownReasons.SingleObject))])
                 : GraphFilterTranslator.Explain(table, predicates, now, schema.ComplexTypes, licenseNames);
             var laterPredicates = LaterPredicates(code, symbol);
@@ -182,12 +182,12 @@ public static class GraphQueryPlanner
             var filteredLocally = explanation.Local.Count > 0
                 || (laterPredicates.Count > 0 && (selfJoined || laterPredicates.Any(p => ReadsObjectColumn(p, table, symbol))));
             // Only when every leading where went to Graph whole: a condition kept local would have to see rows past the limit.
-            var (top, orderBy) = explanation.Local.Count == 0 && !table.Single ? RowLimit(code, symbol, table) : (null, null);
+            var (top, orderBy) = explanation.Local.Count == 0 && !table.ReadWhole ? RowLimit(code, symbol, table) : (null, null);
             // A sort on a column that isn't read can't pick Graph's first rows.
             if (orderBy is not null && unlicensed.ContainsKey(orderBy.Column))
                 (top, orderBy) = (null, null);
             // Only when Graph keeps exactly the query's rows, and the count is the query's whole answer.
-            var count = explanation.Exact && tableSymbols.Count == 1 && !table.Single ? CountColumn(code, symbol) : null;
+            var count = explanation.Exact && tableSymbols.Count == 1 && !table.ReadWhole ? CountColumn(code, symbol) : null;
             fetches.Add(new GraphFetch(table, select, explanation.Filter)
             {
                 Unreadable = unreadable, Named = named, Top = top, OrderBy = orderBy, Clauses = explanation.Clauses, Count = count,
