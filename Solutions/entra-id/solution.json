@@ -2,7 +2,7 @@
   "version": 1,
   "id": "entra-id",
   "name": "Entra ID",
-  "solutionVersion": "1.4.0",
+  "solutionVersion": "1.4.1",
   "description": "Microsoft Entra ID reviews: break-glass account compliance, risky users and their sign-ins, and MFA and passkey adoption.",
   "author": "Kustodian",
   "support": "kustodian",
