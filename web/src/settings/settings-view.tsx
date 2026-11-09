@@ -13,6 +13,7 @@ import type { AccountInfo, AppInfo, AppSettings, SettingsAnswer, Theme, UpdateIn
 import { setErrorReports, setTelemetry, writeSettings } from './settings-writes';
 import { ErrorReportsExplainer } from './error-reports';
 import { ExternalTools } from './external-tools';
+import { GraphSchemaSettings } from './graph-schema-settings';
 import { TelemetryExplainer } from './telemetry';
 import { UpdateDialog } from './update-dialog';
 
@@ -377,6 +378,9 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
                 Send error reports
               </label>
               <span className="faint text-[12px]">Applies at once.</span>
+            </Card>
+            <Card title="Graph schema">
+              <GraphSchemaSettings />
             </Card>
             <Card title="Limits">
               {stored.restartNeeded && (

@@ -557,30 +557,6 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
         return SolutionHash.Sha256(bytes) == f.Sha256 ? bytes : throw new SolutionRejectedException(Mismatch);
     }
 
-    /// <summary>A GET read in chunks; over <paramref name="limit"/> bytes throws <see cref="InvalidDataException"/> without
-    /// trusting Content-Length.</summary>
-    private async Task<byte[]> GetBytesAsync(string url, long limit, CancellationToken ct)
-    {
-        // HttpClient.Timeout covers only the headers here; this bounds the whole read. Its cancellation is not the caller's.
-        using var limited = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        limited.CancelAfter(ReadTimeout);
-        ct = limited.Token;
-        using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
-        response.EnsureSuccessStatusCode();
-        await using var stream = await response.Content.ReadAsStreamAsync(ct);
-        using var body = new MemoryStream();
-        var buffer = new byte[16 * 1024];
-        int read;
-        while ((read = await stream.ReadAsync(buffer, ct)) > 0)
-        {
-            if (body.Length + read > limit)
-            {
-                throw new InvalidDataException($"The response is over {limit} bytes.");
-            }
-
-            body.Write(buffer, 0, read);
-        }
-
-        return body.ToArray();
-    }
+    private Task<byte[]> GetBytesAsync(string url, long limit, CancellationToken ct) =>
+        BoundedGet.BytesAsync(http, url, limit, ReadTimeout, ct);
 }

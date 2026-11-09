@@ -4,6 +4,7 @@ import { App } from './app';
 import { BridgeError } from './bridge';
 import schema from './fixtures/graph-schema.json';
 import { useSchemas } from './schema/schema-store';
+import { useGraphSchemaUpdate } from './schema/graph-schema-update';
 import { runCommand } from './shell/commands';
 import { applyTheme } from './shell/theme';
 import { useTabs } from './tabs/tab-store';
@@ -135,6 +136,7 @@ beforeEach(() => {
   useTabs.setState({ tabs: [], activeId: null, cursors: {} });
   useSchemas.getState().reset();
   useImportReview.setState({ pending: null });
+  useGraphSchemaUpdate.setState({ status: null, checking: false });
 });
 
 afterEach(() => applyTheme('dark'));
@@ -164,6 +166,23 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sign in with your browser' }));
     await waitFor(() => expect(bridge.call.mock.calls.filter((c) => c[0] === 'account.list')).toHaveLength(2));
     expect(screen.getByRole('heading', { name: 'Sign in to Microsoft Graph' })).toBeTruthy();
+  });
+
+  it('app_footer_says_a_downloaded_graph_schema_needs_a_restart', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    answers['schema.checkGraph'] = () => ({
+      generatedAt: '2026-11-08T09:00:00Z',
+      source: 'msgraph-metadata@abc',
+      downloaded: true,
+      pending: '2026-11-09T05:00:00Z',
+      checkedAt: '2026-11-09T08:00:00Z',
+    });
+    render(<App />);
+
+    const footer = () => document.querySelector('footer.statusbar')?.textContent ?? '';
+    await waitFor(() => expect(footer()).toContain('Graph schema updated (9 Nov 2026). Restart Kustodian to use it.'));
+    expect(footer()).toContain('Downloaded Graph schema · ');
+    expect(bridge.call).toHaveBeenCalledWith('schema.checkGraph', { force: false });
   });
 
   it('app_footer_panel_and_refresh_follow_the_active_source', async () => {
