@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTabs } from '../tabs/tab-store';
 import type { RunResult } from '../wire';
@@ -106,7 +106,7 @@ describe('WorkbookView', () => {
     for (const title of ['Notes', 'Sign-ins by day', 'Users', 'Total']) {
       expect(frame(title)).toBeTruthy();
     }
-    expect(screen.getByRole('combobox', { name: 'Environment' })).toBeTruthy();
+    expect(screen.getByRole('radiogroup', { name: 'Environment' })).toBeTruthy();
     // The chart widget names the workbook parameter it uses.
     expect(within(frame('Sign-ins by day')).getByText('Env')).toBeTruthy();
   });
@@ -136,7 +136,7 @@ describe('WorkbookView', () => {
     doc.parameters = [...doc.parameters, { ...env, name: 'Region', type: 'text', value: 'eu', choices: ['eu', 'us'], label: null }];
     doc.widgets = [widget('m', 'markdown', 'Notes', undefined, { markdown: 'Region {Region}' })];
     show({});
-    expect(screen.getByRole('combobox', { name: 'Region' })).toBeTruthy();
+    expect(screen.getByRole('radiogroup', { name: 'Region' })).toBeTruthy();
     expect(within(frame('Notes')).getByText('Region eu')).toBeTruthy();
   });
 
@@ -205,10 +205,48 @@ describe('WorkbookView', () => {
     expect(frame('Total')).toBeTruthy();
   });
 
-  it('sets a workbook value from the bar', () => {
+  it('sets a workbook value from the bar: few short choices are buttons, more are a select', () => {
+    show({});
+    const group = screen.getByRole('radiogroup', { name: 'Environment' });
+    expect(within(group).getByRole('radio', { name: 'prod' }).getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(within(group).getByRole('radio', { name: 'test' }));
+    expect(setWorkbookValue).toHaveBeenCalledWith('t', 'Env', 'test', { now: true });
+
+    cleanup();
+    doc = { ...doc, parameters: [{ ...env, choices: ['production', 'test'] }] };
     show({});
     fireEvent.change(screen.getByRole('combobox', { name: 'Environment' }), { target: { value: 'test' } });
-    expect(setWorkbookValue).toHaveBeenCalledWith('t', 'Env', 'test', { now: true });
+    expect(setWorkbookValue).toHaveBeenLastCalledWith('t', 'Env', 'test', { now: true });
+  });
+
+  it('picks several values in a menu of checks, kept in the choices order', () => {
+    doc = { ...doc, parameters: [{ ...env, name: 'Sev', label: 'Severity', multi: true, all: true, choices: ['High', 'Medium', 'Low'], value: 'High' }] };
+    show({});
+    act(() => useWorkbooks.setState((st) => ({ byTab: { t: { ...st.byTab.t!, values: { workbook: { Sev: 'Low' }, widgets: {} } } } })));
+    const pick = screen.getByRole('button', { name: 'Severity' });
+    expect(pick.textContent).toContain('Low');
+    fireEvent.click(pick);
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'High' }));
+    expect(setWorkbookValue).toHaveBeenLastCalledWith('t', 'Sev', 'High\nLow', { now: true });
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Select all' }));
+    expect(setWorkbookValue).toHaveBeenLastCalledWith('t', 'Sev', 'High\nMedium\nLow', { now: true });
+  });
+
+  it('collapses to a line of values, and Reset puts changed values back', () => {
+    const setParamsCollapsed = vi.fn();
+    useWorkbooks.setState({ setParamsCollapsed });
+    show({});
+    act(() => useWorkbooks.setState((st) => ({ byTab: { t: { ...st.byTab.t!, values: { workbook: { Env: 'test', Days: '7' }, widgets: {} } } } })));
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
+    expect(setWorkbookValue).toHaveBeenCalledTimes(1);
+    expect(setWorkbookValue).toHaveBeenCalledWith('t', 'Env', 'prod', { now: true });
+
+    fireEvent.click(screen.getByRole('button', { name: /^Parameters/ }));
+    expect(setParamsCollapsed).toHaveBeenCalledWith('t', true);
+    act(() => useWorkbooks.setState((st) => ({ byTab: { t: { ...st.byTab.t!, paramsCollapsed: true } } })));
+    expect(screen.queryByRole('radiogroup', { name: 'Environment' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Environment: test' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Days: 7' })).toBeTruthy();
   });
 
   it('a typed value waits for typing to stop, Enter sends it at once', () => {

@@ -28,50 +28,92 @@ import { SheetHost } from './widgets/sheet-host';
 import { TableWidget } from './widgets/table-widget';
 import { editRanWidgets, editStartDoc, readLibrary, useWorkbooks, visibleTab } from './workbook-store';
 
-const ALL = '\u0000all';
+/** A list's value: one per line. */
+const lines = (v: string) => v.split('\n').filter((x) => x !== '');
 
-/** A workbook parameter's control in the bar: a select for one with choices (a list's takes several values, one per line, when `multi`;
- * `all` adds "All", which picks every choice), else a text box. Text reruns as typing stops, or at once on Enter. */
+/** A parameter's value as the collapsed bar and its picker show it. */
+function shownValue(param: WorkbookParameter, value: string): string {
+  const choices = (param.choices ?? []).filter((c) => c.trim() !== '');
+  if (param.type === 'list' && choices.length > 0) {
+    const picked = lines(value);
+    if (param.all && choices.every((c) => picked.includes(c))) {
+      return 'All';
+    }
+    if (param.multi) {
+      return picked.length > 0 ? picked.join(', ') : 'None';
+    }
+  }
+  return value === '' ? 'Any' : value;
+}
+
+/** Few short choices show as a row of buttons, the rest as a select. */
+const SEGMENT_MAX = 5;
+const SEGMENT_TEXT_MAX = 8;
+
+/** A workbook parameter's field in the bar, its label above its control: a list that takes several values picks them in a menu
+ * of checks (`all` adds "Select all"); a few short choices are a row of buttons; other choices a select; else a text box. Text
+ * reruns as typing stops, or at once on Enter. */
 function ParamControl({ tabId, param, value }: { tabId: string; param: WorkbookParameter; value: string }) {
   const set = (v: string, now = true) => useWorkbooks.getState().setWorkbookValue(tabId, param.name, v, { now });
   const label = param.label ?? param.name;
-  // Choices make a select for any type, as in a query tab; several values and All are a list's only.
+  // Choices make a picker for any type, as in a query tab; several values and All are a list's only.
   const choices = (param.choices ?? []).filter((c) => c.trim() !== '');
   const list = param.type === 'list';
   let control;
   if (choices.length > 0 && list && param.multi) {
+    const picked = lines(value);
+    const every = choices.every((c) => picked.includes(c));
     control = (
-      <select
-        multiple
-        className="textbox mono h-auto py-1"
-        aria-label={label}
-        value={value.split('\n')}
-        onChange={(e) => {
-          const picked = [...e.target.selectedOptions].map((o) => o.value);
-          set((picked.includes(ALL) ? choices : picked).join('\n'));
-        }}
-      >
-        {param.all && <option value={ALL}>All</option>}
+      <MenuButton label={label} text={shownValue(param, value)} field>
+        {param.all && (
+          <button type="button" role="menuitemcheckbox" aria-checked={every} tabIndex={-1} data-keep-open onClick={() => set(every ? '' : choices.join('\n'))}>
+            <Check on={every} />
+            Select all
+          </button>
+        )}
         {choices.map((c) => (
-          <option key={c} value={c}>
+          <button
+            key={c}
+            type="button"
+            role="menuitemcheckbox"
+            aria-checked={picked.includes(c)}
+            tabIndex={-1}
+            data-keep-open
+            // Kept in the choices' order, whatever order they were picked in.
+            onClick={() => set(choices.filter((x) => (x === c ? !picked.includes(c) : picked.includes(x))).join('\n'))}
+          >
+            <Check on={picked.includes(c)} />
             {c}
-          </option>
+          </button>
         ))}
-      </select>
+      </MenuButton>
     );
   } else if (choices.length > 0) {
     const all = choices.join('\n');
     const options = [...(list && param.all ? [{ value: all, text: 'All' }] : []), ...choices.map((c) => ({ value: c, text: c }))];
-    control = (
-      <select className="textbox mono" style={{ height: 28 }} aria-label={label} value={value} onChange={(e) => set(e.target.value)}>
-        {!options.some((o) => o.value === value) && <option value={value}>{value === '' ? '(none)' : value}</option>}
-        {options.map((o) => (
-          <option key={o.text} value={o.value}>
-            {o.text}
-          </option>
-        ))}
-      </select>
-    );
+    const known = options.some((o) => o.value === value);
+    if (known && options.length <= SEGMENT_MAX && options.every((o) => o.text.length <= SEGMENT_TEXT_MAX)) {
+      control = (
+        <div className="param-seg" role="radiogroup" aria-label={label}>
+          {options.map((o) => (
+            <button key={o.text} type="button" role="radio" aria-checked={o.value === value} onClick={() => set(o.value)}>
+              {o.text}
+            </button>
+          ))}
+        </div>
+      );
+    } else {
+      control = (
+        <select className="textbox mono" style={{ height: 28 }} aria-label={label} value={value} onChange={(e) => set(e.target.value)}>
+          {!known && <option value={value}>{value === '' ? '(none)' : value}</option>}
+          {options.map((o) => (
+            <option key={o.text} value={o.value}>
+              {o.text}
+            </option>
+          ))}
+        </select>
+      );
+    }
   } else if (list) {
     // One value per line, as a query tab's list takes them; Enter starts a new line, so it reruns as typing stops.
     control = (
@@ -99,15 +141,77 @@ function ParamControl({ tabId, param, value }: { tabId: string; param: WorkbookP
   // A hunting timespan that can't be sent says so here, where it's fixed, as well as on the widgets it stops.
   const problem = param.huntingTimespan ? huntingTimespanProblem(label, value) : null;
   return (
-    <label className="flex items-center gap-2 text-[12.5px]">
-      <span className="muted">{label}</span>
+    <div className="flex min-w-0 flex-col gap-1 text-[12.5px]">
+      <span className="muted flex items-center gap-1.5 text-[11.5px]" aria-hidden="true">
+        {value !== param.value && <span className="mod" title="Changed from the default" />}
+        {label}
+      </span>
       {control}
       {problem && (
         <span role="alert" className="text-[12px] text-bad">
           {problem}
         </span>
       )}
-    </label>
+    </div>
+  );
+}
+
+function Check({ on }: { on: boolean }) {
+  return (
+    <span className="param-check" data-on={on || undefined} aria-hidden="true">
+      {on ? '✓' : ''}
+    </span>
+  );
+}
+
+/** How many values the collapsed bar shows before "+N more". */
+const SUMMARY_MAX = 4;
+
+/** The workbook's parameters: a header that collapses them to a line of their values (view state, never in the doc), and Reset,
+ * which puts changed values back to their defaults. */
+function ParameterBar({ tabId, parameters, values, collapsed }: { tabId: string; parameters: WorkbookParameter[]; values: Record<string, string>; collapsed: boolean }) {
+  const store = useWorkbooks.getState();
+  const valueOf = (p: WorkbookParameter) => values[p.name] ?? p.value;
+  const changed = parameters.filter((p) => valueOf(p) !== p.value);
+  const toggle = () => store.setParamsCollapsed(tabId, !collapsed);
+  return (
+    <div className="param-bar border-b border-line" role="group" aria-label="Workbook parameters">
+      <div className="flex min-h-9 items-center gap-2 px-3">
+        <button type="button" className="btn ghost -ml-2 px-2" aria-expanded={!collapsed} onClick={toggle}>
+          <span aria-hidden="true" className="param-chev" data-collapsed={collapsed || undefined}>
+            ▾
+          </span>
+          Parameters
+          <span className="param-count">{parameters.length}</span>
+        </button>
+        {collapsed && (
+          <div className="param-summary flex min-w-0 flex-1 gap-1.5 overflow-hidden">
+            {parameters.slice(0, SUMMARY_MAX).map((p) => (
+              <button key={p.name} type="button" className="param-pill" data-changed={valueOf(p) !== p.value || undefined} onClick={toggle}>
+                <span className="muted">{p.label ?? p.name}:</span> {shownValue(p, valueOf(p))}
+              </button>
+            ))}
+          </div>
+        )}
+        {collapsed && parameters.length > SUMMARY_MAX && (
+          <button type="button" className="param-pill" onClick={toggle}>
+            +{parameters.length - SUMMARY_MAX} more
+          </button>
+        )}
+        {changed.length > 0 && (
+          <button type="button" className="btn ghost ml-auto" onClick={() => changed.forEach((p) => store.setWorkbookValue(tabId, p.name, p.value, { now: true }))}>
+            Reset
+          </button>
+        )}
+      </div>
+      {!collapsed && (
+        <div className="param-grid px-3 pb-3">
+          {parameters.map((p) => (
+            <ParamControl key={p.name} tabId={tabId} param={p} value={valueOf(p)} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -260,6 +364,7 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
     return <p className="faint m-0 p-4 text-[12px]">Opening the workbook…</p>;
   }
   const { doc, values, runs, editing } = state;
+  const paramsCollapsed = state.paramsCollapsed === true;
   const full = doc.widgets.length >= MAX_WIDGETS;
   const store = useWorkbooks.getState;
   const updatedAt = Math.max(0, ...Object.values(runs).map((r) => (r.state === 'done' || r.state === 'failed' ? (r.finishedAt ?? 0) : 0)));
@@ -551,13 +656,7 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
           <ErrorReportActions reportId={problem.reportId} uiSections={{ message: problem.text }} />
         </p>
       )}
-      {doc.parameters.length > 0 && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-3 py-2" role="group" aria-label="Workbook parameters">
-          {doc.parameters.map((p) => (
-            <ParamControl key={p.name} tabId={tabId} param={p} value={values.workbook[p.name] ?? p.value} />
-          ))}
-        </div>
-      )}
+      {doc.parameters.length > 0 && <ParameterBar tabId={tabId} parameters={doc.parameters} values={values.workbook} collapsed={paramsCollapsed} />}
       <SheetHost.Provider value={sheetHost}>
         <div className="wb-canvas min-h-0 flex-1 overflow-auto p-3">
           {doc.widgets.length === 0 && !editing ? (

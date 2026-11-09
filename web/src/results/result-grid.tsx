@@ -152,6 +152,7 @@ export function MenuButton({
   text,
   icon,
   primary = false,
+  field = false,
   children,
 }: {
   /** The menu's name, and the button's unless `text` is given. */
@@ -160,6 +161,8 @@ export function MenuButton({
   /** Shown on the button in place of `label`, which still names it. */
   icon?: ReactNode;
   primary?: boolean;
+  /** Looks like a form field (a workbook parameter's picker): the menu opens under its left edge. */
+  field?: boolean;
   /** The menu's items: buttons with a `menuitem…` role and `tabIndex={-1}`. */
   children: ReactNode;
 }) {
@@ -222,14 +225,15 @@ export function MenuButton({
       <button
         ref={trigger}
         type="button"
-        className={`whitespace-nowrap ${primary ? 'btn' : 'btn ghost'}`}
-        aria-label={text ? undefined : label}
+        className={field ? 'textbox param-pick' : `whitespace-nowrap ${primary ? 'btn' : 'btn ghost'}`}
+        aria-label={field || !text ? label : undefined}
+        title={field ? text : undefined}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
       >
-        {icon ?? text ?? label}
-        {primary && <span aria-hidden="true"> ▾</span>}
+        {field ? <span className="truncate">{text}</span> : (icon ?? text ?? label)}
+        {(primary || field) && <span aria-hidden="true"> ▾</span>}
       </button>
       {open && (
         <div
@@ -237,7 +241,7 @@ export function MenuButton({
           className="menu"
           role="menu"
           aria-label={label}
-          style={{ right: 0, top: 32, minWidth: 200, maxHeight: 360, overflowY: 'auto' }}
+          style={{ ...(field ? { left: 0 } : { right: 0 }), top: 32, minWidth: 200, maxHeight: 360, overflowY: 'auto' }}
           onKeyDown={onKey}
           onMouseDown={(e) => e.preventDefault()}
           onClick={(e) => {
