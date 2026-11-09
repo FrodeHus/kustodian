@@ -14,6 +14,9 @@ follow [Semantic Versioning](https://semver.org/).
   [docs/solutions.md](docs/solutions.md#solutions-that-ship-now).
 - **Pinned saved items**: pin a saved query or workbook from its row menu to keep it in a Pinned group at the top of the
   Saved panel, in the order you pinned them.
+- **Graph schema updates without a release**: at start, Kustodian checks the repository's `GraphSchema/` folder for a newer
+  Graph schema, checks it and downloads it, and the footer says to restart to use it. Settings has a **Graph schema** card
+  showing the schema in use, with **Refresh now**.
 
 ### Changed
 

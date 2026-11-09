@@ -43,12 +43,13 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: dotnet run --project tools/schema | tee "$RUNNER_TEMP/schema.txt"
 
-      # graph-permissions.json is rewritten on every run with the new source, so only a schema change counts.
+      # graph-permissions.json and manifest.json are rewritten on every run with the new source, so only a schema change counts.
+      # Once the pull request is merged, the app downloads GraphSchema/ from main on its next start (GraphSchemaUpdates).
       - name: Check for changes
         id: changes
         run: |
-          if git diff --quiet -- src/Kustodian.Graph/Schema/graph-beta.json; then
-            git checkout -- src/Kustodian.Graph/Schema
+          if git diff --quiet -- GraphSchema/graph-beta.json; then
+            git checkout -- GraphSchema
             echo "The Graph schema is unchanged." | tee -a "$GITHUB_STEP_SUMMARY"
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else

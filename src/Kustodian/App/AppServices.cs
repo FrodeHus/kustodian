@@ -55,7 +55,9 @@ public sealed class AppServices : IAsyncDisposable
     private readonly PinHandler _pins;
     private readonly ExternalToolService _tools;
     private readonly AllowedFilePaths _allowedFiles;
-    private readonly GraphSchema _schema = GraphSchemaCatalog.Beta;
+    private readonly ActiveGraphSchema _active;
+    private readonly GraphSchema _schema;
+    private readonly GraphSchemaUpdates _schemaUpdates;
     private readonly GraphTenantLicenses _licenses;
     private readonly SharedRunFindings _findings;
 
@@ -77,6 +79,9 @@ public sealed class AppServices : IAsyncDisposable
         _pins = new PinHandler(store);
         _tools = new ExternalToolService(store.Root);
         _allowedFiles = new AllowedFilePaths(_session, new StderrLogger<AllowedFilePaths>());
+        _active = GraphSchemaUpdates.Load(store.Root, new StderrLogger<GraphSchemaUpdates>());
+        _schema = _active.Schema;
+        _schemaUpdates = new GraphSchemaUpdates(_github, store.Root, _active, time, new StderrLogger<GraphSchemaUpdates>());
         Limits = SettingsService.ToGraphLimits(startup.Limits);
         Trail = new ErrorTrail(time);
         var telemetry = new AppInsightsTelemetry(_telemetry, AppInsightsTelemetry.ConnectionString, time, new StderrLogger<AppInsightsTelemetry>());
@@ -140,6 +145,7 @@ public sealed class AppServices : IAsyncDisposable
         new SettingsHandler(_settings, _startup.Limits, Trail).Register(bridge);
         new ErrorHandler(Reporter, Trail).Register(bridge);
         new SchemaHandler(_schema, _huntingSchema, ActiveAccountAsync, Probes, _licenses).Register(bridge);
+        new GraphSchemaUpdateHandler(_schemaUpdates).Register(bridge);
         new QueryHandler(_schema, ActiveAccountAsync, Sources(), _recent, _time, new StderrLogger<QueryHandler>(), Limits, _licenses,
             Reporter, Trail).Register(bridge);
         new LibraryHandler(_library, _recent).Register(bridge);
@@ -155,7 +161,8 @@ public sealed class AppServices : IAsyncDisposable
         new AccountHandler(_accounts, _tokenCache, Objects, Probes, _huntingSchema, _armDirectory, _licenses, Trail).Register(bridge);
         new RawHandler(new RawRequestService(_http, _time), ActiveAccountAsync).Register(bridge);
         new ArmHandler(_armDirectory, ActiveAccountAsync).Register(bridge);
-        new EntraAppHandler(new EntraAppClient(_http, _time), ActiveAccountInfoAsync, new SystemBrowser()).Register(bridge);
+        new EntraAppHandler(new EntraAppClient(_http, _time), ActiveAccountInfoAsync, new SystemBrowser(),
+            permissions: _active.Permissions, schema: _schema).Register(bridge);
     }
 
     /// <summary>The query sources by the name <c>query.run</c> gives them.</summary>

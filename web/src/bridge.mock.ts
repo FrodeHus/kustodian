@@ -664,6 +664,17 @@ export function createMockTransport(): Transport {
       case 'app.checkUpdate':
         reply(id, { current: '0.0.0-mock', latest: '0.0.0', available: false });
         break;
+      // Nothing newer until Settings asks again, so the restart notice can be seen in the mock.
+      case 'schema.graphStatus':
+      case 'schema.checkGraph':
+        reply(id, {
+          generatedAt: '2026-11-08T09:14:21Z',
+          source: 'msgraph-metadata@mock',
+          downloaded: false,
+          pending: method === 'schema.checkGraph' && (params as { force?: boolean } | undefined)?.force ? '2026-11-09T05:17:00Z' : null,
+          checkedAt: method === 'schema.checkGraph' ? new Date().toISOString() : null,
+        });
+        break;
       case 'app.print':
         reply(id, false);
         break;

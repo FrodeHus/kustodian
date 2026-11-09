@@ -469,6 +469,17 @@ export interface UpdateInfo {
   available: boolean;
 }
 
+/** `schema.graphStatus`'s and `schema.checkGraph`'s answer: the Graph schema in use (`downloaded`: the copy from the
+ * repository rather than the built-in one), a newer one downloaded since the start that is used after a restart (`pending`,
+ * its date), and when the repository was last asked (`checkedAt`). Dates are ISO 8601. */
+export interface GraphSchemaStatus {
+  generatedAt: string;
+  source: string;
+  downloaded: boolean;
+  pending: string | null;
+  checkedAt: string | null;
+}
+
 /** `settings.get`'s and `settings.set`'s answer. `corrupt`: the settings file was set aside as corrupt this session;
  * `unreadable`: it couldn't be read (or set aside) at all. Either way the defaults are in use. */
 export interface SettingsAnswer {

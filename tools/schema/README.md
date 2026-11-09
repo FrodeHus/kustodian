@@ -1,7 +1,8 @@
 # Schema tool
 
-Regenerates `src/Kustodian.Graph/Schema/graph-beta.json`, the Graph beta schema embedded in the app, and prints what changed.
-It also writes `graph-permissions.json` beside it (see Outputs).
+Regenerates `GraphSchema/graph-beta.json`, the Graph beta schema embedded in the app, and prints what changed.
+It also writes `graph-permissions.json` and `manifest.json` beside it (see Outputs). Once they are on main, the app downloads
+them on its next start, without a new release (`GraphSchemaUpdates`).
 
 ```
 dotnet run --project tools/schema -- [--metadata <path|url>] [--permissions <path|url>] [--out <path>] [--permissions-out <path>]
@@ -18,6 +19,10 @@ Exit codes: 0 ok, 2 usage, 3 an input could not be read or downloaded.
   and the table paths it can read (`GraphPermissionCatalog`). Permissions that read no table are left out. It is written on
   every run, even when the schema is unchanged, and the tool prints `Permissions: N`. The Create Entra ID application dialog
   offers these; write permissions are filtered out there, not here.
+- `manifest.json`: the format number (`GraphSchemaManifest.CurrentFormat`), the schema's `generatedAt` and both files' SHA-256
+  and size, written on every run when both files are in one folder under their usual names. The app downloads a schema only
+  when the format is one it reads and the date is newer than its own, so raise `CurrentFormat` when a change to
+  `GraphSchemaJson` or `GraphPermissionCatalog` would break older builds.
 
 ## Relationship columns
 

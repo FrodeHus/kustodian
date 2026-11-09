@@ -22,6 +22,7 @@ import { RunStatus } from './results/run-status';
 import { openRaw } from './raw/raw-request';
 import { RawTab } from './raw/raw-tab';
 import { schemaSourceOf, startSchemaLoading, useSchemas } from './schema/schema-store';
+import { useGraphSchemaUpdate } from './schema/graph-schema-update';
 import { startSessionSync } from './session/session-sync';
 import { SettingsView } from './settings/settings-view';
 import { ErrorReportsDialog } from './settings/error-reports';
@@ -78,7 +79,7 @@ function builtInReason(reason: string | null): string {
 }
 
 /** The status bar's schema text for the source (spec 8: the hunting footer says where the schema came from). */
-function schemaFooter(source: Source, view: SchemaView | undefined, resourceTypes: string[] | undefined): string | null {
+function schemaFooter(source: Source, view: SchemaView | undefined, resourceTypes: string[] | undefined, downloaded: boolean): string | null {
   if (source === 'arg') {
     return resourceTypes ? `Resource Graph tables · ${resourceTypes.length.toLocaleString('en-US')} resource types` : 'Resource Graph tables';
   }
@@ -95,7 +96,7 @@ function schemaFooter(source: Source, view: SchemaView | undefined, resourceType
     return refresh ? `${tenant} · ${refresh}` : tenant;
   }
   // The full source (metadata commit, permissions URL) is the span's tooltip; it's too long for the status bar.
-  return `Built-in Graph schema · ${formatDate(view.generatedAt)}`;
+  return `${downloaded ? 'Downloaded' : 'Built-in'} Graph schema · ${formatDate(view.generatedAt)}`;
 }
 
 /** What the status bar calls the active tab's language. */
@@ -240,6 +241,9 @@ export function App() {
   }, [setProblem]);
   // Offline or GitHub down: no dialog, and nothing to say about it.
   useEffect(() => void newerRelease().then(setUpdate, () => undefined), []);
+  // A newer Graph schema is downloaded now and used after a restart (the footer says so); offline, nothing is said.
+  useEffect(() => void useGraphSchemaUpdate.getState().check().catch(() => undefined), []);
+  const graphSchemaStatus = useGraphSchemaUpdate((s) => s.status);
 
   // The last session's tabs come back, or one empty Graph tab.
   useEffect(() => startSessionSync(setProblem, setLasting), [setProblem]);
@@ -564,7 +568,7 @@ export function App() {
     }
   };
   const footerSource = schemaSourceOf(active?.source ?? 'graph');
-  const footer = schemaFooter(footerSource, schemas[footerSource], resourceTypes);
+  const footer = schemaFooter(footerSource, schemas[footerSource], resourceTypes, graphSchemaStatus?.downloaded === true);
 
   return (
     <div className="flex h-full flex-col">
@@ -771,6 +775,11 @@ export function App() {
             {active && !raw && <CursorPosition tabId={active.id} />}
             <span>{LANGUAGE[active?.source ?? 'graph']}</span>
             {footer && <span title={footerSource === 'graph' ? schemas.graph?.source : undefined}>{footer}</span>}
+            {graphSchemaStatus?.pending && (
+              <span className="font-semibold text-warn" role="status">
+                Graph schema updated ({formatDate(graphSchemaStatus.pending)}). Restart Kustodian to use it.
+              </span>
+            )}
             <div className="grow" />
             <span title="Theme">{theme.theme === 'system' ? `System (${themeName(theme.resolved)})` : themeName(theme.theme)}</span>
           </footer>
