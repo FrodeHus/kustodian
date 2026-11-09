@@ -898,13 +898,16 @@ public sealed class GraphRunnerTests
         Assert.Contains("Off.", refused.ReadFailure?.Body, StringComparison.Ordinal);
     }
 
-    // Graph's list holds each method's own type; the derived columns are filled on that type's rows and empty on the others,
-    // and odataType comes from @odata.type.
+    // Graph doesn't list the method configurations: they are read from the policy, which holds each method's own type. The
+    // derived columns are filled on that type's rows and empty on the others, and odataType comes from @odata.type.
     [Fact]
     public async Task Run_over_mixed_derived_types_fills_each_rows_own_columns()
     {
         await using var h = NewHost();
-        h.Graph.Answer = (_, _) => Task.FromResult(FakeGraph.Collection([
+        h.Graph.Answer = (_, _) => Task.FromResult(FakeGraph.Json(HttpStatusCode.OK, new Dictionary<string, object?>
+        {
+            ["id"] = "authenticationMethodsPolicy",
+            ["authenticationMethodConfigurations"] = new object[] {
             new Dictionary<string, object?>
             {
                 ["@odata.type"] = "#microsoft.graph.fido2AuthenticationMethodConfiguration", ["id"] = "Fido2", ["state"] = "enabled",
@@ -917,7 +920,8 @@ public sealed class GraphRunnerTests
                 ["@odata.type"] = "#microsoft.graph.smsAuthenticationMethodConfiguration", ["id"] = "Sms", ["state"] = "disabled",
                 ["includeTargets"] = Array.Empty<object>(),
             },
-        ]));
+            },
+        }));
 
         var r = await h.RunAsync("policies_authenticationMethodsPolicy_authenticationMethodConfigurations"
             + " | project id, odataType, isAttestationEnforced, enforced = tobool(keyRestrictions.isEnforced),"
@@ -930,6 +934,13 @@ public sealed class GraphRunnerTests
         Assert.Equal(["True", null], Column(r, "isAttestationEnforced"));
         Assert.Equal(["True", null], Column(r, "enforced"));
         Assert.Equal(["all_users", ""], Column(r, "target"));
-        Assert.DoesNotContain(Assert.Single(r.Tables).Requests, q => q.Contains("$select", StringComparison.Ordinal));
+        Assert.Equal("/beta/policies/authenticationMethodsPolicy", Assert.Single(h.Graph.Requests));
+
+        // A where on the configurations runs locally: the policy takes no $filter.
+        var fido = await h.RunAsync("policies_authenticationMethodsPolicy_authenticationMethodConfigurations | where id == \"Fido2\""
+            + " | project id, state", ct: Ct);
+        Assert.Equal(RunOutcome.Ok, fido.Outcome);
+        Assert.Equal(["Fido2"], Column(fido, "id"));
+        Assert.All(h.Graph.Requests, q => Assert.Equal("/beta/policies/authenticationMethodsPolicy", q));
     }
 }

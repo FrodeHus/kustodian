@@ -528,6 +528,9 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
     private async Task<IReadOnlyList<string>?> DefaultColumnsAsync(string accountKey, GraphFetch fetch, bool refresh, GraphFetchLease lease,
         List<string> requests, RunDiagnostics? diagnostics, CancellationToken ct)
     {
+        // The parent sends every property of each object; there are no defaults to learn.
+        if (fetch.Table.Parent is not null)
+            return null;
         var path = fetch.Table.Path;
         var table = fetch.Table.Name;
         if (!refresh && await _probes.GetDefaultsAsync(accountKey, path, ct) is { } kept)
@@ -624,7 +627,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         var filter = Filter(clauses);
         if (fetch.Count is not null)
             return CountUrl(fetch.Table, filter);
-        return ListUrl(fetch.Table.Path, fetch.Select, filter, fetch.Table.Single ? null : Math.Min(fetch.Top ?? PageSize, PageSize), fetch.OrderBy,
+        return ListUrl(fetch.Table.Path, fetch.Select, filter, fetch.Table.ReadWhole ? null : Math.Min(fetch.Top ?? PageSize, PageSize), fetch.OrderBy,
             Advanced(fetch.Table, clauses, fetch.OrderBy));
     }
 
@@ -633,6 +636,9 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
     /// query mode.</summary>
     private static string ListUrl(string path, IReadOnlyList<string> select, string? filter, int? top, GraphOrderBy? orderBy, bool advanced)
     {
+        // The parent takes none of the collection's query options: it is read whole.
+        if (Schema.GraphTable.ReadFromParent.Contains(path))
+            return path[..path.LastIndexOf('/')];
         var query = (select.Count == 0 ? "" : "&$select=" + Uri.EscapeDataString(string.Join(",", select)))
             + (string.IsNullOrEmpty(filter) ? "" : "&$filter=" + Uri.EscapeDataString(filter))
             + (orderBy is null ? "" : "&$orderby=" + Uri.EscapeDataString(orderBy.OData))
@@ -660,7 +666,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
     {
         var (select, filter, limit) = (list.Select, list.Filter, list.Limit);
         // A single object is one GET: no $top, and its answer is the object itself.
-        var top = fetch.Table.Single ? null : PageTop(limit, list.TopMax);
+        var top = fetch.Table.ReadWhole ? null : PageTop(limit, list.TopMax);
         Uri? next = new(ListUrl(fetch.Table.Path, select, filter, top, list.OrderBy, list.Advanced), UriKind.Relative);
         for (var page = 0; next is not null; page++)
         {
@@ -724,6 +730,8 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
             var root = JsonNode.Parse(body) as JsonObject;
             if (fetch.Table.Single && root is not null)
                 objects.Add(root);
+            else if (fetch.Table.Parent is { } parent && root?[parent.Property] is JsonArray inline)
+                objects.AddRange(inline.OfType<JsonObject>());
             else if (root?["value"] is JsonArray value)
                 objects.AddRange(value.OfType<JsonObject>());
             if (limit is { } most && objects.Count >= most)
