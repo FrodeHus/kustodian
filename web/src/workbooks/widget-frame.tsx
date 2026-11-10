@@ -194,6 +194,7 @@ function runBody(
   widget: Widget,
   run: WidgetRun | undefined,
   onSignIn: () => void,
+  accountKey: string | undefined,
   onEdit?: (opener: HTMLElement) => void,
 ): ReactNode {
   const source = widget.query?.source ?? 'graph';
@@ -209,6 +210,7 @@ function runBody(
         kql: widget.query?.text,
       }}
       onSignIn={onSignIn}
+      accountKey={accountKey}
       onPickWorkspace={onEdit}
       onConsented={() => void useWorkbooks.getState().runWidget(tabId, widget.id)}
       onGranted={() => void useWorkbooks.getState().runWidget(tabId, widget.id)}
@@ -271,12 +273,15 @@ export function WidgetFrame({
   widget,
   children,
   onSignIn = () => undefined,
+  accountKey,
   editing,
 }: {
   tabId: string;
   widget: Widget;
   children: ReactNode;
   onSignIn?: () => void;
+  /** The active account, which the run's access buttons ask for. */
+  accountKey?: string | null;
   /** Set in edit mode: the grip, size, resize handles and Edit widget, Duplicate and Remove. */
   editing?: WidgetEditing;
 }) {
@@ -758,7 +763,7 @@ export function WidgetFrame({
           </div>
         )}
         <div className={`flex min-h-0 flex-1 flex-col overflow-hidden ${bare && widget.type !== 'tabs' ? 'pt-3' : ''}`}>
-          {(widget.query && runBody(tabId, widget, run, onSignIn, editing?.onEditWidget)) ?? (
+          {(widget.query && runBody(tabId, widget, run, onSignIn, accountKey ?? undefined, editing?.onEditWidget)) ?? (
             <HistoryData.Provider value={{ ...history, filter, setFilter }}>
               {full ? <SheetHost.Provider value={null}>{children}</SheetHost.Provider> : children}
             </HistoryData.Provider>

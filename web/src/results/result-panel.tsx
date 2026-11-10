@@ -2,7 +2,7 @@ import { Component, Suspense, lazy, useId, useRef, useState, type KeyboardEvent,
 import { errorText } from '../shell/errors';
 import { reportIdOf } from '../shell/report-id';
 import { useTabs } from '../tabs/tab-store';
-import type { RunResult, Source } from '../wire';
+import type { HighlightRule, RunResult, Source } from '../wire';
 import type { CellMatch } from './chart-shape';
 import type { Picked } from './chart-shape';
 import { CompareView } from './compare-view';
@@ -55,6 +55,10 @@ interface PanelProps {
   source?: Source;
   /** A smart filter item was chosen on a cell, in the grid or row details; without it neither offers one. */
   onFilter?: OnFilter;
+  /** The tab's highlight rules, for the Rows grid. */
+  highlights?: HighlightRule[];
+  /** The tab's highlight rules were changed; without it the grid offers none. */
+  onHighlightsChange?: (rules: HighlightRule[]) => void;
 }
 
 const NO_GROUPING: string[] = [];
@@ -64,7 +68,18 @@ const NO_GROUPING: string[] = [];
  * arrow keys, Home and End. The Rows tab's tools and Export sit in the tab bar; a row opened in the grid shows in the row
  * details sheet.
  */
-export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = false, source = 'graph', onFilter }: PanelProps) {
+export function ResultPanel({
+  tabId,
+  title,
+  kql,
+  result,
+  pinned,
+  dialogOpen = false,
+  source = 'graph',
+  onFilter,
+  highlights,
+  onHighlightsChange,
+}: PanelProps) {
   const [chosen, setChosen] = useState<ResultTab>('rows');
   const grouping = useTabs((s) => s.groupings[tabId]) ?? NO_GROUPING;
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
@@ -208,6 +223,8 @@ export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = fa
         <ResultGrid
           columns={result.columns}
           rows={result.rows}
+          highlights={highlights ?? undefined}
+          onHighlightsChange={onHighlightsChange}
           toolbar={active === 'rows' ? slot : null}
           onOpenRow={setDetails}
           inspected={details}

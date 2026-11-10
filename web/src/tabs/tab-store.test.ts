@@ -416,6 +416,41 @@ describe('tab store', () => {
     );
   });
 
+  it('setHighlights_stores_the_rules_and_marks_the_tab_changed', () => {
+    const rule = { id: 'h1', column: 'Count', op: '>' as const, value: '2', colour: 'danger' as const, target: 'row' as const };
+    const id = useTabs.getState().openWith({ source: 'graph', title: 'Q', text: 'users', savedId: 's1' });
+    useTabs.getState().setHighlights(id, [rule]);
+    expect(useTabs.getState().tabs[0]).toMatchObject({ dirty: true, highlights: [rule] });
+
+    const seeded = useTabs.getState().openWith({ source: 'graph', title: 'R', text: 'x', highlights: [rule] });
+    expect(useTabs.getState().tabs.find((t) => t.id === seeded)?.highlights).toEqual([rule]);
+  });
+
+  it('setHighlights_skips_raw_and_workbook_tabs_and_no_op_changes_and_clears_with_an_empty_list', () => {
+    const rule = { id: 'h1', column: 'Count', op: '>' as const, value: '2', colour: 'danger' as const, target: 'row' as const };
+    const raw = useTabs.getState().openWith({ source: 'raw', title: 'R', text: '/me' });
+    const wb = useTabs.getState().openWorkbook();
+    const q = useTabs.getState().openWith({ source: 'graph', title: 'Q', text: 'users' });
+    useTabs.getState().setHighlights(raw, [rule]);
+    useTabs.getState().setHighlights(wb, [rule]);
+    useTabs.getState().setHighlights(q, []);
+    const tab = (id: string) => useTabs.getState().tabs.find((t) => t.id === id);
+    expect(tab(raw)?.dirty).toBe(false);
+    expect(tab(raw)?.highlights).toBeUndefined();
+    expect(tab(wb)?.dirty).toBe(false);
+    expect(tab(wb)?.highlights).toBeUndefined();
+    expect(tab(q)?.dirty).toBe(false);
+    expect(tab(q)?.highlights).toBeUndefined();
+
+    useTabs.getState().setHighlights(q, [rule]);
+    useTabs.getState().markSaved(q, { title: 'Q', text: 'users' });
+    useTabs.getState().setHighlights(q, [{ ...rule }]);
+    expect(tab(q)?.dirty).toBe(false);
+    useTabs.getState().setHighlights(q, []);
+    expect(tab(q)?.dirty).toBe(true);
+    expect(tab(q)?.highlights).toBeUndefined();
+  });
+
   it('setOptions_marks_a_saved_tab_changed_and_rerun_sends_the_last_text_again', async () => {
     bridge.call.mockResolvedValue(ok);
     const saved = useTabs.getState().openWith({ source: 'arg', title: 'Saved', text: 'Resources\n\nResourceContainers', savedId: 's1' });

@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { HistoryRecordAnswer, HistoryRecordParams, QueryRunParams, RunResult, SavedQuery } from '../wire';
+import type { HighlightRule, HistoryRecordAnswer, HistoryRecordParams, QueryRunParams, RunResult, SavedQuery } from '../wire';
 import type { Widget, WidgetParam, WidgetQuery, WorkbookDoc, WorkbookParameter } from './model';
 import { newWidget, newWorkbook } from './model';
 import { useTabs } from '../tabs/tab-store';
-import { saveWorkbook, startWorkbookTabs, useWorkbooks, visibleTab } from './workbook-store';
+import { effectiveWidget, saveWorkbook, startWorkbookTabs, useWorkbooks, visibleTab, withLinkedCopies } from './workbook-store';
 
 const bridge = vi.hoisted(() => ({ call: vi.fn() }));
 
@@ -490,6 +490,30 @@ describe('workbook store', () => {
 
     useTabs.getState().close(id);
     stop();
+  });
+
+  it('linked copies take the saved query’s highlight rules; none leaves no highlights key, inline or linked', async () => {
+    const rule: HighlightRule = { id: 'r1', column: 'state', op: '==', value: 'FAIL', colour: 'danger', target: 'row' };
+    library = [
+      { ...saved('q1', 'T1'), highlights: [rule] },
+      { ...saved('q2', 'T2'), highlights: null },
+    ];
+    const doc = docOf(
+      [],
+      [
+        widget('a', 'old', { saved: { id: 'q1', name: 'q1' } }),
+        widget('b', 'old', { saved: { id: 'q2', name: 'q2' }, highlights: [rule] }),
+        widget('c', 'inline'),
+      ],
+    );
+    const { widgets } = await withLinkedCopies(doc);
+    expect(widgets[0]?.query?.highlights).toEqual([rule]);
+    expect(widgets.slice(1).map((w) => 'highlights' in w.query!)).toEqual([false, false]);
+
+    void useWorkbooks.getState().load('t', doc);
+    await flush();
+    expect(effectiveWidget('t', doc.widgets[0]!)?.query?.highlights).toEqual([rule]);
+    expect('highlights' in effectiveWidget('t', doc.widgets[1]!)!.query!).toBe(false);
   });
 
   it('a damaged workbook from the session is repaired; one that cannot be read is said once and not tried again', async () => {

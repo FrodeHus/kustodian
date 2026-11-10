@@ -11,7 +11,7 @@ namespace Kustodian.Solutions;
 public static class SolutionHash
 {
     private static readonly string[] WorkbookIgnored = ["id", "name", "folder", "modifiedAt", "createdAt", "origin"];
-    private static readonly string[] LinkedCopyFields = ["text", "source", "parameters", "options"];
+    private static readonly string[] LinkedCopyFields = ["text", "source", "parameters", "options", "highlights"];
 
     /// <summary>Lowercase hex SHA-256.</summary>
     public static string Sha256(ReadOnlySpan<byte> data) => Convert.ToHexStringLower(SHA256.HashData(data));
@@ -58,17 +58,24 @@ public static class SolutionHash
 
     private static string OfCanonical(JsonNode? node) => Sha256(Encoding.UTF8.GetBytes(Canonical(node)));
 
-    /// <summary>Hash of a query's content fields: source, text, parameters and options.</summary>
+    /// <summary>Hash of a query's content fields: source, text, parameters, options, and highlights when it has any (so a
+    /// query without them hashes as it did before they existed).</summary>
     public static string Query(SavedQueryInput q)
     {
         var json = JsonSerializer.SerializeToNode(q, JsonFileStore.Options)!.AsObject();
-        return OfCanonical(new JsonObject
+        var content = new JsonObject
         {
             ["source"] = json["source"]?.DeepClone(),
             ["text"] = json["text"]?.DeepClone(),
             ["parameters"] = json["parameters"]?.DeepClone(),
             ["options"] = json["options"]?.DeepClone(),
-        });
+        };
+        if (q.Highlights is { Count: > 0 })
+        {
+            content["highlights"] = json["highlights"]!.DeepClone();
+        }
+
+        return OfCanonical(content);
     }
 
     /// <summary>Hash of a workbook without its identity, timestamps, origin, and the copies and names of the queries it links.</summary>

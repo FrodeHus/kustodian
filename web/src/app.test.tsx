@@ -574,6 +574,7 @@ describe('App', () => {
           text: 'applications | take 5',
           parameters: [],
           options: null,
+          highlights: null,
         },
       }),
     );

@@ -77,6 +77,7 @@ export function TabsWidget({
   editing,
   body,
   onSignIn,
+  accountKey,
   printing,
 }: {
   tabId: string;
@@ -84,6 +85,7 @@ export function TabsWidget({
   editing: GridEditing | undefined;
   body: (w: Widget) => ReactNode;
   onSignIn?: () => void;
+  accountKey?: string | null;
   /** Print or save as PDF is under way: every tab is rendered for print, each under its name. */
   printing?: boolean;
 }) {
@@ -269,7 +271,14 @@ export function TabsWidget({
               {childrenOf(state.doc.widgets, widget.id, t.id).length === 0 ? (
                 <p className="faint m-0 text-[12px]">No widgets on this tab</p>
               ) : (
-                <WidgetGrid tabId={tabId} place={{ tabs: widget.id, tab: t.id }} editing={undefined} body={body} onSignIn={onSignIn} />
+                <WidgetGrid
+                  tabId={tabId}
+                  place={{ tabs: widget.id, tab: t.id }}
+                  editing={undefined}
+                  body={body}
+                  onSignIn={onSignIn}
+                  accountKey={accountKey}
+                />
               )}
             </section>
           ))}
@@ -393,7 +402,14 @@ export function TabsWidget({
       >
         {empty && <p className="faint m-0 pb-2 text-[12px]">{editing ? 'Drag a widget here or use Move to…' : 'No widgets on this tab'}</p>}
         {shown !== undefined && (!empty || editing) && (
-          <WidgetGrid tabId={tabId} place={{ tabs: widget.id, tab: shown }} editing={editing} body={body} onSignIn={onSignIn} />
+          <WidgetGrid
+            tabId={tabId}
+            place={{ tabs: widget.id, tab: shown }}
+            editing={editing}
+            body={body}
+            onSignIn={onSignIn}
+            accountKey={accountKey}
+          />
         )}
       </div>
       {deleting && (

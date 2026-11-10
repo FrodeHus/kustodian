@@ -14,11 +14,22 @@ import { SourceBadge } from '../tabs/source-badge';
 import { useTabs } from '../tabs/tab-store';
 import type { LibraryList, SavedQuery } from '../wire';
 import { narrowOrder, place } from './layout';
-import { MAX_WIDGETS, MIN_SIZE, newWidget, type Place, type Widget, type WidgetType, type WorkbookParameter } from './model';
+import {
+  MAX_WIDGETS,
+  MIN_SIZE,
+  newWidget,
+  withHighlights,
+  type Place,
+  type Widget,
+  type WidgetType,
+  type WorkbookParameter,
+} from './model';
 import { huntingTimespanProblem, workbookValues } from './resolve';
 import { ParametersDialog } from './parameters-dialog';
 import { childrenOf, moveTo, placeKey, placeOf, removeTabs, siblings } from './tabs';
 import { ChildrenConfirm, TabsWidget } from './tabs-widget';
+import { AccessButton } from './access-button';
+import { accessFixes } from './access-fixes';
 import { WidgetEditor } from './widget-editor';
 import { WidgetGrid, type GridEditing } from './widget-grid';
 import { ChartWidget } from './widgets/chart-widget';
@@ -412,6 +423,7 @@ export function WorkbookView({ tabId, onSignIn, accountKey }: { tabId: string; o
   const paramsCollapsed = state.paramsCollapsed === true;
   const full = doc.widgets.length >= MAX_WIDGETS;
   const store = useWorkbooks.getState;
+  const fixes = accessFixes(doc.widgets, runs);
   const updatedAt = Math.max(0, ...Object.values(runs).map((r) => (r.state === 'done' || r.state === 'failed' ? (r.finishedAt ?? 0) : 0)));
 
   const remove = () => {
@@ -456,13 +468,10 @@ export function WorkbookView({ tabId, onSignIn, accountKey }: { tabId: string; o
     }
     const widget = placed('table');
     widget.title = q.name;
-    widget.query = {
-      source: q.source,
-      text: q.text,
-      options: q.options ?? null,
-      parameters: q.parameters,
-      saved: { id: q.id, name: q.name },
-    };
+    widget.query = withHighlights(
+      { source: q.source, text: q.text, options: q.options ?? null, parameters: q.parameters, saved: { id: q.id, name: q.name } },
+      q.highlights,
+    );
     add(widget, q.name);
   };
   const startEditing = () => {
@@ -575,7 +584,17 @@ export function WorkbookView({ tabId, onSignIn, accountKey }: { tabId: string; o
       case 'stat':
         return <StatWidget widget={w} run={run} tabId={tabId} />;
       case 'tabs':
-        return <TabsWidget tabId={tabId} widget={w} editing={gridEditing} body={body} onSignIn={onSignIn} printing={printing} />;
+        return (
+          <TabsWidget
+            tabId={tabId}
+            widget={w}
+            editing={gridEditing}
+            body={body}
+            onSignIn={onSignIn}
+            accountKey={accountKey}
+            printing={printing}
+          />
+        );
     }
   };
   const gridEditing: GridEditing | undefined = editing
@@ -634,6 +653,7 @@ export function WorkbookView({ tabId, onSignIn, accountKey }: { tabId: string; o
           {doc.folder && <span className="muted text-[12px]">{doc.folder}</span>}
           {updatedAt > 0 && <Updated key={updatedAt} at={updatedAt} />}
           <div className="grow" />
+          <AccessButton accountKey={accountKey} fixes={fixes} onDone={() => void store().runAll(tabId, { refresh: true })} />
           <button type="button" className="btn" onClick={() => void store().runAll(tabId, { refresh: true })}>
             Refresh all
           </button>
@@ -769,7 +789,7 @@ export function WorkbookView({ tabId, onSignIn, accountKey }: { tabId: string; o
             {doc.widgets.length === 0 && !editing ? (
               <p className="faint m-0 text-[12px]">No widgets yet. Edit the workbook to add some.</p>
             ) : (
-              <WidgetGrid tabId={tabId} place={null} editing={gridEditing} body={body} onSignIn={onSignIn} />
+              <WidgetGrid tabId={tabId} place={null} editing={gridEditing} body={body} onSignIn={onSignIn} accountKey={accountKey} />
             )}
           </div>
         </SheetHost.Provider>

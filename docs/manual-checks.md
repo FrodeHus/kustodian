@@ -310,6 +310,24 @@ property's **Filter…** button. The grid focuses rows, not cells, so it has no 
 | Right-click a group row, Filter by: the query gets the `\| where` line and reruns | - | - | - |
 | Once in a light theme, once in a dark one | - | - | - |
 
+### Highlight rules (2026-11-10)
+
+| Check | macOS | Windows | Linux |
+| --- | --- | --- | --- |
+| Right-click a value, Highlight rows where the column `==` the value…: the popover is prefilled, Add colours the matching rows | - | - | - |
+| Right-click an empty cell: the item reads `is empty…` and colours rows with an empty value | - | - | - |
+| A threshold cell rule (for example `days > 90`, Cell): only that column's matching cells are coloured | - | - | - |
+| Save the query to the library, restart Kustodian and reopen it: the rules come back; a tab with changed rules shows as unsaved | - | - | - |
+| Save to a `.kql` file and reopen: the rules are not kept | - | - | - |
+| The `Highlight · n` chip sits under the result bar beside `Grouped by` and opens the rule list | - | - | - |
+| Rule list: edit colour, column, operator, value and row/cell; Move up/down and Alt+Up/Down reorder; Remove; + Add rule (stops at 20) | - | - | - |
+| Rerun without a rule's column: the rule stays and says `Not in this result` | - | - | - |
+| Each light theme (GitHub Light, One Light, Catppuccin Latte, Solarized Light) and a dark one: coloured rows and cells stay readable | - | - | - |
+| A selected row and an inspected row that are highlighted still look selected | - | - | - |
+| A Table widget applies its query's rules; linked to a saved query it follows that query's rules and its Highlight tab is read-only | - | - | - |
+| Export a workbook and import it: the widget's rules are kept | - | - | - |
+| In the real app (WKWebView), choosing a column suggestion in the rule list's column field doesn't close the list | - | - | - |
+
 ### Heatmap (2026-11-10)
 
 Checked by the builder in Chromium (Playwright) against the Vite dev server with the mock bridge (`web/src/bridge.mock.ts`), on

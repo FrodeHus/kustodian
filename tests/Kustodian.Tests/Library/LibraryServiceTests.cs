@@ -279,4 +279,71 @@ public sealed class LibraryServiceTests : IDisposable
         Assert.Empty(listed.Folders);
         Assert.Equal(0, listed.Skipped);
     }
+
+    private static HighlightRule Rule(string id = "r1", string column = "risk", string op = "==", string value = "high",
+        string colour = "danger", string target = "row") => new(id, column, op, value, colour, target);
+
+    [Fact]
+    public async Task Highlights_round_trip()
+    {
+        HighlightRule[] rules = [Rule(), Rule("r2", "name", "isempty", "", "info", "cell")];
+        var saved = await NewService().SaveAsync(Input() with { Highlights = rules }, Ct);
+
+        var listed = Assert.Single((await NewService().ListAsync(Ct)).Queries);
+
+        Assert.Equal(rules, saved.Highlights);
+        Assert.Equal(rules, listed.Highlights);
+    }
+
+    [Fact]
+    public async Task Old_files_without_highlights_load_with_none_and_save_back_without_an_array()
+    {
+        const string id = "33333333-3333-3333-3333-333333333333";
+        Directory.CreateDirectory(SavedDir);
+        var path = Path.Combine(SavedDir, id + ".json");
+        await File.WriteAllTextAsync(path,
+            $$"""{"version":1,"id":"{{id}}","name":"Old","folder":null,"source":"graph","text":"users","parameters":[],"createdAt":"2026-10-01T00:00:00Z","modifiedAt":"2026-10-01T00:00:00Z"}""",
+            Ct);
+
+        var old = Assert.Single((await NewService().ListAsync(Ct)).Queries);
+        Assert.Null(old.Highlights);
+        await NewService().SaveAsync(new SavedQueryInput(old.Id, old.Name, old.Folder, old.Source, old.Text, old.Parameters, old.Options, old.Highlights), Ct);
+
+        var written = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(path, Ct))!.AsObject();
+        Assert.True(!written.ContainsKey("highlights") || written["highlights"] is null);
+    }
+
+    public static TheoryData<string, HighlightRule?[]> BadHighlights => new()
+    {
+        { "op", [Rule(op: "like")] },
+        { "colour", [Rule(colour: "red")] },
+        { "target", [Rule(target: "column")] },
+        { "count", Enumerable.Range(0, 21).Select(i => (HighlightRule?)Rule("r" + i)).ToArray() },
+        { "column", [Rule(column: " ")] },
+        { "value", [Rule(value: new string('v', 1001))] },
+        { "null item", [null] },
+        { "null value", [Rule() with { Value = null! }] },
+        { "null id", [Rule() with { Id = null! }] },
+    };
+
+    [Theory]
+    [MemberData(nameof(BadHighlights))]
+    public async Task Bad_highlights_are_refused(string why, HighlightRule?[] rules)
+    {
+        var ex = await Assert.ThrowsAsync<LibraryRejectedException>(
+            () => NewService().SaveAsync(Input() with { Highlights = rules! }, Ct));
+
+        Assert.StartsWith("The highlight rules", ex.Message, StringComparison.Ordinal);
+        Assert.False(Directory.Exists(SavedDir), why);
+    }
+
+    [Fact]
+    public async Task Twenty_highlights_and_a_value_of_1000_characters_are_allowed()
+    {
+        var rules = Enumerable.Range(0, 20).Select(i => Rule("r" + i, value: new string('v', 1000))).ToList();
+
+        var saved = await NewService().SaveAsync(Input() with { Highlights = rules }, Ct);
+
+        Assert.Equal(20, saved.Highlights?.Count);
+    }
 }

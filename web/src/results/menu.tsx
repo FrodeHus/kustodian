@@ -11,7 +11,7 @@ import {
 } from 'react';
 import type { ResultColumn } from '../wire';
 import { keepInside } from './keep-inside';
-import { filterOps, shownValue, type FilterOp } from './smart-filter';
+import { filterOps, quotedValue, type FilterOp } from './smart-filter';
 
 /**
  * A menu: focus starts on the first item; the arrow keys, Home and End move between items. Choosing an item (unless it has
@@ -182,8 +182,7 @@ export type OnFilter = (column: ResultColumn, value: unknown, op: FilterOp) => v
 
 /** The smart filter's menu items for a cell (none when it offers nothing): a string's value in quotes. */
 export function FilterItems({ column, value, onFilter }: { column: ResultColumn; value: unknown; onFilter: OnFilter }) {
-  const quoted = (column.type === 'string' || column.type === 'dynamic') && value !== null && value !== undefined && value !== '';
-  const shown = quoted ? `"${shownValue(value)}"` : shownValue(value);
+  const shown = quotedValue(column, value);
   return filterOps(column, value).map((op) => (
     <button key={op} type="button" role="menuitem" tabIndex={-1} className="whitespace-nowrap" onClick={() => onFilter(column, value, op)}>
       {FILTER_VERB[op]} {shown}

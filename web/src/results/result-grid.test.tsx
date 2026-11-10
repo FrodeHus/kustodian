@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { HighlightRule } from '../wire';
 import { ResultGrid } from './result-grid';
 
 const columns = [
@@ -689,5 +690,191 @@ describe('ResultGrid', () => {
       fireEvent.click(screen.getByRole('menuitem', { name: 'Cells as CSV' }));
       expect(writeText).toHaveBeenLastCalledWith(['x,p,1,a', 'x,q,2,a', 'x,q,5,a', 'z,p,4,a', 'z,p,6,a', 'y,p,3,a'].join('\r\n'));
     });
+  });
+});
+
+describe('ResultGrid highlights', () => {
+  const cols = [
+    { name: 'state', type: 'string' },
+    { name: 'days', type: 'long' },
+  ];
+  const data = [
+    ['FAIL', 100],
+    ['OK', 10],
+    ['FAIL', 5],
+  ];
+  const rule = (r: Partial<HighlightRule>): HighlightRule => ({
+    id: 'r',
+    column: 'state',
+    op: '==',
+    value: 'FAIL',
+    colour: 'danger',
+    target: 'row',
+    ...r,
+  });
+  const marks = (c: HTMLElement) => bodyRows(c).map((tr) => tr.getAttribute('data-highlight'));
+
+  it('marks the rows a row rule matches', () => {
+    const { container } = render(<ResultGrid columns={cols} rows={data} highlights={[rule({})]} />);
+    expect(marks(container)).toEqual(['danger', null, 'danger']);
+  });
+
+  it('marks only the matching cell for a cell rule', () => {
+    const { container } = render(
+      <ResultGrid
+        columns={cols}
+        rows={data}
+        highlights={[rule({ column: 'days', op: '>', value: '90', colour: 'warning', target: 'cell' })]}
+      />,
+    );
+    expect(marks(container)).toEqual([null, null, null]);
+    expect([...container.querySelectorAll('tbody td[data-highlight]')].map((td) => td.getAttribute('data-highlight'))).toEqual(['warning']);
+    expect(container.querySelector('tbody td[data-highlight]')?.textContent).toBe('100 (warning)');
+  });
+
+  it('shows a cell and a row rule together', () => {
+    const { container } = render(
+      <ResultGrid
+        columns={cols}
+        rows={data}
+        highlights={[rule({}), rule({ id: 'c', column: 'days', op: '>', value: '90', colour: 'warning', target: 'cell' })]}
+      />,
+    );
+    expect(marks(container)[0]).toBe('danger');
+    expect(bodyRows(container)[0]!.querySelector('td[data-highlight="warning"]')).not.toBeNull();
+  });
+
+  it('names the colour to screen readers in a highlighted row’s first cell and in each highlighted cell', () => {
+    const { container } = render(
+      <ResultGrid
+        columns={cols}
+        rows={data}
+        highlights={[rule({}), rule({ id: 'c', column: 'days', op: '>', value: '90', colour: 'warning', target: 'cell' })]}
+      />,
+    );
+    const notes = (tr: HTMLElement) => [...tr.querySelectorAll('.sr-only')].map((s) => s.textContent).filter((t) => t?.startsWith(' ('));
+    const [first, second, third] = bodyRows(container);
+    expect(notes(first!)).toEqual([' (danger)', ' (warning)']);
+    expect(first!.querySelector('td[data-highlight="warning"] .sr-only')?.textContent).toBe(' (warning)');
+    expect(notes(second!)).toEqual([]);
+    expect(notes(third!)).toEqual([' (danger)']);
+  });
+
+  it('puts no attributes on a grid without rules', () => {
+    const { container } = render(<ResultGrid columns={cols} rows={data} />);
+    expect(container.querySelector('[data-highlight]')).toBeNull();
+  });
+
+  it('follows sorting and the row filter, and never marks group rows', () => {
+    const { container } = render(<ResultGrid columns={cols} rows={data} highlights={[rule({})]} />);
+    fireEvent.click(screen.getByRole('button', { name: /^days/ }));
+    expect(marks(container)).toEqual(['danger', null, 'danger']);
+    expect(bodyRows(container).map((tr) => tr.textContent)).toEqual(
+      ['FAIL (danger)5', 'OK10', 'FAIL (danger)100'].map((t) => expect.stringContaining(t)),
+    );
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Filter rows' }), { target: { value: 'OK' } });
+    expect(marks(container)).toEqual([null]);
+  });
+
+  it('marks leaf rows of a grouped grid and not the group rows', () => {
+    const { container } = render(
+      <ResultGrid columns={cols} rows={data} highlights={[rule({})]} grouping={['state']} onGroupingChange={() => {}} />,
+    );
+    expect(container.querySelectorAll('tbody tr:not([data-index])[data-highlight]')).toHaveLength(0);
+  });
+});
+
+describe('ResultGrid highlight rules', () => {
+  const cols = [
+    { name: 'state', type: 'string' },
+    { name: 'days', type: 'long' },
+  ];
+  const rows = [['FAIL', 3]];
+  const fail: HighlightRule = { id: 'h1', column: 'state', op: '==', value: 'FAIL', colour: 'danger', target: 'row' };
+
+  it('the cell menu offers Highlight rows where … only with onHighlightsChange; choosing it opens the popover', () => {
+    const { rerender } = render(<ResultGrid columns={cols} rows={rows} onFilter={vi.fn()} />);
+    fireEvent.contextMenu(screen.getByText('FAIL'));
+    expect(screen.queryByRole('menuitem', { name: /^Highlight/ })).toBeNull();
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+
+    const onHighlightsChange = vi.fn();
+    rerender(<ResultGrid columns={cols} rows={rows} onFilter={vi.fn()} onHighlightsChange={onHighlightsChange} />);
+    fireEvent.contextMenu(screen.getByText('FAIL'));
+    expect(screen.getByRole('menu', { name: 'state cell' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Highlight rows where state == "FAIL"…' }));
+    expect(screen.queryByRole('menu')).toBeNull();
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Highlight rows where state == "FAIL"' })).getByRole('button', { name: 'Add' }),
+    );
+    expect(onHighlightsChange).toHaveBeenCalledWith([expect.objectContaining({ column: 'state', op: '==', value: 'FAIL' })]);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('an empty cell offers Highlight rows where <column> is empty…, with only highlight items and a neutral label', () => {
+    const onHighlightsChange = vi.fn();
+    const { container } = render(<ResultGrid columns={cols} rows={[[null, 3]]} onHighlightsChange={onHighlightsChange} />);
+    fireEvent.contextMenu(container.querySelector('tbody tr[data-index] td:nth-child(2)')!);
+    const menu = screen.getByRole('menu', { name: 'state cell' });
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((b) => b.textContent),
+    ).toEqual(['Highlight rows where state is empty…', 'Highlight rules…']);
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Highlight rows where state is empty…' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Highlight rows where state is empty' })).getByRole('button', { name: 'Add' }),
+    );
+    expect(onHighlightsChange).toHaveBeenCalledWith([expect.objectContaining({ column: 'state', op: 'isempty', value: '' })]);
+  });
+
+  it('disables Highlight rows where … for a value over 1,000 characters', () => {
+    const long = 'x'.repeat(1001);
+    const { container } = render(
+      <ResultGrid
+        columns={cols}
+        rows={[
+          [long, 3],
+          ['x'.repeat(1000), 4],
+        ]}
+        onHighlightsChange={vi.fn()}
+      />,
+    );
+    const cells = container.querySelectorAll('tbody tr[data-index] td:nth-child(2)');
+    fireEvent.contextMenu(cells[0]!);
+    const item = screen.getByRole('menuitem', { name: /^Highlight rows where/ });
+    expect(item).toHaveProperty('disabled', true);
+    expect(item.getAttribute('title')).toBe('Value too long to highlight');
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    fireEvent.contextMenu(cells[1]!);
+    expect(screen.getByRole('menuitem', { name: /^Highlight rows where/ })).toHaveProperty('disabled', false);
+  });
+
+  it('opens the rule list from the cell menu and the column menu with no rules, and from the chip with some', () => {
+    const onHighlightsChange = vi.fn();
+    const { rerender } = render(<ResultGrid columns={cols} rows={rows} statistics onHighlightsChange={onHighlightsChange} />);
+    expect(screen.queryByRole('button', { name: /^Highlight ·/ })).toBeNull();
+
+    fireEvent.contextMenu(screen.getByText('FAIL'));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Highlight rules…' }));
+    expect(screen.getByRole('dialog', { name: 'Highlight rules' })).toBeTruthy();
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    const menuButton = screen.getByRole('button', { name: 'state column menu' });
+    fireEvent.click(menuButton);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Highlight rules…' }));
+    const list = screen.getByRole('dialog', { name: 'Highlight rules' });
+    fireEvent.click(within(list).getByRole('button', { name: '+ Add rule' }));
+    expect(onHighlightsChange).toHaveBeenCalledWith([expect.objectContaining({ column: 'state', op: '==', value: '' })]);
+    fireEvent.keyDown(list, { key: 'Escape' });
+    expect(document.activeElement).toBe(menuButton);
+
+    rerender(<ResultGrid columns={cols} rows={rows} statistics highlights={[fail]} onHighlightsChange={onHighlightsChange} />);
+    const chip = screen.getByRole('button', { name: 'Highlight · 1' });
+    fireEvent.click(chip);
+    expect(within(screen.getByRole('dialog', { name: 'Highlight rules' })).getByRole('group', { name: 'Rule 1' })).toBeTruthy();
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(document.activeElement).toBe(chip);
   });
 });
