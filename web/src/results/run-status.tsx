@@ -254,7 +254,7 @@ export function RunStatus({
       <>
         {result.outcome === 'workspaceUnavailable' && <span className="chip bad shrink-0">Not run</span>}
         {result.outcome !== 'ok' && (
-          <span className="flex min-w-0 items-center gap-2 text-bad" role="alert">
+          <span className="flex min-w-0 flex-wrap items-center gap-2 text-bad" role="alert">
             <span className="min-w-0 wrap-anywhere">{result.message ?? 'The query failed.'}</span>
             <ErrorReportActions
               reportId={result.reportId}
@@ -305,7 +305,7 @@ export function RunStatus({
   }
 
   return (
-    <div className="flex min-h-[41px] items-center gap-2 overflow-x-auto border-b border-line px-3 py-2">
+    <div className="flex min-h-[41px] flex-wrap items-center gap-2 border-b border-line px-3 py-2">
       {content}
       <div className="grow" />
       {meta && <span className="mono faint shrink-0 text-[11.5px]">{meta}</span>}
