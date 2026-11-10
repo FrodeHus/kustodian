@@ -59,6 +59,7 @@ export function ColumnStatsPopover({
     if (!at || !el || !parent) {
       return;
     }
+    el.style.maxHeight = `${parent.clientHeight}px`;
     el.style.left = `${Math.max(0, Math.min(at.x, parent.clientWidth - el.offsetWidth))}px`;
     el.style.top = `${Math.max(0, Math.min(at.y, parent.clientHeight - el.offsetHeight))}px`;
   });
@@ -81,7 +82,7 @@ export function ColumnStatsPopover({
       role="dialog"
       aria-label={`${column.name} statistics`}
       tabIndex={-1}
-      className="menu w-[320px] max-w-full gap-2 p-3 text-[12px] outline-none"
+      className="menu w-[320px] max-w-full gap-2 p-3 text-[12px] overflow-y-auto outline-none"
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
           e.stopPropagation();
@@ -106,14 +107,14 @@ export function ColumnStatsPopover({
             <>
               <b className="faint">Top values</b>
               <ul className="m-0 flex list-none flex-col gap-1 p-0">
-                {stats.top.map((t) => (
+                {stats.top.map((t, i) => (
                   <li key={JSON.stringify(t.value)} className="flex flex-col gap-0.5">
                     <div className="flex items-center gap-2">
                       <span className="mono min-w-0 flex-1 truncate">{shownValue(t.value)}</span>
                       <span className="mono">{count(t.count)}</span>
                       <span className="faint w-11 text-right">{percent(t.share)}</span>
                       {onFilter && (
-                        <MenuButton label={`Filter on ${shownValue(t.value)}`} text="Filter…">
+                        <MenuButton label={`Filter on ${shownValue(t.value)}`} icon="Filter…" above={i >= stats.top.length / 2}>
                           <FilterItems column={column} value={t.value} onFilter={onFilter} />
                         </MenuButton>
                       )}

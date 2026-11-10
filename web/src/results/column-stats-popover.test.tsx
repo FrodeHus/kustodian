@@ -20,7 +20,7 @@ describe('ColumnStatsPopover', () => {
     const a = within(dialog).getByText('a').closest('li')!;
     expect(within(a).getByText('2')).toBeTruthy();
     expect(within(a).getByText('50%')).toBeTruthy();
-    expect(within(dialog).queryByRole('button', { name: 'Filter…' })).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: 'Filter on a' })).toBeNull();
   });
 
   it('shows_min_max_and_average_for_numbers', () => {
@@ -36,7 +36,7 @@ describe('ColumnStatsPopover', () => {
     render(<ColumnStatsPopover column={column} values={values} onFilter={onFilter} onClose={vi.fn()} />);
     const a = within(screen.getByRole('dialog')).getByText('a').closest('li')!;
 
-    fireEvent.click(within(a).getByRole('button', { name: 'Filter…' }));
+    fireEvent.click(within(a).getByRole('button', { name: 'Filter on a' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Filter by "a"' }));
     expect(onFilter).toHaveBeenCalledWith(column, 'a', 'eq');
   });
@@ -46,7 +46,7 @@ describe('ColumnStatsPopover', () => {
     render(<ColumnStatsPopover column={column} values={values} onFilter={vi.fn()} onClose={onClose} />);
     const a = within(screen.getByRole('dialog')).getByText('a').closest('li')!;
 
-    fireEvent.click(within(a).getByRole('button', { name: 'Filter…' }));
+    fireEvent.click(within(a).getByRole('button', { name: 'Filter on a' }));
     fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Filter by "a"' }), { key: 'Escape' });
     expect(screen.queryByRole('menu')).toBeNull();
     expect(onClose).not.toHaveBeenCalled();
@@ -70,5 +70,16 @@ describe('ColumnStatsPopover', () => {
     expect(within(dialog).getByText('Counting…')).toBeTruthy();
     expect(await within(dialog).findByText('Of 4 rows shown')).toBeTruthy();
     expect(figure(dialog, 'Distinct')).toBe('2');
+  });
+
+  it('limits_its_height_to_the_parent', () => {
+    const height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(150);
+    render(
+      <div>
+        <ColumnStatsPopover column={column} values={values} at={{ x: 0, y: 0 }} onClose={vi.fn()} />
+      </div>,
+    );
+    expect(screen.getByRole('dialog').style.maxHeight).toBe('150px');
+    height.mockRestore();
   });
 });

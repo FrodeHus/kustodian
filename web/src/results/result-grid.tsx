@@ -39,6 +39,7 @@ import { createPortal } from 'react-dom';
 import { ErrorReportActions } from '../shell/error-report';
 import type { ExternalTool, ResultColumn } from '../wire';
 import { COPY_FORMATS, copyFailed, copyText, formatRows, type CopyFormat } from './copy';
+import { columnWidths } from './column-widths';
 import { cellText, type Row } from './export';
 import type { CellMatch } from './chart-shape';
 import { ColumnStatsPopover } from './column-stats-popover';
@@ -49,25 +50,6 @@ import { filterOps, shownValue, type FilterOp } from './smart-filter';
 const ROW_HEIGHT = 29;
 // One empty list, so a grid with no cell filters doesn't hand the table a new state each render.
 const NO_FILTERS: CellMatch[] = [];
-// Approximate pixels per character of the cell font (12px JetBrains Mono) and of the header, plus a cell's side padding.
-const CHAR_PX = 7.3;
-const HEADER_CHAR_PX = 7.6;
-const CELL_PAD = 24 + 16;
-const MAX_COL_PX = 480;
-// shortcut: widths come from the first rows only; a longer value further down is cut with an ellipsis. Scan more if that bites.
-const WIDTH_SAMPLE = 2000;
-
-/** A fixed width per column, from its header and its longest value, so scrolling never resizes columns. */
-function columnWidths(columns: ResultColumn[], rows: Row[]): Map<string, number> {
-  const sample = rows.slice(0, WIDTH_SAMPLE);
-  return new Map(
-    columns.map((c, i) => {
-      const longest = sample.reduce((n, row) => Math.max(n, row[i] === null || row[i] === undefined ? 4 : cellText(row[i]).length), 0);
-      return [c.name, Math.min(MAX_COL_PX, Math.ceil(Math.max(longest * CHAR_PX, c.name.length * HEADER_CHAR_PX) + CELL_PAD))];
-    }),
-  );
-}
-
 const features = tableFeatures({
   columnFilteringFeature,
   globalFilteringFeature,
@@ -265,6 +247,7 @@ export function MenuButton({
   icon,
   primary = false,
   field = false,
+  above = false,
   children,
 }: {
   /** The menu's name, and the button's unless `text` is given. */
@@ -275,6 +258,8 @@ export function MenuButton({
   primary?: boolean;
   /** Looks like a form field (a workbook parameter's picker): the menu opens under its left edge. */
   field?: boolean;
+  /** Opens above the button instead of under it, for a button near the bottom of a clipped area. */
+  above?: boolean;
   /** The menu's items: buttons with a `menuitem…` role and `tabIndex={-1}`. */
   children: ReactNode;
 }) {
@@ -300,7 +285,7 @@ export function MenuButton({
       {open && (
         <Menu
           label={label}
-          style={{ ...(field ? { left: 0 } : { right: 0 }), top: 32 }}
+          style={{ ...(field ? { left: 0 } : { right: 0 }), ...(above ? { bottom: 32 } : { top: 32 }) }}
           within={ref}
           onClose={(refocus) => {
             setOpen(false);
@@ -431,7 +416,7 @@ export function ResultGrid({
   const [tool, setTool] = useState<ExternalTool | null>(null);
   const [cellMenu, setCellMenu] = useState<CellMenu | null>(null);
   const [columnMenu, setColumnMenu] = useState<ColumnAt | null>(null);
-  const [stats, setStats] = useState<(ColumnAt & { values: unknown[] }) | null>(null);
+  const [stats, setStats] = useState<(ColumnAt & { values: unknown[]; opened: number }) | null>(null);
   const columnMenuButton = useRef<HTMLButtonElement | null>(null);
   const root = useRef<HTMLDivElement>(null);
   // A new result's rows start with nothing selected, and with no statistics of the old ones.
@@ -451,7 +436,7 @@ export function ResultGrid({
   const setSelected = owned ? owned.onChange : setOwnSelected;
 
   const meta = useMemo(() => new Map(columns.map((c) => [c.name, c])), [columns]);
-  const widths = useMemo(() => columnWidths(columns, rows), [columns, rows]);
+  const widths = useMemo(() => columnWidths(columns, rows, statistics), [columns, rows, statistics]);
   const defs = useMemo<ColumnDef<Features, Row>[]>(
     () =>
       columns.map((c, i) => ({
@@ -954,7 +939,7 @@ export function ResultGrid({
             tabIndex={-1}
             onClick={() => {
               const i = columns.indexOf(columnMenu.column);
-              setStats({ ...columnMenu, values: filteredLeaves.map((r) => r.original[i]) });
+              setStats({ ...columnMenu, opened: performance.now(), values: filteredLeaves.map((r) => r.original[i]) });
             }}
           >
             Column statistics
@@ -963,6 +948,7 @@ export function ResultGrid({
       )}
       {stats && (
         <ColumnStatsPopover
+          key={stats.opened}
           column={stats.column}
           values={stats.values}
           at={stats.at}
