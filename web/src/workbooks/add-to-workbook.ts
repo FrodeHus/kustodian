@@ -1,6 +1,6 @@
 import { findParams } from '../params/find-params';
 import { NUMERIC } from '../results/column-stats';
-import type { Picked } from '../results/chart-view';
+import type { Picked } from '../results/chart-shape';
 import type { Tab } from '../tabs/tab-store';
 import type { ParameterDef, RunResult } from '../wire';
 import { COLUMNS } from './layout';

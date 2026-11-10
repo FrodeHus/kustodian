@@ -1,7 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { useState, type ComponentProps, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import ChartView, { type Picked } from './chart-view';
+import { NO_SHAPE, withType, type Picked } from './chart-shape';
+import ChartView from './chart-view';
+import { HEATMAP_NO_SHAPE, HEATMAP_PICK } from './heatmap-shape';
 
 // jsdom has no layout for Recharts to measure: each chart stands in as an element naming its kind and series.
 vi.mock('recharts', () => {
@@ -239,5 +241,139 @@ describe('ChartView', () => {
     expect(marks()[0]?.getAttribute('data-stack')).toBeNull();
     fireEvent.change(screen.getByRole('combobox', { name: 'Chart type' }), { target: { value: 'line' } });
     expect(screen.queryByRole('combobox', { name: 'Stacking' })).toBeNull();
+  });
+
+  // dayofweek() gives a timespan and hourofday() an int: nothing but a heatmap fits.
+  const week = [
+    { name: 'Day', type: 'timespan' },
+    { name: 'Hour', type: 'int' },
+    { name: 'count_', type: 'long' },
+  ];
+  const weekRows = [
+    ['1.00:00:00', 9, 4],
+    ['2.00:00:00', 10, 2],
+  ];
+  const optionNames = (name: string) => [...screen.getByRole('combobox', { name }).querySelectorAll('option')].map((o) => o.textContent);
+
+  it('chart_view_offers_heatmap', () => {
+    const { container } = render(<Chart columns={columns} rows={rows} kql="t" />);
+    expect(screen.getByRole('option', { name: 'Heatmap' })).toBeTruthy();
+    expect(screen.getByText('Values', { selector: 'span' })).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: 'Chart type' })).toHaveProperty('value', 'column');
+    expect(container.querySelector('[data-chart="bar"]')).toBeTruthy();
+    expect(screen.queryByRole('grid')).toBeNull();
+  });
+
+  it('chart_view_heatmap_pickers', () => {
+    const cols = [
+      { name: 'TimeGenerated', type: 'datetime' },
+      { name: 'Day', type: 'timespan' },
+      { name: 'Hour', type: 'int' },
+      { name: 'count_', type: 'long' },
+      { name: 'sum_', type: 'long' },
+    ];
+    const data = [['2026-11-10T00:00:00Z', '1.00:00:00', 9, 4, 7]];
+    render(<Chart columns={cols} rows={data} kql="t" />);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Chart type' }), { target: { value: 'heatmap' } });
+
+    expect(screen.getByRole('combobox', { name: 'Columns' })).toHaveProperty('value', 'TimeGenerated');
+    expect(optionNames('Columns')).not.toContain('Column names');
+    expect(screen.getByRole('combobox', { name: 'Rows' })).toHaveProperty('value', 'Day');
+    expect(optionNames('Rows')).not.toContain('None');
+    expect(optionNames('Rows')).toEqual(expect.arrayContaining(['Day', 'Hour']));
+    expect(optionNames('Rows')).not.toContain('TimeGenerated');
+    expect(screen.queryByRole('combobox', { name: 'Stacking' })).toBeNull();
+    expect(screen.getByText('Value', { selector: 'span' })).toBeTruthy();
+    expect(screen.queryByText('Values', { selector: 'span' })).toBeNull();
+    expect(screen.getByRole('checkbox', { name: 'sum_' })).toHaveProperty('checked', true);
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'count_' }));
+    expect(screen.getByRole('checkbox', { name: 'count_' })).toHaveProperty('checked', true);
+    expect(screen.getByRole('checkbox', { name: 'sum_' })).toHaveProperty('checked', false);
+    expect(screen.getByRole('grid').getAttribute('aria-label')).toBe('Heatmap of count_ by Day (rows) and TimeGenerated (columns)');
+  });
+
+  it('chart_view_pick_heatmap_when_nothing_else_fits', () => {
+    const { container, unmount } = render(<Chart columns={week} rows={weekRows} kql="t" />);
+    expect(screen.getByRole('combobox', { name: 'Chart type' })).toBeTruthy();
+    expect(screen.getByText(HEATMAP_PICK)).toBeTruthy();
+    expect(screen.getByText('Chart', { selector: 'b' })).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: 'Chart type' })).toHaveProperty('value', '');
+    expect(screen.getByRole('option', { name: 'Choose a type' })).toHaveProperty('disabled', true);
+    expect(screen.queryByRole('grid')).toBeNull();
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Chart type' }), { target: { value: 'heatmap' } });
+    expect(container.querySelectorAll('[data-cell]')).toHaveLength(4);
+    unmount();
+
+    render(<Chart columns={[{ name: 'tags', type: 'dynamic' }]} rows={[[[]]]} kql="t" />);
+    expect(screen.getByText(NO_SHAPE)).toBeTruthy();
+  });
+
+  it('chart_view_heatmap_cannot_shape_explains', () => {
+    render(<ChartView columns={columns} rows={rows} kql="t" picked={{ type: 'heatmap' }} />);
+    expect(screen.getByRole('combobox', { name: 'Chart type' })).toHaveProperty('value', 'heatmap');
+    expect(screen.getByText(HEATMAP_NO_SHAPE)).toBeTruthy();
+  });
+
+  it('chart_view_switching_heatmap_resets_picks', () => {
+    expect(withType({ type: 'column', x: 'a', split: 'b', series: ['n'], stack: 'stacked' }, 'heatmap')).toEqual({
+      type: 'heatmap',
+      stack: 'stacked',
+    });
+    expect(withType({ type: 'heatmap', x: 'a', split: 'b', series: ['n'] }, 'column')).toEqual({ type: 'column', stack: undefined });
+    expect(withType({ type: 'column', x: 'a' }, 'bar')).toEqual({ type: 'bar', x: 'a' });
+  });
+
+  it('chart_view_heatmap_stale_picks_fall_back', () => {
+    render(<ChartView columns={week} rows={weekRows} kql="t" picked={{ type: 'heatmap', x: 'gone', split: 'gone', series: ['gone'] }} />);
+    expect(screen.getByRole('combobox', { name: 'Columns' })).toHaveProperty('value', 'Hour');
+    expect(screen.getByRole('combobox', { name: 'Rows' })).toHaveProperty('value', 'Day');
+    expect(screen.getByRole('checkbox', { name: 'count_' })).toHaveProperty('checked', true);
+  });
+
+  it('chart_view_heatmap_wrong_role_picks_fall_back', () => {
+    // Day isn't a number, and count_ is the value, so neither can take that role.
+    render(<ChartView columns={week} rows={weekRows} kql="t" picked={{ type: 'heatmap', x: 'count_', series: ['Day'] }} />);
+    expect(screen.getByRole('combobox', { name: 'Columns' })).toHaveProperty('value', 'Hour');
+    expect(screen.getByRole('combobox', { name: 'Rows' })).toHaveProperty('value', 'Day');
+    expect(screen.getByRole('checkbox', { name: 'count_' })).toHaveProperty('checked', true);
+  });
+
+  it('chart_view_heatmap_axes_swap', () => {
+    render(<Chart columns={week} rows={weekRows} kql="t" />);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Chart type' }), { target: { value: 'heatmap' } });
+    expect(optionNames('Columns')).toEqual(['Day', 'Hour']);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Columns' }), { target: { value: 'Day' } });
+    expect(screen.getByRole('combobox', { name: 'Columns' })).toHaveProperty('value', 'Day');
+    expect(screen.getByRole('combobox', { name: 'Rows' })).toHaveProperty('value', 'Hour');
+  });
+
+  it('chart_view_heatmap_cell_pick', () => {
+    const onPick = vi.fn();
+    const { container } = render(<ChartView columns={week} rows={weekRows} kql="t" picked={{ type: 'heatmap' }} onPick={onPick} />);
+    fireEvent.click(container.querySelector('[data-cell][data-r="0"][data-c="0"]')!);
+    expect(onPick).toHaveBeenCalledWith([
+      { id: 'Hour', value: '9' },
+      { id: 'Day', value: '1.00:00:00' },
+    ]);
+  });
+
+  it('chart_view_heatmap_title', () => {
+    const { unmount } = render(<ChartView columns={week} rows={weekRows} kql="t" picked={{ type: 'heatmap' }} />);
+    expect(screen.getByText('Heatmap', { selector: 'b' })).toBeTruthy();
+    unmount();
+    render(
+      <ChartView columns={week} rows={weekRows} kql={'t\n| render columnchart with (title="Busy hours")'} picked={{ type: 'heatmap' }} />,
+    );
+    expect(screen.getByText('Busy hours', { selector: 'b' })).toBeTruthy();
+  });
+
+  it('chart_view_heatmap_widget', () => {
+    const { container } = render(<ChartView columns={week} rows={weekRows} kql="t" picked={{ type: 'heatmap' }} controls={false} />);
+    expect(screen.getByRole('grid')).toBeTruthy();
+    expect(container.querySelectorAll('[data-cell]')).toHaveLength(4);
+    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(screen.queryByRole('checkbox')).toBeNull();
   });
 });

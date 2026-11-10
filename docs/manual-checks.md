@@ -340,6 +340,28 @@ property's **Filter…** button. The grid focuses rows, not cells, so it has no 
 | Export menu has Add to workbook… after a separator, and the palette has the command; both are absent on a raw tab and before a run | - | - | - |
 | Light and dark themes: the dialog and notice stay readable | - | - | - |
 
+### Heatmap (2026-11-10)
+
+Checked by the builder in Chromium (Playwright) against the Vite dev server with the mock bridge (`web/src/bridge.mock.ts`), on
+macOS, at 1440x900, in the Light and Dark themes. Not checked in the desktop app or against a live Log Analytics workspace, so
+the macOS cells say "mock". The mock answers a query with `hourofday` with sign-ins by Day (timespan) and Hour (int), and a
+`by Computer` query with 60 computers by hour over a week. Printing used Playwright's PDF output of the workbook's **Print or
+save as PDF…** (A4); the native print sheet was not opened.
+
+| Check | macOS | Windows | Linux |
+| --- | --- | --- | --- |
+| Log Analytics `SigninLogs \| summarize count() by Day = dayofweek(TimeGenerated), Hour = hourofday(TimeGenerated)`: the Chart tab says to pick Heatmap; picking it shows rows `Sun`–`Sat`, columns 0–23 and the legend | ok (mock) | - | - |
+| Hover a cell: the readout under the grid shows `Tue / 10 — 91 count_`; with nothing hovered or focused the readout is hidden | ok (mock) | - | - |
+| Tab to the grid, arrow keys move a one-cell ring, Enter filters the Rows tab to that cell (`Chart: Hour = 3 · Day = 1.00:00:00`, one row) | ok (mock) | - | - |
+| `Heartbeat \| where TimeGenerated > ago(7d) \| summarize count() by Computer, bin(TimeGenerated, 1h)` with 60 computers: opens as a time chart (Heatmap is never picked for you); as a Heatmap it shows `Showing the 50 busiest of 60 Computer values. The rest are in Other.`, an `Other` last row, scrolls down and sideways with the computer names staying on the left, and the readout and legend stay in the card | ok (mock) | - | - |
+| The same query as a workbook Chart widget with Heatmap, in a 3-column widget: it scrolls inside the widget; **Print or save as PDF…** prints the grid at the page's width, all 168 hours and all 51 rows to `Other` and the legend, over two pages, nothing cut off | ok (mock) | - | - |
+| Once in a light theme, once in a dark one | ok (mock; the workbook widget only in Dark, and the print is always light) | - | - |
+
+Fixed while checking: the keyboard ring ran from the active cell to the grid's bottom-right corner (an absolutely placed grid
+item with only a start line ends at the grid's edge); the empty readout showed as a bare box; a heatmap taller than the Chart
+card or widget spilled out of it, hiding the readout and legend; in print the grid was cut off at the widget's height and, being
+as wide as its labels, at the page's right edge.
+
 ## Notes
 
 - macOS window: the owner's own Kustodian had quit before this check, and the builder's instance was started with `HOME`

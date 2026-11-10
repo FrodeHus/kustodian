@@ -7,6 +7,14 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Heatmap chart**: show a number across two lists at once, such as sign-ins by day × hour or resources by type × region.
+  Pick **Heatmap** from the Chart tab's type list or a workbook chart widget's buttons; Kustodian never switches to it on its
+  own. Columns, Rows and Value pick what goes across, what goes down and what sets the colour, and hour and day-of-week
+  columns work as axes. Cells show colour only, with the exact value on hover or focus; hatched cells have no rows. Arrow keys
+  and Enter, or a click, filter the Rows tab to the rows behind a cell. The busiest 50 text rows or columns are kept, with the
+  rest in Other, and date or number axes keep the latest 200 rows and 2,000 columns, each with a note saying so. A result that
+  only a heatmap can draw, such as day × hour, now offers it instead of saying there is nothing to chart. Workbook heatmaps
+  print to the page width.
 - **Add to workbook**: put a query on a workbook from **Add to workbook…** in the Rows tab's Export menu or the command
   palette, once a Graph, advanced hunting, Resource Graph or Log Analytics query has run. Choose a workbook (or make one) and a
   Table, Chart or Stat widget. A saved query with no unsaved changes is linked; anything else is copied in. Source, options,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ParameterDef, RunResult } from '../wire';
 import type { Tab } from '../tabs/tab-store';
-import type { Picked } from '../results/chart-view';
+import type { Picked } from '../results/chart-shape';
 import { MAX_WIDGETS, MIN_SIZE, newWidget, newWorkbook } from './model';
 import type { Widget, WorkbookDoc } from './model';
 import { addWidget, defaultKind, isFull, linksSaved, widgetFromTab } from './add-to-workbook';

@@ -2,7 +2,8 @@ import { Suspense, lazy, useEffect, useId, useRef, useState, type ReactNode } fr
 import { call } from '../bridge';
 import { openSaved } from '../library/open-library';
 import { PARAMETER_TYPES } from '../params/find-params';
-import { CHART_TYPES, STACKS, chartShape, isCategory, renderHint, renderOptions, stackable } from '../results/chart-shape';
+import { CHART_TYPES, STACKS, chartShape, isCategory, renderHint, renderOptions, stackable, withType } from '../results/chart-shape';
+import { heatmapAxes } from '../results/heatmap-shape';
 import { useSchemas } from '../schema/schema-store';
 import { errorText } from '../shell/errors';
 import { inSendDetails } from '../shell/send-details-marker';
@@ -438,6 +439,11 @@ export function WidgetEditor({
     if (picked.split && !splits.includes(picked.split)) {
       splits.push(picked.split);
     }
+    const heatmap = picked.type === 'heatmap';
+    const rows = heatmapAxes(result?.columns ?? [], picked.series?.[0]).filter((name) => name !== picked.x);
+    if (heatmap && picked.split && !rows.includes(picked.split)) {
+      rows.push(picked.split);
+    }
     const visualizationPanel =
       draft.type === 'chart' ? (
         <div className="flex flex-col gap-3">
@@ -448,7 +454,7 @@ export function WidgetEditor({
                 type="button"
                 className="btn"
                 aria-pressed={picked.type === c.type}
-                onClick={() => set({ chart: { ...picked, type: c.type } })}
+                onClick={() => set({ chart: withType(picked, c.type) })}
               >
                 {c.name}
               </button>
@@ -457,19 +463,19 @@ export function WidgetEditor({
           {columns.length === 0 && <span className="faint text-[12px]">Run preview to choose columns.</span>}
           <div className="grid grid-cols-3 gap-3">
             <ColumnSelect
-              label="X"
+              label={heatmap ? 'Columns' : 'X'}
               value={picked.x ?? ''}
               columns={columns}
               onChange={(x) => set({ chart: { ...picked, x: x || undefined } })}
             />
             <ColumnSelect
-              label="Y"
+              label={heatmap ? 'Value' : 'Y'}
               value={picked.series?.[0] ?? ''}
               columns={columns}
               onChange={(y) => set({ chart: { ...picked, series: y ? [y] : undefined } })}
             />
             <label className="field">
-              <span>Split by</span>
+              <span>{heatmap ? 'Rows' : 'Split by'}</span>
               <select
                 className="textbox"
                 value={picked.split === undefined ? 'auto' : picked.split === null ? 'none' : `col:${picked.split}`}
@@ -479,8 +485,8 @@ export function WidgetEditor({
                 }}
               >
                 <option value="auto">Automatic</option>
-                <option value="none">None</option>
-                {splits.map((name) => (
+                {!heatmap && <option value="none">None</option>}
+                {(heatmap ? rows : splits).map((name) => (
                   <option key={name} value={`col:${name}`}>
                     {name}
                   </option>

@@ -1,4 +1,4 @@
-import type { Picked } from '../results/chart-view';
+import type { Picked } from '../results/chart-shape';
 import { HIGHLIGHT_COLOURS, HIGHLIGHT_OPS, MAX_HIGHLIGHTS } from '../results/highlights';
 import type { HighlightRule, ParameterDef, QueryOptions, Source } from '../wire';
 

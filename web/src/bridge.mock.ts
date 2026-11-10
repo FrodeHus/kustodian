@@ -421,6 +421,41 @@ function countedResult<T extends typeof runResult>(base: T): T {
   };
 }
 
+/** A `hourofday` query's answer: sign-ins by Day (timespan, `dayofweek`) and Hour (int), busy on weekday office hours, for the Heatmap. */
+function dayHourResult<T extends typeof runResult>(base: T): T {
+  const rows = [0, 1, 2, 3, 4, 5, 6].flatMap((d) =>
+    Array.from({ length: 24 }, (_, h) => [
+      d === 0 ? '00:00:00' : `${d}.00:00:00`,
+      h,
+      (d % 6 && h >= 8 && h < 17 ? 90 : 6) + ((d * 7 + h * 13) % 11),
+    ]),
+  );
+  const columns = [
+    { name: 'Day', type: 'timespan' },
+    { name: 'Hour', type: 'int' },
+    { name: 'count_', type: 'long' },
+  ];
+  return { ...base, columns, rows, total: rows.length };
+}
+
+/** A `by Computer` query's answer: 60 computers by hour over a week, so the Heatmap has an `Other` row and scrolls sideways. */
+function computerHourResult<T extends typeof runResult>(base: T): T {
+  const start = Date.parse('2026-11-03T00:00:00Z');
+  const rows = Array.from({ length: 60 }, (_, c) =>
+    Array.from({ length: 168 }, (_, h) => [
+      `PC-${String(c + 1).padStart(3, '0')}`,
+      new Date(start + h * 3600000).toISOString(),
+      ((c * 31 + h * 17) % 23) + (60 - c),
+    ]),
+  ).flat();
+  const columns = [
+    { name: 'Computer', type: 'string' },
+    { name: 'TimeGenerated', type: 'datetime' },
+    { name: 'count_', type: 'long' },
+  ];
+  return { ...base, columns, rows, total: rows.length };
+}
+
 let vulnRuns = 0;
 /** A `DeviceTvmSoftwareVulnerabilities` query's answer: 4 rows that rotate each run (one key leaves, one arrives), for Row tracking. */
 function vulnerabilityResult<T extends typeof runResult>(base: T): T {
@@ -1228,9 +1263,13 @@ export function createMockTransport(): Transport {
           // `cutoff` in the query text: more rows exist than came back, so a history run is skipped as cut off.
           const answer = kql.includes('DeviceTvmSoftwareVulnerabilities')
             ? vulnerabilityResult(base)
-            : /\bcount\(\)/.test(kql)
-              ? countedResult(base)
-              : base;
+            : kql.includes('hourofday')
+              ? dayHourResult(base)
+              : /\bby Computer\b/.test(kql)
+                ? computerHourResult(base)
+                : /\bcount\(\)/.test(kql)
+                  ? countedResult(base)
+                  : base;
           const result = { ...answer, ...(kql.includes('cutoff') ? { total: answer.rows.length + 1000 } : {}), runId };
           // As the host's Recent: newest first, with the run's options, so "open again" brings them back.
           recent.unshift({

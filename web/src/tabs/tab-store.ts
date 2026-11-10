@@ -18,7 +18,7 @@ import type {
   TabSource,
 } from '../wire';
 import { memoryAccount, rememberedLogsWorkspace } from '../toolbar/workspace-memory';
-import type { Picked } from '../results/chart-view';
+import type { Picked } from '../results/chart-shape';
 import type { ResultView } from '../workbooks/add-to-workbook';
 import { newWorkbook, type WorkbookDoc } from '../workbooks/model';
 

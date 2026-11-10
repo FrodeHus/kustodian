@@ -1,7 +1,7 @@
 import type { ResultColumn } from '../wire';
 import { cellText, type Row } from './export';
 
-export type ChartType = 'column' | 'bar' | 'line' | 'area' | 'pie' | 'timechart';
+export type ChartType = 'column' | 'bar' | 'line' | 'area' | 'pie' | 'timechart' | 'heatmap';
 
 /** What to chart: its type, the column along the x axis (or the pie's slices), and the number columns to plot. An `x` of null
  * puts the series' names along the axis instead, each drawn with its value from the result's first row. `split` names the
@@ -23,6 +23,7 @@ export const CHART_TYPES: { type: ChartType; name: string }[] = [
   { type: 'area', name: 'Area' },
   { type: 'pie', name: 'Pie' },
   { type: 'timechart', name: 'Time chart' },
+  { type: 'heatmap', name: 'Heatmap' },
 ];
 
 /** The Chart tab's words for a result it can't chart. */
@@ -87,8 +88,22 @@ export const STACKS: { stack: Stack; name: string }[] = [
   { stack: 'stacked100', name: 'Stacked 100%' },
 ];
 
+/** What the Chart tab's pickers override: the type, the x axis (null for the series' names) and the series. */
+export interface Picked {
+  type?: ChartType;
+  x?: string | null;
+  series?: string[];
+  split?: string | null;
+  stack?: Stack;
+}
+
 /** Only bars and areas stack. */
 export const stackable = (type: ChartType) => type === 'column' || type === 'bar' || type === 'area';
+
+/** The picks with a new type. Switching to or from a heatmap clears the columns picked, as they mean different things there. */
+export function withType(picked: Picked, type: ChartType | undefined): Picked {
+  return picked.type !== 'heatmap' && type !== 'heatmap' ? { ...picked, type } : { type, stack: picked.stack };
+}
 
 /** The `with (...)` properties of a query's `| render` that the Chart tab follows. Column names are as written; ones the
  * result doesn't have are ignored where they're used. */
