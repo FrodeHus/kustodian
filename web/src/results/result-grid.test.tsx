@@ -613,6 +613,8 @@ describe('ResultGrid', () => {
     it('group rows start closed; Right opens and Left closes the focused one; Up/Down select only rows', () => {
       const { container, rerender } = render(<ResultGrid columns={cols} rows={rows} grouping={['g', 'v']} onGroupingChange={vi.fn()} />);
       expect(texts(container)).toEqual(['▸ g: x · 3', '▸ g: z · 2', '▸ g: y · 1']);
+      // The arrow is decoration: aria-expanded says whether it is open.
+      expect(screen.getByRole('button', { name: 'g: x · 3' })).toBeTruthy();
 
       fireEvent.keyDown(toggle(/g: x/), { key: 'ArrowRight' });
       expect(toggle(/g: x/).getAttribute('aria-expanded')).toBe('true');

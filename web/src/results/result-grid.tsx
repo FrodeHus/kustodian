@@ -84,23 +84,46 @@ const cellIs: FilterFn<Features, Row> = (row, columnId, value: string) => cellTe
 /** At most this many grouping columns. */
 const MAX_GROUPING = 3;
 
-/** A level of groups ordered by their row count, largest first (ties keep TanStack's order); a level of rows as it is. */
-function bySize(rows: TableRow<Features, Row>[]): TableRow<Features, Row>[] {
-  if (!rows[0]?.getIsGrouped()) {
-    return rows;
-  }
-  const size = new Map(rows.map((r) => [r, leaves(r.subRows).length]));
-  return rows.toSorted((a, b) => (size.get(b) ?? 0) - (size.get(a) ?? 0));
+type GridRow = TableRow<Features, Row>;
+
+/** The grouped rows in the order shown: every level of groups by row count, largest first (ties keep TanStack's order). */
+interface GroupTree {
+  /** The top level, ordered. */
+  top: GridRow[];
+  /** Each group row's own rows, ordered. */
+  children: Map<GridRow, GridRow[]>;
+  /** How many leaf rows each group row has. */
+  size: Map<GridRow, number>;
+  /** Every leaf row in the order shown, groups opened or not. */
+  leaves: GridRow[];
 }
 
-/** The leaf rows under `rows` in the order shown, groups opened or not. */
-function leaves(rows: TableRow<Features, Row>[]): TableRow<Features, Row>[] {
-  return bySize(rows).flatMap((r) => (r.getIsGrouped() ? leaves(r.subRows) : [r]));
+/** Walks the row model once into a `GroupTree`; a level of rows stays as it is. */
+function groupTree(rows: GridRow[]): GroupTree {
+  const children = new Map<GridRow, GridRow[]>();
+  const size = new Map<GridRow, number>();
+  /** Orders a level, records what each group has, and returns the leaves under it. */
+  const walk = (level: GridRow[]): { ordered: GridRow[]; leaves: GridRow[] } => {
+    if (!level[0]?.getIsGrouped()) {
+      return { ordered: level, leaves: level };
+    }
+    const under = new Map(level.map((r) => [r, walk(r.subRows)]));
+    for (const [r, sub] of under) {
+      children.set(r, sub.ordered);
+      size.set(r, sub.leaves.length);
+    }
+    const ordered = level.toSorted((a, b) => (size.get(b) ?? 0) - (size.get(a) ?? 0));
+    return { ordered, leaves: ordered.flatMap((r) => under.get(r)?.leaves ?? []) };
+  };
+  const { ordered, leaves } = walk(rows);
+  return { top: ordered, children, size, leaves };
 }
 
-/** The rows shown: each group row, then what is under it when it is open. */
-function shownRows(rows: TableRow<Features, Row>[]): TableRow<Features, Row>[] {
-  return bySize(rows).flatMap((r) => (r.getIsGrouped() && r.getIsExpanded() ? [r, ...shownRows(r.subRows)] : [r]));
+/** The rows shown: each group row, then what is under it when it is open (as `row.getIsExpanded()` reads `expanded`). */
+function shownRows(tree: GroupTree, expanded: ExpandedState, rows: GridRow[] = tree.top): GridRow[] {
+  return rows.flatMap((r) =>
+    r.getIsGrouped() && (expanded === true || expanded[r.id]) ? [r, ...shownRows(tree, expanded, tree.children.get(r) ?? [])] : [r],
+  );
 }
 
 interface Opened {
@@ -330,7 +353,11 @@ export function ResultGrid({
     sortDescFirst: false,
   });
 
-  const visible = shownRows(table.getSortedRowModel().rows);
+  // TanStack memoizes the sorted row model, so this walks the rows only when the data, filter, sorting or grouping change.
+  const sortedRows = table.getSortedRowModel().rows;
+  const tree = useMemo(() => groupTree(sortedRows), [sortedRows]);
+  // Opening a group changes only which rows are shown.
+  const visible = useMemo(() => shownRows(tree, expanded), [tree, expanded]);
   const shownLeaves = visible.filter((r) => !r.getIsGrouped());
   const visibleColumns = table.getVisibleLeafColumns();
   const virtualizer = useVirtualizer({
@@ -417,7 +444,7 @@ export function ResultGrid({
 
   // Every row the filter lets through, in the order shown, and those of them that are selected. Selected rows the filter now
   // hides are neither counted nor copied; with none selected, every row shown is.
-  const filteredLeaves = leaves(table.getSortedRowModel().rows);
+  const filteredLeaves = tree.leaves;
   const selectedShown = filteredLeaves.filter((r) => selected.has(r.index));
   const chosen = selectedShown.length > 0 ? selectedShown : filteredLeaves;
   const chosenLabel = selectedShown.length > 0 ? `${rowCount(selectedShown.length)} selected` : `All ${rowCount(filteredLeaves.length)}`;
@@ -701,8 +728,8 @@ export function ResultGrid({
                           }
                         }}
                       >
-                        {open ? '▾' : '▸'} {row.groupingColumnId}: {value === '' ? 'null' : cellText(value)} ·{' '}
-                        {count(leaves(row.subRows).length)}
+                        <span aria-hidden="true">{open ? '▾' : '▸'}</span> {row.groupingColumnId}: {value === '' ? 'null' : cellText(value)}{' '}
+                        · {count(tree.size.get(row) ?? 0)}
                       </button>
                     </td>
                   </tr>
