@@ -308,6 +308,12 @@ describe('WorkbookView', () => {
     expect(within(total).getByText('▲ 196 (18%)')).toBeTruthy();
   });
 
+  it('shows a stat’s unit after its number', () => {
+    doc = { ...doc, widgets: doc.widgets.map((w) => (w.id === 's' ? { ...w, stat: { value: 'value', compare: null, unit: '%' } } : w)) };
+    show({ s: { state: 'done', result: result([{ name: 'value', type: 'real' }], [[56.1]]) } });
+    expect(within(frame('Total')).getByText('56.1').textContent).toBe('56.1%');
+  });
+
   it('a stat with a null or empty cell has no number, and a null comparison no change line', () => {
     const columns = [
       { name: 'value', type: 'long' },

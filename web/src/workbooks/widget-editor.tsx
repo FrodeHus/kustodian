@@ -9,6 +9,7 @@ import { inSendDetails } from '../shell/send-details-marker';
 import { SourceBadge } from '../tabs/source-badge';
 import type { HistorySeries, LibraryList, ParameterDef, RunResult, SavedQuery } from '../wire';
 import type { ParamFrom, Widget, WidgetQuery } from './model';
+import { MAX_UNIT_LENGTH } from './model';
 import { ClearConfirm, HistorySection } from './history-section';
 import { widgetParams, workbookValues } from './resolve';
 import { ColumnSelect, ToolButtonsSection } from './tool-buttons-section';
@@ -460,14 +461,26 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
               label="Value"
               value={draft.stat?.value ?? ''}
               columns={columns}
-              onChange={(v) => set({ stat: { value: v || null, compare: draft.stat?.compare ?? null } })}
+              onChange={(v) => set({ stat: { ...draft.stat, value: v || null, compare: draft.stat?.compare ?? null } })}
             />
             <ColumnSelect
               label="Compare with"
               value={draft.stat?.compare ?? ''}
               columns={columns}
-              onChange={(v) => set({ stat: { value: draft.stat?.value ?? null, compare: v || null } })}
+              onChange={(v) => set({ stat: { ...draft.stat, value: draft.stat?.value ?? null, compare: v || null } })}
             />
+            <label className="field">
+              <span>Unit</span>
+              <input
+                className="textbox"
+                value={draft.stat?.unit ?? ''}
+                maxLength={MAX_UNIT_LENGTH}
+                placeholder="%, ms, days"
+                onChange={(e) =>
+                  set({ stat: { value: draft.stat?.value ?? null, compare: draft.stat?.compare ?? null, unit: e.target.value } })
+                }
+              />
+            </label>
           </div>
         </div>
       ) : null;
