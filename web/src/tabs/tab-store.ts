@@ -422,7 +422,11 @@ export const useTabs = create<TabsState>()((set, get) => {
     },
 
     setHighlights(id, highlights) {
-      update(id, (t) => (t.source === 'raw' ? {} : { highlights: highlights.length ? highlights : undefined, dirty: true }));
+      update(id, (t) =>
+        t.source === 'raw' || t.source === 'workbook' || JSON.stringify(t.highlights ?? []) === JSON.stringify(highlights)
+          ? {}
+          : { highlights: highlights.length ? highlights : undefined, dirty: true },
+      );
     },
 
     pin(id) {
