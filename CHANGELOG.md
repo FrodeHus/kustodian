@@ -7,6 +7,18 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Highlight rules**: colour the rows or cells that need attention. Right-click a value on the Rows tab and choose Highlight
+  rows where the column equals it (or is empty) to open a prefilled popover with a colour, row or cell, and Add. For rules such
+  as `days > 90` on one cell, open **Highlight rules…** from the cell menu or a column header's menu; once a tab has rules, a
+  **Highlight · n** chip under the result bar opens the list too. A rule is a column, an operator (`==`, `!=`, `>`, `>=`, `<`,
+  `<=`, contains, !contains, isempty, isnotempty), a value and a colour (danger, warning, success or info), up to 20 per query.
+  The first matching row rule colours the row and the first matching cell rule colours the cell; numbers, dates (UTC ISO 8601),
+  timespans, booleans and text (not case-sensitive) compare by their type. The list edits every part of a rule and reorders
+  with Move up and Move down or Alt+Up and Alt+Down. A rule on a column a rerun no longer returns is kept and says **Not in
+  this result**. Rules stay with the query: on its tab (changing them makes it unsaved), across restarts, and in a saved library
+  query, which brings them back when opened. A `.kql` file holds only the query text, so saving to a file doesn't keep them.
+  Table widgets apply their query's rules and the widget editor has a Highlight tab; a widget linked to a saved query follows
+  that query's rules. Workbook export and import carry rules, and solutions can include them.
 - **Grouping by several columns**: group the Rows tab by up to three columns, from a column header's menu (Group by this
   column) or the Group by menu. A **Grouped by** chip clears it, a group row has Filter by and Exclude on the tabs where the
   smart filter is offered, and a tab keeps its grouping across tab switches and reruns while Kustodian runs (it isn't saved,
