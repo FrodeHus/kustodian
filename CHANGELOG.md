@@ -9,7 +9,7 @@ follow [Semantic Versioning](https://semver.org/).
 
 - **Smart filter**: right-click a value on the Rows tab, or use Filter… in row details, to add a `| where` line for it, or to
   exclude it. Dates also offer On or after and Before. The line goes into the query so you can keep it (one undo removes it),
-  and the query reruns. On Graph tables it is placed so Graph still filters it as `$filter`.
+  and the query reruns. On Graph tables it is placed so Graph filters it as `$filter` where it can.
 - **Stat unit**: a Stat widget can show a unit after its number, such as `%`, `ms` or `days`. Set it under Visualization
   in the widget editor.
 - **Aurora theme**: Kustodian's own dark theme, from the logo and banner: navy ink with cyan, blue, violet and mint, a soft
