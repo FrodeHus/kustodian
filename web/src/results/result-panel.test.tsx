@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTabs } from '../tabs/tab-store';
-import type { RunResult } from '../wire';
+import type { HighlightRule, RunResult } from '../wire';
 import { ResultPanel } from './result-panel';
 
 const call = vi.hoisted(() => vi.fn());
@@ -208,5 +208,21 @@ describe('ResultPanel', () => {
     fireEvent.click(second);
     expect(screen.queryByRole('dialog', { name: /Row details/ })).toBeNull();
     expect(second.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('shows the Highlight · n chip once the tab has a rule, and adds rules through the tab', () => {
+    const id = useTabs.getState().openWith({ source: 'graph', title: 'Expired apps', text: 'applications' });
+    const onHighlightsChange = (rules: HighlightRule[]) => useTabs.getState().setHighlights(id, rules);
+    const { rerender } = render(<ResultPanel {...props} tabId={id} onHighlightsChange={onHighlightsChange} />);
+    expect(screen.queryByRole('button', { name: /^Highlight ·/ })).toBeNull();
+    fireEvent.contextMenu(screen.getByText('Contoso'));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Highlight rows where displayName == "Contoso"…' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    const rules = useTabs.getState().tabs[0]?.highlights;
+    expect(rules).toEqual([expect.objectContaining({ column: 'displayName', value: 'Contoso' })]);
+
+    rerender(<ResultPanel {...props} tabId={id} highlights={rules} onHighlightsChange={onHighlightsChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Highlight · 1' }));
+    expect(screen.getByRole('dialog', { name: 'Highlight rules' })).toBeTruthy();
   });
 });

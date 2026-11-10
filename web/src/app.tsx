@@ -1256,6 +1256,7 @@ function Results({ tab, dialogOpen, onFilter }: { tab: Tab; dialogOpen: boolean;
       dialogOpen={dialogOpen}
       source={tab.run?.source}
       highlights={tab.highlights}
+      onHighlightsChange={(rules) => useTabs.getState().setHighlights(tab.id, rules)}
       // Offered for the query sources, on a run that kept its text and went to the tab's source.
       onFilter={filterable(tab) ? onFilter : undefined}
     />

@@ -765,3 +765,58 @@ describe('ResultGrid highlights', () => {
     expect(container.querySelectorAll('tbody tr:not([data-index])[data-highlight]')).toHaveLength(0);
   });
 });
+
+describe('ResultGrid highlight rules', () => {
+  const cols = [
+    { name: 'state', type: 'string' },
+    { name: 'days', type: 'long' },
+  ];
+  const rows = [['FAIL', 3]];
+  const fail: HighlightRule = { id: 'h1', column: 'state', op: '==', value: 'FAIL', colour: 'danger', target: 'row' };
+
+  it('the cell menu offers Highlight rows where … only with onHighlightsChange; choosing it opens the popover', () => {
+    const { rerender } = render(<ResultGrid columns={cols} rows={rows} onFilter={vi.fn()} />);
+    fireEvent.contextMenu(screen.getByText('FAIL'));
+    expect(screen.queryByRole('menuitem', { name: /^Highlight/ })).toBeNull();
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+
+    const onHighlightsChange = vi.fn();
+    rerender(<ResultGrid columns={cols} rows={rows} onFilter={vi.fn()} onHighlightsChange={onHighlightsChange} />);
+    fireEvent.contextMenu(screen.getByText('FAIL'));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Highlight rows where state == "FAIL"…' }));
+    expect(screen.queryByRole('menu')).toBeNull();
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Highlight rows where state == "FAIL"' })).getByRole('button', { name: 'Add' }),
+    );
+    expect(onHighlightsChange).toHaveBeenCalledWith([expect.objectContaining({ column: 'state', op: '==', value: 'FAIL' })]);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('opens the rule list from the cell menu and the column menu with no rules, and from the chip with some', () => {
+    const onHighlightsChange = vi.fn();
+    const { rerender } = render(<ResultGrid columns={cols} rows={rows} statistics onHighlightsChange={onHighlightsChange} />);
+    expect(screen.queryByRole('button', { name: /^Highlight ·/ })).toBeNull();
+
+    fireEvent.contextMenu(screen.getByText('FAIL'));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Highlight rules…' }));
+    expect(screen.getByRole('dialog', { name: 'Highlight rules' })).toBeTruthy();
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    const menuButton = screen.getByRole('button', { name: 'state column menu' });
+    fireEvent.click(menuButton);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Highlight rules…' }));
+    const list = screen.getByRole('dialog', { name: 'Highlight rules' });
+    fireEvent.click(within(list).getByRole('button', { name: '+ Add rule' }));
+    expect(onHighlightsChange).toHaveBeenCalledWith([expect.objectContaining({ column: 'state', op: '==', value: '' })]);
+    fireEvent.keyDown(list, { key: 'Escape' });
+    expect(document.activeElement).toBe(menuButton);
+
+    rerender(<ResultGrid columns={cols} rows={rows} statistics highlights={[fail]} onHighlightsChange={onHighlightsChange} />);
+    const chip = screen.getByRole('button', { name: 'Highlight · 1' });
+    fireEvent.click(chip);
+    expect(within(screen.getByRole('dialog', { name: 'Highlight rules' })).getByRole('group', { name: 'Rule 1' })).toBeTruthy();
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(document.activeElement).toBe(chip);
+  });
+});

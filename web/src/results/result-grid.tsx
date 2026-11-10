@@ -33,8 +33,9 @@ import { ColumnStatsPopover } from './column-stats-popover';
 import { NUMERIC } from './column-stats';
 import { RunToolDialog, ToolItems } from './run-tool';
 import { FilterItems, MenuButton, Menu, type OnFilter } from './menu';
-import { filterOps } from './smart-filter';
-import { compileRules, highlightOf } from './highlights';
+import { filterOps, quotedValue } from './smart-filter';
+import { HighlightFromCell, HighlightListPopover } from './highlight-popover';
+import { compileRules, highlightOf, MAX_HIGHLIGHTS } from './highlights';
 
 const ROW_HEIGHT = 29;
 // One empty list, so a grid with no cell filters doesn't hand the table a new state each render.
@@ -174,6 +175,8 @@ interface GridProps {
   rows: Row[];
   /** The tab's highlight rules: matching rows and cells carry `data-highlight` with the rule's colour. */
   highlights?: HighlightRule[];
+  /** The rules were changed: the cell menu and the column menu offer highlight rules, and a chip opens them once there are some. */
+  onHighlightsChange?: (rules: HighlightRule[]) => void;
   /**
    * A row was opened (its inspect button, a double-click, or Enter on the selected row): its index in `rows`. Null when the
    * inspect button of the row already open was pressed again, to close it.
@@ -248,6 +251,7 @@ export function ResultGrid({
   columns,
   rows,
   highlights,
+  onHighlightsChange,
   onOpenRow,
   inspected = null,
   inspectorId,
@@ -275,6 +279,10 @@ export function ResultGrid({
   const [cellMenu, setCellMenu] = useState<CellMenu | null>(null);
   const [columnMenu, setColumnMenu] = useState<ColumnAt | null>(null);
   const [stats, setStats] = useState<(ColumnAt & { values: unknown[]; opened: number }) | null>(null);
+  const [highlightFrom, setHighlightFrom] = useState<CellMenu | null>(null);
+  // The rule list's point in the grid, and where focus goes back to when it closes.
+  const [ruleList, setRuleList] = useState<{ at: { x: number; y: number }; back: HTMLElement | null } | null>(null);
+  const ruleCount = onHighlightsChange ? (highlights?.length ?? 0) : 0;
   const columnMenuButton = useRef<HTMLButtonElement | null>(null);
   const root = useRef<HTMLDivElement>(null);
   // A new result's rows start with nothing selected, and with no statistics of the old ones.
@@ -472,7 +480,7 @@ export function ResultGrid({
   /** Opens a cell's smart filter menu at the pointer, kept inside the grid; a cell it offers nothing for keeps the browser's. */
   const openCellMenu = (e: MouseEvent, column: ResultColumn | undefined, value: unknown) => {
     const box = root.current?.getBoundingClientRect();
-    if (!onFilter || !column || !box || filterOps(column, value).length === 0) {
+    if (!column || !box || (!onHighlightsChange && (!onFilter || filterOps(column, value).length === 0))) {
       return;
     }
     e.preventDefault();
@@ -620,14 +628,31 @@ export function ResultGrid({
     <div ref={root} className="relative flex min-h-0 flex-1 flex-col">
       {toolbar === undefined ? <div className="rbar justify-end">{tools}</div> : toolbar && createPortal(tools, toolbar)}
       {/* Its own line, like the chart filter's chip: the result bar has no room to spare. */}
-      {nested && grouping.length > 0 && (
-        <div className="flex px-3 pt-2">
-          <span className="chip min-w-0" title={`Grouped by ${grouping.join(' › ')}`}>
-            <span className="truncate">Grouped by {grouping.join(' › ')}</span>
-            <button type="button" className="shrink-0 cursor-pointer" aria-label="Clear grouping" onClick={() => setGrouping([])}>
-              ✕
+      {((nested && grouping.length > 0) || ruleCount > 0) && (
+        <div className="flex gap-2 px-3 pt-2">
+          {nested && grouping.length > 0 && (
+            <span className="chip min-w-0" title={`Grouped by ${grouping.join(' › ')}`}>
+              <span className="truncate">Grouped by {grouping.join(' › ')}</span>
+              <button type="button" className="shrink-0 cursor-pointer" aria-label="Clear grouping" onClick={() => setGrouping([])}>
+                ✕
+              </button>
+            </span>
+          )}
+          {ruleCount > 0 && (
+            <button
+              type="button"
+              className="chip shrink-0 cursor-pointer"
+              aria-haspopup="dialog"
+              aria-expanded={ruleList !== null}
+              onClick={(e) => {
+                const box = root.current?.getBoundingClientRect();
+                const chip = e.currentTarget.getBoundingClientRect();
+                setRuleList({ at: { x: chip.left - (box?.left ?? 0), y: chip.bottom - (box?.top ?? 0) + 4 }, back: e.currentTarget });
+              }}
+            >
+              Highlight · {ruleCount}
             </button>
-          </span>
+          )}
         </div>
       )}
       <div
@@ -853,7 +878,7 @@ export function ResultGrid({
       {notice && <NoticeLine notice={notice} onDismiss={() => setNotice(null)} />}
       {tool && <RunToolDialog tool={tool} columns={columns} rows={chosen.map((r) => r.original)} onClose={() => setTool(null)} />}
       {opened && <JsonPanel opened={opened} onClose={() => setOpened(null)} />}
-      {cellMenu && onFilter && (
+      {cellMenu && (onFilter || onHighlightsChange) && (
         <Menu
           label={`Filter on ${cellMenu.column.name}`}
           at={{ x: cellMenu.x, y: cellMenu.y }}
@@ -864,7 +889,30 @@ export function ResultGrid({
             }
           }}
         >
-          <FilterItems column={cellMenu.column} value={cellMenu.value} onFilter={onFilter} />
+          {onFilter && <FilterItems column={cellMenu.column} value={cellMenu.value} onFilter={onFilter} />}
+          {onHighlightsChange && (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                tabIndex={-1}
+                className="whitespace-nowrap"
+                disabled={ruleCount >= MAX_HIGHLIGHTS}
+                title={ruleCount >= MAX_HIGHLIGHTS ? `Up to ${MAX_HIGHLIGHTS} rules` : undefined}
+                onClick={() => setHighlightFrom(cellMenu)}
+              >
+                Highlight rows where {cellMenu.column.name} == {quotedValue(cellMenu.column, cellMenu.value)}…
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                tabIndex={-1}
+                onClick={() => setRuleList({ at: { x: cellMenu.x, y: cellMenu.y }, back: scroller.current })}
+              >
+                Highlight rules…
+              </button>
+            </>
+          )}
         </Menu>
       )}
       {columnMenu && (
@@ -899,7 +947,49 @@ export function ResultGrid({
           >
             {grouping.includes(columnMenu.column.name) ? 'Stop grouping by this column' : 'Group by this column'}
           </button>
+          {onHighlightsChange && (
+            <button
+              type="button"
+              role="menuitem"
+              tabIndex={-1}
+              onClick={() => setRuleList({ at: columnMenu.at, back: columnMenuButton.current })}
+            >
+              Highlight rules…
+            </button>
+          )}
         </Menu>
+      )}
+      {highlightFrom && onHighlightsChange && (
+        <HighlightFromCell
+          column={highlightFrom.column}
+          value={highlightFrom.value}
+          at={{ x: highlightFrom.x, y: highlightFrom.y }}
+          onAdd={(rule) => {
+            onHighlightsChange([...(highlights ?? []), rule]);
+            setHighlightFrom(null);
+            scroller.current?.focus();
+          }}
+          onClose={(refocus) => {
+            setHighlightFrom(null);
+            if (refocus) {
+              scroller.current?.focus();
+            }
+          }}
+        />
+      )}
+      {ruleList && onHighlightsChange && (
+        <HighlightListPopover
+          rules={highlights ?? []}
+          columns={columns}
+          onChange={onHighlightsChange}
+          at={ruleList.at}
+          onClose={(refocus) => {
+            setRuleList(null);
+            if (refocus) {
+              ruleList.back?.focus();
+            }
+          }}
+        />
       )}
       {stats && (
         <ColumnStatsPopover
