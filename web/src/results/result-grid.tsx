@@ -24,7 +24,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { ErrorReportActions } from '../shell/error-report';
-import type { ExternalTool, ResultColumn } from '../wire';
+import type { ExternalTool, HighlightRule, ResultColumn } from '../wire';
 import { COPY_FORMATS, copyFailed, copyText, formatRows, type CopyFormat } from './copy';
 import { columnWidths } from './column-widths';
 import { cellText, type Row } from './export';
@@ -34,6 +34,7 @@ import { NUMERIC } from './column-stats';
 import { RunToolDialog, ToolItems } from './run-tool';
 import { FilterItems, MenuButton, Menu, type OnFilter } from './menu';
 import { filterOps } from './smart-filter';
+import { compileRules, highlightOf } from './highlights';
 
 const ROW_HEIGHT = 29;
 // One empty list, so a grid with no cell filters doesn't hand the table a new state each render.
@@ -171,6 +172,8 @@ export interface GridSelection {
 interface GridProps {
   columns: ResultColumn[];
   rows: Row[];
+  /** The tab's highlight rules: matching rows and cells carry `data-highlight` with the rule's colour. */
+  highlights?: HighlightRule[];
   /**
    * A row was opened (its inspect button, a double-click, or Enter on the selected row): its index in `rows`. Null when the
    * inspect button of the row already open was pressed again, to close it.
@@ -244,6 +247,7 @@ const inspectIcon = (
 export function ResultGrid({
   columns,
   rows,
+  highlights,
   onOpenRow,
   inspected = null,
   inspectorId,
@@ -314,6 +318,7 @@ export function ResultGrid({
   const selected = owned ? owned.selected : ownSelected;
   const setSelected = owned ? owned.onChange : setOwnSelected;
 
+  const compiled = useMemo(() => (highlights?.length ? compileRules(highlights, columns) : null), [highlights, columns]);
   const meta = useMemo(() => new Map(columns.map((c) => [c.name, c])), [columns]);
   const widths = useMemo(() => columnWidths(columns, rows, statistics), [columns, rows, statistics]);
   const defs = useMemo<ColumnDef<Features, Row>[]>(
@@ -745,9 +750,11 @@ export function ResultGrid({
               }
               const isSelected = selected.has(row.index);
               const isInspected = inspected === row.index;
+              const marks = compiled ? highlightOf(compiled, row.original) : null;
               return (
                 <tr
                   key={row.id}
+                  data-highlight={marks?.row ?? undefined}
                   data-index={item.index}
                   style={{ height: ROW_HEIGHT }}
                   className={[isSelected && 'sel', isInspected && 'inspected'].filter(Boolean).join(' ') || undefined}
@@ -792,9 +799,10 @@ export function ResultGrid({
                     const column = meta.get(cell.column.id);
                     const value = cell.getValue();
                     const onContextMenu = (e: MouseEvent) => openCellMenu(e, column, value);
+                    const mark = column ? marks?.cells.get(columns.indexOf(column)) : undefined;
                     if (value === null || value === undefined) {
                       return (
-                        <td key={cell.id} className="faint" onContextMenu={onContextMenu}>
+                        <td key={cell.id} className="faint" data-highlight={mark} onContextMenu={onContextMenu}>
                           null
                         </td>
                       );
@@ -802,7 +810,7 @@ export function ResultGrid({
                     if (isComplex(value)) {
                       const text = cellText(value);
                       return (
-                        <td key={cell.id} onContextMenu={onContextMenu}>
+                        <td key={cell.id} data-highlight={mark} onContextMenu={onContextMenu}>
                           <button
                             type="button"
                             aria-label={`Show ${column?.name ?? ''} as JSON`}
@@ -815,7 +823,12 @@ export function ResultGrid({
                       );
                     }
                     return (
-                      <td key={cell.id} className={column && NUMERIC.has(column.type) ? 'num' : undefined} onContextMenu={onContextMenu}>
+                      <td
+                        key={cell.id}
+                        className={column && NUMERIC.has(column.type) ? 'num' : undefined}
+                        data-highlight={mark}
+                        onContextMenu={onContextMenu}
+                      >
                         {cellText(value)}
                       </td>
                     );

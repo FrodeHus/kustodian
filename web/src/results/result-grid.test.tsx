@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { HighlightRule } from '../wire';
 import { ResultGrid } from './result-grid';
 
 const columns = [
@@ -689,5 +690,78 @@ describe('ResultGrid', () => {
       fireEvent.click(screen.getByRole('menuitem', { name: 'Cells as CSV' }));
       expect(writeText).toHaveBeenLastCalledWith(['x,p,1,a', 'x,q,2,a', 'x,q,5,a', 'z,p,4,a', 'z,p,6,a', 'y,p,3,a'].join('\r\n'));
     });
+  });
+});
+
+describe('ResultGrid highlights', () => {
+  const cols = [
+    { name: 'state', type: 'string' },
+    { name: 'days', type: 'long' },
+  ];
+  const data = [
+    ['FAIL', 100],
+    ['OK', 10],
+    ['FAIL', 5],
+  ];
+  const rule = (r: Partial<HighlightRule>): HighlightRule => ({
+    id: 'r',
+    column: 'state',
+    op: '==',
+    value: 'FAIL',
+    colour: 'danger',
+    target: 'row',
+    ...r,
+  });
+  const marks = (c: HTMLElement) => bodyRows(c).map((tr) => tr.getAttribute('data-highlight'));
+
+  it('marks the rows a row rule matches', () => {
+    const { container } = render(<ResultGrid columns={cols} rows={data} highlights={[rule({})]} />);
+    expect(marks(container)).toEqual(['danger', null, 'danger']);
+  });
+
+  it('marks only the matching cell for a cell rule', () => {
+    const { container } = render(
+      <ResultGrid
+        columns={cols}
+        rows={data}
+        highlights={[rule({ column: 'days', op: '>', value: '90', colour: 'warning', target: 'cell' })]}
+      />,
+    );
+    expect(marks(container)).toEqual([null, null, null]);
+    expect([...container.querySelectorAll('tbody td[data-highlight]')].map((td) => td.getAttribute('data-highlight'))).toEqual(['warning']);
+    expect(container.querySelector('tbody td[data-highlight]')?.textContent).toBe('100');
+  });
+
+  it('shows a cell and a row rule together', () => {
+    const { container } = render(
+      <ResultGrid
+        columns={cols}
+        rows={data}
+        highlights={[rule({}), rule({ id: 'c', column: 'days', op: '>', value: '90', colour: 'warning', target: 'cell' })]}
+      />,
+    );
+    expect(marks(container)[0]).toBe('danger');
+    expect(bodyRows(container)[0]!.querySelector('td[data-highlight="warning"]')).not.toBeNull();
+  });
+
+  it('puts no attributes on a grid without rules', () => {
+    const { container } = render(<ResultGrid columns={cols} rows={data} />);
+    expect(container.querySelector('[data-highlight]')).toBeNull();
+  });
+
+  it('follows sorting and the row filter, and never marks group rows', () => {
+    const { container } = render(<ResultGrid columns={cols} rows={data} highlights={[rule({})]} />);
+    fireEvent.click(screen.getByRole('button', { name: /^days/ }));
+    expect(marks(container)).toEqual(['danger', null, 'danger']);
+    expect(bodyRows(container).map((tr) => tr.textContent)).toEqual(['FAIL5', 'OK10', 'FAIL100'].map((t) => expect.stringContaining(t)));
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Filter rows' }), { target: { value: 'OK' } });
+    expect(marks(container)).toEqual([null]);
+  });
+
+  it('marks leaf rows of a grouped grid and not the group rows', () => {
+    const { container } = render(
+      <ResultGrid columns={cols} rows={data} highlights={[rule({})]} grouping={['state']} onGroupingChange={() => {}} />,
+    );
+    expect(container.querySelectorAll('tbody tr:not([data-index])[data-highlight]')).toHaveLength(0);
   });
 });
