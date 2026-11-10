@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { MenuButton } from '../results/result-grid';
+import { MenuButton } from '../results/menu';
 import { MAX_TAB_NAME, type Tab, type Widget } from './model';
 import { addTab, childrenOf, deleteTab, moveTab, renameTab, reorderTab } from './tabs';
 import { WidgetGrid, type GridEditing } from './widget-grid';

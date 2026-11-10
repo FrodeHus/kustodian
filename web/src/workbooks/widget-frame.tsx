@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as 
 import { EXPORT_NAMES, exportResult, type ExportFormat } from '../results/export';
 import { createPortal } from 'react-dom';
 import { call } from '../bridge';
-import { MenuButton, NoticeLine, type Notice } from '../results/result-grid';
+import { MenuButton } from '../results/menu';
+import { NoticeLine, type Notice } from '../results/result-grid';
 import { RunStatus } from '../results/run-status';
 import { fallbackText } from '../results/workspace-fallback';
 import { errorText } from '../shell/errors';

@@ -1,7 +1,8 @@
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ResultColumn } from '../wire';
 import { CHUNKED_ABOVE, columnStats, columnStatsChunked, type ColumnStats } from './column-stats';
-import { FilterItems, MenuButton, type OnFilter } from './result-grid';
+import { FilterItems, MenuButton, type OnFilter } from './menu';
+import { keepInside } from './keep-inside';
 import { shownValue } from './smart-filter';
 
 const count = (n: number) => n.toLocaleString('en-US');
@@ -54,14 +55,9 @@ export function ColumnStatsPopover({
 
   // Kept inside the grid, as `Menu` does with `at`.
   useLayoutEffect(() => {
-    const el = box.current;
-    const parent = el?.parentElement;
-    if (!at || !el || !parent) {
-      return;
+    if (at && box.current) {
+      keepInside(box.current, at, { capHeight: true });
     }
-    el.style.maxHeight = `${parent.clientHeight}px`;
-    el.style.left = `${Math.max(0, Math.min(at.x, parent.clientWidth - el.offsetWidth))}px`;
-    el.style.top = `${Math.max(0, Math.min(at.y, parent.clientHeight - el.offsetHeight))}px`;
   });
 
   const dismiss = useEffectEvent(() => onClose(false));

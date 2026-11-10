@@ -3,7 +3,8 @@ import type { ResultColumn } from '../wire';
 import { copyFailed, copyText } from './copy';
 import { cellText, type Row } from './export';
 import { PropertyGrid } from './property-grid';
-import { FilterItems, MenuButton, type Notice, type OnFilter } from './result-grid';
+import { FilterItems, MenuButton, type OnFilter } from './menu';
+import type { Notice } from './result-grid';
 import { filterOps } from './smart-filter';
 
 const isComplex = (value: unknown): value is Record<string, unknown> | unknown[] => typeof value === 'object' && value !== null;

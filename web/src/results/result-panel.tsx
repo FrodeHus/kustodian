@@ -8,7 +8,8 @@ import type { Picked } from './chart-view';
 import { CompareView } from './compare-view';
 import { DiagnosticsView } from './diagnostics-view';
 import { EXPORT_FORMATS, EXPORT_NAMES, exportResult, toJson, type ExportFormat } from './export';
-import { MenuButton, NoticeLine, ResultGrid, type Notice, type OnFilter } from './result-grid';
+import { MenuButton, type OnFilter } from './menu';
+import { NoticeLine, ResultGrid, type Notice } from './result-grid';
 import { RowDetails } from './row-details';
 
 // Recharts is a chunk of its own, loaded the first time the Chart tab opens.
