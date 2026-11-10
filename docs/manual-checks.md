@@ -296,6 +296,20 @@ property's **Filter…** button. The grid focuses rows, not cells, so it has no 
 | From the keyboard: Tab to the column's chevron, Enter, Enter on Column statistics, Esc closes it and focus returns to the chevron | - | - | - |
 | Hunting `range x from 1 to 300000 step 1`, open the statistics for `x`: it shows `Counting…` and the app stays responsive | - | - | - |
 
+### Grouping (2026-11-10)
+
+| Check | macOS | Windows | Linux |
+| --- | --- | --- | --- |
+| Group a hunting result by two columns from the header menu: the chip reads `Grouped by A › B`, groups start closed, largest first | - | - | - |
+| Rerun, then switch tabs and back: the grouping stays | - | - | - |
+| Rerun a query without one grouped column: it drops that column | - | - | - |
+| Group by a third column, then try a fourth: its header menu item and Group by menu item are disabled with the title `Up to 3 columns` | - | - | - |
+| The toolbar Group by menu: checking columns nests them in the order checked, unchecking one removes it, `No grouping` clears; the button reads `Group by` and the chip names the columns | - | - | - |
+| Grouped by three columns at 1280px wide (side panel open), the result bar doesn't overlap the Rows / Chart / JSON / Diagnostics tabs, and the `Grouped by A › B › C` chip shows on its own line under the bar, truncating with the full text on hover | - | - | - |
+| From the keyboard: Tab to a group row, Right opens it, Left closes it | - | - | - |
+| Right-click a group row, Filter by: the query gets the `\| where` line and reruns | - | - | - |
+| Once in a light theme, once in a dark one | - | - | - |
+
 ## Notes
 
 - macOS window: the owner's own Kustodian had quit before this check, and the builder's instance was started with `HOME`

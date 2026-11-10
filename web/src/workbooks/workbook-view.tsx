@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { call } from '../bridge';
 import { useRevisions } from '../library/saving';
-import { MenuButton } from '../results/result-grid';
+import { MenuButton } from '../results/menu';
 import { runCommand } from '../shell/commands';
 import { ErrorReportActions, type Shown } from '../shell/error-report';
 import { errorText } from '../shell/errors';

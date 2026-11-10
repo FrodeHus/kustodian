@@ -161,6 +161,30 @@ describe('ResultGrid', () => {
     expect(bodyRows(container)).toHaveLength(3);
   });
 
+  it('grid_controlled_grouping_renders_and_reports_changes', () => {
+    const rows = [
+      ['Contoso', 1, null],
+      ['Payroll', 2, null],
+      ['Contoso', 3, null],
+    ];
+    const onGroupingChange = vi.fn();
+    const { container, rerender } = render(
+      <ResultGrid columns={columns} rows={rows} grouping={['displayName']} onGroupingChange={onGroupingChange} />,
+    );
+    expect(bodyRows(container).map((tr) => tr.textContent)).toEqual(['▸ displayName: Contoso · 2', '▸ displayName: Payroll · 1']);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Group by: displayName' }));
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Group by' })).getByRole('menuitemradio', { name: 'No grouping' }));
+    expect(onGroupingChange).toHaveBeenLastCalledWith([]);
+
+    // A rerun without the grouped column drops it, once.
+    onGroupingChange.mockClear();
+    const cols = columns.filter((c) => c.name !== 'displayName');
+    rerender(<ResultGrid columns={cols} rows={[[1, null]]} grouping={['displayName']} onGroupingChange={onGroupingChange} />);
+    expect(onGroupingChange).toHaveBeenCalledTimes(1);
+    expect(onGroupingChange).toHaveBeenCalledWith([]);
+  });
+
   it('grid_shift_click_selects_range_and_copies_csv', async () => {
     const rows = [
       ['Contoso, Ltd', 1, null],
@@ -490,6 +514,180 @@ describe('ResultGrid', () => {
     it('without statistics there is no header menu', () => {
       render(<ResultGrid columns={cols} rows={rows} />);
       expect(screen.queryByRole('button', { name: /column menu$/ })).toBeNull();
+    });
+  });
+
+  describe('nested grouping', () => {
+    const cols = [
+      { name: 'g', type: 'string' },
+      { name: 'v', type: 'string' },
+      { name: 'n', type: 'long' },
+      { name: 'w', type: 'string' },
+    ];
+    // g: x,x,x,y,z,z. Inside x, v: p,q,q.
+    const rows = [
+      ['x', 'p', 1, 'a'],
+      ['x', 'q', 2, 'a'],
+      ['y', 'p', 3, 'a'],
+      ['z', 'p', 4, 'a'],
+      ['x', 'q', 5, 'a'],
+      ['z', 'p', 6, 'a'],
+    ];
+    const texts = (container: HTMLElement) => bodyRows(container).map((tr) => tr.textContent);
+    const headerItem = (column: string, name: string | RegExp) => {
+      fireEvent.click(screen.getByRole('button', { name: `${column} column menu` }));
+      return within(screen.getByRole('menu', { name: `${column} column` })).getByRole('menuitem', { name });
+    };
+    const toggle = (name: RegExp) => screen.getByRole('button', { name });
+
+    it('the header menu groups by a column, stops grouping by it, and allows up to 3', () => {
+      const { container } = render(<ResultGrid columns={cols} rows={rows} statistics />);
+      const menu = () => screen.getByRole('menu', { name: 'g column' });
+      fireEvent.click(screen.getByRole('button', { name: 'g column menu' }));
+      expect(
+        within(menu())
+          .getAllByRole('menuitem')
+          .map((b) => b.textContent),
+      ).toEqual(['Column statistics', 'Group by this column']);
+      fireEvent.click(within(menu()).getByRole('menuitem', { name: 'Group by this column' }));
+      expect(texts(container)).toEqual(['▸ g: x · 3', '▸ g: z · 2', '▸ g: y · 1']);
+
+      fireEvent.click(headerItem('g', 'Stop grouping by this column'));
+      expect(bodyRows(container)).toHaveLength(6);
+
+      fireEvent.click(headerItem('g', 'Group by this column'));
+      fireEvent.click(headerItem('v', 'Group by this column'));
+      fireEvent.click(headerItem('n', 'Group by this column'));
+      expect(screen.getByRole('button', { name: 'Group by' })).toBeTruthy();
+      expect(screen.getByText('Grouped by g › v › n')).toBeTruthy();
+      const capped = headerItem('w', 'Group by this column');
+      expect(capped).toHaveProperty('disabled', true);
+      expect(capped.getAttribute('title')).toBe('Up to 3 columns');
+    });
+
+    it('the toolbar menu nests the columns checked, in that order, and No grouping clears', () => {
+      const { container } = render(<ResultGrid columns={cols} rows={rows} statistics />);
+      fireEvent.click(screen.getByRole('button', { name: 'Group by' }));
+      const menu = screen.getByRole('menu', { name: 'Group by' });
+      fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: 'g' }));
+      fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: 'v' }));
+      expect(within(menu).getByRole('menuitemcheckbox', { name: 'v' }).getAttribute('aria-checked')).toBe('true');
+      expect(screen.getByRole('button', { name: 'Group by' })).toBeTruthy();
+      expect(screen.getByText('Grouped by g › v')).toBeTruthy();
+
+      fireEvent.click(toggle(/g: x/));
+      expect(texts(container)).toEqual(['▾ g: x · 3', '▸ v: q · 2', '▸ v: p · 1', '▸ g: z · 2', '▸ g: y · 1']);
+
+      // Unchecking removes it; at three the others are disabled.
+      fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: 'v' }));
+      expect(screen.getByRole('button', { name: 'Group by' })).toBeTruthy();
+      expect(screen.getByText('Grouped by g')).toBeTruthy();
+      fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: 'v' }));
+      fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: 'n' }));
+      const w = within(menu).getByRole('menuitemcheckbox', { name: 'w' });
+      expect(w).toHaveProperty('disabled', true);
+      expect(w.getAttribute('title')).toBe('Up to 3 columns');
+
+      fireEvent.click(within(menu).getByRole('menuitem', { name: 'No grouping' }));
+      expect(bodyRows(container)).toHaveLength(6);
+      expect(screen.getByRole('button', { name: 'Group by' })).toBeTruthy();
+    });
+
+    it('a chip says what the rows are grouped by, and clears it', () => {
+      const { container } = render(<ResultGrid columns={cols} rows={rows} statistics />);
+      expect(screen.queryByText(/^Grouped by/)).toBeNull();
+      fireEvent.click(headerItem('g', 'Group by this column'));
+      fireEvent.click(headerItem('v', 'Group by this column'));
+      expect(screen.getByText('Grouped by g › v')).toBeTruthy();
+      expect(screen.getByText('Grouped by g › v').parentElement?.getAttribute('title')).toBe('Grouped by g › v');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Clear grouping' }));
+      expect(screen.queryByText(/^Grouped by/)).toBeNull();
+      expect(bodyRows(container)).toHaveLength(6);
+    });
+
+    it('groups are sorted by size, largest first, at every level, and leaf rows keep the sort (widget grids too)', () => {
+      // No statistics: a widget's grid, with its single-column toolbar menu.
+      const { container, unmount } = render(<ResultGrid columns={cols} rows={rows} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Group by' }));
+      fireEvent.click(within(screen.getByRole('menu', { name: 'Group by' })).getByRole('menuitemradio', { name: 'g' }));
+      expect(texts(container)).toEqual(['▸ g: x · 3', '▸ g: z · 2', '▸ g: y · 1']);
+      // n descending: the leaf rows follow it, the groups keep their size order.
+      fireEvent.click(screen.getByRole('button', { name: /^n/ }));
+      fireEvent.click(screen.getByRole('button', { name: /^n/ }));
+      fireEvent.click(toggle(/g: x/));
+      expect(texts(container)).toEqual(['▾ g: x · 3', 'xq5a', 'xq2a', 'xp1a', '▸ g: z · 2', '▸ g: y · 1']);
+      unmount();
+
+      const nested = render(<ResultGrid columns={cols} rows={rows} grouping={['g', 'v']} onGroupingChange={vi.fn()} />);
+      fireEvent.click(toggle(/g: x/));
+      expect(texts(nested.container).slice(0, 3)).toEqual(['▾ g: x · 3', '▸ v: q · 2', '▸ v: p · 1']);
+    });
+
+    it('group rows start closed; Right opens and Left closes the focused one; Up/Down select only rows', () => {
+      const { container, rerender } = render(<ResultGrid columns={cols} rows={rows} grouping={['g', 'v']} onGroupingChange={vi.fn()} />);
+      expect(texts(container)).toEqual(['▸ g: x · 3', '▸ g: z · 2', '▸ g: y · 1']);
+      // The arrow is decoration: aria-expanded says whether it is open.
+      expect(screen.getByRole('button', { name: 'g: x · 3' })).toBeTruthy();
+
+      fireEvent.keyDown(toggle(/g: x/), { key: 'ArrowRight' });
+      expect(toggle(/g: x/).getAttribute('aria-expanded')).toBe('true');
+      fireEvent.keyDown(toggle(/v: q/), { key: 'ArrowRight' });
+      expect(toggle(/v: q/).getAttribute('aria-expanded')).toBe('true');
+      // Left on the open nested group closes it, not its parent.
+      fireEvent.keyDown(toggle(/v: q/), { key: 'ArrowLeft' });
+      expect(toggle(/v: q/).getAttribute('aria-expanded')).toBe('false');
+      expect(toggle(/g: x/).getAttribute('aria-expanded')).toBe('true');
+      fireEvent.keyDown(toggle(/g: x/), { key: 'ArrowLeft' });
+      expect(toggle(/g: x/).getAttribute('aria-expanded')).toBe('false');
+
+      // Up/Down skip the group rows.
+      rerender(<ResultGrid columns={cols} rows={rows} grouping={['g']} onGroupingChange={vi.fn()} />);
+      fireEvent.click(toggle(/g: z/));
+      fireEvent.click(toggle(/g: y/));
+      const region = screen.getByRole('region', { name: 'Result rows' });
+      const selectedText = () => bodyRows(container).find((tr) => tr.getAttribute('aria-selected') === 'true')?.textContent;
+      fireEvent.keyDown(region, { key: 'ArrowDown' });
+      expect(selectedText()).toBe('zp4a');
+      fireEvent.keyDown(region, { key: 'ArrowDown' });
+      fireEvent.keyDown(region, { key: 'ArrowDown' });
+      expect(selectedText()).toBe('yp3a');
+      fireEvent.keyDown(region, { key: 'ArrowUp' });
+      expect(selectedText()).toBe('zp6a');
+    });
+
+    it('new rows close the open groups', () => {
+      const { container, rerender } = render(<ResultGrid columns={cols} rows={rows} grouping={['g']} onGroupingChange={vi.fn()} />);
+      fireEvent.click(toggle(/g: x/));
+      expect(bodyRows(container)).toHaveLength(6);
+      rerender(<ResultGrid columns={cols} rows={[...rows]} grouping={['g']} onGroupingChange={vi.fn()} />);
+      expect(texts(container)).toEqual(['▸ g: x · 3', '▸ g: z · 2', '▸ g: y · 1']);
+    });
+
+    it('right-clicking a group row filters by its first row’s value', () => {
+      const onFilter = vi.fn();
+      const withNull = [...rows, [null, 'p', 7, 'a']];
+      render(<ResultGrid columns={cols} rows={withNull} grouping={['g']} onGroupingChange={vi.fn()} onFilter={onFilter} />);
+      fireEvent.contextMenu(toggle(/g: x/));
+      fireEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Filter by "x"' }));
+      expect(onFilter).toHaveBeenCalledWith(cols[0], 'x', 'eq');
+
+      fireEvent.contextMenu(toggle(/g: null · 1/));
+      expect(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Filter by null' })).toBeTruthy();
+    });
+
+    it('without onFilter, right-clicking a group row shows the browser’s menu', () => {
+      render(<ResultGrid columns={cols} rows={rows} grouping={['g']} onGroupingChange={vi.fn()} />);
+      expect(fireEvent.contextMenu(toggle(/g: x/))).toBe(true);
+      expect(screen.queryByRole('menu')).toBeNull();
+    });
+
+    it('with groups closed, copy counts and writes every filtered row, ungrouped', () => {
+      render(<ResultGrid columns={cols} rows={rows} grouping={['g']} onGroupingChange={vi.fn()} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Copy as' }));
+      expect(screen.getByText('All 6 rows')).toBeTruthy();
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Cells as CSV' }));
+      expect(writeText).toHaveBeenLastCalledWith(['x,p,1,a', 'x,q,2,a', 'x,q,5,a', 'z,p,4,a', 'z,p,6,a', 'y,p,3,a'].join('\r\n'));
     });
   });
 });

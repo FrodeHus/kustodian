@@ -38,7 +38,7 @@ let stop: (() => void) | undefined;
 
 beforeEach(() => {
   bridge.call.mockReset();
-  useTabs.setState({ tabs: [], activeId: null, cursors: {} });
+  useTabs.setState({ tabs: [], activeId: null, cursors: {}, groupings: {} });
 });
 
 afterEach(() => {
@@ -48,6 +48,21 @@ afterEach(() => {
 });
 
 describe('session sync', () => {
+  it('session_sync_never_saves_a_tabs_grouping', async () => {
+    vi.useFakeTimers();
+    host({ session: { ...saved, tabs: [] }, corrupt: false });
+    stop = startSessionSync();
+    await vi.waitFor(() => expect(useTabs.getState().tabs).toHaveLength(1));
+    await vi.advanceTimersByTimeAsync(1000);
+    const before = saves().length;
+
+    useTabs.getState().setGrouping(useTabs.getState().tabs[0]!.id, ['displayName']);
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(saves()).toHaveLength(before);
+    expect(JSON.stringify(saves())).not.toContain('displayName');
+  });
+
   it('session_sync_keeps_a_raw_tabs_request_but_never_a_header_it_could_not_send', async () => {
     vi.useFakeTimers();
     host({ session: { ...saved, tabs: [] }, corrupt: false });
@@ -351,7 +366,7 @@ describe('session sync', () => {
     expect(written.tabs.find((t) => t.id === id)).toMatchObject({ source: 'workbook', workbook: doc, dirty: true });
     stop();
 
-    useTabs.setState({ tabs: [], activeId: null, cursors: {} });
+    useTabs.setState({ tabs: [], activeId: null, cursors: {}, groupings: {} });
     host({ session: written, corrupt: false });
     stop = startSessionSync();
     await vi.waitFor(() => expect(useTabs.getState().tabs).toHaveLength(2));

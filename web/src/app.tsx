@@ -18,7 +18,7 @@ import { ParamsForm } from './params/params-form';
 import { DiagnosticsView } from './results/diagnostics-view';
 import { EXPORT_FORMATS, EXPORT_NAMES, exportResult } from './results/export';
 import { ResultPanel } from './results/result-panel';
-import type { OnFilter } from './results/result-grid';
+import type { OnFilter } from './results/menu';
 import { filterable, filterCondition, filterTarget, targetEnd, withLine, type FilterOp } from './results/smart-filter';
 import { RunStatus } from './results/run-status';
 import { openRaw } from './raw/raw-request';

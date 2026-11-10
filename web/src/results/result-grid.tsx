@@ -3,7 +3,6 @@ import {
   columnGroupingFeature,
   columnOrderingFeature,
   columnVisibilityFeature,
-  createExpandedRowModel,
   createFilteredRowModel,
   createGroupedRowModel,
   createSortedRowModel,
@@ -22,19 +21,7 @@ import {
   type SortingState,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import {
-  useEffect,
-  useEffectEvent,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-  type KeyboardEvent,
-  type MouseEvent,
-  type ReactNode,
-  type RefObject,
-} from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { ErrorReportActions } from '../shell/error-report';
 import type { ExternalTool, ResultColumn } from '../wire';
@@ -45,7 +32,8 @@ import type { CellMatch } from './chart-shape';
 import { ColumnStatsPopover } from './column-stats-popover';
 import { NUMERIC } from './column-stats';
 import { RunToolDialog, ToolItems } from './run-tool';
-import { filterOps, shownValue, type FilterOp } from './smart-filter';
+import { FilterItems, MenuButton, Menu, type OnFilter } from './menu';
+import { filterOps } from './smart-filter';
 
 const ROW_HEIGHT = 29;
 // One empty list, so a grid with no cell filters doesn't hand the table a new state each render.
@@ -61,7 +49,6 @@ const features = tableFeatures({
   filteredRowModel: createFilteredRowModel(),
   groupedRowModel: createGroupedRowModel(),
   sortedRowModel: createSortedRowModel(),
-  expandedRowModel: createExpandedRowModel(),
 });
 type Features = typeof features;
 
@@ -94,9 +81,49 @@ const rowContains: FilterFn<Features, Row> = (row, _columnId, filter: string) =>
 /** A cell matches when its text is exactly the filter's: the rows behind a chart mark (see `markFilter`). */
 const cellIs: FilterFn<Features, Row> = (row, columnId, value: string) => cellText(row.getValue(columnId)) === value;
 
-/** The leaf rows under `rows` in the order shown, groups opened or not. */
-function leaves(rows: TableRow<Features, Row>[]): TableRow<Features, Row>[] {
-  return rows.flatMap((r) => (r.getIsGrouped() ? leaves(r.subRows) : [r]));
+/** At most this many grouping columns. */
+const MAX_GROUPING = 3;
+
+type GridRow = TableRow<Features, Row>;
+
+/** The grouped rows in the order shown: every level of groups by row count, largest first (ties keep TanStack's order). */
+interface GroupTree {
+  /** The top level, ordered. */
+  top: GridRow[];
+  /** Each group row's own rows, ordered. */
+  children: Map<GridRow, GridRow[]>;
+  /** How many leaf rows each group row has. */
+  size: Map<GridRow, number>;
+  /** Every leaf row in the order shown, groups opened or not. */
+  leaves: GridRow[];
+}
+
+/** Walks the row model once into a `GroupTree`; a level of rows stays as it is. */
+function groupTree(rows: GridRow[]): GroupTree {
+  const children = new Map<GridRow, GridRow[]>();
+  const size = new Map<GridRow, number>();
+  /** Orders a level, records what each group has, and returns the leaves under it. */
+  const walk = (level: GridRow[]): { ordered: GridRow[]; leaves: GridRow[] } => {
+    if (!level[0]?.getIsGrouped()) {
+      return { ordered: level, leaves: level };
+    }
+    const under = new Map(level.map((r) => [r, walk(r.subRows)]));
+    for (const [r, sub] of under) {
+      children.set(r, sub.ordered);
+      size.set(r, sub.leaves.length);
+    }
+    const ordered = level.toSorted((a, b) => (size.get(b) ?? 0) - (size.get(a) ?? 0));
+    return { ordered, leaves: ordered.flatMap((r) => under.get(r)?.leaves ?? []) };
+  };
+  const { ordered, leaves } = walk(rows);
+  return { top: ordered, children, size, leaves };
+}
+
+/** The rows shown: each group row, then what is under it when it is open (as `row.getIsExpanded()` reads `expanded`). */
+function shownRows(tree: GroupTree, expanded: ExpandedState, rows: GridRow[] = tree.top): GridRow[] {
+  return rows.flatMap((r) =>
+    r.getIsGrouped() && (expanded === true || expanded[r.id]) ? [r, ...shownRows(tree, expanded, tree.children.get(r) ?? [])] : [r],
+  );
 }
 
 interface Opened {
@@ -135,188 +162,6 @@ export function NoticeLine({ notice, onDismiss }: { notice: Notice; onDismiss: (
   );
 }
 
-/**
- * A menu: focus starts on the first item; the arrow keys, Home and End move between items. Choosing an item (unless it has
- * `data-keep-open`) or pressing Esc calls `onClose(true)`, for focus to go back; a mousedown outside `within` (the menu itself
- * when not given), or Tab, calls `onClose(false)` and leaves focus where it went.
- *
- * It never closes on blur: macOS WKWebView doesn't focus a button on mousedown, so focus leaves the menu before the click on an
- * item lands. Items also keep focus from moving on mousedown.
- */
-export function Menu({
-  label,
-  style,
-  at,
-  within,
-  onClose,
-  children,
-}: {
-  label: string;
-  style?: CSSProperties;
-  /** A point in the menu's parent to open at, moved left and up by the menu's measured size to stay inside the parent. */
-  at?: { x: number; y: number };
-  within?: RefObject<HTMLElement | null>;
-  onClose: (refocus: boolean) => void;
-  /** The menu's items: buttons with a `menuitem…` role and `tabIndex={-1}`. */
-  children: ReactNode;
-}) {
-  const menu = useRef<HTMLDivElement>(null);
-  const items = () => [...(menu.current?.querySelectorAll<HTMLButtonElement>('[role^="menuitem"]:not(:disabled)') ?? [])];
-  const dismiss = useEffectEvent(() => onClose(false));
-  const area = within ?? menu;
-
-  // Before paint, on every render: the items (and so the size) can change while it is open.
-  useLayoutEffect(() => {
-    const el = menu.current;
-    const parent = el?.parentElement;
-    if (!at || !el || !parent) {
-      return;
-    }
-    el.style.left = `${Math.max(0, Math.min(at.x, parent.clientWidth - el.offsetWidth))}px`;
-    el.style.top = `${Math.max(0, Math.min(at.y, parent.clientHeight - el.offsetHeight))}px`;
-  });
-
-  useEffect(() => {
-    items()[0]?.focus();
-    const onDown = (e: globalThis.MouseEvent) => {
-      if (!(e.target instanceof Node) || !area.current?.contains(e.target)) {
-        dismiss();
-      }
-    };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [area]);
-
-  const onKey = (e: KeyboardEvent) => {
-    const list = items();
-    const at = list.findIndex((b) => b === document.activeElement);
-    const move = (to: number) => list[(to + list.length) % list.length]?.focus();
-    switch (e.key) {
-      case 'ArrowDown':
-        move(at + 1);
-        break;
-      case 'ArrowUp':
-        move(at - 1);
-        break;
-      case 'Home':
-        move(0);
-        break;
-      case 'End':
-        move(list.length - 1);
-        break;
-      case 'Escape':
-        // The menu's, not a sheet's or dialog's around it.
-        e.stopPropagation();
-        onClose(true);
-        break;
-      case 'Tab':
-        onClose(false);
-        return;
-      default:
-        return;
-    }
-    e.preventDefault();
-  };
-
-  return (
-    <div
-      ref={menu}
-      className="menu"
-      role="menu"
-      aria-label={label}
-      style={{ minWidth: 200, maxHeight: 360, overflowY: 'auto', ...style }}
-      onKeyDown={onKey}
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={(e) => {
-        // After the item's own click: it has done its work.
-        const item = e.target instanceof Element ? e.target.closest('[role^="menuitem"]') : null;
-        if (item && !item.hasAttribute('data-keep-open')) {
-          onClose(true);
-        }
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-/** A button that opens a {@link Menu} under it. */
-export function MenuButton({
-  label,
-  text,
-  icon,
-  primary = false,
-  field = false,
-  above = false,
-  children,
-}: {
-  /** The menu's name, and the button's unless `text` is given. */
-  label: string;
-  text?: string;
-  /** Shown on the button in place of `label`, which still names it. */
-  icon?: ReactNode;
-  primary?: boolean;
-  /** Looks like a form field (a workbook parameter's picker): the menu opens under its left edge. */
-  field?: boolean;
-  /** Opens above the button instead of under it, for a button near the bottom of a clipped area. */
-  above?: boolean;
-  /** The menu's items: buttons with a `menuitem…` role and `tabIndex={-1}`. */
-  children: ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
-
-  return (
-    <div ref={ref} className="relative shrink-0">
-      <button
-        ref={trigger}
-        type="button"
-        className={field ? 'textbox param-pick' : `whitespace-nowrap ${primary ? 'btn' : 'btn ghost'}`}
-        aria-label={field || !text ? label : undefined}
-        title={field ? text : undefined}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-      >
-        {field ? <span className="truncate">{text}</span> : (icon ?? text ?? label)}
-        {(primary || field) && <span aria-hidden="true"> ▾</span>}
-      </button>
-      {open && (
-        <Menu
-          label={label}
-          style={{ ...(field ? { left: 0 } : { right: 0 }), ...(above ? { bottom: 32 } : { top: 32 }) }}
-          within={ref}
-          onClose={(refocus) => {
-            setOpen(false);
-            if (refocus) {
-              trigger.current?.focus();
-            }
-          }}
-        >
-          {children}
-        </Menu>
-      )}
-    </div>
-  );
-}
-
-const FILTER_VERB: Record<FilterOp, string> = { eq: 'Filter by', ne: 'Exclude', ge: 'On or after', lt: 'Before' };
-
-/** Called with the cell a smart filter item was chosen for. */
-export type OnFilter = (column: ResultColumn, value: unknown, op: FilterOp) => void;
-
-/** The smart filter's menu items for a cell (none when it offers nothing): a string's value in quotes. */
-export function FilterItems({ column, value, onFilter }: { column: ResultColumn; value: unknown; onFilter: OnFilter }) {
-  const quoted = (column.type === 'string' || column.type === 'dynamic') && value !== null && value !== undefined && value !== '';
-  const shown = quoted ? `"${shownValue(value)}"` : shownValue(value);
-  return filterOps(column, value).map((op) => (
-    <button key={op} type="button" role="menuitem" tabIndex={-1} className="whitespace-nowrap" onClick={() => onFilter(column, value, op)}>
-      {FILTER_VERB[op]} {shown}
-    </button>
-  ));
-}
-
 export interface GridSelection {
   mode: 'multi' | 'single';
   selected: ReadonlySet<number>;
@@ -352,6 +197,10 @@ interface GridProps {
   onFilter?: OnFilter;
   /** Each header gets a column menu with Column statistics (the query tab's Rows grid only). */
   statistics?: boolean;
+  /** The columns the grid is grouped by, outermost first, when the caller keeps them (the query tab's Rows grid). Without it the
+   * grid keeps its own. */
+  grouping?: string[];
+  onGroupingChange?: (columns: string[]) => void;
   /** For print: the first this many rows, all rendered rather than the ones scrolled into view, and a line for any left out. */
   printRows?: number;
 }
@@ -388,7 +237,7 @@ const inspectIcon = (
 );
 
 /**
- * The Rows tab (spec 6.5): a virtualized grid with sort, a row filter, hidden and reordered columns, grouping by a column,
+ * The Rows tab (spec 6.5): a virtualized grid with sort, a row filter, hidden and reordered columns, grouping by up to three columns (groups largest first),
  * row selection (click, Shift-click a range, Ctrl/⌘-click to toggle), copy as CSV, Markdown or JSON, and dynamic cells opened
  * as formatted JSON. Each row starts with an inspect button that opens it in the row details sheet, or closes it there.
  */
@@ -404,6 +253,8 @@ export function ResultGrid({
   onShownChange,
   onFilter,
   statistics = false,
+  grouping: givenGrouping,
+  onGroupingChange,
   printRows,
 }: GridProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -411,7 +262,7 @@ export function ResultGrid({
   const [opened, setOpened] = useState<Opened | null>(null);
   const [visibility, setVisibility] = useState<ColumnVisibilityState>({});
   const [order, setOrder] = useState<string[]>([]);
-  const [grouping, setGrouping] = useState<string[]>([]);
+  const [ownGrouping, setOwnGrouping] = useState<string[]>([]);
   const [expanded, setExpanded] = useState<ExpandedState>({});
   const [ownSelected, setOwnSelected] = useState<ReadonlySet<number>>(new Set());
   const [anchor, setAnchor] = useState<number | null>(null);
@@ -426,12 +277,37 @@ export function ResultGrid({
   const [rowsSeen, setRowsSeen] = useState(rows);
   if (rowsSeen !== rows) {
     setRowsSeen(rows);
+    setExpanded({});
     setOwnSelected(new Set());
     setAnchor(null);
     setColumnMenu(null);
     setStats(null);
   }
   const scroller = useRef<HTMLDivElement>(null);
+  // Only the grouped columns this result still has.
+  const wanted = givenGrouping ?? ownGrouping;
+  const grouping = useMemo(() => wanted.filter((id) => columns.some((c) => c.name === id)), [wanted, columns]);
+  const dropped = grouping.length !== wanted.length;
+  const setGrouping = (next: string[]) => {
+    setExpanded({});
+    if (givenGrouping && onGroupingChange) {
+      onGroupingChange(next);
+    } else {
+      setOwnGrouping(next);
+    }
+  };
+  /** Adds the column at the end of the grouping, or takes it out. */
+  const toggleGrouping = (id: string) => setGrouping(grouping.includes(id) ? grouping.filter((c) => c !== id) : [...grouping, id]);
+  /** No more columns can be added to the grouping, and `id` isn't one of them. */
+  const isFull = (id: string) => !grouping.includes(id) && grouping.length >= MAX_GROUPING;
+  // The query tab's Rows grid nests up to three columns; other grids group by one.
+  const nested = statistics;
+  const reportDropped = useEffectEvent(() => onGroupingChange?.(grouping));
+  useEffect(() => {
+    if (dropped && givenGrouping) {
+      reportDropped();
+    }
+  }, [dropped, givenGrouping]);
   // By row index in `rows`, whichever side keeps it.
   const owned = typeof selection === 'object' ? selection : undefined;
   const mode = selection === 'none' ? 'none' : (owned?.mode ?? 'multi');
@@ -471,7 +347,7 @@ export function ResultGrid({
     onGlobalFilterChange: setFilter,
     onColumnVisibilityChange: setVisibility,
     onColumnOrderChange: setOrder,
-    onGroupingChange: setGrouping,
+    onGroupingChange: (updater) => setGrouping(typeof updater === 'function' ? updater(grouping) : updater),
     onExpandedChange: setExpanded,
     globalFilterFn: rowContains,
     // The grouped column keeps its place rather than moving first.
@@ -480,7 +356,11 @@ export function ResultGrid({
     sortDescFirst: false,
   });
 
-  const visible = table.getRowModel().rows;
+  // TanStack memoizes the sorted row model, so this walks the rows only when the data, filter, sorting or grouping change.
+  const sortedRows = table.getSortedRowModel().rows;
+  const tree = useMemo(() => groupTree(sortedRows), [sortedRows]);
+  // Opening a group changes only which rows are shown.
+  const visible = useMemo(() => shownRows(tree, expanded), [tree, expanded]);
   const shownLeaves = visible.filter((r) => !r.getIsGrouped());
   const visibleColumns = table.getVisibleLeafColumns();
   const virtualizer = useVirtualizer({
@@ -568,7 +448,7 @@ export function ResultGrid({
 
   // Every row the filter lets through, in the order shown, and those of them that are selected. Selected rows the filter now
   // hides are neither counted nor copied; with none selected, every row shown is.
-  const filteredLeaves = leaves(table.getSortedRowModel().rows);
+  const filteredLeaves = tree.leaves;
   const selectedShown = filteredLeaves.filter((r) => selected.has(r.index));
   const chosen = selectedShown.length > 0 ? selectedShown : filteredLeaves;
   const chosenLabel = selectedShown.length > 0 ? `${rowCount(selectedShown.length)} selected` : `All ${rowCount(filteredLeaves.length)}`;
@@ -583,8 +463,6 @@ export function ResultGrid({
       (e: unknown) => setNotice({ tone: 'bad', text: copyFailed(e) }),
     );
   };
-
-  const groupedBy = grouping[0];
 
   /** Opens a cell's smart filter menu at the pointer, kept inside the grid; a cell it offers nothing for keeps the browser's. */
   const openCellMenu = (e: MouseEvent, column: ResultColumn | undefined, value: unknown) => {
@@ -673,26 +551,43 @@ export function ResultGrid({
           </button>
         </>
       </MenuButton>
-      <MenuButton label="Group by" text={groupedBy ? `Group by: ${groupedBy}` : undefined}>
+      {/* On the Rows grid the chip names the columns, so the button stays short beside the result tabs. */}
+      <MenuButton label="Group by" text={!nested && grouping.length > 0 ? `Group by: ${grouping.join(' › ')}` : undefined}>
         <>
-          {[undefined, ...ids].map((id) => (
-            <button
-              key={id ?? ''}
-              type="button"
-              role="menuitemradio"
-              aria-checked={groupedBy === id}
-              tabIndex={-1}
-              onClick={() => {
-                setGrouping(id ? [id] : []);
-                setExpanded({});
-              }}
-            >
-              <span aria-hidden="true" className="w-3 text-accent">
-                {groupedBy === id ? '●' : ''}
-              </span>
-              <span className={id ? 'mono' : undefined}>{id ?? 'No grouping'}</span>
-            </button>
-          ))}
+          <button
+            type="button"
+            role={nested ? 'menuitem' : 'menuitemradio'}
+            aria-checked={nested ? undefined : grouping.length === 0}
+            tabIndex={-1}
+            onClick={() => setGrouping([])}
+          >
+            <span aria-hidden="true" className="w-3 text-accent">
+              {!nested && grouping.length === 0 ? '●' : ''}
+            </span>
+            No grouping
+          </button>
+          {ids.map((id) => {
+            const on = grouping.includes(id);
+            const full = nested && isFull(id);
+            return (
+              <button
+                key={id}
+                type="button"
+                role={nested ? 'menuitemcheckbox' : 'menuitemradio'}
+                aria-checked={on}
+                tabIndex={-1}
+                data-keep-open={nested || undefined}
+                disabled={full}
+                title={full ? `Up to ${MAX_GROUPING} columns` : undefined}
+                onClick={() => (nested ? toggleGrouping(id) : setGrouping([id]))}
+              >
+                <span aria-hidden="true" className="w-3 text-accent">
+                  {on ? (nested ? '✓' : '●') : ''}
+                </span>
+                <span className="mono">{id}</span>
+              </button>
+            );
+          })}
         </>
       </MenuButton>
       <MenuButton label="Copy as" primary>
@@ -719,6 +614,17 @@ export function ResultGrid({
   return (
     <div ref={root} className="relative flex min-h-0 flex-1 flex-col">
       {toolbar === undefined ? <div className="rbar justify-end">{tools}</div> : toolbar && createPortal(tools, toolbar)}
+      {/* Its own line, like the chart filter's chip: the result bar has no room to spare. */}
+      {nested && grouping.length > 0 && (
+        <div className="flex px-3 pt-2">
+          <span className="chip min-w-0" title={`Grouped by ${grouping.join(' › ')}`}>
+            <span className="truncate">Grouped by {grouping.join(' › ')}</span>
+            <button type="button" className="shrink-0 cursor-pointer" aria-label="Clear grouping" onClick={() => setGrouping([])}>
+              ✕
+            </button>
+          </span>
+        </div>
+      )}
       <div
         ref={scroller}
         className="min-h-0 flex-1 overflow-auto"
@@ -809,12 +715,29 @@ export function ResultGrid({
               if (row.getIsGrouped()) {
                 const value = row.groupingValue;
                 const open = row.getIsExpanded();
+                const column = meta.get(row.groupingColumnId ?? '');
                 return (
                   <tr key={row.id} data-index={item.index} style={{ height: ROW_HEIGHT }}>
-                    <td colSpan={span} className="bg-panel2">
-                      <button type="button" aria-expanded={open} onClick={row.getToggleExpandedHandler()}>
-                        {open ? '▾' : '▸'} {row.groupingColumnId}: {value === '' ? 'null' : cellText(value)} ·{' '}
-                        {count(row.getLeafRows().length)}
+                    <td
+                      colSpan={span}
+                      className="bg-panel2"
+                      style={{ paddingLeft: 12 + row.depth * 18 }}
+                      // A group's own row is its first row: its value is the one the grouping value was made from.
+                      onContextMenu={(e) => column && openCellMenu(e, column, row.original[columns.indexOf(column)])}
+                    >
+                      <button
+                        type="button"
+                        aria-expanded={open}
+                        onClick={row.getToggleExpandedHandler()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                            row.toggleExpanded(e.key === 'ArrowRight');
+                            e.preventDefault();
+                          }
+                        }}
+                      >
+                        <span aria-hidden="true">{open ? '▾' : '▸'}</span> {row.groupingColumnId}: {value === '' ? 'null' : cellText(value)}{' '}
+                        · {count(tree.size.get(row) ?? 0)}
                       </button>
                     </td>
                   </tr>
@@ -952,6 +875,16 @@ export function ResultGrid({
             }}
           >
             Column statistics
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            tabIndex={-1}
+            disabled={isFull(columnMenu.column.name)}
+            title={isFull(columnMenu.column.name) ? `Up to ${MAX_GROUPING} columns` : undefined}
+            onClick={() => toggleGrouping(columnMenu.column.name)}
+          >
+            {grouping.includes(columnMenu.column.name) ? 'Stop grouping by this column' : 'Group by this column'}
           </button>
         </Menu>
       )}
