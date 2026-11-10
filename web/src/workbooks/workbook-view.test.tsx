@@ -470,4 +470,38 @@ describe('WorkbookView', () => {
     // The container rule is on .wb-widget wherever it sits, under the one .wb-canvas container.
     expect(styles).toMatch(/@container \(max-width: 899px\) \{ \.wb-widget \{ grid-column: 1 \/ -1;/);
   });
+
+  it('reveals a widget: scrolls its frame into view, focuses it and clears the reveal', () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    show({});
+    act(() => useWorkbooks.getState().reveal('t', 'tb'));
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(scrollIntoView.mock.contexts[0]).toBe(frame('Users'));
+    expect(document.activeElement).toBe(frame('Users'));
+    expect(useWorkbooks.getState().revealing).toBeNull();
+  });
+
+  it('uses a reveal set before the workbook has loaded once its frame appears', () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    useWorkbooks.setState({ byTab: {} });
+    const { unmount } = render(<WorkbookView tabId="t" />);
+    act(() => useWorkbooks.getState().reveal('t', 'tb'));
+    expect(screen.getByText('Opening the workbook…')).toBeTruthy();
+    expect(useWorkbooks.getState().revealing).toEqual({ tabId: 't', widgetId: 'tb' });
+    unmount();
+    show({});
+    expect(scrollIntoView.mock.contexts[0]).toBe(frame('Users'));
+    expect(document.activeElement).toBe(frame('Users'));
+    expect(useWorkbooks.getState().revealing).toBeNull();
+  });
+
+  it('leaves a reveal for another tab alone', () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    show({});
+    act(() => useWorkbooks.getState().reveal('other', 'tb'));
+    expect(useWorkbooks.getState().revealing).toEqual({ tabId: 'other', widgetId: 'tb' });
+    act(() => useWorkbooks.setState({ revealing: null }));
+  });
 });

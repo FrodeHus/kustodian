@@ -328,6 +328,18 @@ property's **Filter…** button. The grid focuses rows, not cells, so it has no 
 | Export a workbook and import it: the widget's rules are kept | - | - | - |
 | In the real app (WKWebView), choosing a column suggestion in the rule list's column field doesn't close the list | - | - | - |
 
+### Add to workbook (2026-11-10)
+
+| Check | macOS | Windows | Linux |
+| --- | --- | --- | --- |
+| Add a saved query as a Table to a closed workbook: it opens, scrolled to the widget, which is linked | - | - | - |
+| Add a dirty query as a Chart to an open workbook with no edits: it saves, and the widget has the chart picks | - | - | - |
+| Add to an open workbook with unsaved edits: the notice reads "Added to your unsaved changes in <name>." as a neutral notice (not an error), and the file isn't saved | - | - | - |
+| Add to a new workbook: it is created, saved and opened | - | - | - |
+| A query with `{name}` parameters adds them to the workbook | - | - | - |
+| Export menu has Add to workbook… after a separator, and the palette has the command; both are absent on a raw tab and before a run | - | - | - |
+| Light and dark themes: the dialog and notice stay readable | - | - | - |
+
 ### Heatmap (2026-11-10)
 
 Checked by the builder in Chromium (Playwright) against the Vite dev server with the mock bridge (`web/src/bridge.mock.ts`), on

@@ -15,6 +15,10 @@ follow [Semantic Versioning](https://semver.org/).
   rest in Other, and date or number axes keep the latest 200 rows and 2,000 columns, each with a note saying so. A result that
   only a heatmap can draw, such as day × hour, now offers it instead of saying there is nothing to chart. Workbook heatmaps
   print to the page width.
+- **Add to workbook**: put a query on a workbook from **Add to workbook…** in the Rows tab's Export menu or the command
+  palette, once a Graph, advanced hunting, Resource Graph or Log Analytics query has run. Choose a workbook (or make one) and a
+  Table, Chart or Stat widget. A saved query with no unsaved changes is linked; anything else is copied in. Source, options,
+  highlight rules, Chart settings and the query's `{name}` parameters come along. The workbook opens at the new widget.
 - **Highlight rules**: colour the rows or cells that need attention. Right-click a value on the Rows tab and choose Highlight
   rows where the column equals it (or is empty) to open a prefilled popover with a colour, row or cell, and Add. For rules such
   as `days > 90` on one cell, open **Highlight rules…** from the cell menu or a column header's menu; once a tab has rules, a

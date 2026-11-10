@@ -58,7 +58,7 @@ const props = { tabId: 't1', title: 'Expired apps', kql: 'applications', result 
 
 beforeEach(() => {
   call.mockReset();
-  useTabs.setState({ tabs: [], activeId: null, cursors: {}, groupings: {} });
+  useTabs.setState({ tabs: [], activeId: null, cursors: {}, groupings: {}, resultViews: {} });
 });
 
 describe('ResultPanel', () => {
@@ -147,6 +147,19 @@ describe('ResultPanel', () => {
     expect(await screen.findByRole('button', { name: 'Chart type: pie' })).toBeTruthy();
   });
 
+  it('result_panel_keeps_the_result_view_across_remounts_in_the_store', async () => {
+    const first = render(<ResultPanel {...props} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Chart' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Chart type: auto' }));
+    expect(useTabs.getState().resultViews.t1?.view).toBe('chart');
+    expect(useTabs.getState().resultViews.t1?.chart?.type).toBe('pie');
+    first.unmount();
+
+    render(<ResultPanel {...props} />);
+    expect(screen.getByRole('tab', { name: 'Chart' }).getAttribute('aria-selected')).toBe('true');
+    expect(await screen.findByRole('button', { name: 'Chart type: pie' })).toBeTruthy();
+  });
+
   it('result_panel_exports_every_row_with_the_tab_title', async () => {
     call.mockResolvedValue({ path: '/tmp/Expired apps.md', name: 'Expired apps.md' });
     render(<ResultPanel {...props} />);
@@ -162,6 +175,21 @@ describe('ResultPanel', () => {
     const { content } = call.mock.calls[0]![1] as { content: string };
     expect(content.split('\n')).toHaveLength(4);
     expect(await screen.findByText('Exported 2 rows to Expired apps.md.')).toBeTruthy();
+  });
+
+  it('result_panel_export_offers_add_to_workbook_only_with_the_prop', () => {
+    const onAddToWorkbook = vi.fn();
+    const first = render(<ResultPanel {...props} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }));
+    expect(screen.queryByRole('menuitem', { name: 'Add to workbook…' })).toBeNull();
+    first.unmount();
+
+    render(<ResultPanel {...props} onAddToWorkbook={onAddToWorkbook} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }));
+    const menu = screen.getByRole('menu', { name: 'Export' });
+    expect(within(menu).getByRole('separator')).toBeTruthy();
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Add to workbook…' }));
+    expect(onAddToWorkbook).toHaveBeenCalledTimes(1);
   });
 
   it('result_panel_opens_row_details', () => {

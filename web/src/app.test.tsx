@@ -7,6 +7,7 @@ import { BridgeError } from './bridge';
 import schema from './fixtures/graph-schema.json';
 import { useSchemas } from './schema/schema-store';
 import { useGraphSchemaUpdate } from './schema/graph-schema-update';
+import { openRaw } from './raw/raw-request';
 import { runCommand } from './shell/commands';
 import { applyTheme } from './shell/theme';
 import { useTabs } from './tabs/tab-store';
@@ -1545,6 +1546,64 @@ describe('App', () => {
       expect((await screen.findByRole('alert')).textContent).toMatch(/Couldn’t find the query to add the filter to\./);
       expect(bridge.call).not.toHaveBeenCalledWith('query.filterAt', expect.anything());
       expect(bridge.call).not.toHaveBeenCalledWith('query.run', expect.anything(), expect.anything());
+    });
+  });
+
+  describe('add to workbook', () => {
+    const named: RunResult = { ...rows, rows: [['x']] };
+    const ranText = async (text: string) => {
+      answers['workbook.list'] = () => ({ workbooks: [], folders: [], skipped: 0 });
+      host({ accounts: [kari], cache: 'persistent' }, named);
+      render(<App />);
+      fireEvent.change(await screen.findByRole('textbox', { name: 'KQL query' }), { target: { value: text } });
+      fireEvent.click(screen.getByRole('button', { name: 'Run all Shift Enter' }));
+      await waitFor(() => expect(screen.getByRole('tab', { name: 'Rows · 1' })).toBeTruthy());
+    };
+
+    it('is offered for a hunting tab after an ok run, and opens the dialog', async () => {
+      await ranText('users\n| take 5');
+      act(() => useTabs.getState().setSource(useTabs.getState().activeId!, 'hunting'));
+      // The run went to Graph, so it isn't offered until the tab runs again.
+      expect(runCommand('workbook.addQuery')).toBe(false);
+      fireEvent.click(screen.getByRole('button', { name: 'Run all Shift Enter' }));
+      await waitFor(() => expect(runCommand('workbook.addQuery')).toBe(true));
+      expect(await screen.findByRole('dialog', { name: 'Add to workbook' })).toBeTruthy();
+    });
+
+    it('is offered for a graph tab after an ok run, and from the Export menu', async () => {
+      await ranText('users\n| take 5');
+      fireEvent.click(screen.getByRole('button', { name: 'Export' }));
+      fireEvent.click(within(screen.getByRole('menu', { name: 'Export' })).getByRole('menuitem', { name: 'Add to workbook…' }));
+      expect(await screen.findByRole('dialog', { name: 'Add to workbook' })).toBeTruthy();
+    });
+
+    it('is not offered before a run, for a raw tab or for a workbook tab', async () => {
+      host({ accounts: [kari], cache: 'persistent' }, named);
+      render(<App />);
+      await screen.findByRole('tab', { name: /Query 1/ });
+      expect(runCommand('workbook.addQuery')).toBe(false);
+
+      act(() => void useTabs.getState().openWorkbook());
+      expect(runCommand('workbook.addQuery')).toBe(false);
+      act(() => openRaw());
+      expect(runCommand('workbook.addQuery')).toBe(false);
+    });
+
+    it('is not offered once the tab’s source changed since the run', async () => {
+      await ranText('users\n| take 5');
+      act(() => useTabs.getState().setSource(useTabs.getState().activeId!, 'arg'));
+      expect(runCommand('workbook.addQuery')).toBe(false);
+      expect(screen.queryByRole('menuitem', { name: 'Add to workbook…' })).toBeNull();
+    });
+
+    it('closes the dialog when the tab stops qualifying, and the shortcuts work again', async () => {
+      await ranText('users\n| take 5');
+      expect(runCommand('workbook.addQuery')).toBe(true);
+      expect(await screen.findByRole('dialog', { name: 'Add to workbook' })).toBeTruthy();
+      act(() => useTabs.getState().setSource(useTabs.getState().activeId!, 'arg'));
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add to workbook' })).toBeNull());
+      fireEvent.keyDown(window, { key: 'k', code: 'KeyK', ctrlKey: true });
+      expect(await screen.findByRole('combobox', { name: 'Type a command' })).toBeTruthy();
     });
   });
 });
