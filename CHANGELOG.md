@@ -44,6 +44,9 @@ follow [Semantic Versioning](https://semver.org/).
 - **Graph schema updates without a release**: at start, Kustodian checks the repository's `GraphSchema/` folder for a newer
   Graph schema, checks it and downloads it, and the footer says to restart to use it. Settings has a **Graph schema** card
   showing the schema in use, with **Refresh now**.
+- **Print or save a workbook as PDF** from the workbook's ⋯ menu. It prints as a report in the light theme: no controls, the
+  parameters as a table of their values, every tab of a tabs widget under its own heading (tabs that haven't run run first),
+  and Markdown widgets in full rather than cut off at the widget's height. A table widget prints the rows its box shows.
 
 ### Changed
 
