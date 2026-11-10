@@ -1,6 +1,7 @@
 import type { Transport } from './bridge';
 import type { HistoryChanges, HistoryRecordParams, HistorySeries, HistorySnapshot, Pins, QueryOptions, TrackedRow } from './wire';
 import schema from './fixtures/graph-schema.json';
+import { columnName } from './results/smart-filter';
 
 /**
  * A stand-in host for `vite dev` and tests: it answers the bridge's methods from fixtures, in the shapes the real host
@@ -511,6 +512,7 @@ interface MockRequest {
     options?: QueryOptions | null;
     source?: string;
     kql?: string;
+    column?: string;
     parameters?: unknown[];
     name?: string;
     columns?: string[];
@@ -1174,6 +1176,10 @@ export function createMockTransport(): Transport {
           break;
         }
         reply(id, explainView);
+        break;
+      case 'query.filterAt':
+        // The mock places every filter at the end of the text, and quotes the name as the web's fallback does.
+        reply(id, { offset: (params?.kql ?? '').length, name: columnName(params?.column ?? '') });
         break;
       case 'query.run': {
         // As `QueryOptions.Problem`: options that aren't valid are a bad_request, and nothing runs (ruling 1).

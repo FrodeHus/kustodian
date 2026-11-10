@@ -1,10 +1,12 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
+import { createRef } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import schema from '../fixtures/graph-schema.json';
 import { registerCommands } from '../shell/commands';
 import { applyTheme } from '../shell/theme';
 import { useTabs } from '../tabs/tab-store';
 import type { SchemaView } from '../wire';
+import type { KqlEditorHandle } from './kql-editor';
 
 // Monaco doesn't run in jsdom. A stand-in records what the editor registers, with Monaco's own KeyMod and KeyCode values.
 const fake = vi.hoisted(() => {
@@ -15,7 +17,7 @@ const fake = vi.hoisted(() => {
   const bindings: { keybinding: number; editorId: number | null; run: () => void; gone: boolean }[] = [];
   let editors = 0;
   let focused = 0;
-  const created = { options: null as unknown };
+  const created = { options: null as unknown, editor: null as ReturnType<typeof editorOf> | null };
   const themes = { defined: [] as string[], set: [] as string[] };
   const fonts = { remeasured: 0 };
   const linkOpener = { open: null as ((uri: { scheme: string; toString: () => string }) => boolean) | null };
@@ -23,6 +25,16 @@ const fake = vi.hoisted(() => {
   let selectionEmpty = true;
   const disposable = { dispose: () => undefined };
   const live = { model: null as ReturnType<typeof model> | null, onContent: () => undefined as void };
+  // Edits and undo stops, in order; undo goes back to the text before the last edit.
+  const edits = { log: [] as string[], undo: [] as string[] };
+  type Range = { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number };
+  const offsetAt = (text: string, line: number, column: number) =>
+    text
+      .split('\n')
+      .slice(0, line - 1)
+      .reduce((n, l) => n + l.length + 1, 0) +
+    column -
+    1;
   const model = (value: string, uri: { toString: () => string } = { toString: () => 'x' }) => {
     let text = value;
     return {
@@ -46,6 +58,30 @@ const fake = vi.hoisted(() => {
       return { dispose: () => added.forEach((b) => (b.gone = true)) };
     },
     getSelection: () => ({ isEmpty: () => selectionEmpty }),
+    pushUndoStop: () => {
+      edits.log.push('stop');
+      return true;
+    },
+    executeEdits: (source: string, changes: { range: Range; text: string }[]) => {
+      const m = live.model!;
+      edits.log.push(source);
+      edits.undo.push(m.getValue());
+      for (const { range, text } of changes) {
+        const value = m.getValue();
+        const from = offsetAt(value, range.startLineNumber, range.startColumn);
+        const to = offsetAt(value, range.endLineNumber, range.endColumn);
+        m.setValue(value.slice(0, from) + text + value.slice(to));
+      }
+      live.onContent();
+      return true;
+    },
+    trigger: (_source: string, id: string) => {
+      const before = id === 'undo' ? edits.undo.pop() : undefined;
+      if (before !== undefined) {
+        live.model!.setValue(before);
+        live.onContent();
+      }
+    },
     onDidChangeModelContent: (listener: () => void) => {
       live.onContent = listener;
       return disposable;
@@ -66,7 +102,8 @@ const fake = vi.hoisted(() => {
       create: (_host: unknown, options: unknown) => {
         created.options = options;
         focused = ++editors;
-        return editorOf(focused);
+        created.editor = editorOf(focused);
+        return created.editor;
       },
       createModel: (value: string, _language: string, uri: { toString: () => string }) => model(value, uri),
       defineTheme: (name: string) => themes.defined.push(name),
@@ -101,6 +138,7 @@ const fake = vi.hoisted(() => {
     providers,
     model,
     live,
+    edits,
     setSelectionEmpty: (empty: boolean) => (selectionEmpty = empty),
     press: (keybinding: number) =>
       bindings.findLast((b) => b.keybinding === keybinding && !b.gone && (b.editorId === null || b.editorId === focused))?.run(),
@@ -144,6 +182,8 @@ beforeEach(() => {
   fake.providers.length = 0;
   fake.fonts.remeasured = 0;
   fake.focusCalls.n = 0;
+  fake.edits.log.length = 0;
+  fake.edits.undo.length = 0;
   bridge.call.mockReset();
   bridge.call.mockResolvedValue([]);
   useTabs.setState({ tabs: [], activeId: null, cursors: {} });
@@ -380,5 +420,20 @@ describe('KqlEditor', () => {
     expect(close).not.toHaveBeenCalled();
     expect(fake.bound(KeyMod.CtrlCmd | KeyCode.Enter)).toBe(true);
     unregister();
+  });
+
+  it('replaceRange replaces that range as one undoable edit, and the tab gets the new text', () => {
+    const ref = createRef<KqlEditorHandle>();
+    const id = useTabs.getState().activeId!;
+    useTabs.getState().setText(id, 'let a = 1;\nusers | take 5\n\ngroups');
+    render(<KqlEditor ref={ref} schemas={{}} onRun={() => undefined} />);
+
+    expect(ref.current!.replaceRange({ line: 2, column: 1 }, { line: 2, column: 15 }, 'users\n| where x == 1\n| take 5')).toBe(true);
+    const text = () => useTabs.getState().tabs.find((t) => t.id === id)?.text;
+    expect(text()).toBe('let a = 1;\nusers\n| where x == 1\n| take 5\n\ngroups');
+    expect(fake.edits.log).toEqual(['stop', 'smart-filter', 'stop']);
+
+    act(() => fake.created.editor?.trigger('', 'undo'));
+    expect(text()).toBe('let a = 1;\nusers | take 5\n\ngroups');
   });
 });

@@ -429,6 +429,23 @@ describe('tab store', () => {
     expect(useTabs.getState().tabs[0]?.run?.origin).toEqual({ line: 3, column: 1 });
   });
 
+  it('runText_sends_the_given_text_and_records_its_origin', async () => {
+    bridge.call.mockResolvedValue(ok);
+    const id = useTabs.getState().openWith({ source: 'arg', title: 'Saved', text: 'Resources', savedId: 's1' });
+    await useTabs.getState().runText(id, 'Resources\n| where a == 1', { line: 2, column: 1 });
+    expect(bridge.call).toHaveBeenCalledWith('query.run', expect.objectContaining({ kql: 'Resources\n| where a == 1' }), expect.anything());
+    expect(useTabs.getState().tabs[0]?.run?.origin).toEqual({ line: 2, column: 1 });
+  });
+
+  it('runText_never_runs_a_raw_or_workbook_tab', async () => {
+    bridge.call.mockResolvedValue(ok);
+    const raw = useTabs.getState().openWith({ source: 'raw', title: 'Raw', text: 'GET /me' });
+    await useTabs.getState().runText(raw, 'users', { line: 1, column: 1 });
+    useTabs.setState((s) => ({ tabs: s.tabs.map((t) => (t.id === raw ? { ...t, source: 'workbook' } : t)) }));
+    await useTabs.getState().runText(raw, 'users', { line: 1, column: 1 });
+    expect(bridge.call).not.toHaveBeenCalledWith('query.run', expect.anything(), expect.anything());
+  });
+
   it('restore_and_openWith_keep_options', () => {
     const options = { timespan: 'P1D', scope: null };
     useTabs.getState().restore({

@@ -7,6 +7,9 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Smart filter**: right-click a value on the Rows tab, or use Filter… in row details, to add a `| where` line for it, or to
+  exclude it. Dates also offer On or after and Before. The line goes into the query so you can keep it (one undo removes it),
+  and the query reruns. On Graph tables it is placed so Graph filters it as `$filter` where it can.
 - **Log Analytics source**: a fourth source that runs KQL directly against one Log Analytics workspace, in tabs
   and in workbook widgets. Pick a workspace (there is no Primary workspace); completion and the schema panel list that
   workspace's tables.

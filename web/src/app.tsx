@@ -18,6 +18,8 @@ import { ParamsForm } from './params/params-form';
 import { DiagnosticsView } from './results/diagnostics-view';
 import { EXPORT_FORMATS, EXPORT_NAMES, exportResult } from './results/export';
 import { ResultPanel } from './results/result-panel';
+import type { OnFilter } from './results/result-grid';
+import { filterable, filterCondition, filterTarget, targetEnd, withLine, type FilterOp } from './results/smart-filter';
 import { RunStatus } from './results/run-status';
 import { openRaw } from './raw/raw-request';
 import { RawTab } from './raw/raw-tab';
@@ -57,7 +59,18 @@ import { rememberLogsWorkspace, setMemoryAccount } from './toolbar/workspace-mem
 import { WorkspacePicker } from './toolbar/workspace-picker';
 import { exceedsDays } from './toolbar/timespan';
 import { TimespanPicker } from './toolbar/timespan-picker';
-import type { AccountList, QueryOptions, SchemaView, SettingsAnswer, Source, TabSource, UpdateInfo } from './wire';
+import type {
+  AccountList,
+  FilterAtAnswer,
+  FilterAtParams,
+  QueryOptions,
+  ResultColumn,
+  SchemaView,
+  SettingsAnswer,
+  Source,
+  TabSource,
+  UpdateInfo,
+} from './wire';
 
 // Monaco and the Kusto language service are several megabytes: a chunk of their own, loaded after the window is up.
 const KqlEditor = lazy(() => import('./editor/kql-editor'));
@@ -136,6 +149,58 @@ const activeTab = (): Tab | undefined => {
   const { tabs, activeId } = useTabs.getState();
   return tabs.find((t) => t.id === activeId);
 };
+
+/**
+ * The smart filter (spec: result workflow plan 1): puts `| where <condition>` for the cell into the query that ran, where the
+ * host says it goes, as one undo step in the editor, and runs that text. Says so when there is no query to add it to.
+ */
+async function addFilter(
+  tab: Tab,
+  column: ResultColumn,
+  value: unknown,
+  op: FilterOp,
+  editor: KqlEditorHandle | null,
+  fail: (text: string, reportId?: string) => void,
+) {
+  const { run, source } = tab;
+  // As Results offers it; `source` is checked again for its type.
+  const offered = filterable(tab) && filterCondition(column, value, op) !== null;
+  if (!offered || !run?.kql || (source !== 'graph' && source !== 'hunting' && source !== 'arg')) {
+    return;
+  }
+  const target = filterTarget(tab.text, { kql: run.kql, origin: run.origin }, useTabs.getState().cursors[tab.id]?.line ?? 1);
+  if (!target) {
+    fail('Couldn’t find the query to add the filter to.');
+    return;
+  }
+  let answer: FilterAtAnswer;
+  try {
+    const params: FilterAtParams = { source, kql: target.kql, column: column.name, parameters: runParameters(tab) };
+    answer = await call<FilterAtAnswer>('query.filterAt', params);
+  } catch (e) {
+    fail(`Couldn’t add the filter: ${errorText(e)}`, reportIdOf(e));
+    return;
+  }
+  // Typed into, or another tab came forward, while the host answered: the range is no longer the target's.
+  const now = activeTab();
+  if (now?.id !== tab.id || now.text !== tab.text) {
+    fail('The query changed while adding the filter. Try again.');
+    return;
+  }
+  if (answer.offset === null) {
+    fail('Couldn’t add the filter: the text isn’t a query.');
+    return;
+  }
+  // The host's name for the column: it knows every word Kusto won't take bare.
+  const condition = filterCondition(column, value, op, answer.name);
+  if (condition === null) {
+    return;
+  }
+  const { text } = withLine(target, answer.offset, condition);
+  if (editor?.replaceRange(target.origin, targetEnd(target), text)) {
+    await useTabs.getState().runText(tab.id, text, target.origin);
+  }
+}
 
 /** The active tab's result, when its last run ended with rows to show. */
 const activeResult = () => {
@@ -950,7 +1015,11 @@ export function App() {
                       {explaining ? (
                         <ExplainView request={explaining} onOpenRaw={(url) => openRaw({ path: url, version: 'beta' })} />
                       ) : (
-                        <Results tab={active} dialogOpen={paletteOpen || saving !== null || confirming} />
+                        <Results
+                          tab={active}
+                          dialogOpen={paletteOpen || saving !== null || confirming}
+                          onFilter={(column, value, op) => void addFilter(active, column, value, op, editor.current, setProblem)}
+                        />
                       )}
                     </>
                   )}
@@ -1157,7 +1226,7 @@ function Toolbar(props: ToolbarProps) {
   );
 }
 
-function Results({ tab, dialogOpen }: { tab: Tab; dialogOpen: boolean }) {
+function Results({ tab, dialogOpen, onFilter }: { tab: Tab; dialogOpen: boolean; onFilter: OnFilter }) {
   const result = tab.run?.state === 'done' ? tab.run.result : undefined;
   // A run that failed after reaching Graph or the engine: its log says what happened (the status line above says why it failed).
   if (result && result.outcome !== 'ok' && result.diagnostics.length > 0) {
@@ -1186,6 +1255,8 @@ function Results({ tab, dialogOpen }: { tab: Tab; dialogOpen: boolean }) {
       pinned={tab.pinned}
       dialogOpen={dialogOpen}
       source={tab.run?.source}
+      // Offered for the query sources, on a run that kept its text and went to the tab's source.
+      onFilter={filterable(tab) ? onFilter : undefined}
     />
   );
 }

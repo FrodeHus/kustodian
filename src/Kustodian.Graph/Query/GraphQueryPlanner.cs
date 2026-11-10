@@ -357,7 +357,7 @@ public static class GraphQueryPlanner
     }
 
     /// <summary>The expression of the query's last statement: its answer.</summary>
-    private static Expression? Answer(SyntaxNode syntax) => syntax is QueryBlock block
+    internal static Expression? Answer(SyntaxNode syntax) => syntax is QueryBlock block
         ? block.Statements.Select(s => s.Element).OfType<ExpressionStatement>().LastOrDefault()?.Expression
         : null;
 
@@ -371,7 +371,7 @@ public static class GraphQueryPlanner
     /// <summary>Every place the query reads a table: by name (<c>applications</c>, <c>database("graph").applications</c>),
     /// by wildcard (<c>union app*</c>, one use per table it matches) or through <c>table("applications")</c>. The node is the
     /// whole reference, so a pipe after it can be followed.</summary>
-    private static IEnumerable<(Expression Node, TableSymbol Table)> TableUses(KustoCode code)
+    internal static IEnumerable<(Expression Node, TableSymbol Table)> TableUses(KustoCode code)
     {
         foreach (var expression in code.Syntax.GetDescendants<Expression>())
         {

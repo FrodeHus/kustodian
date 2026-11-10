@@ -8,7 +8,7 @@ import type { Picked } from './chart-view';
 import { CompareView } from './compare-view';
 import { DiagnosticsView } from './diagnostics-view';
 import { EXPORT_FORMATS, EXPORT_NAMES, exportResult, toJson, type ExportFormat } from './export';
-import { MenuButton, NoticeLine, ResultGrid, type Notice } from './result-grid';
+import { MenuButton, NoticeLine, ResultGrid, type Notice, type OnFilter } from './result-grid';
 import { RowDetails } from './row-details';
 
 // Recharts is a chunk of its own, loaded the first time the Chart tab opens.
@@ -52,6 +52,8 @@ interface PanelProps {
   dialogOpen?: boolean;
   /** The source the run went to: Diagnostics words its statistics after it. */
   source?: Source;
+  /** A smart filter item was chosen on a cell, in the grid or row details; without it neither offers one. */
+  onFilter?: OnFilter;
 }
 
 /**
@@ -59,7 +61,7 @@ interface PanelProps {
  * arrow keys, Home and End. The Rows tab's tools and Export sit in the tab bar; a row opened in the grid shows in the row
  * details sheet.
  */
-export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = false, source = 'graph' }: PanelProps) {
+export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = false, source = 'graph', onFilter }: PanelProps) {
   const [chosen, setChosen] = useState<ResultTab>('rows');
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
   const [details, setDetails] = useState<number | null>(null);
@@ -207,6 +209,7 @@ export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = fa
           inspected={details}
           inspectorId={`${id}-details`}
           cellFilters={chartFilter ?? undefined}
+          onFilter={onFilter}
         />,
       )}
       {panel(
@@ -246,7 +249,9 @@ export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = fa
       )}
       {panel('diagnostics', active === 'diagnostics' && <DiagnosticsView result={result} source={source} />)}
       {pinned && panel('compare', active === 'compare' && <CompareView pinned={pinned} current={result} />)}
-      {detailsRow && <RowDetails id={`${id}-details`} columns={result.columns} row={detailsRow} onClose={() => setDetails(null)} />}
+      {detailsRow && (
+        <RowDetails id={`${id}-details`} columns={result.columns} row={detailsRow} onClose={() => setDetails(null)} onFilter={onFilter} />
+      )}
     </div>
   );
 }

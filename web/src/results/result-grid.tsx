@@ -22,7 +22,19 @@ import {
   type SortingState,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useEffect, useEffectEvent, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { ErrorReportActions } from '../shell/error-report';
 import type { ExternalTool, ResultColumn } from '../wire';
@@ -30,6 +42,7 @@ import { COPY_FORMATS, copyFailed, copyText, formatRows, type CopyFormat } from 
 import { cellText, type Row } from './export';
 import type { CellMatch } from './chart-shape';
 import { RunToolDialog, ToolItems } from './run-tool';
+import { filterOps, shownValue, type FilterOp } from './smart-filter';
 
 const ROW_HEIGHT = 29;
 // One empty list, so a grid with no cell filters doesn't hand the table a new state each render.
@@ -140,13 +153,111 @@ export function NoticeLine({ notice, onDismiss }: { notice: Notice; onDismiss: (
 }
 
 /**
- * A button that opens a menu. Opening it moves focus to the first item; the arrow keys, Home and End move between items.
- * Choosing an item (unless it has `data-keep-open`) or pressing Esc closes it and puts focus back on the button; a mousedown
- * outside it, or Tab, closes it and leaves focus where it went.
+ * A menu: focus starts on the first item; the arrow keys, Home and End move between items. Choosing an item (unless it has
+ * `data-keep-open`) or pressing Esc calls `onClose(true)`, for focus to go back; a mousedown outside `within` (the menu itself
+ * when not given), or Tab, calls `onClose(false)` and leaves focus where it went.
  *
  * It never closes on blur: macOS WKWebView doesn't focus a button on mousedown, so focus leaves the menu before the click on an
  * item lands. Items also keep focus from moving on mousedown.
  */
+export function Menu({
+  label,
+  style,
+  at,
+  within,
+  onClose,
+  children,
+}: {
+  label: string;
+  style?: CSSProperties;
+  /** A point in the menu's parent to open at, moved left and up by the menu's measured size to stay inside the parent. */
+  at?: { x: number; y: number };
+  within?: RefObject<HTMLElement | null>;
+  onClose: (refocus: boolean) => void;
+  /** The menu's items: buttons with a `menuitem…` role and `tabIndex={-1}`. */
+  children: ReactNode;
+}) {
+  const menu = useRef<HTMLDivElement>(null);
+  const items = () => [...(menu.current?.querySelectorAll<HTMLButtonElement>('[role^="menuitem"]:not(:disabled)') ?? [])];
+  const dismiss = useEffectEvent(() => onClose(false));
+  const area = within ?? menu;
+
+  // Before paint, on every render: the items (and so the size) can change while it is open.
+  useLayoutEffect(() => {
+    const el = menu.current;
+    const parent = el?.parentElement;
+    if (!at || !el || !parent) {
+      return;
+    }
+    el.style.left = `${Math.max(0, Math.min(at.x, parent.clientWidth - el.offsetWidth))}px`;
+    el.style.top = `${Math.max(0, Math.min(at.y, parent.clientHeight - el.offsetHeight))}px`;
+  });
+
+  useEffect(() => {
+    items()[0]?.focus();
+    const onDown = (e: globalThis.MouseEvent) => {
+      if (!(e.target instanceof Node) || !area.current?.contains(e.target)) {
+        dismiss();
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [area]);
+
+  const onKey = (e: KeyboardEvent) => {
+    const list = items();
+    const at = list.findIndex((b) => b === document.activeElement);
+    const move = (to: number) => list[(to + list.length) % list.length]?.focus();
+    switch (e.key) {
+      case 'ArrowDown':
+        move(at + 1);
+        break;
+      case 'ArrowUp':
+        move(at - 1);
+        break;
+      case 'Home':
+        move(0);
+        break;
+      case 'End':
+        move(list.length - 1);
+        break;
+      case 'Escape':
+        // The menu's, not a sheet's or dialog's around it.
+        e.stopPropagation();
+        onClose(true);
+        break;
+      case 'Tab':
+        onClose(false);
+        return;
+      default:
+        return;
+    }
+    e.preventDefault();
+  };
+
+  return (
+    <div
+      ref={menu}
+      className="menu"
+      role="menu"
+      aria-label={label}
+      style={{ minWidth: 200, maxHeight: 360, overflowY: 'auto', ...style }}
+      onKeyDown={onKey}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={(e) => {
+        // After the item's own click: it has done its work.
+        const item = e.target instanceof Element ? e.target.closest('[role^="menuitem"]') : null;
+        if (item && !item.hasAttribute('data-keep-open')) {
+          onClose(true);
+        }
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** A button that opens a {@link Menu} under it. */
 export function MenuButton({
   label,
   text,
@@ -169,56 +280,6 @@ export function MenuButton({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
-  const items = () => [...(menu.current?.querySelectorAll<HTMLButtonElement>('[role^="menuitem"]:not(:disabled)') ?? [])];
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    items()[0]?.focus();
-    const onDown = (e: globalThis.MouseEvent) => {
-      if (!(e.target instanceof Node) || !ref.current?.contains(e.target)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [open]);
-
-  const close = () => {
-    setOpen(false);
-    trigger.current?.focus();
-  };
-
-  const onKey = (e: KeyboardEvent) => {
-    const list = items();
-    const at = list.findIndex((b) => b === document.activeElement);
-    const move = (to: number) => list[(to + list.length) % list.length]?.focus();
-    switch (e.key) {
-      case 'ArrowDown':
-        move(at + 1);
-        break;
-      case 'ArrowUp':
-        move(at - 1);
-        break;
-      case 'Home':
-        move(0);
-        break;
-      case 'End':
-        move(list.length - 1);
-        break;
-      case 'Escape':
-        close();
-        break;
-      case 'Tab':
-        setOpen(false);
-        return;
-      default:
-        return;
-    }
-    e.preventDefault();
-  };
 
   return (
     <div ref={ref} className="relative shrink-0">
@@ -236,27 +297,38 @@ export function MenuButton({
         {(primary || field) && <span aria-hidden="true"> ▾</span>}
       </button>
       {open && (
-        <div
-          ref={menu}
-          className="menu"
-          role="menu"
-          aria-label={label}
-          style={{ ...(field ? { left: 0 } : { right: 0 }), top: 32, minWidth: 200, maxHeight: 360, overflowY: 'auto' }}
-          onKeyDown={onKey}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={(e) => {
-            // After the item's own click: it has done its work.
-            const item = e.target instanceof Element ? e.target.closest('[role^="menuitem"]') : null;
-            if (item && !item.hasAttribute('data-keep-open')) {
-              close();
+        <Menu
+          label={label}
+          style={{ ...(field ? { left: 0 } : { right: 0 }), top: 32 }}
+          within={ref}
+          onClose={(refocus) => {
+            setOpen(false);
+            if (refocus) {
+              trigger.current?.focus();
             }
           }}
         >
           {children}
-        </div>
+        </Menu>
       )}
     </div>
   );
+}
+
+const FILTER_VERB: Record<FilterOp, string> = { eq: 'Filter by', ne: 'Exclude', ge: 'On or after', lt: 'Before' };
+
+/** Called with the cell a smart filter item was chosen for. */
+export type OnFilter = (column: ResultColumn, value: unknown, op: FilterOp) => void;
+
+/** The smart filter's menu items for a cell (none when it offers nothing): a string's value in quotes. */
+export function FilterItems({ column, value, onFilter }: { column: ResultColumn; value: unknown; onFilter: OnFilter }) {
+  const quoted = (column.type === 'string' || column.type === 'dynamic') && value !== null && value !== undefined && value !== '';
+  const shown = quoted ? `"${shownValue(value)}"` : shownValue(value);
+  return filterOps(column, value).map((op) => (
+    <button key={op} type="button" role="menuitem" tabIndex={-1} className="whitespace-nowrap" onClick={() => onFilter(column, value, op)}>
+      {FILTER_VERB[op]} {shown}
+    </button>
+  ));
 }
 
 export interface GridSelection {
@@ -290,6 +362,16 @@ interface GridProps {
   selection?: GridSelection | 'none';
   /** The indexes in `rows` of every row the filter lets through, in the order shown; called after a render that changed them. */
   onShownChange?: (shown: number[]) => void;
+  /** A smart filter item was chosen in a cell's context menu. Without it, a right-click is the browser's own. */
+  onFilter?: OnFilter;
+}
+
+/** A cell's context menu: the cell, and the point in the grid it opens at. */
+interface CellMenu {
+  column: ResultColumn;
+  value: unknown;
+  x: number;
+  y: number;
 }
 
 /** A magnifier: the inspect button's icon. */
@@ -324,6 +406,7 @@ export function ResultGrid({
   cellFilters = NO_FILTERS,
   selection,
   onShownChange,
+  onFilter,
 }: GridProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [filter, setFilter] = useState('');
@@ -336,6 +419,8 @@ export function ResultGrid({
   const [anchor, setAnchor] = useState<number | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [tool, setTool] = useState<ExternalTool | null>(null);
+  const [cellMenu, setCellMenu] = useState<CellMenu | null>(null);
+  const root = useRef<HTMLDivElement>(null);
   // A new result's rows start with nothing selected.
   const [rowsSeen, setRowsSeen] = useState(rows);
   if (rowsSeen !== rows) {
@@ -497,6 +582,16 @@ export function ResultGrid({
 
   const groupedBy = grouping[0];
 
+  /** Opens a cell's smart filter menu at the pointer, kept inside the grid; a cell it offers nothing for keeps the browser's. */
+  const openCellMenu = (e: MouseEvent, column: ResultColumn | undefined, value: unknown) => {
+    const box = root.current?.getBoundingClientRect();
+    if (!onFilter || !column || !box || filterOps(column, value).length === 0) {
+      return;
+    }
+    e.preventDefault();
+    setCellMenu({ column, value, x: e.clientX - box.left, y: e.clientY - box.top });
+  };
+
   const reportShown = useEffectEvent(() => onShownChange?.(filteredLeaves.map((r) => r.index)));
   // Only when the shown rows can have changed, not on every render.
   useEffect(() => reportShown(), [rows, filter, cellFilters, sorting, grouping]);
@@ -607,7 +702,7 @@ export function ResultGrid({
   );
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
+    <div ref={root} className="relative flex min-h-0 flex-1 flex-col">
       {toolbar === undefined ? <div className="rbar justify-end">{tools}</div> : toolbar && createPortal(tools, toolbar)}
       <div
         ref={scroller}
@@ -744,9 +839,10 @@ export function ResultGrid({
                   {row.getVisibleCells().map((cell) => {
                     const column = meta.get(cell.column.id);
                     const value = cell.getValue();
+                    const onContextMenu = (e: MouseEvent) => openCellMenu(e, column, value);
                     if (value === null || value === undefined) {
                       return (
-                        <td key={cell.id} className="faint">
+                        <td key={cell.id} className="faint" onContextMenu={onContextMenu}>
                           null
                         </td>
                       );
@@ -754,7 +850,7 @@ export function ResultGrid({
                     if (isComplex(value)) {
                       const text = cellText(value);
                       return (
-                        <td key={cell.id}>
+                        <td key={cell.id} onContextMenu={onContextMenu}>
                           <button
                             type="button"
                             aria-label={`Show ${column?.name ?? ''} as JSON`}
@@ -767,7 +863,7 @@ export function ResultGrid({
                       );
                     }
                     return (
-                      <td key={cell.id} className={column && NUMERIC.has(column.type) ? 'num' : undefined}>
+                      <td key={cell.id} className={column && NUMERIC.has(column.type) ? 'num' : undefined} onContextMenu={onContextMenu}>
                         {cellText(value)}
                       </td>
                     );
@@ -787,6 +883,20 @@ export function ResultGrid({
       {notice && <NoticeLine notice={notice} onDismiss={() => setNotice(null)} />}
       {tool && <RunToolDialog tool={tool} columns={columns} rows={chosen.map((r) => r.original)} onClose={() => setTool(null)} />}
       {opened && <JsonPanel opened={opened} onClose={() => setOpened(null)} />}
+      {cellMenu && onFilter && (
+        <Menu
+          label={`Filter on ${cellMenu.column.name}`}
+          at={{ x: cellMenu.x, y: cellMenu.y }}
+          onClose={(refocus) => {
+            setCellMenu(null);
+            if (refocus) {
+              scroller.current?.focus();
+            }
+          }}
+        >
+          <FilterItems column={cellMenu.column} value={cellMenu.value} onFilter={onFilter} />
+        </Menu>
+      )}
     </div>
   );
 }
