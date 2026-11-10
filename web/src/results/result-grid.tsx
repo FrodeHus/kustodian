@@ -47,7 +47,7 @@ import { filterOps, shownValue, type FilterOp } from './smart-filter';
 const ROW_HEIGHT = 29;
 // One empty list, so a grid with no cell filters doesn't hand the table a new state each render.
 const NO_FILTERS: CellMatch[] = [];
-const NUMERIC = new Set(['int', 'long', 'real', 'decimal', 'double']);
+export const NUMERIC = new Set(['int', 'long', 'real', 'decimal', 'double']);
 // Approximate pixels per character of the cell font (12px JetBrains Mono) and of the header, plus a cell's side padding.
 const CHAR_PX = 7.3;
 const HEADER_CHAR_PX = 7.6;
