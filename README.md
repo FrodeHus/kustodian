@@ -27,7 +27,7 @@ it sends them. Hunting, Resource Graph and Log Analytics queries go straight to 
   up to 730 days. The default, **Primary workspace**, sends none. See [docs/EntraPermissions.md](docs/EntraPermissions.md#hunting-in-a-workspace).
 - **Schema-aware KQL**: completion and errors from each source's schema, including nested and `mv-expand`ed fields.
 - **Explain**: see the Graph requests, `$filter` and permissions a query needs, without sending anything.
-- **Results**: virtualized grid, charts, JSON and diagnostics; smart filter from a cell or row details; compare two runs; export to CSV, JSON or Markdown.
+- **Results**: virtualized grid, charts, JSON and diagnostics; smart filter from a cell or row details; column statistics from a column header; compare two runs; export to CSV, JSON or Markdown.
 - **Workflow**: tabs that survive restarts, `{name}` parameters, snippets, saved queries, history and a command palette.
 - **Workbooks**: pages of chart, table, stat and Markdown widgets over saved or inline queries, sharing parameters. See [docs/workbooks.md](docs/workbooks.md).
 - **Raw Graph requests**, like Graph Explorer, with responses you can open as KQL tabs.

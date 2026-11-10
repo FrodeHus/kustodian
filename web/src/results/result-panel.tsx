@@ -210,6 +210,7 @@ export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = fa
           inspectorId={`${id}-details`}
           cellFilters={chartFilter ?? undefined}
           onFilter={onFilter}
+          statistics
         />,
       )}
       {panel(

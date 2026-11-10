@@ -7,6 +7,9 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Column statistics**: a column header's menu shows the column's distinct and empty counts, its top 10 values with their
+  share, and min, max and average for numbers or earliest and latest for dates, from the rows shown. Filter by or Exclude a
+  top value from there, on the tabs where the smart filter is offered.
 - **Smart filter**: right-click a value on the Rows tab, or use Filter… in row details, to add a `| where` line for it, or to
   exclude it. Dates also offer On or after and Before. The line goes into the query so you can keep it (one undo removes it),
   and the query reruns. On Graph tables it is placed so Graph filters it as `$filter` where it can.
