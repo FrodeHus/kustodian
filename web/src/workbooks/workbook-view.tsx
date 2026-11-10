@@ -24,6 +24,7 @@ import { WidgetGrid, type GridEditing } from './widget-grid';
 import { ChartWidget } from './widgets/chart-widget';
 import { MarkdownWidget } from './widgets/markdown-widget';
 import { StatWidget } from './widgets/stat-widget';
+import { Printing } from './widgets/printing';
 import { SheetHost } from './widgets/sheet-host';
 import { TableWidget } from './widgets/table-widget';
 import { editRanWidgets, editStartDoc, readLibrary, useWorkbooks, visibleTab } from './workbook-store';
@@ -762,15 +763,17 @@ export function WorkbookView({ tabId, onSignIn, accountKey }: { tabId: string; o
           </table>
         </div>
       )}
-      <SheetHost.Provider value={sheetHost}>
-        <div className="wb-canvas min-h-0 flex-1 overflow-auto p-3">
-          {doc.widgets.length === 0 && !editing ? (
-            <p className="faint m-0 text-[12px]">No widgets yet. Edit the workbook to add some.</p>
-          ) : (
-            <WidgetGrid tabId={tabId} place={null} editing={gridEditing} body={body} onSignIn={onSignIn} />
-          )}
-        </div>
-      </SheetHost.Provider>
+      <Printing.Provider value={printing}>
+        <SheetHost.Provider value={sheetHost}>
+          <div className="wb-canvas min-h-0 flex-1 overflow-auto p-3">
+            {doc.widgets.length === 0 && !editing ? (
+              <p className="faint m-0 text-[12px]">No widgets yet. Edit the workbook to add some.</p>
+            ) : (
+              <WidgetGrid tabId={tabId} place={null} editing={gridEditing} body={body} onSignIn={onSignIn} />
+            )}
+          </div>
+        </SheetHost.Provider>
+      </Printing.Provider>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { RowDetails } from '../../results/row-details';
 import type { Widget } from '../model';
 import { useWorkbooks, type WidgetRun } from '../workbook-store';
 import { HistoryTable } from './history-table';
+import { PRINT_ROWS, Printing } from './printing';
 import { SheetHost } from './sheet-host';
 
 /** A table widget: the result grid, its tools in a bar of their own. With a `tabId` its row selection lives in the store, for
@@ -16,6 +17,7 @@ export function TableWidget({ widget, run, tabId }: { widget: Widget; run: Widge
   const mode = widget.selection ?? 'multi';
   const id = useId();
   const host = useContext(SheetHost);
+  const printing = useContext(Printing);
   // The opened row, with the rows it indexes: a rerun's new rows close it.
   const [details, setDetails] = useState<{ rows: Row[]; index: number } | null>(null);
   // The store keeps the old selection until the rerun answers; with selection off it counts as empty.
@@ -42,6 +44,7 @@ export function TableWidget({ widget, run, tabId }: { widget: Widget; run: Widge
         inspected={inspected}
         inspectorId={`${id}-details`}
         onShownChange={tabId === undefined ? undefined : (shown) => useWorkbooks.getState().setShown(tabId, widget.id, shown)}
+        printRows={printing ? PRINT_ROWS : undefined}
       />
       {detailsRow &&
         sheet(<RowDetails id={`${id}-details`} columns={run.result.columns} row={detailsRow} onClose={() => setDetails(null)} />)}

@@ -46,7 +46,8 @@ follow [Semantic Versioning](https://semver.org/).
   showing the schema in use, with **Refresh now**.
 - **Print or save a workbook as PDF** from the workbook's ⋯ menu. It prints as a report in the light theme: no controls, the
   parameters as a table of their values, every tab of a tabs widget under its own heading with its charts and tables (tabs that
-  haven't run run first), and Markdown widgets in full rather than cut off at the widget's height. A table widget prints the rows its box shows.
+  haven't run run first), and Markdown widgets in full rather than cut off at the widget's height. A table widget prints its first 500 rows in full, wrapped to
+  the page, and says how many more there were.
 
 ### Changed
 

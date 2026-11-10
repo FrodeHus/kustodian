@@ -352,6 +352,8 @@ interface GridProps {
   onFilter?: OnFilter;
   /** Each header gets a column menu with Column statistics (the query tab's Rows grid only). */
   statistics?: boolean;
+  /** For print: the first this many rows, all rendered rather than the ones scrolled into view, and a line for any left out. */
+  printRows?: number;
 }
 
 /** Where a header's column menu, or the statistics it opened, shows: the column, and the point in the grid under its header. */
@@ -402,6 +404,7 @@ export function ResultGrid({
   onShownChange,
   onFilter,
   statistics = false,
+  printRows,
 }: GridProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [filter, setFilter] = useState('');
@@ -486,9 +489,10 @@ export function ResultGrid({
     estimateSize: () => ROW_HEIGHT,
     overscan: 12,
   });
-  const items = virtualizer.getVirtualItems();
-  const padTop = items[0]?.start ?? 0;
-  const padBottom = virtualizer.getTotalSize() - (items.at(-1)?.end ?? 0);
+  const virtual = virtualizer.getVirtualItems();
+  const items = printRows === undefined ? virtual : visible.slice(0, printRows).map((_, index) => ({ index }));
+  const padTop = printRows === undefined ? (virtual[0]?.start ?? 0) : 0;
+  const padBottom = printRows === undefined ? virtualizer.getTotalSize() - (virtual.at(-1)?.end ?? 0) : 0;
 
   // Every column in the order shown, hidden ones included.
   const ids = columns.map((c) => c.name);
@@ -904,6 +908,11 @@ export function ResultGrid({
           </tbody>
         </table>
         {rows.length === 0 && <p className="faint m-0 p-4 text-[12px]">The query returned no rows.</p>}
+        {printRows !== undefined && visible.length > printRows && (
+          <p className="faint m-0 px-3 py-2 text-[12px]">
+            First {count(printRows)} of {count(visible.length)} rows.
+          </p>
+        )}
       </div>
       {notice && <NoticeLine notice={notice} onDismiss={() => setNotice(null)} />}
       {tool && <RunToolDialog tool={tool} columns={columns} rows={chosen.map((r) => r.original)} onClose={() => setTool(null)} />}
