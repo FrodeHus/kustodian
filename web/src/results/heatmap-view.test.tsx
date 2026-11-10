@@ -56,18 +56,39 @@ describe('HeatmapView', () => {
     expect([ring.style.gridRow, ring.style.gridColumn]).toEqual(['3', '3']);
   });
 
-  it('heatmap_view_header_label_is_not_covered_by_next_cell', () => {
+  it.each([
+    [6, 1],
+    [24, 2],
+  ])('heatmap_view_header_spans_%i_columns_by_%i', (n, step) => {
     const many = data();
     many.columns = axis(
       'day',
-      Array.from({ length: 24 }, (_, i) => `k${i}`),
+      Array.from({ length: n }, (_, i) => `k${i}`),
     );
     many.cells = many.cells.map(() => many.columns.keys.map(() => ({ value: 1, rows: 1 })));
     render(<HeatmapView data={many} value="v" />);
-    const header = (text: string) => [...screen.getByRole('grid').querySelectorAll<HTMLElement>('[title]')].find((d) => d.title === text)!;
-    expect(header('k0').textContent).toBe('k0');
-    expect(header('k1').textContent).toBe('');
-    expect(Number(header('k0').style.zIndex)).toBeGreaterThan(Number(header('k1').style.zIndex));
+    const heads = screen.getAllByTestId('heat-colhead');
+    expect(heads).toHaveLength(n / step);
+    heads.forEach((h, i) => {
+      expect(h.style.gridColumn).toBe(`${i * step + 2} / span ${step}`);
+      expect(h.style.textOverflow).toBe('ellipsis');
+      expect(h.style.overflow).toBe('hidden');
+      expect(h.title).toBe(`k${i * step}`);
+    });
+  });
+
+  it('heatmap_view_corner_is_above_headers_and_row_labels', () => {
+    render(<HeatmapView data={data()} value="v" />);
+    const z = (e: HTMLElement) => Number(e.style.zIndex);
+    const corner = z(screen.getByTestId('heat-corner'));
+    const others = [
+      ...screen.getAllByTestId('heat-colhead'),
+      ...screen.getByRole('grid').querySelectorAll<HTMLElement>('[role=row] > [title]'),
+    ];
+    expect(others.length).toBeGreaterThan(3);
+    for (const o of others) {
+      expect(corner).toBeGreaterThan(z(o));
+    }
   });
 
   it('heatmap_view_keyboard', () => {

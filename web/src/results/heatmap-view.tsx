@@ -70,16 +70,26 @@ export default function HeatmapView({
     const step = Math.ceil(columns.labels.length / MAX_COLUMN_LABELS);
     return (
       <>
-        <div style={{ ...sticky, ...head, zIndex: 3 }} />
-        {columns.labels.map((_, c) => (
-          <div
-            key={c}
-            title={label(columns, c)}
-            style={{ ...head, overflow: 'visible', whiteSpace: 'nowrap', zIndex: c % step === 0 ? 3 : 2 }}
-          >
-            {c % step === 0 && label(columns, c)}
-          </div>
-        ))}
+        <div data-testid="heat-corner" style={{ ...sticky, ...head, gridRow: 1, zIndex: 4 }} />
+        {columns.labels.map((_, c) =>
+          c % step === 0 ? (
+            <div
+              key={c}
+              data-testid="heat-colhead"
+              title={label(columns, c)}
+              style={{
+                ...head,
+                gridRow: 1,
+                gridColumn: `${c + 2} / span ${Math.min(step, columns.labels.length - c)}`,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {label(columns, c)}
+            </div>
+          ) : null,
+        )}
         {rows.labels.map((_, r) => (
           <div key={r} role="row" style={{ display: 'contents' }}>
             <div
