@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { columnName, filterCondition, filterOps, shownValue } from './smart-filter';
+import { columnName, filterCondition, filterOps, filterTarget, shownValue, withLine } from './smart-filter';
 
 const c = (name: string, type: string) => ({ name, type });
 const GUID = '3f2504e0-4f89-11d3-9a0c-0305e82c3301';
@@ -95,5 +95,46 @@ describe('shownValue', () => {
     expect(s).toHaveLength(40);
     expect(s.endsWith('…')).toBe(true);
     expect(shownValue('short')).toBe('short');
+  });
+});
+
+describe('filterTarget', () => {
+  const at = (line: number, column = 1) => ({ line, column });
+  it('uses the text that ran when it is still at its origin', () => {
+    const text = 'a\n\nusers\n| take 5';
+    expect(filterTarget(text, { kql: 'users\n| take 5', origin: at(3) }, 1)).toEqual({ kql: 'users\n| take 5', origin: at(3) });
+  });
+  it('falls back to the cursor block when the text changed', () => {
+    const text = 'a\n\nposts\n| take 5';
+    expect(filterTarget(text, { kql: 'users', origin: at(3) }, 4)).toEqual({ kql: 'posts\n| take 5', origin: at(3) });
+  });
+  it('returns null when there is nothing to use', () => {
+    expect(filterTarget('', { kql: 'users', origin: at(1) }, 1)).toBeNull();
+  });
+  it('uses the last block of a run of several', () => {
+    const text = 'a\n| take 1\n\nb\n| take 2';
+    expect(filterTarget(text, { kql: text, origin: at(1) }, 1)).toEqual({ kql: 'b\n| take 2', origin: at(4) });
+  });
+  it('uses the block holding the end of a selection that ended mid-line', () => {
+    const text = 'users\n| take 5 | count';
+    expect(filterTarget(text, { kql: 'users\n| take 5', origin: at(1) }, 1)).toEqual({ kql: text, origin: at(1) });
+  });
+});
+
+describe('withLine', () => {
+  const origin = { line: 3, column: 1 };
+  it('copies the indent of the last pipe line', () => {
+    const kql = 'users\n    | take 5';
+    expect(withLine({ kql, origin }, kql.length, 'a == 1')).toEqual({
+      text: 'users\n    | take 5\n    | where a == 1',
+      endLine: 5,
+      endColumn: 4 + '| where a == 1'.length + 1,
+    });
+  });
+  it('uses no indent when there are no pipes', () => {
+    expect(withLine({ kql: 'users', origin }, 5, 'a == 1')).toEqual({ text: 'users\n| where a == 1', endLine: 4, endColumn: 15 });
+  });
+  it('keeps the text after the insertion point', () => {
+    expect(withLine({ kql: 'users\n| take 5', origin }, 5, 'a == 1').text).toBe('users\n| where a == 1\n| take 5');
   });
 });

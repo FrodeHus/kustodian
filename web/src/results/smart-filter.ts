@@ -1,3 +1,4 @@
+import { blockAt } from '../editor/block-at';
 import type { ResultColumn } from '../wire';
 
 /** The comparisons the smart filter menu offers: equal, not equal, at or after, before. */
@@ -110,4 +111,58 @@ export function filterOps(column: ResultColumn, value: unknown): FilterOp[] {
 export function shownValue(value: unknown): string {
   const text = isEmpty(value) ? 'null' : typeof value === 'string' ? value : JSON.stringify(value);
   return text.length > 40 ? `${text.slice(0, 39)}…` : text;
+}
+
+/** The query text a filter line goes into, and where it begins in the editor (lines and columns count from 1). */
+export interface FilterTarget {
+  kql: string;
+  origin: { line: number; column: number };
+}
+
+const startOffset = (text: string, line: number, column: number) => {
+  const lines = text.split('\n');
+  let offset = 0;
+  for (let i = 0; i < line - 1 && i < lines.length; i++) offset += (lines[i] ?? '').length + 1;
+  return offset + column - 1;
+};
+
+/**
+ * The text a smart filter's line goes into: what the run sent, when it is still in the editor at its origin, else the block
+ * at the cursor. Of several blocks the last one; when a selection ended mid-line, the block holding that end.
+ */
+export function filterTarget(text: string, run: FilterTarget, cursorLine: number): FilterTarget | null {
+  let target: FilterTarget;
+  const found = text.startsWith(run.kql, startOffset(text, run.origin.line, run.origin.column)) && run.kql.trim() !== '';
+  if (found) {
+    const last = blockAt(run.kql, run.kql.split('\n').length);
+    target = { kql: last.text, origin: { line: run.origin.line + last.start - 1, column: last.start === 1 ? run.origin.column : 1 } };
+    const lines = target.kql.split('\n');
+    const endLine = target.origin.line + lines.length - 1;
+    const endColumn = (lines.length === 1 ? target.origin.column : 1) + (lines[lines.length - 1] ?? '').length;
+    if ((text.split('\n')[endLine - 1] ?? '').slice(endColumn - 1).trim() !== '') {
+      const block = blockAt(text, endLine);
+      target = { kql: block.text, origin: { line: block.start, column: 1 } };
+    }
+  } else {
+    const block = blockAt(text, cursorLine);
+    target = { kql: block.text, origin: { line: block.start, column: 1 } };
+  }
+  return target.kql.trim() === '' ? null : target;
+}
+
+/**
+ * The target's text with `\n<indent>| where <condition>` inserted at `offset` (a character offset into `target.kql`), where
+ * `indent` is the leading whitespace of its last pipe line. `endLine` and `endColumn` are the editor position (from 1) just
+ * after the inserted text.
+ */
+export function withLine(target: FilterTarget, offset: number, condition: string): { text: string; endLine: number; endColumn: number } {
+  const pipe = target.kql.split('\n').filter((l) => /^\s*\|/.test(l)).pop();
+  const indent = /^\s*/.exec(pipe ?? '')?.[0] ?? '';
+  const line = `${indent}| where ${condition}`;
+  const before = target.kql.slice(0, offset);
+  return {
+    text: `${before}\n${line}${target.kql.slice(offset)}`,
+    endLine: target.origin.line + before.split('\n').length,
+    endColumn: line.length + 1,
+  };
 }

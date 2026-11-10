@@ -400,6 +400,14 @@ describe('tab store', () => {
     expect(useTabs.getState().tabs[0]?.run?.origin).toEqual({ line: 3, column: 1 });
   });
 
+  it('runText_sends_the_given_text_and_records_its_origin', async () => {
+    bridge.call.mockResolvedValue(ok);
+    const id = useTabs.getState().openWith({ source: 'arg', title: 'Saved', text: 'Resources', savedId: 's1' });
+    await useTabs.getState().runText(id, 'Resources\n| where a == 1', { line: 2, column: 1 });
+    expect(bridge.call).toHaveBeenCalledWith('query.run', expect.objectContaining({ kql: 'Resources\n| where a == 1' }), expect.anything());
+    expect(useTabs.getState().tabs[0]?.run?.origin).toEqual({ line: 2, column: 1 });
+  });
+
   it('restore_and_openWith_keep_options', () => {
     const options = { timespan: 'P1D', scope: null };
     useTabs.getState().restore({
