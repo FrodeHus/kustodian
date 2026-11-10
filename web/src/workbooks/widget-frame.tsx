@@ -9,7 +9,7 @@ import { reportIdOf } from '../shell/report-id';
 import { SourceBadge } from '../tabs/source-badge';
 import { failed, useTabs } from '../tabs/tab-store';
 import type { ParameterDef, RunResult } from '../wire';
-import { COLUMNS, GAP_PX, nudge, resize, ROW_PX } from './layout';
+import { COLUMNS, GAP_PX, nudge, overlaps, resize, ROW_PX } from './layout';
 import { MAX_WIDGETS, type Place, type ToolButton, type Widget, type WidgetLayout } from './model';
 import { destinations, duplicateWidget, placeKey, placeOf, withinPlace } from './tabs';
 import { daysSince, HistoryData, SKIP_TEXT, useHistory, type HistoryFilter } from './history';
@@ -34,6 +34,10 @@ export interface WidgetEditing {
   announce: (text: string) => void;
   /** Moves the widget to another place: to the cell `at` (a drop), else the bottom (Move to…). The workbook says so and focuses it. */
   onMoveTo: (to: Place | null, at?: { x: number; y: number }) => void;
+  /** Where the widget shows: its layout, or where a gesture under way in its grid would leave it. */
+  layout: WidgetLayout;
+  /** Shows every widget in the grid where a gesture would leave it; null puts them back. */
+  onPreview: (widgets: Widget[] | null) => void;
 }
 
 /** A gesture: a move, or a resize by the right edge (w), the bottom edge (h) or the corner (both). */
@@ -166,7 +170,8 @@ function ToolButtonItems({
 }
 
 /** What a widget shows while it has no result: running, waiting, blocked, gone, or the error view. Null when it has one. */
-function runBody(tabId: string, widget: Widget, run: WidgetRun | undefined, onSignIn: () => void): ReactNode {
+/** `onSetUp`, in edit mode, opens the widget editor from a widget with no query yet; focus goes back to `opener` after. */
+function runBody(tabId: string, widget: Widget, run: WidgetRun | undefined, onSignIn: () => void, onSetUp?: (opener: HTMLElement) => void): ReactNode {
   const source = widget.query?.source ?? 'graph';
   const errorView = (result: RunResult, at: number | undefined) => (
     <RunStatus
@@ -179,7 +184,17 @@ function runBody(tabId: string, widget: Widget, run: WidgetRun | undefined, onSi
   switch (run?.state) {
     case undefined:
     case 'idle':
-      return <p className="faint m-0 p-4 text-[12px]">No query yet.</p>;
+      return (
+        <div className="flex flex-col items-start gap-2 p-4 text-[12px]">
+          <span className="faint">No query yet.</span>
+          {onSetUp && (
+            // The button is gone once the widget has a query: focus goes back to its grip.
+            <button type="button" className="btn" onClick={(e) => onSetUp(e.currentTarget.closest('.wb-widget')?.querySelector<HTMLElement>('[data-wb-grip]') ?? e.currentTarget)}>
+              Set up widget
+            </button>
+          )}
+        </div>
+      );
     case 'running':
     case 'waiting':
       return (
@@ -330,6 +345,7 @@ export function WidgetFrame({
     g?.stop();
     clearTimeout(g?.hover?.timer);
     g?.over?.el.classList.remove('wb-drop');
+    editing?.onPreview(null);
     setTarget(null);
     setAway(false);
   }
@@ -394,6 +410,7 @@ export function WidgetFrame({
       const across = kind === 'move' && widget.type !== 'tabs';
       const id = e.pointerId;
       let armed = false;
+      let last: string | null = null;
       const onMove = (m: globalThis.PointerEvent) => {
         if (m.pointerId !== id) {
           return;
@@ -409,9 +426,18 @@ export function WidgetFrame({
           window.addEventListener('keydown', onKey, true);
         }
         const s = steps(m);
-        if (s) {
-          setAway(across && follow(m));
-          setTarget(shifted(doc.widgets, widget.id, kind, s[0], s[1]).find((w) => w.id === widget.id)?.layout ?? null);
+        const off = across && follow(m);
+        // Once per whole cell (or change of grid), not per pixel: each one redraws the grid.
+        const key = s && `${s[0]},${s[1]},${off}`;
+        if (s && key !== last) {
+          last = key;
+          const next = shifted(doc.widgets, widget.id, kind, s[0], s[1]);
+          const at = next.find((w) => w.id === widget.id)?.layout ?? null;
+          setAway(off);
+          setTarget(at);
+          // The others make way live, except around a tabs widget: pushed aside, it could never be dropped into.
+          const onTabs = at && doc.widgets.some((w) => w.type === 'tabs' && w.id !== widget.id && placeKey(placeOf(w)) === placeKey(placeOf(widget)) && overlaps(w.layout, at));
+          editing?.onPreview(off || onTabs ? null : next);
         }
       };
       const onUp = (u: globalThis.PointerEvent) => {
@@ -487,8 +513,9 @@ export function WidgetFrame({
   const used = params.filter((p) => p.from === 'workbook').map((p) => p.name);
 
   const selected = editing?.selected ?? false;
-  // Only the selected widget shows Duplicate; off when the copy (a tabs widget's with its widgets) would pass MAX_WIDGETS.
-  const canDuplicate = selected && duplicateWidget(doc.widgets, widget.id) !== null;
+  const shown = editing?.layout ?? widget.layout;
+  // Off when the copy (a tabs widget's with its widgets) would pass MAX_WIDGETS.
+  const canDuplicate = editing !== undefined && duplicateWidget(doc.widgets, widget.id) !== null;
   const bare = !editing && widget.hideTitle === true;
   const refreshTab = (
     <button type="button" role="menuitem" tabIndex={-1} onClick={() => void useWorkbooks.getState().refreshTab(tabId, widget.id)}>
@@ -500,13 +527,13 @@ export function WidgetFrame({
       <section
         ref={ref}
         aria-label={title}
-        style={cellVars(widget.layout)}
+        style={cellVars(shown)}
         className={`card wb-widget flex min-h-0 min-w-0 flex-col ${selected ? 'border-accent' : ''} ${full ? 'wb-full fixed inset-0 z-20 rounded-none' : 'relative'}`}
         // Not for a widget inside this one (in a tabs widget): that one selects itself.
         onPointerDown={editing && ((e) => e.target instanceof Element && e.target.closest('.wb-widget') === e.currentTarget && editing.onSelect())}
       >
         {/* One row that never wraps (the title truncates, so it fits at the narrowest widget), then a row that wraps for the
-            widget's own controls, the workbook parameters it uses and, in edit mode, its size and (selected) its actions. */}
+            widget's own controls, the workbook parameters it uses and, in edit mode, its size. Edit mode's actions are ✎ and ⋯. */}
         <header hidden={bare} className="flex min-w-0 flex-col gap-1.5 px-3 py-2 text-[12.5px]">
           <div className="flex min-w-0 items-center gap-2">
             {editing && (
@@ -530,7 +557,41 @@ export function WidgetFrame({
             {/* Opening ⋯ (its button's click) starts it with its own items, not Move to…'s. */}
             <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.target instanceof Element && e.target.closest('[aria-haspopup]') && setMoving(false)}>
               {!editing && result && <span className="mono faint text-[11.5px]">{duration(result.durationMs)}</span>}
+              {editing && (
+                <button type="button" className="btn ghost" aria-label="Edit widget" title="Edit widget" onClick={(e) => editing.onEditWidget(e.currentTarget)}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                  </svg>
+                </button>
+              )}
               <MenuButton label={`${title} menu`} icon="⋯">
+                {!moving && editing && (
+                  <>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      tabIndex={-1}
+                      // Focus goes back to ⋯ when the editor closes: the item is gone by then.
+                      onClick={(e) => editing.onEditWidget(e.currentTarget.closest('.relative')?.querySelector<HTMLElement>('[aria-haspopup]') ?? e.currentTarget)}
+                    >
+                      Edit widget
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      tabIndex={-1}
+                      disabled={!canDuplicate}
+                      title={canDuplicate ? undefined : `A workbook can have at most ${MAX_WIDGETS} widgets.`}
+                      onClick={duplicate}
+                    >
+                      Duplicate
+                    </button>
+                    <button type="button" role="menuitem" tabIndex={-1} onClick={editing.onRemove}>
+                      Remove
+                    </button>
+                  </>
+                )}
                 {moving && editing && <MoveToItems widgets={doc.widgets} here={placeKey(placeOf(widget))} onMove={(to) => editing.onMoveTo(to)} />}
                 {!moving && widget.type === 'tabs' && refreshTab}
                 {!moving && widget.query && (
@@ -572,7 +633,7 @@ export function WidgetFrame({
               {/* Edit mode's size sits here, not in the first row, so the title keeps room at the narrowest widget. */}
               {editing && (
                 <span className="mono faint text-[11.5px]">
-                  {widget.layout.w} × {widget.layout.h}
+                  {shown.w} × {shown.h}
                 </span>
               )}
               {params
@@ -592,25 +653,6 @@ export function WidgetFrame({
                     </span>
                   ))}
                 </span>
-              )}
-              {selected && (
-                <>
-                  <button type="button" className="btn ghost" onClick={(e) => editing?.onEditWidget(e.currentTarget)}>
-                    Edit widget
-                  </button>
-                  <button
-                    type="button"
-                    className="btn ghost"
-                    disabled={!canDuplicate}
-                    title={canDuplicate ? undefined : `A workbook can have at most ${MAX_WIDGETS} widgets.`}
-                    onClick={duplicate}
-                  >
-                    Duplicate
-                  </button>
-                  <button type="button" className="btn ghost" onClick={editing?.onRemove}>
-                    Remove
-                  </button>
-                </>
               )}
               {/* In this wrapping row, not the first, so the title keeps room at the narrowest widget. */}
               {(picked > 0 || headerTools) && (
@@ -639,7 +681,8 @@ export function WidgetFrame({
           </div>
         )}
         <div className={`flex min-h-0 flex-1 flex-col overflow-hidden ${bare && widget.type !== 'tabs' ? 'pt-3' : ''}`}>
-          {(widget.query && runBody(tabId, widget, run, onSignIn)) ?? (
+          {(widget.query &&
+            runBody(tabId, widget, run, onSignIn, editing?.onEditWidget)) ?? (
             <HistoryData.Provider value={{ ...history, filter, setFilter }}>
               {full ? <SheetHost.Provider value={null}>{children}</SheetHost.Provider> : children}
             </HistoryData.Provider>

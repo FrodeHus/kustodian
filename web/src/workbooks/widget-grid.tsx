@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { narrowOrder } from './layout';
-import type { Place, Widget } from './model';
+import type { Place, Widget, WidgetLayout } from './model';
 import { placeKey, siblings } from './tabs';
 import { WidgetFrame } from './widget-frame';
 import { useWorkbooks } from './workbook-store';
@@ -36,6 +36,9 @@ export function WidgetGrid({
 }) {
   const widgets = useWorkbooks((s) => s.byTab[tabId]?.doc.widgets);
   const key = placeKey(place);
+  // Where a move or resize under way would leave each widget: they show there until the drop (live reflow).
+  const [preview, setPreview] = useState<Widget[] | null>(null);
+  const layoutOf = (w: Widget): WidgetLayout => preview?.find((p) => p.id === w.id)?.layout ?? w.layout;
   return (
     <div
       data-wb-place={key}
@@ -57,6 +60,8 @@ export function WidgetGrid({
               onRemove: () => editing.onRemove(w),
               announce: editing.announce,
               onMoveTo: (to, at) => editing.onMoveTo(w, to, at),
+              layout: layoutOf(w),
+              onPreview: setPreview,
             }
           }
         >
