@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { call } from '../bridge';
+import { sendableHighlights } from '../results/highlights';
 import { useTabs, type Tab } from '../tabs/tab-store';
 import type { FileFilter, LibraryList, OpenedFile, SavedFile, SavedQuery } from '../wire';
 
@@ -46,7 +47,7 @@ export async function saveToLibrary(tabId: string, name: string, folder: string 
       text,
       parameters: tab.parameters,
       options: tab.options ?? null,
-      highlights: tab.highlights?.length ? tab.highlights : null,
+      highlights: sendableHighlights(tab.highlights) ?? null,
     },
   });
   // The next Save goes to the library, not to a file the tab came from.

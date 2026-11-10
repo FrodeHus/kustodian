@@ -102,6 +102,16 @@ describe('HighlightList', () => {
     expect(within(screen.getByRole('group', { name: 'Rule 2' })).getByText('Can’t read this value as long')).toBeTruthy();
   });
 
+  it('notes a rule with a blank column', () => {
+    render(<HighlightList rules={[rule('a', { column: ' ' })]} columns={columns} onChange={vi.fn()} />);
+    expect(within(screen.getByRole('group', { name: 'Rule 1' })).getByText('Needs a column')).toBeTruthy();
+  });
+
+  it('limits a value to 1,000 characters', () => {
+    render(<HighlightList rules={[rule('a')]} columns={columns} onChange={vi.fn()} />);
+    expect(screen.getByRole('textbox', { name: 'Value' }).getAttribute('maxlength')).toBe('1000');
+  });
+
   it('disables + Add rule at 20', () => {
     const rules = Array.from({ length: 20 }, (_, i) => rule(`r${i}`));
     render(<HighlightList rules={rules} columns={columns} onChange={vi.fn()} />);

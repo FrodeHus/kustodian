@@ -4,6 +4,8 @@ import { NUMERIC } from './column-stats';
 import { cellText } from './export';
 
 export const MAX_HIGHLIGHTS = 20;
+/** The longest rule value the host keeps. */
+export const MAX_HIGHLIGHT_VALUE = 1000;
 export const HIGHLIGHT_OPS: HighlightOp[] = ['==', '!=', '>', '>=', '<', '<=', 'contains', '!contains', 'isempty', 'isnotempty'];
 export const HIGHLIGHT_COLOURS: HighlightColour[] = ['danger', 'warning', 'success', 'info'];
 
@@ -101,7 +103,8 @@ export interface CompiledRules {
   rules: Compiled[];
 }
 
-const NO_VALUE: HighlightOp[] = ['isempty', 'isnotempty', 'contains', '!contains'];
+/** Ops whose value isn't parsed as the column's type: no value, or text matched as is. */
+const UNPARSED_OPS: HighlightOp[] = ['isempty', 'isnotempty', 'contains', '!contains'];
 
 /** Parses each rule's value once against the columns; rules on missing columns or with unreadable values never match. */
 export function compileRules(rules: HighlightRule[], columns: ResultColumn[]): CompiledRules {
@@ -111,8 +114,8 @@ export function compileRules(rules: HighlightRule[], columns: ResultColumn[]): C
     if (index < 0) continue;
     const type = columns[index]!.type;
     const kind = kindOf(type);
-    const value = NO_VALUE.includes(rule.op) ? null : parse(kind, type, rule.value);
-    if (value === null && !NO_VALUE.includes(rule.op)) continue;
+    const value = UNPARSED_OPS.includes(rule.op) ? null : parse(kind, type, rule.value);
+    if (value === null && !UNPARSED_OPS.includes(rule.op)) continue;
     out.push({ rule, index, kind, type, value, needle: rule.value.toLowerCase() });
   }
   return { rules: out };
@@ -151,13 +154,20 @@ export function highlightOf(compiled: CompiledRules, row: unknown[]): { row: Hig
   return { row: rowColour, cells };
 }
 
-/** 'missing' (column not in the result), 'unreadable' (value can't be read as the column's type), or null. */
-export function ruleProblem(rule: HighlightRule, columns: ResultColumn[]): 'missing' | 'unreadable' | null {
+/** Blank column (not yet chosen), 'missing' (column not in the result), 'unreadable' (value can't be read as the column's type), or null. */
+export function ruleProblem(rule: HighlightRule, columns: ResultColumn[]): 'blank' | 'missing' | 'unreadable' | null {
+  if (!rule.column.trim()) return 'blank';
   const column = columns.find((c) => c.name === rule.column);
   if (!column) return 'missing';
-  if (NO_VALUE.includes(rule.op)) return null;
+  if (UNPARSED_OPS.includes(rule.op)) return null;
   return parse(kindOf(column.type), column.type, rule.value) === null ? 'unreadable' : null;
 }
+
+/** The rules the host keeps: a blank column is a mid-edit state the tab keeps but the session and library don't. */
+export const sendableHighlights = (rules: HighlightRule[] | undefined): HighlightRule[] | undefined => {
+  const kept = rules?.filter((r) => r.column.trim());
+  return kept?.length ? kept : undefined;
+};
 
 /** The rule a cell's "Highlight rows where…" prefills: == (isempty for an empty value), danger, row. */
 export function ruleFromCell(column: ResultColumn, value: unknown): HighlightRule {

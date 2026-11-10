@@ -371,6 +371,16 @@ describe('session sync', () => {
     useTabs.getState().setHighlights('a', []);
     await vi.advanceTimersByTimeAsync(1000);
     expect(saves().at(-1)?.tabs[0]).not.toHaveProperty('highlights');
+
+    // A rule with a blank column (mid-edit) isn't written; the tab keeps it.
+    const blank = { ...rule, id: 'h2', column: ' ' };
+    useTabs.getState().setHighlights('b', [blank, rule]);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(saves().at(-1)?.tabs[1]?.highlights).toEqual([rule]);
+    useTabs.getState().setHighlights('b', [blank]);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(saves().at(-1)?.tabs[1]).not.toHaveProperty('highlights');
+    expect(useTabs.getState().tabs[1]?.highlights).toEqual([blank]);
   });
 
   it('a_workbook_tab_survives_a_restart_with_its_document_and_unsaved_changes', async () => {

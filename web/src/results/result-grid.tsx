@@ -35,7 +35,7 @@ import { RunToolDialog, ToolItems } from './run-tool';
 import { FilterItems, MenuButton, Menu, type OnFilter } from './menu';
 import { filterOps, quotedValue } from './smart-filter';
 import { HighlightFromCell, HighlightListPopover } from './highlight-popover';
-import { compileRules, highlightOf, isEmpty, MAX_HIGHLIGHTS } from './highlights';
+import { compileRules, highlightOf, isEmpty, MAX_HIGHLIGHT_VALUE, MAX_HIGHLIGHTS } from './highlights';
 
 const ROW_HEIGHT = 29;
 // One empty list, so a grid with no cell filters doesn't hand the table a new state each render.
@@ -897,8 +897,14 @@ export function ResultGrid({
                 role="menuitem"
                 tabIndex={-1}
                 className="whitespace-nowrap"
-                disabled={ruleCount >= MAX_HIGHLIGHTS}
-                title={ruleCount >= MAX_HIGHLIGHTS ? `Up to ${MAX_HIGHLIGHTS} rules` : undefined}
+                disabled={ruleCount >= MAX_HIGHLIGHTS || cellText(cellMenu.value).length > MAX_HIGHLIGHT_VALUE}
+                title={
+                  ruleCount >= MAX_HIGHLIGHTS
+                    ? `Up to ${MAX_HIGHLIGHTS} rules`
+                    : cellText(cellMenu.value).length > MAX_HIGHLIGHT_VALUE
+                      ? 'Value too long to highlight'
+                      : undefined
+                }
                 onClick={() => setHighlightFrom(cellMenu)}
               >
                 {`Highlight rows where ${cellMenu.column.name} ${isEmpty(cellMenu.value) ? 'is empty' : `== ${quotedValue(cellMenu.column, cellMenu.value)}`}…`}

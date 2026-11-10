@@ -1,7 +1,7 @@
 import { useId, useLayoutEffect, useRef, type KeyboardEvent } from 'react';
 import { newId } from '../shell/ids';
 import type { HighlightColour, HighlightRule, ResultColumn } from '../wire';
-import { HIGHLIGHT_COLOURS, HIGHLIGHT_OPS, MAX_HIGHLIGHTS, ruleProblem } from './highlights';
+import { HIGHLIGHT_COLOURS, HIGHLIGHT_OPS, MAX_HIGHLIGHT_VALUE, MAX_HIGHLIGHTS, ruleProblem } from './highlights';
 
 const COLOUR_NAME: Record<HighlightColour, string> = { danger: 'Danger', warning: 'Warning', success: 'Success', info: 'Info' };
 const NO_VALUE = new Set(['isempty', 'isnotempty']);
@@ -140,6 +140,7 @@ export function HighlightList({
                 <input
                   className="textbox mono w-[140px]"
                   aria-label="Value"
+                  maxLength={MAX_HIGHLIGHT_VALUE}
                   value={rule.value}
                   disabled={readOnly}
                   onChange={(e) => set(i, { value: e.target.value })}
@@ -173,7 +174,11 @@ export function HighlightList({
                 ✕
               </button>
             </div>
-            {problem && <span className="faint">{problem === 'missing' ? 'Not in this result' : `Can’t read this value as ${type}`}</span>}
+            {problem && (
+              <span className="faint">
+                {problem === 'blank' ? 'Needs a column' : problem === 'missing' ? 'Not in this result' : `Can’t read this value as ${type}`}
+              </span>
+            )}
           </div>
         );
       })}

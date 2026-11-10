@@ -810,6 +810,19 @@ describe('ResultGrid highlight rules', () => {
     expect(onHighlightsChange).toHaveBeenCalledWith([expect.objectContaining({ column: 'state', op: 'isempty', value: '' })]);
   });
 
+  it('disables Highlight rows where … for a value over 1,000 characters', () => {
+    const long = 'x'.repeat(1001);
+    const { container } = render(<ResultGrid columns={cols} rows={[[long, 3], ['x'.repeat(1000), 4]]} onHighlightsChange={vi.fn()} />);
+    const cells = container.querySelectorAll('tbody tr[data-index] td:nth-child(2)');
+    fireEvent.contextMenu(cells[0]!);
+    const item = screen.getByRole('menuitem', { name: /^Highlight rows where/ });
+    expect(item).toHaveProperty('disabled', true);
+    expect(item.getAttribute('title')).toBe('Value too long to highlight');
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    fireEvent.contextMenu(cells[1]!);
+    expect(screen.getByRole('menuitem', { name: /^Highlight rows where/ })).toHaveProperty('disabled', false);
+  });
+
   it('opens the rule list from the cell menu and the column menu with no rules, and from the chip with some', () => {
     const onHighlightsChange = vi.fn();
     const { rerender } = render(<ResultGrid columns={cols} rows={rows} statistics onHighlightsChange={onHighlightsChange} />);

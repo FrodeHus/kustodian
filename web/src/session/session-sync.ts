@@ -1,5 +1,6 @@
 import { call } from '../bridge';
 import { sendableHeaders } from '../raw/raw-request';
+import { sendableHighlights } from '../results/highlights';
 import { errorText } from '../shell/errors';
 import { reportIdOf } from '../shell/report-id';
 import { useTabs } from '../tabs/tab-store';
@@ -24,20 +25,23 @@ function snapshot(): Session {
   return {
     version: 1,
     activeId,
-    tabs: tabs.map((t) => ({
-      id: t.id,
-      source: t.source,
-      title: t.title,
-      text: t.text,
-      dirty: t.dirty,
-      savedId: t.savedId ?? null,
-      parameters: t.parameters,
-      filePath: t.filePath ?? null,
-      ...(t.raw ? { raw: { version: t.raw.version, headers: sendableHeaders(t.raw.headers) } } : {}),
-      ...(t.options ? { options: t.options } : {}),
-      ...(t.highlights?.length ? { highlights: t.highlights } : {}),
-      ...(t.workbook ? { workbook: t.workbook } : {}),
-    })),
+    tabs: tabs.map((t) => {
+      const highlights = sendableHighlights(t.highlights);
+      return {
+        id: t.id,
+        source: t.source,
+        title: t.title,
+        text: t.text,
+        dirty: t.dirty,
+        savedId: t.savedId ?? null,
+        parameters: t.parameters,
+        filePath: t.filePath ?? null,
+        ...(t.raw ? { raw: { version: t.raw.version, headers: sendableHeaders(t.raw.headers) } } : {}),
+        ...(t.options ? { options: t.options } : {}),
+        ...(highlights ? { highlights } : {}),
+        ...(t.workbook ? { workbook: t.workbook } : {}),
+      };
+    }),
   };
 }
 

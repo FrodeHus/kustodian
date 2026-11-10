@@ -134,6 +134,15 @@ describe('saving', () => {
     const plain = useTabs.getState().openWith({ source: 'graph', title: 'P', text: 'users' });
     await saveToLibrary(plain, 'P', null);
     expect(bridge.call).toHaveBeenLastCalledWith('library.save', { query: expect.objectContaining({ highlights: null }) });
+
+    // A rule with a blank column isn't sent; only blank ones: null.
+    const blank = { ...rule, id: 'h2', column: '' };
+    const mixed = useTabs.getState().openWith({ source: 'graph', title: 'M', text: 'users', highlights: [blank, rule] });
+    await saveToLibrary(mixed, 'M', null);
+    expect(bridge.call).toHaveBeenLastCalledWith('library.save', { query: expect.objectContaining({ highlights: [rule] }) });
+    const onlyBlank = useTabs.getState().openWith({ source: 'graph', title: 'B', text: 'users', highlights: [blank] });
+    await saveToLibrary(onlyBlank, 'B', null);
+    expect(bridge.call).toHaveBeenLastCalledWith('library.save', { query: expect.objectContaining({ highlights: null }) });
   });
 
   it('dropped_file_over_the_size_limit_is_refused', async () => {
