@@ -438,6 +438,19 @@ describe('WidgetEditor', () => {
       expect('highlights' in applied().query!).toBe(false);
     });
 
+    it('linking a saved query without rules drops the widget’s own; Copy into widget keeps none', async () => {
+      const a = doc.widgets[0]!;
+      doc.widgets[0] = { ...a, query: { ...a.query!, highlights: [rule] } };
+      open('a', vms);
+      fireEvent.click(screen.getByRole('radio', { name: 'Use a saved query' }));
+      await screen.findByRole('option', { name: 'Risky sign-ins' });
+      fireEvent.change(screen.getByRole('combobox', { name: 'Saved query' }), { target: { value: 's1' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Copy into widget' }));
+      apply();
+      expect(applied().query).toMatchObject({ saved: null, text: 'riskyUsers | take {Top}' });
+      expect('highlights' in applied().query!).toBe(false);
+    });
+
     it('a linked widget copies its saved query’s rules and shows them read-only', async () => {
       call.mockImplementation((method: string) =>
         method === 'library.list'

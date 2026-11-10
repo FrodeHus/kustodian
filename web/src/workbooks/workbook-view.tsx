@@ -14,7 +14,16 @@ import { SourceBadge } from '../tabs/source-badge';
 import { useTabs } from '../tabs/tab-store';
 import type { LibraryList, SavedQuery } from '../wire';
 import { narrowOrder, place } from './layout';
-import { MAX_WIDGETS, MIN_SIZE, newWidget, type Place, type Widget, type WidgetType, type WorkbookParameter } from './model';
+import {
+  MAX_WIDGETS,
+  MIN_SIZE,
+  newWidget,
+  withHighlights,
+  type Place,
+  type Widget,
+  type WidgetType,
+  type WorkbookParameter,
+} from './model';
 import { huntingTimespanProblem, workbookValues } from './resolve';
 import { ParametersDialog } from './parameters-dialog';
 import { childrenOf, moveTo, placeKey, placeOf, removeTabs, siblings } from './tabs';
@@ -456,13 +465,10 @@ export function WorkbookView({ tabId, onSignIn, accountKey }: { tabId: string; o
     }
     const widget = placed('table');
     widget.title = q.name;
-    widget.query = {
-      source: q.source,
-      text: q.text,
-      options: q.options ?? null,
-      parameters: q.parameters,
-      saved: { id: q.id, name: q.name },
-    };
+    widget.query = withHighlights(
+      { source: q.source, text: q.text, options: q.options ?? null, parameters: q.parameters, saved: { id: q.id, name: q.name } },
+      q.highlights,
+    );
     add(widget, q.name);
   };
   const startEditing = () => {

@@ -358,6 +358,35 @@ describe('workbook edit mode', () => {
     expect(layoutOf('a')).toMatchObject({ w: 6, h: 14 });
   });
 
+  it('From a saved query… copies the saved query’s highlight rules into the widget', async () => {
+    const rule = { id: 'r1', column: 'state', op: '==', value: 'FAIL', colour: 'danger', target: 'row' };
+    call.mockResolvedValue({
+      queries: [
+        {
+          id: 'q1',
+          name: 'Risky sign-ins',
+          folder: null,
+          source: 'graph',
+          text: 'riskyUsers',
+          parameters: [],
+          options: null,
+          highlights: [rule],
+          version: 1,
+          createdAt: '',
+          modifiedAt: '',
+        },
+      ],
+      folders: [],
+      skipped: 0,
+    });
+    show();
+    fireEvent.click(screen.getByRole('button', { name: '+ Add widget' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'From a saved query…' }));
+    const picker = await screen.findByRole('dialog', { name: 'Add a saved query' });
+    await act(async () => fireEvent.click(await within(picker).findByRole('button', { name: /Risky sign-ins/ })));
+    expect(state().doc.widgets.at(-1)!.query?.highlights).toEqual([rule]);
+  });
+
   it('From a saved query… adds a linked Table widget titled with the query’s name', async () => {
     call.mockResolvedValue({
       queries: [

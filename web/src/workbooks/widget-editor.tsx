@@ -161,11 +161,12 @@ export function WidgetEditor({
 
   const link = (q: SavedQuery) => {
     if (query) {
-      setQuery(fromSaved(query, q, true));
+      // Not setQuery: its merge would bring back rules the saved query doesn't have.
+      set({ query: fromSaved(query, q, true) });
       libraryRead.current = readLibrary(tabId);
     }
   };
-  const copyIn = () => query && setQuery(linked ? fromSaved(query, linked, false) : { saved: null });
+  const copyIn = () => query && set({ query: linked ? fromSaved(query, linked, false) : { ...query, saved: null } });
 
   const commit = () => {
     // A history check answering after Cancel or Escape mustn't apply the dropped draft.
