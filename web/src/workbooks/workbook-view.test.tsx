@@ -297,6 +297,21 @@ describe('WorkbookView', () => {
     expect(copySavedIntoWidget).toHaveBeenCalledWith('t', 'tb');
   });
 
+  it('shows a run’s time in the corner only when it took 5 s or more, and no source badge', () => {
+    const columns = [
+      { name: 'value', type: 'long' },
+      { name: 'previous', type: 'long' },
+    ];
+    show({ s: { state: 'done', result: result(columns, [[1, 2]]) } });
+    expect(within(frame('Total')).queryByText('120 ms')).toBeNull();
+    expect(frame('Total').querySelector('.src')).toBeNull();
+  });
+
+  it('a run of 5 s or more shows its time in the corner', () => {
+    show({ s: { state: 'done', result: { ...result([{ name: 'value', type: 'long' }], [[1]]), durationMs: 6200 } } });
+    expect(within(frame('Total')).getByText('6.2 s')).toBeTruthy();
+  });
+
   it('shows a stat with its change against the comparison', () => {
     const columns = [
       { name: 'value', type: 'long' },

@@ -6,7 +6,6 @@ import { MenuButton, NoticeLine, type Notice } from '../results/result-grid';
 import { RunStatus } from '../results/run-status';
 import { errorText } from '../shell/errors';
 import { reportIdOf } from '../shell/report-id';
-import { SourceBadge } from '../tabs/source-badge';
 import { failed, useTabs } from '../tabs/tab-store';
 import type { ParameterDef, RunResult } from '../wire';
 import { COLUMNS, GAP_PX, nudge, overlaps, resize, ROW_PX } from './layout';
@@ -93,6 +92,8 @@ function MoveToItems({ widgets, here, onMove }: { widgets: Widget[]; here: strin
 const cellVars = (l: WidgetLayout) => ({ '--x': l.x + 1, '--y': l.y + 1, '--w': l.w, '--h': l.h }) as CSSProperties;
 
 const duration = (ms: number) => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`);
+/** A run at least this long shows its time in the widget's corner; a quicker one isn't worth the room. */
+const SLOW_RUN_MS = 5000;
 
 const INTERVAL_TEXT = { day: 'Daily', run: 'Every run', week: 'Weekly' } as const;
 
@@ -256,7 +257,7 @@ function runBody(
 }
 
 /**
- * A widget on the workbook grid (spec 5.3): its header (source badge, title, its Widget · shown controls, the workbook
+ * A widget on the workbook grid (spec 5.3): its header (title, its Widget · shown controls, the workbook
  * parameters it uses, run time, and ⋯ with Refresh, Open in query tab, Export and Full screen), then its run's state, or
  * `children` once it has a result. Placed on the grid by its layout, through the `.wb-widget` variables. In edit mode
  * (`editing`) its grip drags or arrow-keys it, and the selected one has resize handles; each gesture is one `edit`.
@@ -560,6 +561,7 @@ export function WidgetFrame({
   const days = first === undefined ? null : daysSince(first, new Date(history.readAt ?? 0));
 
   const used = params.filter((p) => p.from === 'workbook').map((p) => p.name);
+  const slow = !editing && result !== null && result.durationMs >= SLOW_RUN_MS;
 
   const selected = editing?.selected ?? false;
   const shown = editing?.layout ?? widget.layout;
@@ -601,7 +603,6 @@ export function WidgetFrame({
                 <span aria-hidden="true">⠿</span>
               </button>
             )}
-            {live.query && <SourceBadge source={live.query.source} titled />}
             <b className="min-w-0 flex-1 truncate" title={title}>
               {title}
             </b>
@@ -610,7 +611,6 @@ export function WidgetFrame({
               className="flex shrink-0 items-center gap-2"
               onClick={(e) => e.target instanceof Element && e.target.closest('[aria-haspopup]') && setMoving(false)}
             >
-              {!editing && result && <span className="mono faint text-[11.5px]">{duration(result.durationMs)}</span>}
               {editing && (
                 <button
                   type="button"
@@ -774,28 +774,38 @@ export function WidgetFrame({
             {history.error && <span className="text-bad">Couldn’t read history: {history.error}</span>}
           </footer>
         )}
-        {/* The workbook parameters it uses, named on hover: as words they took a small widget's room. Left of the resize corner. */}
-        {used.length > 0 && (
-          <span
-            role="img"
-            aria-label={`Uses workbook parameters ${used.join(', ')}`}
-            title={`Uses workbook parameters: ${used.join(', ')}`}
-            className={`faint absolute bottom-1.5 ${selected ? 'right-5' : 'right-2'} flex`}
-          >
-            <svg
-              width="11"
-              height="11"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              aria-hidden="true"
-            >
-              <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" />
-              <path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" />
-            </svg>
-          </span>
+        {/* A slow run's time and the workbook parameters it uses (named on hover): in the title row they took a small widget's room.
+            Left of the resize corner. */}
+        {(slow || used.length > 0) && (
+          <div className={`faint absolute bottom-1.5 ${selected ? 'right-5' : 'right-2'} flex items-center gap-1.5`}>
+            {slow && (
+              <span className="mono text-[11px]" title="How long the last run took">
+                {duration(result.durationMs)}
+              </span>
+            )}
+            {used.length > 0 && (
+              <span
+                role="img"
+                aria-label={`Uses workbook parameters ${used.join(', ')}`}
+                title={`Uses workbook parameters: ${used.join(', ')}`}
+                className="flex"
+              >
+                <svg
+                  width="11"
+                  height="11"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
+                  <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" />
+                  <path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" />
+                </svg>
+              </span>
+            )}
+          </div>
         )}
         {/* Pointer only; Shift+arrows on the grip resize from the keyboard. */}
         {selected && (
