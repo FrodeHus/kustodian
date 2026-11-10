@@ -19,7 +19,7 @@ import { DiagnosticsView } from './results/diagnostics-view';
 import { EXPORT_FORMATS, EXPORT_NAMES, exportResult } from './results/export';
 import { ResultPanel } from './results/result-panel';
 import type { OnFilter } from './results/result-grid';
-import { filterCondition, filterTarget, withLine, type FilterOp } from './results/smart-filter';
+import { filterable, filterCondition, filterTarget, targetEnd, withLine, type FilterOp } from './results/smart-filter';
 import { RunStatus } from './results/run-status';
 import { openRaw } from './raw/raw-request';
 import { RawTab } from './raw/raw-tab';
@@ -146,8 +146,9 @@ async function addFilter(
   fail: (text: string, reportId?: string) => void,
 ) {
   const { run, source } = tab;
-  const condition = filterCondition(column, value, op);
-  if (!run?.kql || !condition || (source !== 'graph' && source !== 'hunting' && source !== 'arg')) {
+  // As Results offers it; `source` is checked again for its type.
+  const offered = filterable(tab) && filterCondition(column, value, op) !== null;
+  if (!offered || !run?.kql || (source !== 'graph' && source !== 'hunting' && source !== 'arg')) {
     return;
   }
   const target = filterTarget(tab.text, { kql: run.kql, origin: run.origin }, useTabs.getState().cursors[tab.id]?.line ?? 1);
@@ -155,10 +156,10 @@ async function addFilter(
     fail('Couldn’t find the query to add the filter to.');
     return;
   }
-  let offset: number | null;
+  let answer: FilterAtAnswer;
   try {
     const params: FilterAtParams = { source, kql: target.kql, column: column.name, parameters: runParameters(tab) };
-    ({ offset } = await call<FilterAtAnswer>('query.filterAt', params));
+    answer = await call<FilterAtAnswer>('query.filterAt', params);
   } catch (e) {
     fail(`Couldn’t add the filter: ${errorText(e)}`, reportIdOf(e));
     return;
@@ -166,14 +167,20 @@ async function addFilter(
   // Typed into, or another tab came forward, while the host answered: the range is no longer the target's.
   const now = activeTab();
   if (now?.id !== tab.id || now.text !== tab.text) {
+    fail('The query changed while adding the filter. Try again.');
     return;
   }
-  const { text } = withLine(target, offset ?? target.kql.trimEnd().length, condition);
-  // The target's end in the editor, from its own lines: the store's text may have \r\n where the target has \n.
-  const lines = target.kql.split('\n');
-  const last = lines.at(-1) ?? '';
-  const end = { line: target.origin.line + lines.length - 1, column: (lines.length === 1 ? target.origin.column : 1) + last.length };
-  if (editor?.replaceRange(target.origin, end, text)) {
+  if (answer.offset === null) {
+    fail('Couldn’t add the filter: the text isn’t a query.');
+    return;
+  }
+  // The host's name for the column: it knows every word Kusto won't take bare.
+  const condition = filterCondition(column, value, op, answer.name);
+  if (condition === null) {
+    return;
+  }
+  const { text } = withLine(target, answer.offset, condition);
+  if (editor?.replaceRange(target.origin, targetEnd(target), text)) {
     await useTabs.getState().runText(tab.id, text, target.origin);
   }
 }
@@ -1156,8 +1163,8 @@ function Results({ tab, dialogOpen, onFilter }: { tab: Tab; dialogOpen: boolean;
       pinned={tab.pinned}
       dialogOpen={dialogOpen}
       source={tab.run?.source}
-      // Offered for the query sources, on a run that kept its text.
-      onFilter={(tab.source === 'graph' || tab.source === 'hunting' || tab.source === 'arg') && tab.run?.kql ? onFilter : undefined}
+      // Offered for the query sources, on a run that kept its text and went to the tab's source.
+      onFilter={filterable(tab) ? onFilter : undefined}
     />
   );
 }

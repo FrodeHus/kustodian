@@ -408,6 +408,15 @@ describe('tab store', () => {
     expect(useTabs.getState().tabs[0]?.run?.origin).toEqual({ line: 2, column: 1 });
   });
 
+  it('runText_never_runs_a_raw_or_workbook_tab', async () => {
+    bridge.call.mockResolvedValue(ok);
+    const raw = useTabs.getState().openWith({ source: 'raw', title: 'Raw', text: 'GET /me' });
+    await useTabs.getState().runText(raw, 'users', { line: 1, column: 1 });
+    useTabs.setState((s) => ({ tabs: s.tabs.map((t) => (t.id === raw ? { ...t, source: 'workbook' } : t)) }));
+    await useTabs.getState().runText(raw, 'users', { line: 1, column: 1 });
+    expect(bridge.call).not.toHaveBeenCalledWith('query.run', expect.anything(), expect.anything());
+  });
+
   it('restore_and_openWith_keep_options', () => {
     const options = { timespan: 'P1D', scope: null };
     useTabs.getState().restore({

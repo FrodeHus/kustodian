@@ -1380,11 +1380,12 @@ describe('App', () => {
     const editorText = () => (screen.getByRole('textbox', { name: 'KQL query' }) as HTMLTextAreaElement).value;
 
     it('filter by puts a where line where the host says, in the editor, and runs that text', async () => {
-      answers['query.filterAt'] = () => ({ offset: 5 });
+      // The host's name for the column is the one written.
+      answers['query.filterAt'] = () => ({ offset: 5, name: "['displayName']" });
       await ranText('users\n| take 5');
       filterBy();
 
-      const filtered = 'users\n| where displayName == "x"\n| take 5';
+      const filtered = 'users\n| where [\'displayName\'] == "x"\n| take 5';
       await waitFor(() => expect(editorText()).toBe(filtered));
       expect(bridge.call).toHaveBeenCalledWith('query.filterAt', {
         source: 'graph',
@@ -1401,12 +1402,54 @@ describe('App', () => {
       );
     });
 
-    it('a null offset puts the line at the end of the query', async () => {
-      answers['query.filterAt'] = () => ({ offset: null });
+    it('a null offset says the text isn’t a query and changes nothing', async () => {
+      answers['query.filterAt'] = () => ({ offset: null, name: 'displayName' });
       await ranText('users\n| take 5\n\n');
+      bridge.call.mockClear();
       filterBy();
 
-      await waitFor(() => expect(editorText()).toBe('users\n| take 5\n| where displayName == "x"\n\n'));
+      expect((await screen.findByRole('alert')).textContent).toMatch(/Couldn’t add the filter: the text isn’t a query\./);
+      expect(editorText()).toBe('users\n| take 5\n\n');
+      expect(bridge.call).not.toHaveBeenCalledWith('query.run', expect.anything(), expect.anything());
+    });
+
+    it('text changed while the host answered: a notice says so and nothing changes', async () => {
+      let answer: (a: unknown) => void = () => {};
+      answers['query.filterAt'] = () => new Promise((resolve) => (answer = resolve));
+      await ranText('users\n| take 5');
+      bridge.call.mockClear();
+      filterBy();
+      await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('query.filterAt', expect.anything()));
+      fireEvent.change(screen.getByRole('textbox', { name: 'KQL query' }), { target: { value: 'users\n| take 6' } });
+      await act(async () => answer({ offset: 5, name: 'displayName' }));
+
+      expect((await screen.findByRole('alert')).textContent).toMatch(/The query changed while adding the filter\. Try again\./);
+      expect(editorText()).toBe('users\n| take 6');
+      expect(bridge.call).not.toHaveBeenCalledWith('query.run', expect.anything(), expect.anything());
+    });
+
+    it('is offered on a hunting run, and the filter goes to hunting', async () => {
+      answers['query.filterAt'] = () => ({ offset: 5, name: 'displayName' });
+      host({ accounts: [kari], cache: 'persistent' }, named);
+      render(<App />);
+      const box = await screen.findByRole('textbox', { name: 'KQL query' });
+      act(() => useTabs.getState().setSource(useTabs.getState().activeId!, 'hunting'));
+      fireEvent.change(box, { target: { value: 'users\n| take 5' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Run all Shift Enter' }));
+      await waitFor(() => expect(screen.getByRole('tab', { name: 'Rows · 1' })).toBeTruthy());
+      filterBy();
+
+      await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('query.filterAt', expect.objectContaining({ source: 'hunting' })));
+    });
+
+    it('is not offered once the tab’s source changed since the run', async () => {
+      await ranText('users\n| take 5');
+      act(() => useTabs.getState().setSource(useTabs.getState().activeId!, 'arg'));
+      const cell = within(screen.queryByRole('table') ?? document.body).queryByText('x');
+      if (cell) {
+        fireEvent.contextMenu(cell);
+      }
+      expect(screen.queryByRole('menuitem', { name: 'Filter by "x"' })).toBeNull();
     });
 
     it('with no query to add to, a notice says so and nothing runs', async () => {
