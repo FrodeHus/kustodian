@@ -533,7 +533,7 @@ export function WidgetFrame({
         onPointerDown={editing && ((e) => e.target instanceof Element && e.target.closest('.wb-widget') === e.currentTarget && editing.onSelect())}
       >
         {/* One row that never wraps (the title truncates, so it fits at the narrowest widget), then a row that wraps for the
-            widget's own controls, the workbook parameters it uses and, in edit mode, its size. Edit mode's actions are ✎ and ⋯. */}
+            widget's own controls, and, in edit mode, its size; the workbook parameters it uses are a link icon in the corner. Edit mode's actions are ✎ and ⋯. */}
         <header hidden={bare} className="flex min-w-0 flex-col gap-1.5 px-3 py-2 text-[12.5px]">
           <div className="flex min-w-0 items-center gap-2">
             {editing && (
@@ -628,7 +628,7 @@ export function WidgetFrame({
               </MenuButton>
             </div>
           </div>
-          {(params.some((p) => p.from === 'widget') || used.length > 0 || editing || picked > 0 || headerTools) && (
+          {(params.some((p) => p.from === 'widget') || editing || picked > 0 || headerTools) && (
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               {/* Edit mode's size sits here, not in the first row, so the title keeps room at the narrowest widget. */}
               {editing && (
@@ -641,19 +641,6 @@ export function WidgetFrame({
                 .map((p) => (
                   <ShownControl key={p.name} param={p} choices={choicesOf(live, p)} onChange={(v, now) => useWorkbooks.getState().setWidgetValue(tabId, widget.id, p.name, v, { now })} />
                 ))}
-              {used.length > 0 && (
-                <span className="faint flex items-center gap-1 text-[11.5px]" title="Workbook parameters it uses">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                    <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" />
-                    <path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" />
-                  </svg>
-                  {used.map((name) => (
-                    <span key={name} className="mono">
-                      {name}
-                    </span>
-                  ))}
-                </span>
-              )}
               {/* In this wrapping row, not the first, so the title keeps room at the narrowest widget. */}
               {(picked > 0 || headerTools) && (
                 <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -699,6 +686,20 @@ export function WidgetFrame({
             {(recording?.reset || history.values?.reset || history.changes?.reset) && <span className="text-warn">History was reset: its file was damaged.</span>}
             {history.error && <span className="text-bad">Couldn’t read history: {history.error}</span>}
           </footer>
+        )}
+        {/* The workbook parameters it uses, named on hover: as words they took a small widget's room. Left of the resize corner. */}
+        {used.length > 0 && (
+          <span
+            role="img"
+            aria-label={`Uses workbook parameters ${used.join(', ')}`}
+            title={`Uses workbook parameters: ${used.join(', ')}`}
+            className={`faint absolute bottom-1.5 ${selected ? 'right-5' : 'right-2'} flex`}
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" />
+              <path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" />
+            </svg>
+          </span>
         )}
         {/* Pointer only; Shift+arrows on the grip resize from the keyboard. */}
         {selected && (
