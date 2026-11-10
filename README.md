@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A desktop KQL workbench for your Microsoft tenant. Write one query language against **Microsoft Graph**, **Defender advanced
-hunting** and **Azure Resource Graph**, with completion, parameters and results side by side. Runs on Windows, macOS and Linux.
+hunting**, **Azure Resource Graph** and **Log Analytics**, with completion, parameters and results side by side. Runs on Windows, macOS and Linux.
 
 ![Kustodian querying Microsoft Graph with KQL](docs/images/main.png)
 
@@ -15,11 +15,13 @@ hunting** and **Azure Resource Graph**, with completion, parameters and results 
 
 Graph has no query language: answering "which apps have expired credentials?" means paging, `$filter` quirks and per-object
 calls. Kustodian fetches Graph data and runs real KQL over it locally, and shows exactly which requests it will send before
-it sends them. Hunting and Resource Graph queries go straight to their services, in the same editor.
+it sends them. Hunting, Resource Graph and Log Analytics queries go straight to their services, in the same editor.
 
 ## Features
 
-- **Three sources, one editor**: Graph (beta), Defender hunting via `security/runHuntingQuery`, and Azure Resource Graph.
+- **Four sources, one editor**: Graph (beta), Defender hunting via `security/runHuntingQuery`, Azure Resource Graph, and Log
+  Analytics workspaces. A Log Analytics tab runs KQL straight against one workspace you pick, with completion from that
+  workspace's tables. See [docs/EntraPermissions.md](docs/EntraPermissions.md#log-analytics).
 - **Hunting in a workspace**: a Workspace picker beside the timespan sends an advanced hunting query to a Log Analytics workspace, for
   up to 730 days. The default, **Primary workspace**, sends none. See [docs/EntraPermissions.md](docs/EntraPermissions.md#hunting-in-a-workspace).
 - **Schema-aware KQL**: completion and errors from each source's schema, including nested and `mv-expand`ed fields.
@@ -107,7 +109,7 @@ into `artifacts/`, run `tools/release/package.sh <rid>`; the Windows MSIs come f
 | `src/Kustodian` | Desktop host: window, message channel, sign-in, storage |
 | `src/Kustodian.Graph` | Graph schema, query planner, `$filter` translation, readers and cache |
 | `src/Kustodian.Engine` | KQL engine worker (KustoLoco) |
-| `src/Kustodian.Sources` | Defender hunting and Azure Resource Graph clients |
+| `src/Kustodian.Sources` | Defender hunting, Azure Resource Graph and Log Analytics clients |
 | `web/` | React UI (Vite, TypeScript, Vitest) |
 | `docs/` | Design specs, plans, mockups and manual checks ([index](docs/README.md)) |
 

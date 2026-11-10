@@ -100,6 +100,13 @@ Each step (columns dropped and why, the requests sent) is in the run's **Diagnos
 - Your account's own roles still apply. A permission never shows you more than your account could see anyway: a Global
   Reader and a user with no roles can get different results from the same query with the same app.
 
+## Log Analytics
+
+Log Analytics tabs don't use the license map: they read a workspace through the Log Analytics API, which needs the delegated
+`Data.Read` permission on the **Log Analytics API** and Azure RBAC on the workspace (Reader or Log Analytics Reader). What the
+workspace holds depends on its own data collection, not on Entra licenses. See
+[Entra ID permissions](EntraPermissions.md#log-analytics).
+
 ## Adding to the license map
 
 If you find a table or column that needs a license and isn't in
