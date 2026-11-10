@@ -16,7 +16,7 @@ export const themeName = (theme: Theme): string => (isPalette(theme) ? PALETTES[
 /** The glass themes: dark tokens over a colourful backdrop, with frosted panels. */
 const isGlass = (theme: Theme) => theme === 'glass' || theme === 'liquid-glass';
 
-/** The theme chosen, and what it comes to now (`system` follows the OS; the glass themes are dark). The editor picks its Monaco
+/** The theme chosen, and what it comes to now (`system` follows the OS; the glass themes are dark; a palette is what it says). The editor picks its Monaco
  * theme from `resolved` and `glass`. */
 export const useTheme = create<{ theme: Theme; resolved: 'dark' | 'light'; glass: boolean }>()(() => ({
   theme: 'dark',
@@ -58,7 +58,7 @@ export function applyTheme(theme: Theme): void {
   stopFollowing?.();
   stopFollowing = undefined;
   if (theme !== 'system') {
-    show(theme, theme === 'light');
+    show(theme, theme === 'light' || (isPalette(theme) && PALETTES[theme].light === true));
     return;
   }
   const query = window.matchMedia(LIGHT_QUERY);

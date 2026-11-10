@@ -438,7 +438,11 @@ export type PaletteTheme =
   | 'night-owl'
   | 'tokyo-night'
   | 'catppuccin-mocha'
-  | 'gruvbox-dark';
+  | 'gruvbox-dark'
+  | 'github-light'
+  | 'one-light'
+  | 'catppuccin-latte'
+  | 'solarized-light';
 
 export type Theme = 'dark' | 'light' | 'system' | 'glass' | 'liquid-glass' | PaletteTheme;
 
