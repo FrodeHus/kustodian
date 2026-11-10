@@ -151,10 +151,9 @@ public sealed class SessionService(JsonFileStore store, ILogger<SessionService>?
                     var withOptions = QueryOptionsDefaults.Fill(withParameters, options);
                     // Highlight rules that aren't valid are dropped, not the tab or the session.
                     var highlightsKey = withOptions.Select(p => p.Key).FirstOrDefault(k => string.Equals(k, nameof(SessionTab.Highlights), StringComparison.OrdinalIgnoreCase));
-                    if (highlightsKey is not null && withOptions[highlightsKey] is { } highlights && HighlightsProblem(highlights, options) is { } problem)
+                    if (highlightsKey is not null && withOptions[highlightsKey] is { } highlights)
                     {
-                        log?.LogWarning("A session tab's highlight rules were dropped: {Problem}", problem);
-                        withOptions[highlightsKey] = null;
+                        withOptions[highlightsKey] = ValidHighlights(highlights, options, log);
                     }
 
                     tabs[i] = withOptions;
@@ -165,15 +164,45 @@ public sealed class SessionService(JsonFileStore store, ILogger<SessionService>?
         return withTabs;
     }
 
-    private static string? HighlightsProblem(JsonNode highlights, JsonSerializerOptions options)
+    /// <summary>The valid rules of <paramref name="highlights"/>, the first <see cref="LibraryService.MaxHighlights"/>, or
+    /// null when none are; each rule dropped is logged.</summary>
+    private static JsonArray? ValidHighlights(JsonNode highlights, JsonSerializerOptions options, ILogger? log)
+    {
+        if (highlights is not JsonArray rules)
+        {
+            log?.LogWarning("A session tab's highlight rules were dropped: {Problem}", "The highlight rules aren't a list of rules.");
+            return null;
+        }
+
+        var kept = new JsonArray();
+        foreach (var rule in rules)
+        {
+            var problem = kept.Count >= LibraryService.MaxHighlights
+                ? $"The highlight rules can be at most {LibraryService.MaxHighlights}."
+                : HighlightProblem(rule, options);
+            if (problem is null)
+            {
+                kept.Add(rule!.DeepClone());
+            }
+            else
+            {
+                log?.LogWarning("A session tab's highlight rule was dropped: {Problem}", problem);
+            }
+        }
+
+        // Never an empty list: no rules is null.
+        return kept.Count > 0 ? kept : null;
+    }
+
+    private static string? HighlightProblem(JsonNode? rule, JsonSerializerOptions options)
     {
         try
         {
-            return LibraryService.HighlightProblem(highlights.Deserialize<List<HighlightRule>>(options));
+            return rule is JsonObject ? LibraryService.HighlightProblem([rule.Deserialize<HighlightRule>(options)!]) : "A highlight rule isn't a rule.";
         }
         catch (JsonException)
         {
-            return "The highlight rules aren't a list of rules.";
+            return "A highlight rule isn't a rule.";
         }
     }
 
