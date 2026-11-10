@@ -1,4 +1,5 @@
 import type { ResultColumn } from '../wire';
+import type { Picked } from './chart-view';
 import { cellText, type Row } from './export';
 
 export type ChartType = 'column' | 'bar' | 'line' | 'area' | 'pie' | 'timechart' | 'heatmap';
@@ -90,6 +91,11 @@ export const STACKS: { stack: Stack; name: string }[] = [
 
 /** Only bars and areas stack. */
 export const stackable = (type: ChartType) => type === 'column' || type === 'bar' || type === 'area';
+
+/** The picks with a new type. Switching to or from a heatmap clears the columns picked, as they mean different things there. */
+export function withType(picked: Picked, type: ChartType | undefined): Picked {
+  return picked.type !== 'heatmap' && type !== 'heatmap' ? { ...picked, type } : { type, stack: picked.stack };
+}
 
 /** The `with (...)` properties of a query's `| render` that the Chart tab follows. Column names are as written; ones the
  * result doesn't have are ignored where they're used. */
