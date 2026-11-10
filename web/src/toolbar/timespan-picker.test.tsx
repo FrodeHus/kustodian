@@ -3,13 +3,14 @@ import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { TimespanPicker } from './timespan-picker';
 
-function Picker({ initial = null, onChange }: { initial?: string | null; onChange: (timespan: string) => void }) {
+function Picker({ initial = null, onChange, maxDays = 30 }: { initial?: string | null; onChange: (timespan: string) => void; maxDays?: 30 | 730 }) {
   const [timespan, setTimespan] = useState<string | null>(initial);
   const [open, setOpen] = useState(false);
   return (
     <>
       <TimespanPicker
         timespan={timespan}
+        maxDays={maxDays}
         open={open}
         onOpenChange={setOpen}
         onChange={(t) => {
@@ -98,5 +99,18 @@ describe('TimespanPicker', () => {
     expect(interval).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.getByRole('button', { name: /^Timespan: 1 Sept? – 8 Sept?$/ })).toBeTruthy();
+  });
+
+  it('ninety_days_only_with_a_workspace', () => {
+    const { unmount } = render(<Picker onChange={() => undefined} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Timespan: 30 days' }));
+    expect(screen.queryByRole('menuitemradio', { name: '90 days' })).toBeNull();
+    unmount();
+
+    const onChange = vi.fn();
+    render(<Picker maxDays={730} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Timespan: 30 days' }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: '90 days' }));
+    expect(onChange).toHaveBeenCalledWith('P90D');
   });
 });

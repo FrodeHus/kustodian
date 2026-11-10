@@ -127,7 +127,7 @@ describe('widgetRunOptions', () => {
 
   it('falls back to the widget options, with the source default', () => {
     const w = widget('x', { source: 'hunting' });
-    expect(widgetRunOptions(docOf([], [w]), w, none)).toEqual({ timespan: 'P30D', scope: null });
+    expect(widgetRunOptions(docOf([], [w]), w, none)).toEqual({ timespan: 'P30D', scope: null, workspaces: null });
   });
 });
 

@@ -44,6 +44,7 @@ import { runParameters, sentText, useTabs, type RunMode, type Tab, type TabCurso
 import { TabStrip } from './tabs/tab-strip';
 import { SaveButton } from './toolbar/save-button';
 import { ScopePicker } from './toolbar/scope-picker';
+import { WorkspacePicker } from './toolbar/workspace-picker';
 import { TimespanPicker } from './toolbar/timespan-picker';
 import type { AccountList, QueryOptions, SchemaView, SettingsAnswer, Source, TabSource, UpdateInfo } from './wire';
 
@@ -213,7 +214,7 @@ export function App() {
   /** The tab Explain is showing for, what it explains, and the run it was opened after: a later run shows its result instead. */
   const [explain, setExplain] = useState<{ tabId: string; request: ExplainRequest; runId: string | undefined } | null>(null);
   /** The toolbar picker that is open: the hunting tab's timespan or the Resource Graph tab's scope. */
-  const [picker, setPicker] = useState<'timespan' | 'scope' | null>(null);
+  const [picker, setPicker] = useState<'timespan' | 'scope' | 'workspace' | null>(null);
   const editor = useRef<KqlEditorHandle>(null);
   const theme = useTheme();
 
@@ -263,7 +264,7 @@ export function App() {
           setParamsOpen(false);
         } else if (state.tabs !== previous.tabs) {
           const source = state.tabs.find((t) => t.id === state.activeId)?.source;
-          setPicker((open) => (open === (source === 'hunting' ? 'timespan' : source === 'arg' ? 'scope' : null) ? open : null));
+          setPicker((open) => (source === 'hunting' ? (open === 'timespan' || open === 'workspace' ? open : null) : open === (source === 'arg' ? 'scope' : null) ? open : null));
         }
       }),
     [],
@@ -849,8 +850,8 @@ interface ToolbarProps {
   /** Save as: in Save's menu, once the tab is saved to the library or to a file. */
   onSaveAs: () => void;
   /** The picker that is open ("Pick timespan" and "Pick scope" open them too). */
-  picker: 'timespan' | 'scope' | null;
-  onPicker: (picker: 'timespan' | 'scope' | null) => void;
+  picker: 'timespan' | 'scope' | 'workspace' | null;
+  onPicker: (picker: 'timespan' | 'scope' | 'workspace' | null) => void;
   /** The active account, which the scope picker's "Grant Azure access" asks consent for. */
   accountKey: string | undefined;
   /** Opens sign-in, when the scope picker's lists need the account to sign in again. */
@@ -861,7 +862,7 @@ function Toolbar(props: ToolbarProps) {
   const { tab, onRun, onFormat, paramCount, paramsOpen, onParams, explaining, onExplain, onSave, onSaveAs, picker, onPicker, accountKey, onSignIn } = props;
   const running = tab.run?.state === 'running';
   const setOptions = (change: Partial<QueryOptions>) =>
-    useTabs.getState().setOptions(tab.id, { timespan: tab.options?.timespan ?? null, scope: tab.options?.scope ?? null, ...change });
+    useTabs.getState().setOptions(tab.id, { timespan: tab.options?.timespan ?? null, scope: tab.options?.scope ?? null, ...(tab.options?.workspaces ? { workspaces: tab.options.workspaces } : {}), ...change });
   return (
     <div className="toolbar">
       <button type="button" className="btn primary" onClick={() => onRun('block')}>
@@ -877,8 +878,19 @@ function Toolbar(props: ToolbarProps) {
       </button>
       <span className="sep" aria-hidden="true" />
       {tab.source === 'hunting' && (
+        <WorkspacePicker
+          workspaces={tab.options?.workspaces}
+          onChange={(workspaces) => setOptions({ workspaces })}
+          accountKey={accountKey ?? null}
+          onSignIn={onSignIn}
+          open={picker === 'workspace'}
+          onOpenChange={(open) => onPicker(open ? 'workspace' : null)}
+        />
+      )}
+      {tab.source === 'hunting' && (
         <TimespanPicker
           timespan={tab.options?.timespan}
+          maxDays={tab.options?.workspaces?.length ? 730 : 30}
           onChange={(timespan) => setOptions({ timespan })}
           open={picker === 'timespan'}
           onOpenChange={(open) => onPicker(open ? 'timespan' : null)}

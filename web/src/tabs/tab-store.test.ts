@@ -313,15 +313,39 @@ describe('tab store', () => {
     await useTabs.getState().run(id, 'all');
     expect(bridge.call).toHaveBeenLastCalledWith(
       'query.run',
-      expect.objectContaining({ source: 'hunting', options: { timespan: 'P30D', scope: null } }),
+      expect.objectContaining({ source: 'hunting', options: { timespan: 'P30D', scope: null, workspaces: null } }),
       expect.any(AbortSignal),
     );
 
     // A picked timespan goes instead, and the run keeps what it had.
     useTabs.getState().setOptions(id, { timespan: 'P7D', scope: null });
     await useTabs.getState().run(id, 'all');
-    expect(bridge.call).toHaveBeenLastCalledWith('query.run', expect.objectContaining({ options: { timespan: 'P7D', scope: null } }), expect.anything());
-    expect(useTabs.getState().tabs[0]?.run?.options).toEqual({ timespan: 'P7D', scope: null });
+    expect(bridge.call).toHaveBeenLastCalledWith('query.run', expect.objectContaining({ options: { timespan: 'P7D', scope: null, workspaces: null } }), expect.anything());
+    expect(useTabs.getState().tabs[0]?.run?.options).toEqual({ timespan: 'P7D', scope: null, workspaces: null });
+  });
+
+  it('hunting_run_sends_workspaces', async () => {
+    bridge.call.mockResolvedValue(ok);
+    const ws = { customerId: 'c1', name: 'contoso-sentinel', resourceId: '/r/1' };
+    const id = useTabs.getState().open('hunting');
+    useTabs.getState().setText(id, 'DeviceInfo | take 5');
+    useTabs.getState().setOptions(id, { timespan: 'P90D', scope: null, workspaces: [ws] });
+
+    await useTabs.getState().run(id, 'all');
+    expect(bridge.call).toHaveBeenLastCalledWith(
+      'query.run',
+      expect.objectContaining({ options: { timespan: 'P90D', scope: null, workspaces: [ws] } }),
+      expect.any(AbortSignal),
+    );
+  });
+
+  it('hunting_run_without_workspace_sends_null', async () => {
+    bridge.call.mockResolvedValue(ok);
+    const id = useTabs.getState().open('hunting');
+    useTabs.getState().setText(id, 'DeviceInfo | take 5');
+
+    await useTabs.getState().run(id, 'all');
+    expect(bridge.call).toHaveBeenLastCalledWith('query.run', expect.objectContaining({ options: expect.objectContaining({ workspaces: null }) }), expect.anything());
   });
 
   it('arg_run_sends_scope', async () => {

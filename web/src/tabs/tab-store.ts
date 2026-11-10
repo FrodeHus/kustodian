@@ -69,7 +69,7 @@ export const DEFAULT_TIMESPAN = 'P30D';
 export function runOptions(tab: Pick<Tab, 'source' | 'options'>): QueryOptions | undefined {
   switch (tab.source) {
     case 'hunting':
-      return { timespan: tab.options?.timespan ?? DEFAULT_TIMESPAN, scope: null };
+      return { timespan: tab.options?.timespan ?? DEFAULT_TIMESPAN, scope: null, workspaces: tab.options?.workspaces ?? null };
     case 'arg':
       return { timespan: null, scope: tab.options?.scope ?? { kind: 'all', ids: [] } };
     default:
