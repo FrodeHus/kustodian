@@ -115,10 +115,7 @@ describe('order', () => {
     expect(h.cells.size).toBe(1);
   });
   it('the first cell rule per column wins', () => {
-    const rules = [
-      rule('b', '==', 'y', { colour: 'success', target: 'cell' }),
-      rule('b', '==', 'y', { colour: 'info', target: 'cell' }),
-    ];
+    const rules = [rule('b', '==', 'y', { colour: 'success', target: 'cell' }), rule('b', '==', 'y', { colour: 'info', target: 'cell' })];
     expect(highlightOf(compileRules(rules, c), ['', 'y']).cells.get(1)).toBe('success');
   });
 });

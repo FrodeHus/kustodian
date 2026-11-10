@@ -2,7 +2,6 @@ import { newId } from '../shell/ids';
 import type { HighlightColour, HighlightOp, HighlightRule, ResultColumn } from '../wire';
 import { NUMERIC } from './column-stats';
 import { cellText } from './export';
-import { shownValue } from './smart-filter';
 
 export const MAX_HIGHLIGHTS = 20;
 export const HIGHLIGHT_OPS: HighlightOp[] = ['==', '!=', '>', '>=', '<', '<=', 'contains', '!contains', 'isempty', 'isnotempty'];
@@ -153,7 +152,7 @@ export function ruleFromCell(column: ResultColumn, value: unknown): HighlightRul
     id: newId(),
     column: column.name,
     op: empty ? 'isempty' : '==',
-    value: empty ? '' : shownValue(value),
+    value: cellText(value),
     colour: 'danger',
     target: 'row',
   };
