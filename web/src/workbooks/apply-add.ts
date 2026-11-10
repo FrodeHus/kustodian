@@ -1,4 +1,5 @@
 import { call } from '../bridge';
+import { useRevisions } from '../library/saving';
 import { useTabs } from '../tabs/tab-store';
 import type { ParameterDef } from '../wire';
 import { addWidget, isFull } from './add-to-workbook';
@@ -17,6 +18,7 @@ const openTabOf = (id: string) =>
  */
 async function saveAndOpen(doc: WorkbookDoc, widget: Widget, tabParameters: ParameterDef[]): Promise<{ notice?: string }> {
   const { workbook } = await call<{ workbook: WorkbookDoc }>('workbook.save', { workbook: withFileVersion(doc) });
+  useRevisions.getState().bump('library');
   const opened = openTabOf(workbook.id);
   let notice: string | undefined;
   if (opened) {

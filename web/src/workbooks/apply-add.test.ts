@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { useRevisions } from '../library/saving';
 import { useTabs } from '../tabs/tab-store';
 import type { ParameterDef } from '../wire';
 import { applyAdd } from './apply-add';
@@ -63,6 +64,15 @@ describe('applyAdd', () => {
     expect(useTabs.getState().activeId).toBe(tab.id);
     expect(tab.savedId).toBe('wb');
     expect(useWorkbooks.getState().revealing).toEqual({ tabId: tab.id, widgetId: 'new-w' });
+  });
+
+  it('refreshes the Saved panel after adding to a closed workbook or a new one', async () => {
+    files.set('wb', { ...newWorkbook('Ops'), id: 'wb' });
+    const before = useRevisions.getState().library;
+    await applyAdd({ kind: 'existing', id: 'wb', name: 'Ops' }, widget(), [who]);
+    expect(useRevisions.getState().library).toBe(before + 1);
+    await applyAdd({ kind: 'new', name: 'Fresh', folder: null }, { ...widget(), id: 'w2' }, [who]);
+    expect(useRevisions.getState().library).toBe(before + 2);
   });
 
   it('adds to an open workbook with no unsaved edits through the store, and saves it', async () => {
