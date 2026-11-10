@@ -67,6 +67,9 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Charts**: smooth curves, areas that fade to transparent, a soft glow on lines, rounded bars and a donut for pie, on a
+  lighter grid. Charts animate in as they draw; not with reduced motion turned on, for very large results, or when a workbook
+  prints.
 - **Group by**: on query tabs the Group by menu now takes several columns (up to three, nested), and groups are sorted by
   size, largest first, at every level, also in workbook tables and the Compare view, which keep a single column.
 - **A little colour**: each side panel's icon on the rail has its own colour from the theme, and each query tab has a stripe
