@@ -314,7 +314,13 @@ export function SchemaPanel(props: SchemaPanelProps) {
         className="search"
         type="search"
         aria-label="Find a table or column"
-        placeholder={schema ? `Find among ${tables.length.toLocaleString('en-US')} tables` : error ? 'No schema' : 'Loading the schema…'}
+        placeholder={
+          schema
+            ? `Find among ${tables.length.toLocaleString('en-US')} tables`
+            : error || (source === 'logs' && !workspace)
+              ? 'No schema'
+              : 'Loading the schema…'
+        }
         value={query}
         onChange={(e) => changeQuery(e.target.value)}
         disabled={!schema}

@@ -286,6 +286,16 @@ describe('workspaces', () => {
     expect(JSON.stringify(out)).not.toContain('secret');
   });
 
+  it("an imported workbook keeps a logs widget's workspace and lists it in the review", () => {
+    const logs = { ...hunt('l', [ws(G1, 'One', { token: 'secret' })]) };
+    logs.query.source = 'logs';
+    const out = readWorkbookFile(JSON.stringify(file({ widgets: [logs] }))) as WorkbookDoc;
+    expect(out.widgets[0]!.query!.source).toBe('logs');
+    expect(out.widgets[0]!.query!.options!.workspaces).toEqual([ws(G1, 'One')]);
+    expect(workspacesIn(out)).toEqual([{ workspace: ws(G1, 'One'), widgets: 1 }]);
+    expect(importSummary(out).sources).toEqual(['logs']);
+  });
+
   it('workspacesIn_counts_widgets_per_workspace', () => {
     const d = doc({ widgets: [hunt('a', [ws(G1, 'One')]), hunt('b', [ws(G1, 'One')]), hunt('c', [ws(G2, 'Two')]), hunt('d', null)] });
     expect(workspacesIn(d)).toEqual([

@@ -434,6 +434,14 @@ describe('tabs', () => {
   });
 });
 
+describe('logs widgets', () => {
+  it('parseWorkbook keeps a logs widget', () => {
+    const json = example();
+    json.widgets[0]!.query.source = 'logs';
+    expect(doc(json).widgets[0]?.query?.source).toBe('logs');
+  });
+});
+
 describe('isoTimespan cap', () => {
   it('takes the cap as days', () => {
     expect(isoTimespan('90d', 730)).toBe('P90D');

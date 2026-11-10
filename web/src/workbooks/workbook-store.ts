@@ -4,7 +4,7 @@ import { call } from '../bridge';
 import { useRevisions } from '../library/saving';
 import { errorText } from '../shell/errors';
 import { newId } from '../shell/ids';
-import { useTabs } from '../tabs/tab-store';
+import { failed as failedRun, useTabs } from '../tabs/tab-store';
 import type {
   HistoryQuery,
   HistoryRecordAnswer,
@@ -259,6 +259,14 @@ function queue(
   if (blocked || widget.query.text.trim() === '') {
     return blocked ? { state: 'blocked', reason: blocked } : { state: 'idle' };
   }
+  // The host refuses a logs run without a workspace; asking here sends nothing and gives the widget its Pick a workspace button.
+  if (widget.query.source === 'logs' && !widget.query.options?.workspaces?.length) {
+    return {
+      state: 'done',
+      result: { ...failedRun('Pick a workspace before running.', ''), outcome: 'workspaceUnavailable' },
+      finishedAt: Date.now(),
+    };
+  }
 
   const { source, text } = widget.query;
   const runId = newId();
@@ -275,7 +283,7 @@ function queue(
   };
   // The hunting timespan is a parameter value, not part of the query: another span is another series, not an edited query
   // (which would drop the other spans' history). A widget whose text names the parameter already sends it.
-  const hunting = source === 'hunting' ? s.doc.parameters.find((p) => p.huntingTimespan) : undefined;
+  const hunting = source === 'hunting' || source === 'logs' ? s.doc.parameters.find((p) => p.huntingTimespan) : undefined;
   const timespan = runParams.options?.timespan;
   const span: ResolvedParam[] =
     hunting && timespan && !params.some((p) => p.name === hunting.name)
@@ -509,7 +517,15 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
         pump();
         if (queued.state !== 'waiting') {
           reject(
-            new Error(queued.state === 'blocked' ? queued.reason : queued.state === 'gone' ? 'This saved query is gone.' : 'No query yet.'),
+            new Error(
+              queued.state === 'blocked'
+                ? queued.reason
+                : queued.state === 'gone'
+                  ? 'This saved query is gone.'
+                  : queued.state === 'done'
+                    ? (queued.result.message ?? 'The query failed.')
+                    : 'No query yet.',
+            ),
           );
         }
       });

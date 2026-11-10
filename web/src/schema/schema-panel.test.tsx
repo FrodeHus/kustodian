@@ -458,6 +458,7 @@ describe('SchemaPanel', () => {
   it('the_panel_says_pick_a_workspace_without_one', () => {
     render(<SchemaPanel source="logs" schema={undefined} text="" onInsert={() => undefined} />);
     expect(screen.getByText('Pick a workspace to see its tables.')).toBeTruthy();
+    expect((screen.getByRole('searchbox', { name: 'Find a table or column' }) as HTMLInputElement).placeholder).toBe('No schema');
   });
 
   it('the_panel_shows_the_reason_when_the_schema_couldnt_be_read', () => {

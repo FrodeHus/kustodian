@@ -155,6 +155,18 @@ describe('WidgetEditor', () => {
     expect(screen.queryByRole('button', { name: /Workspace:/ })).toBeNull();
   });
 
+  it("a logs widget's editor shows the workspace picker without Primary workspace", () => {
+    const w = widget('l', 'table');
+    w.query = { ...w.query!, source: 'logs', options: { timespan: null, scope: null, workspaces: null } };
+    doc = { ...doc, widgets: [...doc.widgets, w] };
+    open('l');
+    expect(screen.getByRole('button', { name: 'Workspace: Pick a workspace' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Timespan/ })).toBeTruthy();
+    expect(screen.queryByText('Primary workspace')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Workspace: Pick a workspace' }));
+    expect(screen.queryByText('Primary workspace')).toBeNull();
+  });
+
   it('choosing a saved query links it and offers Copy into widget', async () => {
     open('a');
     fireEvent.click(screen.getByRole('radio', { name: 'Use a saved query' }));
