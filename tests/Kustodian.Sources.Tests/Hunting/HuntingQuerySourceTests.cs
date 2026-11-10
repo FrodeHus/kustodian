@@ -478,6 +478,32 @@ public class HuntingQuerySourceTests
             result.Diagnostics.Select(e => e.Detail));
     }
 
+    [Fact]
+    public async Task The_notes_name_the_workspace_the_account_lists_not_the_one_the_request_claims()
+    {
+        var graph = new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK,
+            $$"""{"schema":[{"name":"TenantId","type":"String"}],"results":[{"TenantId":"{{Other}}"}]}"""));
+        var arm = new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK, WorkspaceList(Guid1).Replace("contoso-sentinel", "account-name")));
+
+        var result = await Source(graph, arm).RunAsync(Request("T", OnWorkspace()), null, TestContext.Current.CancellationToken);
+
+        var details = result.Diagnostics.Select(e => e.Detail).ToList();
+        Assert.Contains("If Defender can't reach account-name, it answers from your primary workspace.", details);
+        Assert.Contains("Some rows came from another workspace than account-name: Defender may have answered from your primary workspace.", details);
+        Assert.DoesNotContain(details, d => d!.Contains("contoso-sentinel"));
+    }
+
+    [Fact]
+    public async Task A_blocked_workspace_with_no_name_is_called_by_its_short_id()
+    {
+        var arm = new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK, WorkspaceList(Guid2)));
+        var options = new QueryOptions("P90D", null, [new QueryWorkspace(Guid1, "", "/subscriptions/s/x")]);
+
+        var result = await Source(Answering(HttpStatusCode.OK, "hunting-run-200.json"), arm).RunAsync(Request("T", options), null, TestContext.Current.CancellationToken);
+
+        Assert.Equal("0f5c…3e4f isn't available to this account. Pick a workspace.", result.Message);
+    }
+
     [Theory]
     [InlineData(Other, true)]
     [InlineData("", false)]
