@@ -153,6 +153,7 @@ public sealed class ArmAuthTests : IDisposable
         await SendForAccountAsync(client, "https://management.azure.com.evil.example/x", leak: true);
         await SendForAccountAsync(client, "http://management.azure.com/x", leak: true);
         await SendForAccountAsync(client, "https://graph.microsoft.com/beta/x", leak: true);
+        await SendForAccountAsync(client, "https://management.azure.com:8443/x", leak: true);
 
         Assert.Equal("Bearer arm-tok", inner.Seen[0]);
         Assert.Equal("Bearer arm-tok", inner.Seen[1]);
@@ -765,6 +766,7 @@ public sealed class ArmAuthTests : IDisposable
         await SendForAccountAsync(client, "https://api.loganalytics.io/v1/x", leak: true);
         await SendForAccountAsync(client, "http://api.loganalytics.azure.com/v1/x", leak: true);
         await SendForAccountAsync(client, "https://evil.example/x", leak: true);
+        await SendForAccountAsync(client, "https://api.loganalytics.azure.com:8443/v1/x", leak: true);
 
         Assert.Equal("Bearer logs-tok", inner.Seen[0]);
         Assert.All(inner.Seen.Skip(1), a => Assert.Null(a));
@@ -809,6 +811,19 @@ public sealed class ArmAuthTests : IDisposable
         Assert.Equal("azure-cli:logs-token", await service.GetTokenAsync(account.Key, Audience.LogAnalytics, Ct));
 
         Assert.DoesNotContain(clients.For(ClientConfig.GraphCli).Silent, s => s.Scope == Audience.LogAnalytics.ScopeFor());
+    }
+
+    [Fact]
+    public async Task GraphCli_account_logs_consent_asks_the_Azure_CLI_client_for_the_logs_scope()
+    {
+        var clients = new MsalPerClient();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
+
+        await service.ConsentAsync(account.Key, Audience.LogAnalytics, Ct);
+
+        Assert.Equal(("https://api.loganalytics.io/.default", "ada@contoso.com", false), clients.For(ClientConfig.AzureCli).Interactive[^1]);
+        Assert.DoesNotContain(clients.For(ClientConfig.GraphCli).Interactive, i => i.Scope == Audience.LogAnalytics.ScopeFor());
     }
 
     [Fact]

@@ -34,5 +34,5 @@ public static class SourcePermissions
 
     /// <summary>Log Analytics queries need the delegated <c>Data.Read</c> scope, which does not need admin consent.</summary>
     public static SourcePermission LogAnalytics { get; } = new(
-        LogAnalyticsAppId, "Log Analytics API", "Data.Read", false, "Log Analytics workspace tabs", "azure", "Log Analytics");
+        LogAnalyticsAppId, "Log Analytics API", "Data.Read", false, "Log Analytics tabs", "azure", "Log Analytics");
 }

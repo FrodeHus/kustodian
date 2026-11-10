@@ -1,6 +1,6 @@
 namespace Kustodian.Graph.Run;
 
-/// <summary>The account is signed in, but a token for another audience (<see cref="Audience"/>, <c>arm</c>) needs the user: to
+/// <summary>The account is signed in, but a token for another audience (<see cref="Audience"/>, <c>arm</c> or <c>logs</c>) needs the user: to
 /// consent, or to satisfy a policy. Unlike <see cref="SignInRequiredException"/> it never means the sign-in has expired. A run
 /// that meets it, wherever in an exception chain, ends as <see cref="RunOutcome.ConsentNeeded"/>, and the UI offers to grant
 /// access (<c>account.consent</c>).</summary>

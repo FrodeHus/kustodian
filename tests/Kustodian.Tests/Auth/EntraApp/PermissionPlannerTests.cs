@@ -112,8 +112,8 @@ public sealed class PermissionPlannerTests
     {
         var logs = Plan([]).Groups.Single(g => g.Id == "azure").Subgroups[1];
         var permission = Assert.Single(logs.Permissions);
-        Assert.Equal(("ca7f3f0b-7d91-482c-8e09-c5d840d0eac5", "Data.Read", false),
-            (permission.ResourceAppId, permission.Name, permission.AdminConsent));
+        Assert.Equal(("ca7f3f0b-7d91-482c-8e09-c5d840d0eac5", "Data.Read", false, "Log Analytics tabs"),
+            (permission.ResourceAppId, permission.Name, permission.AdminConsent, permission.Unlocks));
     }
 
     [Fact]
