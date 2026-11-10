@@ -6,7 +6,7 @@ using System.Text;
 namespace Kustodian.Telemetry;
 
 /// <summary>What is known about an error beyond its exceptions, each sent in an automatic report when set. <see cref="Source"/> is
-/// one of <c>graph</c>, <c>hunting</c>, <c>arg</c>, <c>ui</c> or <c>host</c>.</summary>
+/// one of <c>graph</c>, <c>hunting</c>, <c>arg</c>, <c>logs</c>, <c>ui</c> or <c>host</c>.</summary>
 public sealed record ErrorFacts(string? Source = null, int? ExitCode = null, int? PeakMemoryMb = null, int? MemoryLimitMb = null,
     int? WorkerUptimeS = null, int? CrashesLastMinute = null, bool? Paused = null);
 

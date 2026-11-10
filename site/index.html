@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kustodian: KQL for your Microsoft tenant</title>
-<meta name="description" content="A desktop KQL workbench for Microsoft Graph, Defender advanced hunting and Azure Resource Graph. Open source, for Windows, macOS and Linux.">
+<meta name="description" content="A desktop KQL workbench for Microsoft Graph, Defender advanced hunting, Azure Resource Graph and Log Analytics. Open source, for Windows, macOS and Linux.">
 <meta name="theme-color" content="#0F1115">
 <meta property="og:title" content="Kustodian: KQL for your Microsoft tenant">
-<meta property="og:description" content="A desktop KQL workbench for Microsoft Graph, Defender advanced hunting and Azure Resource Graph. Open source, for Windows, macOS and Linux.">
+<meta property="og:description" content="A desktop KQL workbench for Microsoft Graph, Defender advanced hunting, Azure Resource Graph and Log Analytics. Open source, for Windows, macOS and Linux.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://frodehus.github.io/kustodian/">
 <meta property="og:image" content="https://frodehus.github.io/kustodian/images/social-preview.png">
@@ -67,6 +67,7 @@ body{margin:0;background:#0F1115}
 .k-src.gr{background:rgba(76,194,255,.16);color:#4CC2FF}
 .k-src.ah{background:rgba(245,165,36,.16);color:#F5A524}
 .k-src.arg{background:rgba(127,212,168,.16);color:#7FD4A8}
+.k-src.la{background:rgba(201,160,255,.16);color:#C9A0FF}
 .k-shot{margin:72px 0 0;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel);box-shadow:0 40px 120px rgba(0,0,0,.55)}
 .k-shot img{display:block;width:100%;height:auto}
 .k-caption{font-size:13px;color:var(--faint);margin-top:12px}
@@ -80,6 +81,7 @@ body{margin:0;background:#0F1115}
 .k-req b{color:var(--text);font-weight:500}
 .k-req .bad{color:#F0716B}
 .k-sources{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;margin-top:56px}
+.k-sources.four{grid-template-columns:repeat(2,minmax(0,1fr))}
 .k-source{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:28px;display:flex;flex-direction:column;gap:14px}
 .k-source .k-src{align-self:flex-start}
 .k-source p{margin:0;color:var(--muted);font-size:16px}
@@ -118,7 +120,7 @@ body{margin:0;background:#0F1115}
 .k-site .k-foot a:hover{color:var(--text)}
 @media (max-width:960px){
   .k-hero-grid,.k-explain,.k-privacy,.k-split{grid-template-columns:minmax(0,1fr);gap:40px}
-  .k-sources,.k-steps{grid-template-columns:minmax(0,1fr)}
+  .k-sources,.k-sources.four,.k-steps{grid-template-columns:minmax(0,1fr)}
   .k-features{grid-template-columns:repeat(2,minmax(0,1fr))}
   .k-links{display:none}
   .k-nav .k-wrap{justify-content:space-between}
@@ -173,7 +175,7 @@ GitHub
 </h1>
 <div class="k-hero-grid">
 <div>
-<p class="k-lead">A desktop KQL workbench for Microsoft Graph, Defender advanced hunting and Azure Resource Graph. One query language, completion that knows the schema, and results right beside your query.</p>
+<p class="k-lead">A desktop KQL workbench for Microsoft Graph, Defender advanced hunting, Azure Resource Graph and Log Analytics. One query language, completion that knows the schema, and results right beside your query.</p>
 <div class="k-ctas">
 <a class="k-btn k-primary" href="#get-started">Get started</a>
 <a class="k-btn" href="https://github.com/FrodeHus/kustodian">View on GitHub</a>
@@ -227,9 +229,9 @@ GitHub
 
 <section class="k-section" id="sources" aria-labelledby="sources-h">
 <div class="k-wrap">
-<p class="k-label">Three sources, one editor</p>
+<p class="k-label">Four sources, one editor</p>
 <h2 class="k-h2" id="sources-h">Everything you hunt,<br>in one place.</h2>
-<div class="k-sources">
+<div class="k-sources four">
 <article class="k-source">
 <span class="k-src gr">GR</span>
 <h3 class="k-h3">Microsoft Graph</h3>
@@ -247,6 +249,12 @@ GitHub
 <h3 class="k-h3">Azure Resource Graph</h3>
 <p>Inventory and posture across your Azure estate, scoped to the subscriptions you pick.</p>
 <span class="k-mono">resources · securityresources …</span>
+</article>
+<article class="k-source">
+<span class="k-src la">LA</span>
+<h3 class="k-h3">Log Analytics</h3>
+<p>Query a Log Analytics workspace you pick, through the Azure Monitor Logs API, with completion from that workspace’s own tables.</p>
+<span class="k-mono">SigninLogs · AuditLogs · AzureActivity …</span>
 </article>
 </div>
 </div>
@@ -358,12 +366,12 @@ GitHub
 <div class="k-panel k-perm">
 <span class="k-chip ok">No setup</span>
 <h3 class="k-h3">Azure CLI client (default)</h3>
-<p>Microsoft’s public client, already consented in most tenants. A good start for common Graph and Azure Resource Graph queries, but its permissions are fixed: security data, audit logs and advanced hunting are often out of reach.</p>
+<p>Microsoft’s public client, already consented in most tenants. A good start for common Graph, Azure Resource Graph and Log Analytics queries, but its permissions are fixed: security data, audit logs and advanced hunting are often out of reach.</p>
 </div>
 <div class="k-panel k-perm">
 <span class="k-chip ok">No setup</span>
 <h3 class="k-h3">Microsoft Graph Command Line Tools</h3>
-<p>The public client Graph PowerShell uses. It reaches whatever your tenant has granted Graph PowerShell, often including security and reports data. An admin’s consent applies to everyone who uses the client. Resource Graph queries use an Azure CLI sign-in for the same account.</p>
+<p>The public client Graph PowerShell uses. It reaches whatever your tenant has granted Graph PowerShell, often including security and reports data. An admin’s consent applies to everyone who uses the client. Resource Graph and Log Analytics queries use an Azure CLI sign-in for the same account.</p>
 </div>
 <div class="k-panel k-perm">
 <span class="k-chip">Admin consent</span>
