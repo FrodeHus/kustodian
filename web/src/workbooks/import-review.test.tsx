@@ -488,6 +488,28 @@ describe('ImportReview', () => {
     expect(dialog.textContent).toContain('1111…1111');
   });
 
+  it('Save and Open without saving wait for the account’s workspace list', async () => {
+    hunting('Looks like the safe one', GUID1);
+    let answer!: (v: unknown) => void;
+    armWorkspaces = () => new Promise((r) => (answer = r));
+    await review();
+    const save = screen.getByRole<HTMLButtonElement>('button', { name: 'Save to my workbooks' });
+    const open = screen.getByRole<HTMLButtonElement>('button', { name: 'Open without saving' });
+    expect(save.disabled).toBe(true);
+    expect(open.disabled).toBe(true);
+    answer(listed('Real name'));
+    await waitFor(() => expect(save.disabled).toBe(false));
+    expect(open.disabled).toBe(false);
+  });
+
+  it('Save stays on when the workspace list cannot be read', async () => {
+    hunting('Their workspace', GUID1);
+    armWorkspaces = () => Promise.reject(new BridgeError('signInNeeded', 'Sign in again.'));
+    const dialog = await review();
+    await within(dialog).findByText('· not checked');
+    expect((screen.getByRole('button', { name: 'Save to my workbooks' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it('has no workspace section when the workbook queries none', async () => {
     const dialog = await review();
     expect(dialog.textContent).not.toContain('This workbook queries');
