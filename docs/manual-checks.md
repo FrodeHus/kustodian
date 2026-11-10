@@ -286,6 +286,16 @@ property's **Filter…** button. The grid focuses rows, not cells, so it has no 
 | Log Analytics tab on a workspace, `SigninLogs \| project TimeGenerated, UserPrincipalName \| take 50`, Filter by a user: the line goes before `take` and the run returns only that user | - | - | - |
 | Graph `users \| take 50`, Filter by a name: Explain shows `$filter` and `$top=50`; Cmd/Ctrl+Z removes the line. Once in a light theme, once in a dark one | - | - | - |
 
+### Column statistics (2026-11-10)
+
+| Check | macOS | Windows | Linux |
+| --- | --- | --- | --- |
+| Open Column statistics from a string, a number and a datetime column's menu, once in a dark theme and once in a light one | - | - | - |
+| Filter the rows, then reopen the statistics: the counts follow the rows shown | - | - | - |
+| Filter by a top value: the query gets the `\| where` line and reruns | - | - | - |
+| From the keyboard: Tab to the column's chevron, Enter, Enter on Column statistics, Esc closes it and focus returns to the chevron | - | - | - |
+| Hunting `range x from 1 to 300000 step 1`, open the statistics for `x`: it shows `Counting…` and the app stays responsive | - | - | - |
+
 ## Notes
 
 - macOS window: the owner's own Kustodian had quit before this check, and the builder's instance was started with `HOME`

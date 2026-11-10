@@ -261,6 +261,10 @@ body {
   .datagrid { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12.5px; }
   .datagrid th { position: sticky; top: 0; z-index: 1; text-align: left; font-weight: 600; color: var(--muted); background: var(--panel2); padding: 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
   .datagrid th button { width: 100%; padding: 7px 12px; border: 0; background: transparent; color: inherit; font: inherit; text-align: inherit; cursor: pointer; overflow: hidden; text-overflow: ellipsis; }
+  /* A header's column menu: shows on header hover or focus, and is always reachable by Tab. */
+  .datagrid th .col-menu { width: auto; flex-shrink: 0; padding: 0 8px; color: var(--faint); opacity: 0; }
+  .datagrid th:hover .col-menu, .datagrid th .col-menu:focus-visible, .datagrid th .col-menu[aria-expanded='true'] { opacity: 1; }
+  .datagrid th .col-menu:hover { color: var(--text); }
   .datagrid td { padding: 6px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; font-family: 'JetBrains Mono', monospace; font-size: 12px; max-width: 480px; overflow: hidden; text-overflow: ellipsis; }
   .datagrid td button { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
   .datagrid td button:hover { color: var(--accent); }

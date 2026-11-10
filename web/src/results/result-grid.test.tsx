@@ -431,4 +431,55 @@ describe('ResultGrid', () => {
     expect(event).toBe(true);
     expect(screen.queryByRole('menu')).toBeNull();
   });
+
+  describe('column statistics', () => {
+    const cols = [
+      { name: 'state', type: 'string' },
+      { name: 'n', type: 'long' },
+    ];
+    const rows = [
+      ['Enabled', 1],
+      ['Enabled', 2],
+      ['Disabled', 3],
+    ];
+    const openStats = (name: string) => {
+      fireEvent.click(screen.getByRole('button', { name: `${name} column menu` }));
+      fireEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Column statistics' }));
+      return screen.getByRole('dialog', { name: `${name} statistics` });
+    };
+
+    it('a header menu opens the statistics of the rows shown', () => {
+      const { container } = render(<ResultGrid columns={cols} rows={rows} statistics />);
+      const menuButton = screen.getByRole('button', { name: 'state column menu' });
+      expect(menuButton.getAttribute('aria-haspopup')).toBe('menu');
+      expect(screen.getByRole('button', { name: 'n column menu' })).toBeTruthy();
+
+      fireEvent.change(screen.getByRole('searchbox', { name: 'Filter rows' }), { target: { value: 'En' } });
+      expect(bodyRows(container)).toHaveLength(2);
+      const dialog = openStats('state');
+      expect(within(dialog).getByText('Of 2 rows shown')).toBeTruthy();
+
+      fireEvent.keyDown(dialog, { key: 'Escape' });
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(document.activeElement).toBe(menuButton);
+    });
+
+    it('new rows close the statistics', () => {
+      const { rerender } = render(<ResultGrid columns={cols} rows={rows} statistics />);
+      openStats('n');
+      rerender(<ResultGrid columns={cols} rows={[...rows]} statistics />);
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('the sort button still sorts', () => {
+      const { container } = render(<ResultGrid columns={cols} rows={rows} statistics />);
+      fireEvent.click(screen.getByRole('button', { name: 'state' }));
+      expect(bodyRows(container).map((tr) => tr.cells[1]?.textContent)).toEqual(['Disabled', 'Enabled', 'Enabled']);
+    });
+
+    it('without statistics there is no header menu', () => {
+      render(<ResultGrid columns={cols} rows={rows} />);
+      expect(screen.queryByRole('button', { name: /column menu$/ })).toBeNull();
+    });
+  });
 });
