@@ -1152,7 +1152,7 @@ export function createMockTransport(): Transport {
         break;
       case 'query.run': {
         // As `QueryOptions.Problem`: options that aren't valid are a bad_request, and nothing runs (ruling 1).
-        // A Log Analytics timespan reaches back 730 days, so only its shape is checked here.
+        // A Log Analytics timespan reaches back 730 days, so the 30-day cap doesn't apply to it.
         const problem = params?.source === 'logs' ? null : optionsProblem(params?.options);
         if (problem) {
           fail(id, 'bad_request', problem);

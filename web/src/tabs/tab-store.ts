@@ -16,7 +16,7 @@ import type {
   Source,
   TabSource,
 } from '../wire';
-import { memoryAccount, rememberLogsWorkspace, rememberedLogsWorkspace } from '../toolbar/workspace-memory';
+import { memoryAccount, rememberedLogsWorkspace } from '../toolbar/workspace-memory';
 import { newWorkbook, type WorkbookDoc } from '../workbooks/model';
 
 export type { Source, TabSource } from '../wire';
@@ -404,10 +404,6 @@ export const useTabs = create<TabsState>()((set, get) => {
     },
 
     setOptions(id, options) {
-      const account = memoryAccount();
-      if (account && get().tabs.find((t) => t.id === id)?.source === 'logs') {
-        rememberLogsWorkspace(account, options.workspaces ?? null);
-      }
       update(id, (t) => ({ options, dirty: t.dirty || t.savedId !== undefined }));
     },
 

@@ -494,21 +494,21 @@ describe('tab store', () => {
     expect(useTabs.getState().tabs.find((t) => t.id === hunting)?.options?.workspaces ?? null).toBeNull();
   });
 
-  it('picking_a_workspace_on_a_logs_tab_remembers_it_for_the_account', () => {
+  it('changing_options_never_writes_the_remembered_workspace_of_another_account', () => {
     localStorage.clear();
-    const ws = { customerId: 'c1', name: 'contoso-logs', resourceId: '/r/1' };
-    setMemoryAccount('k1');
+    const wsA = { customerId: 'c1', name: 'contoso-logs', resourceId: '/r/1' };
+    setMemoryAccount('A');
+    rememberLogsWorkspace('A', [wsA]);
     const id = useTabs.getState().open('logs');
-    useTabs.getState().setOptions(id, { timespan: 'P1D', scope: null, workspaces: [ws] });
-    expect(rememberedLogsWorkspace('k1')).toEqual([ws]);
-    expect(rememberedLogsWorkspace('k2')).toBeNull();
-
-    // A hunting tab's pick is not remembered, and a bad stored value reads as none.
-    const hunting = useTabs.getState().open('hunting');
-    useTabs.getState().setOptions(hunting, { timespan: 'P7D', scope: null, workspaces: [{ ...ws, customerId: 'c9' }] });
-    expect(rememberedLogsWorkspace('k1')).toEqual([ws]);
-    localStorage.setItem('kustodian.logsWorkspace.k1', '{not json');
-    expect(rememberedLogsWorkspace('k1')).toBeNull();
+    // Switch to B, then change the timespan: the tab still holds A's workspace.
+    setMemoryAccount('B');
+    useTabs.getState().setOptions(id, { timespan: 'P7D', scope: null, workspaces: [wsA] });
+    expect(rememberedLogsWorkspace('B')).toBeNull();
+    expect(useTabs.getState().open('logs')).toBeTruthy();
+    expect(useTabs.getState().tabs.at(-1)?.options?.workspaces).toBeNull();
+    // A bad stored value reads as none.
+    localStorage.setItem('kustodian.logsWorkspace.A', '{not json');
+    expect(rememberedLogsWorkspace('A')).toBeNull();
   });
 
   it('a_logs_run_sends_its_timespan_and_workspace', async () => {

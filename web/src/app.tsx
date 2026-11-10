@@ -53,7 +53,7 @@ import {
 import { TabStrip } from './tabs/tab-strip';
 import { SaveButton } from './toolbar/save-button';
 import { ScopePicker } from './toolbar/scope-picker';
-import { setMemoryAccount } from './toolbar/workspace-memory';
+import { rememberLogsWorkspace, setMemoryAccount } from './toolbar/workspace-memory';
 import { WorkspacePicker } from './toolbar/workspace-picker';
 import { exceedsDays } from './toolbar/timespan';
 import { TimespanPicker } from './toolbar/timespan-picker';
@@ -139,10 +139,13 @@ const activeResult = () => {
   return run?.state === 'done' && run.result?.outcome === 'ok' ? run.result : undefined;
 };
 
+/** A Log Analytics query runs on a workspace the user picked, never a default. */
+const lacksWorkspace = (tab: Pick<Tab, 'source' | 'options'>) => tab.source === 'logs' && !tab.options?.workspaces?.length;
+
 /** Runs the active tab: `block` runs the selection instead when there is one. */
 function runActive(mode: 'block' | 'all', refresh = false) {
   const tab = activeTab();
-  if (!tab) {
+  if (!tab || lacksWorkspace(tab)) {
     return;
   }
   const selected = mode === 'block' && (useTabs.getState().cursors[tab.id]?.selection ?? '') !== '';
@@ -326,7 +329,7 @@ export function App() {
     const fail = (what: string) => (e: unknown) => setProblem(`${what}: ${errorText(e)}`, reportIdOf(e));
     const runnable = () => {
       const tab = activeTab();
-      return !!tab && tab.source !== 'raw' && tab.source !== 'workbook';
+      return !!tab && tab.source !== 'raw' && tab.source !== 'workbook' && !lacksWorkspace(tab);
     };
     const explainable = () => activeTab()?.source === 'graph';
     const withTab = (action: (tab: Tab) => void) => () => {
@@ -832,7 +835,7 @@ export function App() {
                   {!raw && !workbook && (
                     <Toolbar
                       tab={active}
-                      onRun={(mode) => runActive(mode)}
+                      onRun={(mode) => !lacksWorkspace(active) && void useTabs.getState().run(active.id, mode)}
                       onFormat={() => editor.current?.format()}
                       paramCount={paramCount}
                       paramsOpen={showingParams}
@@ -860,7 +863,7 @@ export function App() {
                   >
                     <EditorFailed>
                       <Suspense fallback={<p className="faint m-0 p-4 text-[12px]">Loading the editor…</p>}>
-                        <KqlEditor ref={editor} schemas={schemas} onRun={(mode) => void useTabs.getState().run(active.id, mode)} />
+                        <KqlEditor ref={editor} schemas={schemas} onRun={(mode) => runActive(mode)} />
                       </Suspense>
                     </EditorFailed>
                   </div>
@@ -1035,7 +1038,7 @@ function Toolbar(props: ToolbarProps) {
   } = props;
   const running = tab.run?.state === 'running';
   // A Log Analytics query runs on a workspace the user picked, never a default.
-  const needsWorkspace = tab.source === 'logs' && !tab.options?.workspaces?.length;
+  const needsWorkspace = lacksWorkspace(tab);
   const runTitle = needsWorkspace ? 'Pick a workspace before running.' : undefined;
   const setOptions = (change: Partial<QueryOptions>) =>
     useTabs.getState().setOptions(tab.id, {
@@ -1062,14 +1065,18 @@ function Toolbar(props: ToolbarProps) {
         <WorkspacePicker
           workspaces={tab.options?.workspaces}
           // Without a workspace the data reaches back 30 days only, so a longer timespan goes back to the default.
-          onChange={(workspaces) =>
+          onChange={(workspaces) => {
+            // Only an actual pick is remembered, under the account that picked it.
+            if (tab.source === 'logs' && accountKey) {
+              rememberLogsWorkspace(accountKey, workspaces);
+            }
             setOptions({
               workspaces,
-              ...(!workspaces?.length && tab.options?.timespan && exceedsDays(tab.options.timespan, 30)
+              ...(tab.source === 'hunting' && !workspaces?.length && tab.options?.timespan && exceedsDays(tab.options.timespan, 30)
                 ? { timespan: DEFAULT_TIMESPAN }
                 : {}),
-            })
-          }
+            });
+          }}
           {...(tab.source === 'logs' ? { primaryLabel: null } : {})}
           accountKey={accountKey ?? null}
           onSignIn={onSignIn}

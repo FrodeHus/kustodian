@@ -955,6 +955,24 @@ describe('App', () => {
     expect(run().disabled).toBe(false);
   });
 
+  it('app_picking_a_workspace_on_a_logs_tab_remembers_it_for_the_account_only_on_a_pick', async () => {
+    localStorage.clear();
+    host({ accounts: [kari], cache: 'persistent' });
+    answers['arm.subscriptions'] = () => ({ subscriptions: [] });
+    answers['arm.workspaces'] = () => ({
+      workspaces: [
+        { customerId: 'c1', name: 'contoso-logs', resourceId: '/r/1', resourceGroup: 'rg', subscriptionId: 's1', location: 'westeurope' },
+      ],
+    });
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+    act(() => void runCommand('tab.newLogs'));
+    fireEvent.click(screen.getByRole('button', { name: /^Workspace:/ }));
+    fireEvent.click(await screen.findByRole('radio', { name: /contoso-logs/ }));
+    expect(localStorage.getItem('kustodian.logsWorkspace.k1')).toContain('"c1"');
+    expect(localStorage.getItem('kustodian.logsWorkspace.k2')).toBeNull();
+  });
+
   it('app_pick_timespan_and_pick_scope_follow_the_source', async () => {
     host({ accounts: [kari], cache: 'persistent' });
     answers['arm.subscriptions'] = () => ({
