@@ -217,7 +217,8 @@ export default function ChartView({
   const xAxis = <XAxis dataKey="x" {...AXIS} tickFormatter={time ? dateTick : undefined} />;
   const common = (
     <>
-      <CartesianGrid stroke="var(--line)" strokeDasharray="3 4" strokeOpacity={0.6} vertical={false} />
+      {/* Grid lines cross the value axis: vertical when the bars lie along x. */}
+      <CartesianGrid stroke="var(--line)" strokeDasharray="3 4" strokeOpacity={0.6} horizontal={type !== 'bar'} vertical={type === 'bar'} />
       <Tooltip {...TOOLTIP} labelFormatter={time ? (label) => dateTick(String(label)) : undefined} />
       {series.length > 1 && <Legend {...LEGEND} />}
     </>
