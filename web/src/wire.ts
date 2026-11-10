@@ -172,6 +172,8 @@ export interface RunResult {
   permissions: string[];
   /** The plain 8-character ID of the error report a failed run made, if it made one. */
   reportId?: string;
+  /** Whose token needs consent (outcome `consentNeeded`). */
+  consentAudience?: 'arm' | 'logs';
 }
 
 /** One line of a run's diagnostics log. A request's `detail` is its method and URL relative to the Graph version. */

@@ -182,7 +182,9 @@ public sealed class LogsClient(HttpClient logs, TimeProvider? time = null)
                 return LogsAnswer.Failure(RunOutcome.Failed, Unreadable);
             }
 
-            var partial = root.TryGetProperty("error", out var error) ? Text(error, "message") ?? Text(error, "code") : null;
+            var partial = root.TryGetProperty("error", out var error)
+                ? Text(error, "message") ?? Text(error, "code") ?? "Log Analytics reported a partial error."
+                : null;
             var tables = root.TryGetProperty("tables", out var t) && t.ValueKind == JsonValueKind.Array ? t.EnumerateArray().ToList() : [];
             if (tables.Count == 0)
             {
@@ -198,14 +200,13 @@ public sealed class LogsClient(HttpClient logs, TimeProvider? time = null)
             var columns = table.TryGetProperty("columns", out var c) && c.ValueKind == JsonValueKind.Array
                 ? c.EnumerateArray().Select(x => new EngineColumn(Text(x, "name") ?? "", ServerRows.NormalizeType(Text(x, "type") ?? ""))).ToList()
                 : [];
-            var nullValue = JsonDocument.Parse("null").RootElement;
             var rows = new List<JsonElement[]>();
             if (table.TryGetProperty("rows", out var r) && r.ValueKind == JsonValueKind.Array)
             {
                 foreach (var row in r.EnumerateArray())
                 {
                     var values = new JsonElement[columns.Count];
-                    Array.Fill(values, nullValue);
+                    Array.Fill(values, NullValue);
                     if (row.ValueKind == JsonValueKind.Array)
                     {
                         var i = 0;
@@ -226,6 +227,8 @@ public sealed class LogsClient(HttpClient logs, TimeProvider? time = null)
             return LogsAnswer.Failure(RunOutcome.Failed, Unreadable);
         }
     }
+
+    private static readonly JsonElement NullValue = JsonDocument.Parse("null").RootElement;
 
     private const string Unreadable = "Log Analytics' answer to the query isn't readable.";
 }

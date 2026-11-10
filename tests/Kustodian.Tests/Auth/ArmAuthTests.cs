@@ -368,6 +368,23 @@ public sealed class ArmAuthTests : IDisposable
         Assert.Equal(("arg", "resources", "consentNeeded"), (recorded.Source, recorded.Text, recorded.Outcome));
     }
 
+    [Theory]
+    [InlineData("arm")]
+    [InlineData("logs")]
+    public async Task Consent_needed_carries_the_audience(string audience)
+    {
+        var source = new FakeSource("arg", (_, _, _, _, _, _, _) => throw new ConsentRequiredException(audience));
+        var bridge = new Messaging.Bridge(_ => { });
+        new QueryHandler(GraphSchemaCatalog.Beta, () => Task.FromResult<string?>("acct-1"), FakeSource.Map(source), null)
+            .Register(bridge);
+
+        var reply = await Send(bridge, "query.run", new { tabId = "t1", source = "arg", kql = "resources", refresh = false, runId = RunId });
+
+        var result = reply.GetProperty("result");
+        Assert.Equal("consentNeeded", result.GetProperty("outcome").GetString());
+        Assert.Equal(audience, result.GetProperty("consentAudience").GetString());
+    }
+
     [Fact]
     public async Task Graph_cli_account_gets_its_arm_token_from_the_azure_cli_client_for_the_same_home_account()
     {

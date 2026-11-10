@@ -4,7 +4,6 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
 using Kustodian.Graph.Engine;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Run;
@@ -29,7 +28,7 @@ public sealed record HuntingAnswer(RunOutcome Outcome, string? Message, IReadOnl
 /// <see cref="OperationCanceledException"/>. The request, its body read included, has <see cref="Timeout"/> on
 /// <paramref name="time"/>'s clock, which also dates a <c>Retry-After</c>.
 /// </summary>
-public sealed partial class HuntingClient(HttpClient graph, TimeProvider? time = null)
+public sealed class HuntingClient(HttpClient graph, TimeProvider? time = null)
 {
     private readonly TimeProvider _time = time ?? TimeProvider.System;
 

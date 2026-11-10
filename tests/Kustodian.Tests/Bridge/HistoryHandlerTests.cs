@@ -72,6 +72,14 @@ public sealed class HistoryHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task Record_accepts_logs()
+    {
+        var reply = await CallAsync("history.record", Record(source: "logs"));
+
+        Assert.True(reply.GetProperty("result").GetProperty("recorded").GetBoolean());
+    }
+
+    [Fact]
     public async Task Changes_refuses_a_since_that_is_not_an_instant()
     {
         var reply = await CallAsync("history.changes", $$"""

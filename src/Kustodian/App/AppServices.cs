@@ -19,6 +19,7 @@ using Kustodian.Workbooks;
 using Kustodian.Sources;
 using Kustodian.Sources.Arg;
 using Kustodian.Sources.Hunting;
+using Kustodian.Sources.Logs;
 using Kustodian.Storage;
 using Kustodian.Telemetry;
 
@@ -40,6 +41,7 @@ public sealed class AppServices : IAsyncDisposable
     private readonly HttpClient _http;
     private readonly HttpClient _arm;
     private readonly HttpClient _hunting;
+    private readonly HttpClient _logs;
     private readonly HttpClient _github = UpdateCheck.CreateClient();
     private readonly HttpClient _telemetry = new() { Timeout = TimeSpan.FromSeconds(30) };
     private readonly HuntingSchemaSource _huntingSchema;
@@ -94,6 +96,7 @@ public sealed class AppServices : IAsyncDisposable
         _arm = ArmHttp.CreateClient(accounts, new StderrLogger<ArmAuthHandler>(), Trail);
         // Graph's chain, with a timeout past advanced hunting's own 3 minutes.
         _hunting = GraphHttp.CreateClient(accounts, new StderrLogger<GraphAuthHandler>(), HuntingClient.Timeout, Trail);
+        _logs = LogsHttp.CreateClient(accounts, new StderrLogger<LogsAuthHandler>(), Trail);
         _huntingSchema = new HuntingSchemaSource(_http, time);
         _arg = new ArgClient(_arm, time);
         _armDirectory = new ArmDirectory(_arm, time);
@@ -172,6 +175,7 @@ public sealed class AppServices : IAsyncDisposable
         [
             new GraphQuerySource(Runner, _findings),
             new HuntingQuerySource(new HuntingClient(_hunting, _time), _armDirectory, _time, new StderrLogger<HuntingQuerySource>()),
+            new LogsQuerySource(new LogsClient(_logs, _time), _armDirectory, _time, new StderrLogger<LogsQuerySource>()),
             new ArgQuerySource(_arg, _startup.Limits.ArgRowsPerRun, _time, new StderrLogger<ArgQuerySource>()),
         ];
         return sources.ToDictionary(s => s.Name, StringComparer.Ordinal);
@@ -182,6 +186,7 @@ public sealed class AppServices : IAsyncDisposable
         _http.Dispose();
         _arm.Dispose();
         _hunting.Dispose();
+        _logs.Dispose();
         _github.Dispose();
         _telemetry.Dispose();
         _history.Dispose();

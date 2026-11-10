@@ -10,7 +10,7 @@ namespace Kustodian.Messaging.Handlers;
 /// logged or reported.</summary>
 public sealed partial class HistoryHandler(HistoryStore history)
 {
-    private static readonly string[] Sources = ["graph", "hunting", "arg"];
+    private static readonly string[] Sources = ["graph", "hunting", "arg", "logs"];
     private static readonly int[] Retentions = [30, 90, 365];
 
     public void Register(Bridge bridge)

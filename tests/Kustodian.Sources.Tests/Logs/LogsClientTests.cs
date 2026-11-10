@@ -106,6 +106,16 @@ public class LogsClientTests
     }
 
     [Fact]
+    public async Task A_200_with_an_error_without_message_or_code_still_warns()
+    {
+        var answer = await Run(new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK,
+            """{"tables":[{"name":"PrimaryResult","columns":[{"name":"a","type":"string"}],"rows":[["x"]]}],"error":{}}""")));
+
+        Assert.Equal(RunOutcome.Ok, answer.Outcome);
+        Assert.Equal("Log Analytics reported a partial error.", answer.PartialError);
+    }
+
+    [Fact]
     public async Task A_204_is_empty()
     {
         var answer = await Run(new StubGraph(_ => new HttpResponseMessage(HttpStatusCode.NoContent)));
