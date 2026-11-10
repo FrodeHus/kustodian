@@ -22,8 +22,8 @@ follow [Semantic Versioning](https://semver.org/).
   account can't see blocks the run, and so does a workspace list that can't be read. The schema panel doesn't list a workspace's
   Sentinel tables yet; queries on them still run. See [docs/EntraPermissions.md](docs/EntraPermissions.md#hunting-in-a-workspace).
 - **Workspaces in workbooks**: a widget can have a workspace, and the workbook's timespan parameter keeps each widget's.
-  Importing a shared workbook file lists the workspaces it queries, named from your own workspace list by ID. Community
-  solutions never install a workspace; pick one after installing.
+  Importing a shared workbook file lists the workspaces it queries, named from your own workspace list by ID, and waits for
+  that list before it saves or opens. Community solutions never install a workspace; pick one after installing.
 - **Stat unit**: a Stat widget can show a unit after its number, such as `%`, `ms` or `days`. Set it under Visualization
   in the widget editor.
 - **Aurora theme**: Kustodian's own dark theme, from the logo and banner: navy ink with cyan, blue, violet and mint, a soft
