@@ -1,7 +1,7 @@
 import type { ResultColumn } from '../wire';
 import { cellText, type Row } from './export';
 
-export type ChartType = 'column' | 'bar' | 'line' | 'area' | 'pie' | 'timechart';
+export type ChartType = 'column' | 'bar' | 'line' | 'area' | 'pie' | 'timechart' | 'heatmap';
 
 /** What to chart: its type, the column along the x axis (or the pie's slices), and the number columns to plot. An `x` of null
  * puts the series' names along the axis instead, each drawn with its value from the result's first row. `split` names the
@@ -23,6 +23,7 @@ export const CHART_TYPES: { type: ChartType; name: string }[] = [
   { type: 'area', name: 'Area' },
   { type: 'pie', name: 'Pie' },
   { type: 'timechart', name: 'Time chart' },
+  { type: 'heatmap', name: 'Heatmap' },
 ];
 
 /** The Chart tab's words for a result it can't chart. */

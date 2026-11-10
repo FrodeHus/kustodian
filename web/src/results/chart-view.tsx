@@ -105,7 +105,9 @@ const BAR_ROW_PX = 22;
 
 const percent = (share: number) => `${Math.round(share * 100)}%`;
 
-const RENDER_WORDS = Object.fromEntries(Object.entries(RENDER_HINTS).map(([word, type]) => [type, word])) as Record<ChartType, string>;
+const RENDER_WORDS = Object.fromEntries(Object.entries(RENDER_HINTS).map(([word, type]) => [type, word])) as Partial<
+  Record<ChartType, string>
+>;
 
 /**
  * The Chart tab (spec 6.5): the result drawn as the chart its shape (or the query's `| render` and its `with (...)` properties)
