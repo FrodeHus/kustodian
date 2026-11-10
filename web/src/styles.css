@@ -516,4 +516,3 @@ body {
 .heat-cell { background: var(--heat); }
 .heat-empty { background: repeating-linear-gradient(135deg, transparent 0 3px, var(--line) 3px 4px); }
 .heat-cell[data-pickable='true'] { cursor: pointer; }
-.heat-cell[data-active='true'] { outline: 2px solid var(--text); outline-offset: -1px; position: relative; z-index: 1; }

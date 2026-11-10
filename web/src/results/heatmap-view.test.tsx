@@ -35,14 +35,25 @@ describe('HeatmapView', () => {
     for (const c of all.filter((c) => c.classList.contains('heat-empty'))) {
       expect(c.style.getPropertyValue('--heat')).toBe('');
     }
-    fireEvent.mouseEnter(all[0]!);
+    fireEvent.mouseOver(all[0]!);
     const tip = screen.getByTestId('heat-tip');
     expect(tip.textContent).toContain('Teams');
-    expect(tip.textContent).toContain('a');
+    expect(tip.textContent).toContain('Teams / a —');
     expect(tip.textContent).toContain('412 count_');
     expect(tip.textContent).toContain('from 3 rows');
-    fireEvent.mouseEnter(all[3]!);
+    fireEvent.mouseOver(all[3]!);
     expect(screen.getByTestId('heat-tip').textContent).not.toContain('from');
+  });
+
+  it('heatmap_view_labels_on_top_and_click_activates', () => {
+    const { container } = render(<HeatmapView data={data()} value="v" />);
+    const grid = screen.getByRole('grid');
+    const first = [...grid.querySelectorAll('div')].find((d) => d.textContent === 'a')!;
+    expect(first.compareDocumentPosition(cells(container)[0]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.focus(grid);
+    fireEvent.click(cells(container)[4]!);
+    const ring = screen.getByTestId('heat-ring');
+    expect([ring.style.gridRow, ring.style.gridColumn]).toEqual(['3', '3']);
   });
 
   it('heatmap_view_keyboard', () => {

@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { useMemo, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import type { CellMatch } from './chart-shape';
 import { TOOLTIP, dateTick } from './chart-style';
 import { heatStrength, type HeatmapAxis, type HeatmapData } from './heatmap-shape';
@@ -29,8 +29,6 @@ export default function HeatmapView({
   const [focused, setFocused] = useState(false);
   const shown = hover ?? (focused ? active : null);
   const shownCell = shown ? cells[shown[0]]?.[shown[1]] : null;
-  const step = Math.ceil(columns.labels.length / MAX_COLUMN_LABELS);
-
   const pick = (r: number, c: number) => {
     const rowKey = rows.keys[r];
     const colKey = columns.keys[c];
@@ -58,10 +56,66 @@ export default function HeatmapView({
 
   const grid: CSSProperties = {
     display: 'grid',
+    position: 'relative',
+    width: 'max-content',
+    minWidth: '100%',
     gridTemplateColumns: `${LABEL_PX}px repeat(${columns.labels.length}, minmax(${fit ? 0 : MIN_COLUMN_PX}px, 1fr))`,
     gridAutoRows: ROW_PX,
   };
-  const sticky: CSSProperties = { position: 'sticky', left: 0, background: 'var(--glass-menu, var(--panel))', zIndex: 2 };
+
+  // Built from data alone, so hovering or moving the active cell never re-renders the (up to 100k) cells.
+  const body = useMemo(() => {
+    const sticky: CSSProperties = { position: 'sticky', left: 0, background: 'var(--glass-menu, var(--panel))', zIndex: 2 };
+    const head: CSSProperties = { position: 'sticky', top: 0, background: 'var(--glass-menu, var(--panel))', zIndex: 2 };
+    const step = Math.ceil(columns.labels.length / MAX_COLUMN_LABELS);
+    return (
+      <>
+        <div style={{ ...sticky, ...head, zIndex: 3 }} />
+        {columns.labels.map((_, c) => (
+          <div key={c} title={label(columns, c)} style={{ ...head, overflow: 'visible', whiteSpace: 'nowrap' }}>
+            {c % step === 0 && label(columns, c)}
+          </div>
+        ))}
+        {rows.labels.map((_, r) => (
+          <div key={r} role="row" style={{ display: 'contents' }}>
+            <div
+              title={label(rows, r)}
+              style={{ ...sticky, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 6 }}
+            >
+              {label(rows, r)}
+            </div>
+            {columns.labels.map((_, c) => {
+              const cell = cells[r]?.[c];
+              return (
+                <div
+                  key={c}
+                  role="gridcell"
+                  data-cell=""
+                  data-r={r}
+                  data-c={c}
+                  data-pickable={!!cell && rows.keys[r] != null && columns.keys[c] != null}
+                  className={cell ? 'heat-cell' : 'heat-empty'}
+                  style={
+                    cell
+                      ? ({
+                          '--heat': `color-mix(in srgb, var(--accent) ${8 + 92 * heatStrength(cell.value, min, max)}%, transparent)`,
+                        } as CSSProperties)
+                      : undefined
+                  }
+                />
+              );
+            })}
+          </div>
+        ))}
+      </>
+    );
+  }, [rows, columns, cells, min, max]);
+
+  const at = (e: { target: EventTarget }): [number, number] | null => {
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-cell]');
+    return el ? [Number(el.dataset.r), Number(el.dataset.c)] : null;
+  };
+  const ring = focused ? active : null;
 
   return (
     <div className="flex flex-col gap-2 text-xs text-muted">
@@ -77,46 +131,38 @@ export default function HeatmapView({
           onKeyDown={onKeyDown}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
+          onMouseOver={(e) => {
+            const p = at(e);
+            if (p) {
+              setHover((h) => (h && h[0] === p[0] && h[1] === p[1] ? h : p));
+            }
+          }}
           onMouseLeave={() => setHover(null)}
+          onClick={(e) => {
+            const p = at(e);
+            if (p) {
+              setActive(p);
+              pick(p[0], p[1]);
+            }
+          }}
           className="focus-visible:outline-none"
         >
-          {rows.labels.map((_, r) => (
-            <div key={r} role="row" style={{ display: 'contents' }}>
-              <div
-                title={label(rows, r)}
-                style={{ ...sticky, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 6 }}
-              >
-                {label(rows, r)}
-              </div>
-              {columns.labels.map((_, c) => {
-                const cell = cells[r]?.[c];
-                const style = cell
-                  ? ({
-                      '--heat': `color-mix(in srgb, var(--accent) ${8 + 92 * heatStrength(cell.value, min, max)}%, transparent)`,
-                    } as CSSProperties)
-                  : undefined;
-                return (
-                  <div
-                    key={c}
-                    role="gridcell"
-                    data-cell=""
-                    data-active={focused && active[0] === r && active[1] === c}
-                    data-pickable={!!cell && rows.keys[r] != null && columns.keys[c] != null}
-                    className={cell ? 'heat-cell' : 'heat-empty'}
-                    style={style}
-                    onMouseEnter={() => setHover([r, c])}
-                    onClick={() => pick(r, c)}
-                  />
-                );
-              })}
-            </div>
-          ))}
-          <div style={sticky} />
-          {columns.labels.map((_, c) => (
-            <div key={c} title={label(columns, c)} style={{ position: 'relative', height: 16 }}>
-              {c % step === 0 && <span style={{ position: 'absolute', left: 0, whiteSpace: 'nowrap' }}>{label(columns, c)}</span>}
-            </div>
-          ))}
+          {body}
+          {ring && (
+            <div
+              data-testid="heat-ring"
+              style={{
+                position: 'absolute',
+                gridRow: ring[0] + 2,
+                gridColumn: ring[1] + 2,
+                inset: 0,
+                outline: '2px solid var(--text)',
+                outlineOffset: -1,
+                pointerEvents: 'none',
+                zIndex: 1,
+              }}
+            />
+          )}
         </div>
       </div>
       <div data-testid="heat-tip" style={{ ...TOOLTIP.contentStyle, padding: '4px 8px', minHeight: 26, alignSelf: 'flex-start' }}>
