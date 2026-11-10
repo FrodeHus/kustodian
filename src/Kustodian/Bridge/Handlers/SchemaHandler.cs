@@ -3,6 +3,7 @@ using Kustodian.Graph.Schema;
 using Kustodian.Sources;
 using Kustodian.Sources.Arg;
 using Kustodian.Sources.Hunting;
+using Kustodian.Sources.Logs;
 
 namespace Kustodian.Messaging.Handlers;
 
@@ -18,9 +19,11 @@ namespace Kustodian.Messaging.Handlers;
 /// <c>refresh</c>): <c>available</c>, <c>missing</c>, or <c>unknown</c> when the licenses couldn't be read or nobody is signed
 /// in.</summary>
 public sealed class SchemaHandler(GraphSchema schema, HuntingSchemaSource hunting, Func<Task<string?>> activeAccount,
-    IGraphProbeCache? probes = null, ITenantLicenses? licenses = null, GraphLicenses? licenseMap = null)
+    IGraphProbeCache? probes = null, ITenantLicenses? licenses = null, GraphLicenses? licenseMap = null, LogsSchemaSource? logs = null)
 {
     public const string SignInForTenantSchema = "Sign in to see your tenant's schema. The built-in schema is shown.";
+    public const string PickWorkspace = "Pick a workspace to see its tables.";
+    public const string SignInForWorkspaceSchema = "Sign in to see the workspace's tables.";
     public const string SignInForLicenses = "Sign in to check the tenant's licenses.";
 
     private readonly GraphLicenses _licenseMap = licenseMap ?? GraphLicenses.Bundled;
@@ -40,6 +43,7 @@ public sealed class SchemaHandler(GraphSchema schema, HuntingSchemaSource huntin
                     ? await hunting.GetAsync(account, request.Refresh, ct)
                     : hunting.BuiltIn(SignInForTenantSchema)),
                 "arg" => _arg.Value,
+                "logs" => await LogsAsync(request.Workspace, request.Refresh, ct),
                 _ => throw new BridgeException(BridgeErrorCodes.BadRequest, $"Unknown source {request.Source}."),
             };
         });
@@ -53,6 +57,21 @@ public sealed class SchemaHandler(GraphSchema schema, HuntingSchemaSource huntin
             RequireGraph(p);
             return await LicensesAsync(BridgeJson.Params<SchemaParams>(p).Refresh, ct);
         });
+    }
+
+    /// <summary>A Log Analytics workspace's schema, for the active account; no tables, with the reason, when nobody is signed in.</summary>
+    private async Task<SchemaView> LogsAsync(string? workspace, bool refresh, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(workspace))
+            throw new BridgeException(BridgeErrorCodes.BadRequest, PickWorkspace);
+        // Only a GUID goes on to a request.
+        if (!Guid.TryParseExact(workspace, "D", out _))
+            throw new BridgeException(BridgeErrorCodes.BadRequest, $"{workspace} is not a workspace id.");
+        if (logs is null)
+            throw new BridgeException(BridgeErrorCodes.BadRequest, "Log Analytics isn't available.");
+        return SchemaView.From(await activeAccount() is { } account
+            ? await logs.GetAsync(account, workspace, refresh, ct)
+            : logs.Empty(SignInForWorkspaceSchema), "logs");
     }
 
     private async Task<SchemaLicenses> LicensesAsync(bool refresh, CancellationToken ct)
@@ -101,7 +120,7 @@ public sealed class SchemaHandler(GraphSchema schema, HuntingSchemaSource huntin
             throw new BridgeException(BridgeErrorCodes.BadRequest, $"Unknown source {source}.");
     }
 
-    private sealed record SchemaParams(string? Source, bool Refresh);
+    private sealed record SchemaParams(string? Source, bool Refresh, string? Workspace = null);
 
     /// <summary><c>schema.licenses</c>' answer: whether the tenant's licenses are known (else why not), and the licenses tables
     /// (by name) and columns (by table, then column) need.</summary>
@@ -137,8 +156,8 @@ public sealed record SchemaView(
 
     /// <summary>Advanced hunting's schema: the Graph-only fields (path, area, docs link, permissions, filterable, listable,
     /// complex type) are null.</summary>
-    public static SchemaView From(HuntingSchemaView hunting) => new(
-        "hunting",
+    public static SchemaView From(HuntingSchemaView hunting, string source = "hunting") => new(
+        source,
         hunting.Origin,
         hunting.FallbackReason,
         hunting.RetrievedAt,

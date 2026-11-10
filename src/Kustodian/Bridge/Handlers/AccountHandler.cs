@@ -5,6 +5,7 @@ using Kustodian.Graph.Run;
 using Kustodian.Graph.Schema;
 using Kustodian.Sources.Arg;
 using Kustodian.Sources.Hunting;
+using Kustodian.Sources.Logs;
 using Kustodian.Telemetry;
 using Microsoft.Identity.Client;
 
@@ -22,7 +23,8 @@ namespace Kustodian.Messaging.Handlers;
 /// (a role activated since, through PIM, say), signing in through the browser when it has to, and answers <c>{}</c>. The
 /// <paramref name="trail"/> hears <c>account.signIn</c> and <c>account.consent(&lt;audience&gt;)</c>.</summary>
 public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cache, IGraphObjectCache objects, IGraphProbeCache probes,
-    HuntingSchemaSource? huntingSchema = null, ArmDirectory? armDirectory = null, ITenantLicenses? licenses = null, ErrorTrail? trail = null)
+    HuntingSchemaSource? huntingSchema = null, ArmDirectory? armDirectory = null, ITenantLicenses? licenses = null, ErrorTrail? trail = null,
+    LogsSchemaSource? logsSchema = null)
 {
     public void Register(Bridge bridge)
     {
@@ -111,6 +113,7 @@ public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cac
             await objects.RemoveAccountAsync(key, ct);
             await probes.RemoveAccountAsync(key, ct);
             huntingSchema?.RemoveAccount(key);
+            logsSchema?.RemoveAccount(key);
             armDirectory?.RemoveAccount(key);
             licenses?.RemoveAccount(key);
             return null;

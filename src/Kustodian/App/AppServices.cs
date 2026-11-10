@@ -45,6 +45,7 @@ public sealed class AppServices : IAsyncDisposable
     private readonly HttpClient _github = UpdateCheck.CreateClient();
     private readonly HttpClient _telemetry = new() { Timeout = TimeSpan.FromSeconds(30) };
     private readonly HuntingSchemaSource _huntingSchema;
+    private readonly LogsSchemaSource _logsSchema;
     private readonly ArgClient _arg;
     private readonly ArmDirectory _armDirectory;
     private readonly LibraryService _library;
@@ -98,6 +99,7 @@ public sealed class AppServices : IAsyncDisposable
         _hunting = GraphHttp.CreateClient(accounts, new StderrLogger<GraphAuthHandler>(), HuntingClient.Timeout, Trail);
         _logs = LogsHttp.CreateClient(accounts, new StderrLogger<LogsAuthHandler>(), Trail);
         _huntingSchema = new HuntingSchemaSource(_http, time);
+        _logsSchema = new LogsSchemaSource(_logs, time);
         _arg = new ArgClient(_arm, time);
         _armDirectory = new ArmDirectory(_arm, time);
         Budget = new GraphFetchBudget(Limits.FetchBudgetBytes);
@@ -147,7 +149,7 @@ public sealed class AppServices : IAsyncDisposable
         new AppHandler(Objects, Probes, new UpdateCheck(_github, AppVersion.Text), window: Window).Register(bridge);
         new SettingsHandler(_settings, _startup.Limits, Trail).Register(bridge);
         new ErrorHandler(Reporter, Trail).Register(bridge);
-        new SchemaHandler(_schema, _huntingSchema, ActiveAccountAsync, Probes, _licenses).Register(bridge);
+        new SchemaHandler(_schema, _huntingSchema, ActiveAccountAsync, Probes, _licenses, logs: _logsSchema).Register(bridge);
         new GraphSchemaUpdateHandler(_schemaUpdates).Register(bridge);
         new QueryHandler(_schema, ActiveAccountAsync, Sources(), _recent, _time, new StderrLogger<QueryHandler>(), Limits, _licenses,
             Reporter, Trail).Register(bridge);
@@ -161,7 +163,7 @@ public sealed class AppServices : IAsyncDisposable
         var dialogs = new PhotinoFileDialogs(Window);
         new ExternalToolHandler(_tools, dialogs).Register(bridge);
         new FileHandler(dialogs, _allowedFiles).Register(bridge);
-        new AccountHandler(_accounts, _tokenCache, Objects, Probes, _huntingSchema, _armDirectory, _licenses, Trail).Register(bridge);
+        new AccountHandler(_accounts, _tokenCache, Objects, Probes, _huntingSchema, _armDirectory, _licenses, Trail, _logsSchema).Register(bridge);
         new RawHandler(new RawRequestService(_http, _time), ActiveAccountAsync).Register(bridge);
         new ArmHandler(_armDirectory, ActiveAccountAsync).Register(bridge);
         new EntraAppHandler(new EntraAppClient(_http, _time), ActiveAccountInfoAsync, new SystemBrowser(),

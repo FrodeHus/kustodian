@@ -5,6 +5,7 @@ using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Schema;
 using Kustodian.Messaging.Handlers;
 using Kustodian.Sources.Hunting;
+using Kustodian.Sources.Logs;
 using Microsoft.Extensions.Time.Testing;
 
 namespace Kustodian.Tests.Bridge;
@@ -106,6 +107,56 @@ public class SchemaHandlerTests
         var properties = resources.GetProperty("columns").EnumerateArray().Single(c => c.GetProperty("name").GetString() == "properties");
         Assert.Equal("dynamic", properties.GetProperty("type").GetString());
         Assert.Equal(JsonValueKind.Null, properties.GetProperty("filterable").ValueKind);
+    }
+
+    private const string Workspace = "11111111-2222-3333-4444-555555555555";
+
+    private static Messaging.Bridge LogsBridge(Stub logs, string? account = "account-1")
+    {
+        var bridge = new Messaging.Bridge(_ => { });
+        new SchemaHandler(GraphSchemaCatalog.Beta, new HuntingSchemaSource(new HttpClient(), TimeProvider.System),
+            () => Task.FromResult(account),
+            logs: new LogsSchemaSource(new HttpClient(logs) { BaseAddress = new Uri("https://api.loganalytics.azure.com/") },
+                new FakeTimeProvider())).Register(bridge);
+        return bridge;
+    }
+
+    [Fact]
+    public async Task Schema_get_logs_returns_the_workspace_tables_and_functions()
+    {
+        var logs = new Stub(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("""{"tables":[{"name":"SigninLogs","columns":[{"name":"TimeGenerated","type":"datetime"}]}],"functions":[{"name":"MyFn","parameters":"x:string"}]}""",
+                Encoding.UTF8, "application/json"),
+        });
+        var bridge = LogsBridge(logs);
+
+        var view = Result(await bridge.HandleAsync($$$"""{"id":"s","method":"schema.get","params":{"source":"logs","workspace":"{{{Workspace}}}"}}"""));
+
+        Assert.Equal("account-1", Assert.Single(logs.Requests));
+        Assert.Equal("logs", view.GetProperty("source").GetString());
+        Assert.Equal("tenant", view.GetProperty("origin").GetString());
+        Assert.Equal("SigninLogs", view.GetProperty("tables")[0].GetProperty("name").GetString());
+        Assert.Equal("""[{"name":"x","type":"string"}]""", view.GetProperty("functions")[0].GetProperty("parameters").GetRawText());
+    }
+
+    [Theory]
+    [InlineData("""{"source":"logs"}""", "Pick a workspace to see its tables.")]
+    [InlineData("""{"source":"logs","workspace":""}""", "Pick a workspace to see its tables.")]
+    [InlineData("""{"source":"logs","workspace":"../x"}""", "../x is not a workspace id.")]
+    public async Task Schema_get_logs_without_a_workspace_is_bad_request(string parameters, string message)
+    {
+        var logs = new Stub(_ => throw new InvalidOperationException("No request is expected."));
+        var bridge = LogsBridge(logs);
+
+        var response = await bridge.HandleAsync($$$"""{"id":"s","method":"schema.get","params":{{{parameters}}}}""");
+
+        Assert.NotNull(response);
+        using var doc = JsonDocument.Parse(response);
+        var error = doc.RootElement.GetProperty("error");
+        Assert.Equal("bad_request", error.GetProperty("code").GetString());
+        Assert.Equal(message, error.GetProperty("message").GetString());
+        Assert.Empty(logs.Requests);
     }
 
     private static JsonElement Result(string? json)
