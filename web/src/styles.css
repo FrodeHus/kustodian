@@ -472,7 +472,11 @@ body {
     overflow: visible !important;
   }
   /* No controls on paper: the parameter bar (a table of values prints instead), filter boxes and other fields. */
-  .wb-printing :is(button, [role='menu'], input, textarea, select, .param-bar), .screen-only { display: none !important; }
+  /* A table's own buttons stay: they carry its column names, grouped rows and JSON cells. Its select and inspect columns stay
+   * (its colgroup sizes them), empty. */
+  .wb-printing :is(button:not(table button), [role='menu'], input, textarea, select, .param-bar, .col-menu, .inspect-col button),
+  .screen-only { display: none !important; }
+  .wb-printing :is(.select-col, .inspect-col) { background: none !important; }
   /* Widgets in one column at their own height; a Markdown widget, or a tabs widget (each tab under its name), as tall as its
    * content, so nothing is cut off at the widget's edge. */
   .wb-printing .wb-grid { display: flex; flex-direction: column; gap: 12px; }
@@ -491,6 +495,8 @@ body {
   /* A tab is a report section: a full-width heading over a thin rule. */
   .wb-print-tab { margin: 18px 0 10px; padding-bottom: 4px; border-bottom: 1px solid var(--line); font-size: 15px; font-weight: 600; break-after: avoid; }
 }
+/* Off the screen, but laid out at the widget's width rather than display: none, so a chart or grid in it measures a real size
+ * and has drawn by the time it prints. */
 @media screen {
-  .print-only { display: none !important; }
+  .print-only { position: absolute; inset-inline: 0; top: 0; height: 0; overflow: hidden; visibility: hidden; pointer-events: none; }
 }

@@ -674,8 +674,8 @@ export function WorkbookView({ tabId, onSignIn, accountKey }: { tabId: string; o
                     .filter((w) => w.in && w.query?.text.trim() && ((s!.runs[w.id]?.state ?? 'idle') === 'idle' || s!.stale[w.id]))
                     .map((w) => store().runWidget(tabId, w.id)),
                 );
-                // The print-only tabs are rendered before the page is printed.
-                await new Promise(requestAnimationFrame);
+                // The print-only tabs render, and their charts and grids measure and draw (a lazy chart loads), before the page prints.
+                await new Promise((done) => setTimeout(done, 500));
                 // The macOS web view ignores window.print(), so the host prints there and answers true.
                 call<boolean>('app.print').then(
                   (native) => native || window.print(),
