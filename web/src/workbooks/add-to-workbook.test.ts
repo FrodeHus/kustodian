@@ -59,6 +59,27 @@ describe('widgetFromTab', () => {
     expect(w.query).toEqual({ source: 'graph', text: 'T | take 1', options, parameters, saved: { id: 's1', name: 'My query' } });
     expect('highlights' in w.query!).toBe(false);
   });
+  it('copies only the block that ran, with its parameters, from a tab of two blocks', () => {
+    const text = 'A | where a == {who}\n\nB | where b == {when}';
+    const kql = 'B | where b == {when}';
+    const t = tabOf({ text, parameters: [def('who'), def('when')], run: { kql } as never });
+    const w = widgetFromTab(t, 'table', 'T', undefined);
+    expect(w.query?.text).toBe(kql);
+    expect(w.query?.parameters).toEqual([def('when')]);
+    expect(addWidget(newWorkbook('w'), w, t.parameters).parameters.map((p) => p.name)).toEqual(['when']);
+  });
+  it('links a saved clean tab whose run sent its whole text', () => {
+    const t = tabOf({ savedId: 's1', run: { kql: 'T | take 1\n' } as never });
+    expect(linksSaved(t)).toBe(true);
+    expect(widgetFromTab(t, 'table', 'T', undefined).query?.saved).toEqual({ id: 's1', name: 'My query' });
+  });
+  it('copies the block from a saved clean tab whose run was one of two blocks', () => {
+    const t = tabOf({ savedId: 's1', text: 'A\n\nB', run: { kql: 'B' } as never });
+    expect(linksSaved(t)).toBe(false);
+    const q = widgetFromTab(t, 'table', 'T', undefined).query;
+    expect(q?.saved).toBeNull();
+    expect(q?.text).toBe('B');
+  });
   it('copies a dirty saved tab', () => {
     const t = tabOf({ savedId: 's1', dirty: true });
     expect(linksSaved(t)).toBe(false);
@@ -83,7 +104,11 @@ describe('addWidget', () => {
   const widget = (kind: 'table' | 'stat', text = 'T') => ({ ...widgetFromTab(tabOf({ text }), kind, 'T', undefined) });
   it('places on an empty doc', () => {
     const d = addWidget(newWorkbook('w'), widget('table'), []);
-    expect(d.widgets[0]?.layout).toEqual({ x: 0, y: 0, w: 12, h: MIN_SIZE.table.h });
+    expect(d.widgets[0]?.layout).toEqual({ x: 0, y: 0, w: 12, h: 16 });
+  });
+  it('makes a chart full width and 16 high', () => {
+    const chart = widgetFromTab(tabOf(), 'chart', 'T', undefined);
+    expect(addWidget(newWorkbook('w'), chart, []).widgets[0]?.layout).toEqual({ x: 0, y: 0, w: 12, h: 16 });
   });
   const withWidgets = (ws: Widget[]): WorkbookDoc => ({ ...newWorkbook('w'), widgets: ws });
   it('goes below the lowest top-level widget, ignoring nested ones', () => {
