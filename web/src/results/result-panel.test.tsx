@@ -58,7 +58,7 @@ const props = { tabId: 't1', title: 'Expired apps', kql: 'applications', result 
 
 beforeEach(() => {
   call.mockReset();
-  useTabs.setState({ tabs: [], activeId: null, cursors: {}, groupings: {} });
+  useTabs.setState({ tabs: [], activeId: null, cursors: {}, groupings: {}, resultViews: {} });
 });
 
 describe('ResultPanel', () => {
@@ -144,6 +144,19 @@ describe('ResultPanel', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Chart type: auto' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Rows · 2' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Chart' }));
+    expect(await screen.findByRole('button', { name: 'Chart type: pie' })).toBeTruthy();
+  });
+
+  it('result_panel_keeps_the_result_view_across_remounts_in_the_store', async () => {
+    const first = render(<ResultPanel {...props} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Chart' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Chart type: auto' }));
+    expect(useTabs.getState().resultViews.t1?.view).toBe('chart');
+    expect(useTabs.getState().resultViews.t1?.chart?.type).toBe('pie');
+    first.unmount();
+
+    render(<ResultPanel {...props} />);
+    expect(screen.getByRole('tab', { name: 'Chart' }).getAttribute('aria-selected')).toBe('true');
     expect(await screen.findByRole('button', { name: 'Chart type: pie' })).toBeTruthy();
   });
 

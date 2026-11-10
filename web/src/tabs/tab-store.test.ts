@@ -185,6 +185,26 @@ describe('tab store', () => {
     expect(useTabs.getState().groupings).toEqual({ [b]: ['z'] });
   });
 
+  it('setResultView_merges_per_tab_and_close_drops_it', () => {
+    const a = useTabs.getState().open('graph');
+    const b = useTabs.getState().open('graph');
+    useTabs.getState().setResultView(a, { view: 'chart' });
+    useTabs.getState().setResultView(a, { chart: { x: 'k' } });
+    useTabs.getState().setResultView(b, { view: 'json' });
+    expect(useTabs.getState().resultViews).toEqual({ [a]: { view: 'chart', chart: { x: 'k' } }, [b]: { view: 'json' } });
+
+    useTabs.getState().close(a);
+    expect(useTabs.getState().resultViews).toEqual({ [b]: { view: 'json' } });
+  });
+
+  it('restore_resets_result_views_and_the_session_never_holds_them', () => {
+    const a = useTabs.getState().open('graph');
+    useTabs.getState().setResultView(a, { view: 'chart' });
+    expect(JSON.stringify(useTabs.getState().tabs)).not.toContain('chart');
+    useTabs.getState().restore({ version: 1, activeId: null, tabs: [] });
+    expect(useTabs.getState().resultViews).toEqual({});
+  });
+
   it('markSaved_clears_dirty_and_the_next_save_goes_where_it_last_saved', () => {
     const id = useTabs.getState().open('graph');
     useTabs.getState().setText(id, 'users');
