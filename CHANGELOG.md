@@ -22,6 +22,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Workbook widget headers** have more room for the title: the source badge is gone (the widget editor still shows the
+  source), and a run's time shows only when it took 5 seconds or more, in the corner beside the parameters icon.
 - **Workbook editing**: while you drag or resize a widget the others move to where they'll end up, and the drop outline
   shows over them. The column stripes behind the grid are gone. A ✎ button beside ⋯ edits a widget; Edit widget, Duplicate
   and Remove are in ⋯, so small widgets no longer overflow, a widget with no query yet shows **Set up widget**, and the workbook parameters a widget uses are a link icon in
