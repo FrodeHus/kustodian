@@ -973,6 +973,21 @@ describe('App', () => {
     expect(localStorage.getItem('kustodian.logsWorkspace.k2')).toBeNull();
   });
 
+  it('app_toolbar_run_with_a_selection_runs_the_selection', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+    const id = useTabs.getState().activeId!;
+    act(() => {
+      useTabs.getState().setText(id, 'applications\n\nusers');
+      useTabs.getState().setCursor(id, { line: 1, column: 1, selection: 'users', selectionLine: 3, selectionColumn: 1 });
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^Run$/ }));
+    await waitFor(() =>
+      expect(bridge.call).toHaveBeenCalledWith('query.run', expect.objectContaining({ kql: 'users' }), expect.anything()),
+    );
+  });
+
   it('app_pick_timespan_and_pick_scope_follow_the_source', async () => {
     host({ accounts: [kari], cache: 'persistent' });
     answers['arm.subscriptions'] = () => ({

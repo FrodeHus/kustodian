@@ -835,7 +835,7 @@ export function App() {
                   {!raw && !workbook && (
                     <Toolbar
                       tab={active}
-                      onRun={(mode) => !lacksWorkspace(active) && void useTabs.getState().run(active.id, mode)}
+                      onRun={(mode) => runActive(mode)}
                       onFormat={() => editor.current?.format()}
                       paramCount={paramCount}
                       paramsOpen={showingParams}
