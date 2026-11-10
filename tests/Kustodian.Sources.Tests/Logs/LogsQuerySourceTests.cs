@@ -122,6 +122,17 @@ public class LogsQuerySourceTests
     }
 
     [Fact]
+    public async Task A_workspace_with_no_name_is_called_by_its_short_id_in_progress()
+    {
+        var arm = new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK, WorkspaceList(Guid1).Replace("contoso-sentinel", "")));
+        var events = new Events();
+
+        await Run(Source(Answering(HttpStatusCode.OK, "logs-query-200.json"), arm), Request("T", OnWorkspace()), events);
+
+        Assert.Equal("Running the query in Log Analytics on 0f5c…3e4f", events.Seen[0].Detail);
+    }
+
+    [Fact]
     public async Task A_partial_error_is_a_warning()
     {
         var result = await Run(Source(Answering(HttpStatusCode.OK, "logs-query-200-partial.json"), Visible()), Request("T", OnWorkspace()));

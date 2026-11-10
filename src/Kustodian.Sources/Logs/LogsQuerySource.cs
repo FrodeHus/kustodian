@@ -57,7 +57,7 @@ public sealed class LogsQuerySource(LogsClient client, ArmDirectory directory, T
                 return End(RunOutcome.WorkspaceUnavailable, blocked);
             }
 
-            progress?.Report(new RunEvent("requesting", $"Running the query in Log Analytics on {match.Name}", diagnostics.RunId));
+            progress?.Report(new RunEvent("requesting", $"Running the query in Log Analytics on {(string.IsNullOrEmpty(match.Name) ? WorkspaceCheck.ShortId(match.CustomerId) : match.Name)}", diagnostics.RunId));
             var answer = await client.RunAsync(request.AccountKey, match.CustomerId, substitution.Text!,
                 request.Options?.Timespan ?? DefaultTimespan, diagnostics, ct);
             progress?.Report(new RunEvent("done", "Log Analytics answered", diagnostics.RunId));
