@@ -2,9 +2,9 @@ import { Component, Suspense, lazy, useId, useRef, useState, type KeyboardEvent,
 import { errorText } from '../shell/errors';
 import { reportIdOf } from '../shell/report-id';
 import { useTabs } from '../tabs/tab-store';
+import type { ResultView } from '../workbooks/add-to-workbook';
 import type { HighlightRule, RunResult, Source } from '../wire';
 import type { CellMatch } from './chart-shape';
-import type { Picked } from './chart-view';
 import { CompareView } from './compare-view';
 import { DiagnosticsView } from './diagnostics-view';
 import { EXPORT_FORMATS, EXPORT_NAMES, exportResult, toJson, type ExportFormat } from './export';
@@ -17,8 +17,6 @@ const ChartView = lazy(() => import('./chart-view'));
 
 /** The JSON tab shows at most this many rows; Export writes them all. */
 const JSON_ROWS = 1000;
-
-type ResultTab = 'rows' | 'chart' | 'json' | 'diagnostics' | 'compare';
 
 const count = (n: number) => n.toLocaleString('en-US');
 const rowCount = (n: number) => `${count(n)} ${n === 1 ? 'row' : 'rows'}`;
@@ -59,9 +57,12 @@ interface PanelProps {
   highlights?: HighlightRule[];
   /** The tab's highlight rules were changed; without it the grid offers none. */
   onHighlightsChange?: (rules: HighlightRule[]) => void;
+  /** Add the query to a workbook; without it the Export menu has no such item. */
+  onAddToWorkbook?: () => void;
 }
 
 const NO_GROUPING: string[] = [];
+const NO_PICKS = {};
 
 /**
  * The results area (spec 6.5): tabs for Rows, Chart, JSON and Diagnostics, and Compare once a run is pinned. The tabs take the
@@ -79,16 +80,18 @@ export function ResultPanel({
   onFilter,
   highlights,
   onHighlightsChange,
+  onAddToWorkbook,
 }: PanelProps) {
-  const [chosen, setChosen] = useState<ResultTab>('rows');
+  const chosen = useTabs((s) => s.resultViews[tabId]?.view) ?? 'rows';
+  const setChosen = (view: ResultView) => useTabs.getState().setResultView(tabId, { view });
+  // The Chart tab's picks live in the tab store, so leaving the tab and coming back keeps them.
+  const chartPicked = useTabs((s) => s.resultViews[tabId]?.chart) ?? NO_PICKS;
   const grouping = useTabs((s) => s.groupings[tabId]) ?? NO_GROUPING;
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
   const [details, setDetails] = useState<number | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   // The rows behind the chart mark last clicked: the Rows tab shows only them until it's cleared.
   const [chartFilter, setChartFilter] = useState<CellMatch[] | null>(null);
-  // The Chart tab's picks live here, so leaving the tab and coming back keeps them.
-  const [chartPicked, setChartPicked] = useState<Picked>({});
   // A new result closes the row details (its index was into the old rows) and drops the chart's filter.
   const [resultSeen, setResultSeen] = useState(result);
   if (resultSeen !== result) {
@@ -99,10 +102,10 @@ export function ResultPanel({
   if (dialogOpen && details !== null) {
     setDetails(null);
   }
-  const tabRefs = useRef(new Map<ResultTab, HTMLButtonElement>());
+  const tabRefs = useRef(new Map<ResultView, HTMLButtonElement>());
   const id = useId();
 
-  const tabs: { name: ResultTab; label: string }[] = [
+  const tabs: { name: ResultView; label: string }[] = [
     { name: 'rows', label: `Rows · ${count(result.rows.length)}` },
     { name: 'chart', label: 'Chart' },
     { name: 'json', label: 'JSON' },
@@ -112,7 +115,7 @@ export function ResultPanel({
   // Compare goes when the pinned run does.
   const active = tabs.some((t) => t.name === chosen) ? chosen : 'rows';
 
-  const choose = (name: ResultTab) => {
+  const choose = (name: ResultView) => {
     setChosen(name);
     tabRefs.current.get(name)?.focus();
   };
@@ -137,7 +140,7 @@ export function ResultPanel({
       (e: unknown) => setNotice({ tone: 'bad', text: `Couldn’t export: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
 
-  const panel = (name: ResultTab, content: ReactNode) => (
+  const panel = (name: ResultView, content: ReactNode) => (
     <div
       key={name}
       id={`${id}-panel-${name}`}
@@ -188,6 +191,14 @@ export function ResultPanel({
                 {EXPORT_NAMES[format]}
               </button>
             ))}
+            {onAddToWorkbook && (
+              <>
+                <div role="separator" className="my-1 border-t border-line" />
+                <button type="button" role="menuitem" tabIndex={-1} onClick={onAddToWorkbook}>
+                  Add to workbook…
+                </button>
+              </>
+            )}
           </MenuButton>
         )}
         {pinned ? (
@@ -246,7 +257,7 @@ export function ResultPanel({
                 rows={result.rows}
                 kql={kql}
                 picked={chartPicked}
-                setPicked={setChartPicked}
+                setPicked={(chart) => useTabs.getState().setResultView(tabId, { chart })}
                 onPick={(filter) => {
                   setChartFilter(filter);
                   setChosen('rows');

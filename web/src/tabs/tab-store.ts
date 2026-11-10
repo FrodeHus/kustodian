@@ -18,6 +18,8 @@ import type {
   TabSource,
 } from '../wire';
 import { memoryAccount, rememberedLogsWorkspace } from '../toolbar/workspace-memory';
+import type { Picked } from '../results/chart-view';
+import type { ResultView } from '../workbooks/add-to-workbook';
 import { newWorkbook, type WorkbookDoc } from '../workbooks/model';
 
 export type { Source, TabSource } from '../wire';
@@ -156,6 +158,8 @@ interface TabsState {
   cursors: Record<string, TabCursor>;
   /** The columns each tab's Rows grid is grouped by, outermost first. Runtime only: never saved in the session. */
   groupings: Record<string, string[]>;
+  /** The result tab each tab shows and its Chart picks. Runtime only: never saved in the session. */
+  resultViews: Record<string, { view?: ResultView; chart?: Picked }>;
   /** Opens a new empty tab for `source`, titled after the tabs already open, makes it active and returns its id. */
   open(source: Source): string;
   /** Opens a new tab with this text and title, not dirty, makes it active and returns its id. */
@@ -194,6 +198,7 @@ interface TabsState {
   setText(id: string, text: string): void;
   setCursor(id: string, cursor: TabCursor): void;
   setGrouping(id: string, columns: string[]): void;
+  setResultView(id: string, change: { view?: ResultView; chart?: Picked }): void;
   /** Runs the tab's query with its parameters; resolves when the run has ended, however it ended. `refresh` skips the
    * host's cache. A raw request tab never runs. */
   run(id: string, mode: RunMode, opts?: { refresh?: boolean }): Promise<void>;
@@ -295,6 +300,7 @@ export const useTabs = create<TabsState>()((set, get) => {
     activeId: null,
     cursors: {},
     groupings: {},
+    resultViews: {},
 
     open(source) {
       // Numbered after the tabs already open, so a fresh window starts at Query 1.
@@ -387,7 +393,7 @@ export const useTabs = create<TabsState>()((set, get) => {
         history: [],
       }));
       const activeId = tabs.some((t) => t.id === session.activeId) ? session.activeId : (tabs[0]?.id ?? null);
-      set({ tabs, activeId, cursors: {}, groupings: {} });
+      set({ tabs, activeId, cursors: {}, groupings: {}, resultViews: {} });
     },
 
     setTitle(id, title) {
@@ -446,8 +452,10 @@ export const useTabs = create<TabsState>()((set, get) => {
         delete cursors[id];
         const groupings = { ...s.groupings };
         delete groupings[id];
+        const resultViews = { ...s.resultViews };
+        delete resultViews[id];
         const activeId = s.activeId === id ? (tabs[Math.min(index, tabs.length - 1)]?.id ?? null) : s.activeId;
-        return { tabs, activeId, cursors, groupings };
+        return { tabs, activeId, cursors, groupings, resultViews };
       });
     },
 
@@ -468,6 +476,10 @@ export const useTabs = create<TabsState>()((set, get) => {
 
     setGrouping(id, columns) {
       set((s) => ({ groupings: { ...s.groupings, [id]: columns } }));
+    },
+
+    setResultView(id, change) {
+      set((s) => ({ resultViews: { ...s.resultViews, [id]: { ...s.resultViews[id], ...change } } }));
     },
 
     async run(id, mode, opts) {

@@ -416,6 +416,16 @@ export function WorkbookView({ tabId, onSignIn, accountKey }: { tabId: string; o
     focusNext.current = null;
     target?.focus();
   });
+  // A widget just added from a query tab: once its frame is in, scroll to it and focus it.
+  const revealing = useWorkbooks((s) => (s.revealing?.tabId === tabId ? s.revealing.widgetId : null));
+  useEffect(() => {
+    const frame = [...(sheetHost?.querySelectorAll<HTMLElement>('[data-wb-widget]') ?? [])].find((f) => f.dataset.wbWidget === revealing);
+    if (frame) {
+      frame.scrollIntoView({ block: 'nearest' });
+      frame.focus({ preventScroll: true });
+      useWorkbooks.setState({ revealing: null });
+    }
+  }, [revealing, sheetHost, state?.doc]);
   if (!state) {
     return <p className="faint m-0 p-4 text-[12px]">Opening the workbook…</p>;
   }

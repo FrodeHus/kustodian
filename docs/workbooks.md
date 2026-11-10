@@ -85,6 +85,30 @@ A Chart, Table or Stat widget gets its query one of two ways, picked in the widg
   into the first kind. The workbook keeps a copy of a linked query's last text, so a deleted saved query leaves the widget
   with an error and that copy to copy in.
 
+### Adding a query from a query tab
+
+Once a Microsoft Graph, advanced hunting, Resource Graph or Log Analytics tab has run successfully, **Add to workbook…**
+(at the end of the Rows tab's Export menu, and in the command palette) opens a dialog:
+
+- **Workbook**: pick one (search with "Find a workbook"; the list is grouped by folder), or **New workbook** with a Name
+  and Folder. A workbook with 100 widgets is disabled and marked "(full)". The first workbook in the list that has room is
+  preselected, or New workbook when none has.
+- **Widget**: Table, Chart or Stat. Chart is preselected when the Chart tab is showing, Stat for a one-row single-number
+  result, otherwise Table.
+- **Title**: defaults to the tab's title.
+
+The widget takes the query text that last ran: with several queries in the editor, only the block (or selection) that ran.
+A saved query with no unsaved changes, whose run sent the whole text, is linked to the widget. Otherwise the text that ran
+is copied in, with the parameters it uses, and the dialog says "Save the query first to link it." The source, options
+(timespan, scope, workspace) and highlight rules come along, and a Chart widget takes the Chart tab's settings (type, x axis, values, split, stacking).
+
+The query's `{name}` parameters become workbook parameters when the workbook has none of that name; existing ones are used
+as they are. The widget goes below the others: a Table or Chart full width and 16 grid rows high, a Stat at its smallest size.
+
+A closed workbook is saved and opened. An open workbook with no unsaved edits gets the widget and is saved. An open
+workbook with unsaved edits gets the widget in its draft, nothing is saved, and a notice says "Added to your unsaved
+changes in <name>." A new workbook is created, saved and opened. Its tab comes to the front and scrolls to the new widget.
+
 ## Selection and tool buttons
 
 A table widget can have a checkbox column and tool buttons that run one of your external tools (see

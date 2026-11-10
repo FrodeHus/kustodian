@@ -38,7 +38,7 @@ let stop: (() => void) | undefined;
 
 beforeEach(() => {
   bridge.call.mockReset();
-  useTabs.setState({ tabs: [], activeId: null, cursors: {}, groupings: {} });
+  useTabs.setState({ tabs: [], activeId: null, cursors: {}, groupings: {}, resultViews: {} });
 });
 
 afterEach(() => {
@@ -395,7 +395,7 @@ describe('session sync', () => {
     expect(written.tabs.find((t) => t.id === id)).toMatchObject({ source: 'workbook', workbook: doc, dirty: true });
     stop();
 
-    useTabs.setState({ tabs: [], activeId: null, cursors: {}, groupings: {} });
+    useTabs.setState({ tabs: [], activeId: null, cursors: {}, groupings: {}, resultViews: {} });
     host({ session: written, corrupt: false });
     stop = startSessionSync();
     await vi.waitFor(() => expect(useTabs.getState().tabs).toHaveLength(2));

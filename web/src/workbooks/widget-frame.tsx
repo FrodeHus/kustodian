@@ -587,6 +587,9 @@ export function WidgetFrame({
       <section
         ref={ref}
         aria-label={title}
+        data-wb-widget={widget.id}
+        // Focusable for a reveal (a widget just added from a query tab).
+        tabIndex={-1}
         style={cellVars(shown)}
         className={`card wb-widget flex min-h-0 min-w-0 flex-col ${selected ? 'border-accent' : ''} ${full ? 'wb-full fixed inset-0 z-20 rounded-none' : 'relative'}`}
         // Not for a widget inside this one (in a tabs widget): that one selects itself.
