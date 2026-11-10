@@ -820,15 +820,23 @@ export function ResultGrid({
                       {inspectIcon}
                     </button>
                   </td>
-                  {row.getVisibleCells().map((cell) => {
+                  {row.getVisibleCells().map((cell, i) => {
                     const column = meta.get(cell.column.id);
                     const value = cell.getValue();
                     const onContextMenu = (e: MouseEvent) => openCellMenu(e, column, value);
                     const mark = column ? marks?.cells.get(columns.indexOf(column)) : undefined;
+                    // The colours, for screen readers: the row's in its first cell, and a highlighted cell's own.
+                    const said = (
+                      <>
+                        {i === 0 && marks?.row && <span className="sr-only"> ({marks.row})</span>}
+                        {mark && <span className="sr-only"> ({mark})</span>}
+                      </>
+                    );
                     if (value === null || value === undefined) {
                       return (
                         <td key={cell.id} className="faint" data-highlight={mark} onContextMenu={onContextMenu}>
                           null
+                          {said}
                         </td>
                       );
                     }
@@ -844,6 +852,7 @@ export function ResultGrid({
                           >
                             {text}
                           </button>
+                          {said}
                         </td>
                       );
                     }
@@ -855,6 +864,7 @@ export function ResultGrid({
                         onContextMenu={onContextMenu}
                       >
                         {cellText(value)}
+                        {said}
                       </td>
                     );
                   })}

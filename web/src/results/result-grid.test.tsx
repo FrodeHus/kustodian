@@ -729,7 +729,7 @@ describe('ResultGrid highlights', () => {
     );
     expect(marks(container)).toEqual([null, null, null]);
     expect([...container.querySelectorAll('tbody td[data-highlight]')].map((td) => td.getAttribute('data-highlight'))).toEqual(['warning']);
-    expect(container.querySelector('tbody td[data-highlight]')?.textContent).toBe('100');
+    expect(container.querySelector('tbody td[data-highlight]')?.textContent).toBe('100 (warning)');
   });
 
   it('shows a cell and a row rule together', () => {
@@ -744,6 +744,22 @@ describe('ResultGrid highlights', () => {
     expect(bodyRows(container)[0]!.querySelector('td[data-highlight="warning"]')).not.toBeNull();
   });
 
+  it('names the colour to screen readers in a highlighted row’s first cell and in each highlighted cell', () => {
+    const { container } = render(
+      <ResultGrid
+        columns={cols}
+        rows={data}
+        highlights={[rule({}), rule({ id: 'c', column: 'days', op: '>', value: '90', colour: 'warning', target: 'cell' })]}
+      />,
+    );
+    const notes = (tr: HTMLElement) => [...tr.querySelectorAll('.sr-only')].map((s) => s.textContent).filter((t) => t?.startsWith(' ('));
+    const [first, second, third] = bodyRows(container);
+    expect(notes(first!)).toEqual([' (danger)', ' (warning)']);
+    expect(first!.querySelector('td[data-highlight="warning"] .sr-only')?.textContent).toBe(' (warning)');
+    expect(notes(second!)).toEqual([]);
+    expect(notes(third!)).toEqual([' (danger)']);
+  });
+
   it('puts no attributes on a grid without rules', () => {
     const { container } = render(<ResultGrid columns={cols} rows={data} />);
     expect(container.querySelector('[data-highlight]')).toBeNull();
@@ -753,7 +769,9 @@ describe('ResultGrid highlights', () => {
     const { container } = render(<ResultGrid columns={cols} rows={data} highlights={[rule({})]} />);
     fireEvent.click(screen.getByRole('button', { name: /^days/ }));
     expect(marks(container)).toEqual(['danger', null, 'danger']);
-    expect(bodyRows(container).map((tr) => tr.textContent)).toEqual(['FAIL5', 'OK10', 'FAIL100'].map((t) => expect.stringContaining(t)));
+    expect(bodyRows(container).map((tr) => tr.textContent)).toEqual(
+      ['FAIL (danger)5', 'OK10', 'FAIL (danger)100'].map((t) => expect.stringContaining(t)),
+    );
     fireEvent.change(screen.getByRole('searchbox', { name: 'Filter rows' }), { target: { value: 'OK' } });
     expect(marks(container)).toEqual([null]);
   });
@@ -812,7 +830,16 @@ describe('ResultGrid highlight rules', () => {
 
   it('disables Highlight rows where … for a value over 1,000 characters', () => {
     const long = 'x'.repeat(1001);
-    const { container } = render(<ResultGrid columns={cols} rows={[[long, 3], ['x'.repeat(1000), 4]]} onHighlightsChange={vi.fn()} />);
+    const { container } = render(
+      <ResultGrid
+        columns={cols}
+        rows={[
+          [long, 3],
+          ['x'.repeat(1000), 4],
+        ]}
+        onHighlightsChange={vi.fn()}
+      />,
+    );
     const cells = container.querySelectorAll('tbody tr[data-index] td:nth-child(2)');
     fireEvent.contextMenu(cells[0]!);
     const item = screen.getByRole('menuitem', { name: /^Highlight rows where/ });
