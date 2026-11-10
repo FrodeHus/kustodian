@@ -471,6 +471,26 @@ body {
     height: auto !important;
     overflow: visible !important;
   }
-  .wb-printing button, .wb-printing [role='menu'] { display: none !important; }
-  .wb-widget { break-inside: avoid; }
+  /* No controls on paper: the parameter bar (a table of values prints instead), filter boxes and other fields. */
+  .wb-printing :is(button, [role='menu'], input, textarea, select, .param-bar), .screen-only { display: none !important; }
+  /* Widgets in one column at their own height; a Markdown widget, or a tabs widget (each tab under its name), as tall as its
+   * content, so nothing is cut off at the widget's edge. */
+  .wb-printing .wb-grid { display: flex; flex-direction: column; gap: 12px; }
+  /* No card around a widget on paper: its title and content print as plain sections. */
+  .wb-printing .wb-widget {
+    height: calc(var(--h) * 8px + (var(--h) - 1) * 12px);
+    break-inside: avoid;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: none !important;
+  }
+  .wb-printing .wb-widget:has(.md, .wb-print-tabs) { height: auto; }
+  .wb-printing .wb-widget:has(.wb-print-tabs) { break-inside: auto; }
+  .wb-printing .wb-widget:has(.md, .wb-print-tabs) > div, .wb-printing :is(.md, .wb-tabs) { flex: none; overflow: visible !important; }
+  /* A tab is a report section: a full-width heading over a thin rule. */
+  .wb-print-tab { margin: 18px 0 10px; padding-bottom: 4px; border-bottom: 1px solid var(--line); font-size: 15px; font-weight: 600; break-after: avoid; }
+}
+@media screen {
+  .print-only { display: none !important; }
 }

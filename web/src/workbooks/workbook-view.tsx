@@ -382,6 +382,21 @@ export function WorkbookView({ tabId, onSignIn, accountKey }: { tabId: string; o
   const undoRef = useRef<HTMLButtonElement>(null);
   // Table widgets open their row details here, over the whole workbook, as a query tab's results do.
   const [sheetHost, setSheetHost] = useState<HTMLDivElement | null>(null);
+  // Print or save as PDF: every tab of a tabs widget is rendered for print (print-only, so the screen doesn't change) until the
+  // print ends, or the next click where the host's print sheet doesn't say.
+  const [printing, setPrinting] = useState(false);
+  useEffect(() => {
+    if (!printing) {
+      return;
+    }
+    const end = () => setPrinting(false);
+    window.addEventListener('afterprint', end);
+    window.addEventListener('pointerdown', end);
+    return () => {
+      window.removeEventListener('afterprint', end);
+      window.removeEventListener('pointerdown', end);
+    };
+  }, [printing]);
   // Where focus goes once the next render is in (the toolbar swaps, a removed grip unmounts, Undo enables).
   const focusNext = useRef<(() => HTMLElement | null | undefined) | null>(null);
   useEffect(() => {
@@ -559,7 +574,7 @@ export function WorkbookView({ tabId, onSignIn, accountKey }: { tabId: string; o
       case 'stat':
         return <StatWidget widget={w} run={run} tabId={tabId} />;
       case 'tabs':
-        return <TabsWidget tabId={tabId} widget={w} editing={gridEditing} body={body} onSignIn={onSignIn} />;
+        return <TabsWidget tabId={tabId} widget={w} editing={gridEditing} body={body} onSignIn={onSignIn} printing={printing} />;
     }
   };
   const gridEditing: GridEditing | undefined = editing
@@ -647,10 +662,20 @@ export function WorkbookView({ tabId, onSignIn, accountKey }: { tabId: string; o
               type="button"
               role="menuitem"
               tabIndex={-1}
-              onClick={() => {
+              onClick={async () => {
                 // The print styles show only the marked workbook; other workbook tabs stay mounted, hidden.
                 document.querySelector('.wb-printing')?.classList.remove('wb-printing');
                 sheetHost?.classList.add('wb-printing');
+                setPrinting(true);
+                // Tabs not shown print too, so their widgets that haven't run, or show an out-of-date result, run first.
+                const s = store().byTab[tabId];
+                await Promise.all(
+                  (s?.doc.widgets ?? [])
+                    .filter((w) => w.in && w.query?.text.trim() && ((s!.runs[w.id]?.state ?? 'idle') === 'idle' || s!.stale[w.id]))
+                    .map((w) => store().runWidget(tabId, w.id)),
+                );
+                // The print-only tabs are rendered before the page is printed.
+                await new Promise(requestAnimationFrame);
                 // The macOS web view ignores window.print(), so the host prints there and answers true.
                 call<boolean>('app.print').then(
                   (native) => native || window.print(),
@@ -715,6 +740,27 @@ export function WorkbookView({ tabId, onSignIn, accountKey }: { tabId: string; o
       )}
       {doc.parameters.length > 0 && (
         <ParameterBar tabId={tabId} parameters={doc.parameters} values={values.workbook} collapsed={paramsCollapsed} />
+      )}
+      {doc.parameters.length > 0 && (
+        // Print shows the parameters as a table of their values in place of the bar's controls.
+        <div className="md print-only px-3 pt-3 text-[12.5px]">
+          <table aria-label="Workbook parameters">
+            <thead>
+              <tr>
+                <th>Parameter</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {doc.parameters.map((p) => (
+                <tr key={p.name}>
+                  <td>{p.label ?? p.name}</td>
+                  <td className="mono whitespace-pre-wrap">{shownValue(p, values.workbook[p.name] ?? p.value)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       <SheetHost.Provider value={sheetHost}>
         <div className="wb-canvas min-h-0 flex-1 overflow-auto p-3">
