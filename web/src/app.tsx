@@ -863,7 +863,11 @@ export function App() {
                   >
                     <EditorFailed>
                       <Suspense fallback={<p className="faint m-0 p-4 text-[12px]">Loading the editor…</p>}>
-                        <KqlEditor ref={editor} schemas={schemas} onRun={(mode) => runActive(mode)} />
+                        <KqlEditor
+                          ref={editor}
+                          schemas={schemas}
+                          onRun={(mode) => !lacksWorkspace(active) && void useTabs.getState().run(active.id, mode)}
+                        />
                       </Suspense>
                     </EditorFailed>
                   </div>
