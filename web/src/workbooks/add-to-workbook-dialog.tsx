@@ -21,11 +21,29 @@ const NEW = '';
 // The list's widget count, so no workbook is read to know.
 const full = (w: WorkbookSummary) => w.widgets >= MAX_WIDGETS;
 
+/** The workbooks as the dialog shows them: no folder first, then by folder, each by name. */
+function byFolder(workbooks: WorkbookSummary[]): { folder: string | null; workbooks: WorkbookSummary[] }[] {
+  const sorted = [...workbooks].sort((a, b) => a.name.localeCompare(b.name));
+  return [null, ...new Set(sorted.map((w) => w.folder).filter((f): f is string => !!f))]
+    .sort((a, b) => (a === null ? -1 : b === null ? 1 : a.localeCompare(b)))
+    .map((f) => ({ folder: f, workbooks: sorted.filter((w) => (w.folder || null) === f) }))
+    .filter((g) => g.workbooks.length > 0);
+}
+
 /**
  * Adds a query tab's query to a workbook, an existing one or a new one, as a Table, Chart or Stat widget. `onNotice` gets what
  * the add has to say once it's done (it went into unsaved changes). A failure shows in the dialog, which stays open.
  */
-export function AddToWorkbookDialog({ tab, onClose, onNotice }: { tab: Tab; onClose: () => void; onNotice?: (text: string) => void }) {
+export function AddToWorkbookDialog({
+  tab,
+  onClose,
+  onNotice,
+}: {
+  tab: Tab;
+  onClose: () => void;
+  /** Null when an add starts, so the last add's notice goes. */
+  onNotice?: (text: string | null) => void;
+}) {
   const view = useTabs((s) => s.resultViews[tab.id]);
   const [list, setList] = useState<WorkbookList | null>(null);
   const [search, setSearch] = useState('');
@@ -67,7 +85,14 @@ export function AddToWorkbookDialog({ tab, onClose, onNotice }: { tab: Tab; onCl
       (l) => {
         if (live) {
           setList(l);
-          setChosen((c) => c ?? l.workbooks.find((w) => !full(w))?.id ?? NEW);
+          setChosen(
+            (c) =>
+              c ??
+              byFolder(l.workbooks)
+                .flatMap((g) => g.workbooks)
+                .find((w) => !full(w))?.id ??
+              NEW,
+          );
         }
       },
       (e: unknown) => {
@@ -85,20 +110,19 @@ export function AddToWorkbookDialog({ tab, onClose, onNotice }: { tab: Tab; onCl
   }, []);
 
   const needle = search.trim().toLowerCase();
-  const shown = (list?.workbooks ?? [])
-    .filter((w) => !needle || w.name.toLowerCase().includes(needle))
-    .sort((a, b) => a.name.localeCompare(b.name));
-  const groups = [null, ...new Set(shown.map((w) => w.folder).filter((f): f is string => !!f))]
-    .sort((a, b) => (a === null ? -1 : b === null ? 1 : a.localeCompare(b)))
-    .map((f) => ({ folder: f, workbooks: shown.filter((w) => (w.folder || null) === f) }))
-    .filter((g) => g.workbooks.length > 0);
-  const existing = list?.workbooks.find((w) => w.id === chosen);
+  const shown = (list?.workbooks ?? []).filter((w) => !needle || w.name.toLowerCase().includes(needle));
+  const groups = byFolder(shown);
+  // A workbook the search hides counts as not chosen, so Enter can't add to it.
+  const existing = shown.find((w) => w.id === chosen);
   const ready = chosen === NEW ? !!name.trim() : !!existing && !full(existing);
 
   const radio = (w: WorkbookSummary) => (
     <label key={w.id} className="flex min-h-[32px] items-center gap-2.5 px-1.5" title={full(w) ? 'This workbook is full' : undefined}>
       <input type="radio" name={`${id}-workbook`} disabled={full(w)} checked={chosen === w.id} onChange={() => setChosen(w.id)} />
-      <span className={`truncate ${full(w) ? 'faint' : ''}`}>{w.name}</span>
+      <span className={`truncate ${full(w) ? 'faint' : ''}`}>
+        {w.name}
+        {full(w) && ' (full)'}
+      </span>
     </label>
   );
 
@@ -128,6 +152,7 @@ export function AddToWorkbookDialog({ tab, onClose, onNotice }: { tab: Tab; onCl
               : { kind: 'existing' as const, id: existing!.id, name: existing!.name };
           setBusy(true);
           setError(null);
+          onNotice?.(null);
           closing.current = true;
           applyAdd(target, widgetFromTab(tab, kind, title.trim() || tab.title, view?.chart), tab.parameters).then(
             ({ notice }) => {

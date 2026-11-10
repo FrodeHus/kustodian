@@ -35,18 +35,27 @@ const tabOf = (over: Partial<Tab> = {}): Tab =>
     dirty: false,
     parameters: [],
     history: [],
-    run: { state: 'done', runId: 'r', startedAt: 0, origin: { line: 1, column: 1 }, kql: 'x', result: result([['n', 'long']], [[1], [2]]) },
+    run: {
+      state: 'done',
+      runId: 'r',
+      startedAt: 0,
+      origin: { line: 1, column: 1 },
+      kql: 'SignIns | take 5',
+      result: result([['n', 'long']], [[1], [2]]),
+    },
     ...over,
   }) as Tab;
 
 const onClose = vi.fn();
+const onNotice = vi.fn();
 function open(tab = tabOf()) {
-  return render(<AddToWorkbookDialog tab={tab} onClose={onClose} />);
+  return render(<AddToWorkbookDialog tab={tab} onClose={onClose} onNotice={onNotice} />);
 }
 const addButton = () => screen.getByRole('button', { name: 'Add' }) as HTMLButtonElement;
 
 beforeEach(() => {
   onClose.mockReset();
+  onNotice.mockReset();
   applyAdd.mockReset();
   bridge.call.mockReset();
   bridge.call.mockImplementation((method: string) =>
@@ -82,6 +91,8 @@ describe('AddToWorkbookDialog', () => {
         .getAllByRole('radio')
         .map((r) => r.closest('label')!.textContent),
     ).toEqual(['Audit', 'Ops']);
+    // The first workbook shown that isn't full, not the host's first.
+    expect((screen.getByRole('radio', { name: 'Loose' }) as HTMLInputElement).checked).toBe(true);
     expect(screen.getByRole('radio', { name: 'Loose' })).toBeTruthy();
     fireEvent.change(screen.getByRole('searchbox', { name: 'Find a workbook' }), { target: { value: 'op' } });
     expect(screen.getByRole('radio', { name: 'Ops' })).toBeTruthy();
@@ -92,9 +103,28 @@ describe('AddToWorkbookDialog', () => {
 
   it('disables a full workbook and says why', async () => {
     open();
-    const big = (await screen.findByRole('radio', { name: 'Big' })) as HTMLInputElement;
+    const big = (await screen.findByRole('radio', { name: 'Big (full)' })) as HTMLInputElement;
     expect(big.disabled).toBe(true);
     expect(big.closest('label')!.title).toBe('This workbook is full');
+  });
+
+  it('adds nothing when the search hides the chosen workbook', async () => {
+    open();
+    await screen.findByRole('radio', { name: 'Ops' });
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find a workbook' }), { target: { value: 'audit' } });
+    expect(addButton().disabled).toBe(true);
+    fireEvent.submit(screen.getByRole('dialog'));
+    expect(applyAdd).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find a workbook' }), { target: { value: '' } });
+    expect((screen.getByRole('radio', { name: 'Loose' }) as HTMLInputElement).checked).toBe(true);
+    expect(addButton().disabled).toBe(false);
+  });
+
+  it('defaults to New when every workbook is full', async () => {
+    bridge.call.mockResolvedValue({ workbooks: [summary('d', 'Big', null, MAX_WIDGETS)], folders: [], skipped: 0 });
+    open();
+    await screen.findByRole('radio', { name: 'Big (full)' });
+    expect((screen.getByRole('radio', { name: 'New workbook' }) as HTMLInputElement).checked).toBe(true);
   });
 
   it('needs a name for a new workbook before Add', async () => {
@@ -151,6 +181,25 @@ describe('AddToWorkbookDialog', () => {
     open(tabOf({ savedId: 's' }));
     expect(screen.queryByText('Save the query first to link it.')).toBeNull();
     await screen.findByRole('radio', { name: 'Ops' });
+  });
+
+  it('says to save first, and copies the block, when the run was one of two blocks', async () => {
+    applyAdd.mockResolvedValue({});
+    open(tabOf({ savedId: 's', text: 'Other | take 1\n\nSignIns | take 5' }));
+    expect(screen.getByText('Save the query first to link it.')).toBeTruthy();
+    fireEvent.click(await screen.findByRole('radio', { name: 'Ops' }));
+    fireEvent.click(addButton());
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(applyAdd.mock.calls[0]![1]).toMatchObject({ query: { text: 'SignIns | take 5', saved: null } });
+  });
+
+  it('clears the last add’s notice when an add starts', async () => {
+    applyAdd.mockResolvedValue({ notice: 'Added to your unsaved changes in Ops.' });
+    open();
+    fireEvent.click(await screen.findByRole('radio', { name: 'Ops' }));
+    fireEvent.click(addButton());
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(onNotice.mock.calls).toEqual([[null], ['Added to your unsaved changes in Ops.']]);
   });
 
   it('cancels on Esc', async () => {
