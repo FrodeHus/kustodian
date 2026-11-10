@@ -91,14 +91,14 @@ interface Built {
 
 /**
  * One axis from the keys seen (first-seen order) and the total of each. Date, number and timespan keys go ascending, with
- * regular gaps filled; text keys keep first-seen order (`byTotal` ranks them busiest first) and past `cap` the rest merge into
+ * regular gaps filled; text keys keep first-seen order (`byTotal` ranks them busiest first; either way the busiest `cap` survive) and past `cap` the rest merge into
  * Other. `limit` keeps the latest slots of an ordered axis.
  */
 function buildAxis(
   column: ResultColumn,
   seen: string[],
   totals: Map<string, number>,
-  opts: { byTotal: boolean; cap: number; limit: number },
+  opts: { byTotal: boolean; cap: number; limit: number; fill: boolean },
 ): Built {
   const kind: AxisKind = column.type === 'datetime' ? 'datetime' : isNumeric(column) || column.type === 'timespan' ? 'ordered' : 'text';
   const slot = new Map<string, number>();
@@ -106,9 +106,10 @@ function buildAxis(
   let labels: string[] | undefined;
   let note: string | null = null;
   if (kind === 'text') {
-    let kept = opts.byTotal ? [...seen].sort((a, b) => (totals.get(b) ?? 0) - (totals.get(a) ?? 0)) : seen;
+    const busiest = [...seen].sort((a, b) => (totals.get(b) ?? 0) - (totals.get(a) ?? 0));
+    let kept = opts.byTotal ? busiest : seen;
     if (kept.length > opts.cap) {
-      const top = new Set(kept.slice(0, opts.cap));
+      const top = new Set(busiest.slice(0, opts.cap));
       kept = kept.filter((k) => top.has(k));
       note = `Showing the ${opts.cap} busiest of ${seen.length} ${column.name} values. The rest are in Other.`;
     }
@@ -127,8 +128,8 @@ function buildAxis(
     const nums = real.map((k) => order.get(k) ?? 0);
     const unique = [...new Set(nums)];
     let step = 0;
-    if (unique.length > 1 && real.length === sorted.length) {
-      const min = Math.min(...unique.slice(1).map((n, i) => n - (unique[i] ?? 0)));
+    if (opts.fill && unique.length > 1 && real.length === sorted.length) {
+      const min = unique.slice(1).reduce((m, n, i) => Math.min(m, n - (unique[i] ?? 0)), Number.POSITIVE_INFINITY);
       const regular = unique.every((n) => (n - (unique[0] ?? 0)) % min === 0);
       const span = ((unique.at(-1) ?? 0) - (unique[0] ?? 0)) / min;
       if (
@@ -225,8 +226,13 @@ export function heatmapData(columns: ResultColumn[], rows: Row[], spec: ChartSpe
       pairs.push({ r, c, v });
     }
   }
-  const rowAxis = buildAxis(rowColumn, rowSeen, rowTotals, { byTotal: true, cap: HEATMAP_ROW_CAP, limit: Infinity });
-  const colAxis = buildAxis(colColumn, colSeen, colTotals, { byTotal: false, cap: HEATMAP_TEXT_COLUMN_CAP, limit: HEATMAP_COLUMN_LIMIT });
+  const rowAxis = buildAxis(rowColumn, rowSeen, rowTotals, { byTotal: true, cap: HEATMAP_ROW_CAP, limit: Infinity, fill: false });
+  const colAxis = buildAxis(colColumn, colSeen, colTotals, {
+    byTotal: false,
+    cap: HEATMAP_TEXT_COLUMN_CAP,
+    limit: HEATMAP_COLUMN_LIMIT,
+    fill: true,
+  });
   const cells: (HeatmapCell | null)[][] = rowAxis.axis.keys.map(() => colAxis.axis.keys.map(() => null));
   for (const { r, c, v } of pairs) {
     const line = cells[rowAxis.slot.get(r) ?? -1];
@@ -236,13 +242,22 @@ export function heatmapData(columns: ResultColumn[], rows: Row[], spec: ChartSpe
       line[at] = { value: (cell?.value ?? 0) + v, rows: (cell?.rows ?? 0) + 1 };
     }
   }
-  const values = cells.flat().flatMap((c) => (c ? [c.value] : []));
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+  for (const line of cells) {
+    for (const cell of line) {
+      if (cell) {
+        min = Math.min(min, cell.value);
+        max = Math.max(max, cell.value);
+      }
+    }
+  }
   return {
     rows: rowAxis.axis,
     columns: colAxis.axis,
     cells,
-    min: values.length > 0 ? Math.min(...values) : 0,
-    max: values.length > 0 ? Math.max(...values) : 0,
+    min: Number.isFinite(min) ? min : 0,
+    max: Number.isFinite(max) ? max : 0,
     notes: [rowAxis.note, colAxis.note].filter((n): n is string => n !== null),
   };
 }

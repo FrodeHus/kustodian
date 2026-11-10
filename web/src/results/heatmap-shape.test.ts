@@ -71,6 +71,37 @@ describe('heatmapData', () => {
     expect(heatmapData(cols('string', 'string'), [], spec())).toMatchObject({ min: 0, max: 0, cells: [] });
   });
 
+  it('heatmap_data_missing_pair_is_empty', () => {
+    const d = heatmapData(
+      cols('string', 'string'),
+      [
+        ['a', 'x', 1],
+        ['b', 'y', 1],
+      ],
+      spec(),
+    );
+    expect(d.cells).toEqual([
+      [{ value: 1, rows: 1 }, null],
+      [null, { value: 1, rows: 1 }],
+    ]);
+  });
+
+  it('heatmap_data_does_not_fill_row_gaps', () => {
+    const h = hours(5);
+    const d = heatmapData(
+      [col('c', 'string'), col('r', 'datetime'), col('v', 'long')],
+      [h[0], h[1], h[4]].map((t) => ['x', t, 1]),
+      spec(),
+    );
+    expect(d.rows.keys).toEqual([h[0], h[1], h[4]]);
+  });
+
+  it('heatmap_data_shapes_a_large_grid', () => {
+    const rows = Array.from({ length: 100 * 2000 }, (_, i) => [Math.floor(i / 2000), i % 2000, 1]);
+    const d = heatmapData(cols('int', 'int'), rows, spec());
+    expect([d.rows.keys.length, d.columns.keys.length, d.max]).toEqual([100, 2000, 1]);
+  });
+
   it('heatmap_data_orders_axes', () => {
     const d = heatmapData(
       cols('string', 'int'),
@@ -180,6 +211,7 @@ describe('heatmapData', () => {
     const d = heatmapData(cols('string', 'string'), rows, spec());
     expect(d.columns.keys).toHaveLength(51);
     expect(d.columns.labels.at(-1)).toBe('Other');
+    expect(d.columns.keys.slice(0, 50)).toEqual(Array.from({ length: 50 }, (_, i) => `c${i + 10}`));
     expect(d.notes).toEqual(['Showing the 50 busiest of 60 c values. The rest are in Other.']);
   });
 
@@ -199,6 +231,7 @@ describe('heatmapData', () => {
     );
     expect(far.columns.keys).toHaveLength(2000);
     expect(far.columns.keys.at(-1)).toBe(hours(1, 3000)[0]);
+    expect(far.notes).toEqual(['Showing the latest 2,000 of 3,001 c columns. Use a larger bin() to see them all.']);
   });
 
   it('heatmap_data_null_axis_values', () => {
