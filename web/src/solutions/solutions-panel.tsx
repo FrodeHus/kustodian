@@ -141,7 +141,7 @@ export function SolutionsPanel() {
           onChange={(e) => setSource(e.target.value)}
         >
           <option value="">All sources</option>
-          {(['graph', 'hunting', 'arg'] as const).map((s) => (
+          {(['graph', 'hunting', 'arg', 'logs'] as const).map((s) => (
             <option key={s} value={s}>
               {SOURCES[s].name}
             </option>

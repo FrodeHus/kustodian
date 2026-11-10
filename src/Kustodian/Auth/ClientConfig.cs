@@ -4,6 +4,7 @@ public enum Audience
 {
     Graph,
     Arm,
+    LogAnalytics,
 }
 
 public static class AudienceScopes
@@ -12,6 +13,7 @@ public static class AudienceScopes
     {
         Audience.Graph => "https://graph.microsoft.com/.default",
         Audience.Arm => "https://management.azure.com/.default",
+        Audience.LogAnalytics => "https://api.loganalytics.io/.default",
         _ => throw new ArgumentOutOfRangeException(nameof(audience), audience, null),
     };
 }

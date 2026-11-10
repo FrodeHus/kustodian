@@ -223,7 +223,7 @@ public class HuntingQuerySourceTests
     [InlineData("Unexpected token at line 4, position 9", 4, 9)]
     public void Hunting_error_positions_are_parsed(string message, int line, int column)
     {
-        Assert.Equal((line, column), HuntingClient.Position(message));
+        Assert.Equal((line, column), KustoPosition.Of(message));
     }
 
     [Fact]

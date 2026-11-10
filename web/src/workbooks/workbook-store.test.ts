@@ -262,6 +262,18 @@ describe('workbook store', () => {
     await expect(runDraft('t', widget('a', ''))).rejects.toThrow('No query yet.');
   });
 
+  it('a logs widget with no workspace asks for one and does not run', async () => {
+    const logs = widget('a', 'Heartbeat');
+    logs.query = { ...logs.query!, source: 'logs', options: { timespan: null, scope: null, workspaces: null } };
+    void useWorkbooks.getState().load('t', docOf([], [logs, widget('b', 'users')]));
+    await flush();
+    expect(tab().runs.a).toMatchObject({
+      state: 'done',
+      result: { outcome: 'workspaceUnavailable', message: 'Pick a workspace before running.' },
+    });
+    expect(runs.map((r) => r.params.tabId)).toEqual(['t/b']);
+  });
+
   it('a widget missing a required value is blocked and not sent', async () => {
     const doc = docOf([wbParam('Name', '', { required: true })], [widget('a', 'T {Name}'), widget('b', 'users')]);
     void useWorkbooks.getState().load('t', doc);

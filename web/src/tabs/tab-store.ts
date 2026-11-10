@@ -16,6 +16,7 @@ import type {
   Source,
   TabSource,
 } from '../wire';
+import { memoryAccount, rememberedLogsWorkspace } from '../toolbar/workspace-memory';
 import { newWorkbook, type WorkbookDoc } from '../workbooks/model';
 
 export type { Source, TabSource } from '../wire';
@@ -75,6 +76,9 @@ export function runParameters(tab: Pick<Tab, 'text' | 'parameters'>): ParameterV
 /** The timespan an advanced hunting run sends when the tab has none: Microsoft keeps 30 days. */
 export const DEFAULT_TIMESPAN = 'P30D';
 
+/** A new Log Analytics tab's timespan: a day, so a first run reads little. */
+export const LOGS_TIMESPAN = 'P1D';
+
 /** The options a run of the tab sends: advanced hunting's timespan or Resource Graph's scope, with the source's default when the
  * tab has none (P30D; "all I can see"); the other source's part is left out. Graph sends none. */
 export function runOptions(tab: Pick<Tab, 'source' | 'options'>): QueryOptions | undefined {
@@ -83,6 +87,8 @@ export function runOptions(tab: Pick<Tab, 'source' | 'options'>): QueryOptions |
       return { timespan: tab.options?.timespan ?? DEFAULT_TIMESPAN, scope: null, workspaces: tab.options?.workspaces ?? null };
     case 'arg':
       return { timespan: null, scope: tab.options?.scope ?? { kind: 'all', ids: [] } };
+    case 'logs':
+      return { timespan: tab.options?.timespan ?? LOGS_TIMESPAN, scope: null, workspaces: tab.options?.workspaces ?? null };
     default:
       return undefined;
   }
@@ -285,7 +291,12 @@ export const useTabs = create<TabsState>()((set, get) => {
       while (used.has(`Query ${n}`)) {
         n++;
       }
-      return get().openWith({ source, title: `Query ${n}`, text: '' });
+      const account = memoryAccount();
+      const options: QueryOptions | undefined =
+        source === 'logs'
+          ? { timespan: LOGS_TIMESPAN, scope: null, workspaces: account ? rememberedLogsWorkspace(account) : null }
+          : undefined;
+      return get().openWith({ source, title: `Query ${n}`, text: '', options });
     },
 
     openWith({ source, title, text, savedId, filePath, parameters, raw, options }) {

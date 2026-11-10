@@ -158,6 +158,7 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
                 result = new RunResult(RunOutcome.ConsentNeeded, consent.Message, null, [], [], 0, [], _time.GetUtcNow() - started)
                 {
                     RunId = new RunDiagnostics(_time, p.RunId).RunId,
+                    ConsentAudience = consent.Audience,
                 };
             }
 

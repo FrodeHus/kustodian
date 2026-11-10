@@ -133,6 +133,20 @@ describe('widgetRunOptions', () => {
     expect(widgetRunOptions(doc, w, none)).toEqual({ timespan: 'P7D', scope: null, workspaces: [ws] });
   });
 
+  it('a 90-day workbook timespan is fine for a logs widget, and 800 days is a problem', () => {
+    const w = widget('Heartbeat', { source: 'logs', options: { timespan: null, scope: null, workspaces: [ws] } });
+    const doc = docOf([hp], [w]);
+    expect(widgetRunOptions(doc, w, { workbook: { TimeRange: '90d' }, widgets: {} })).toEqual({
+      timespan: 'P90D',
+      scope: null,
+      workspaces: [ws],
+    });
+    expect(widgetRunOptions(doc, w, { workbook: { TimeRange: '800d' }, widgets: {} })).toEqual({
+      problem: 'TimeRange: at most 730 days for Log Analytics.',
+    });
+    expect(widgetsUsing(doc, 'TimeRange')).toEqual([w.id]);
+  });
+
   it('ninety_days_suits_a_widget_with_a_workspace_only', () => {
     const plain = widget('T | take 1', { source: 'hunting' });
     const withWs = widget('T | take 1', { source: 'hunting', options: { timespan: null, scope: null, workspaces: [ws] } });

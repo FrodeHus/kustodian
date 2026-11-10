@@ -3,7 +3,7 @@
 import type { WorkbookDoc } from './workbooks/model';
 
 /** `raw` is the raw Graph request tab (Task 12); it never runs KQL. */
-export type Source = 'graph' | 'hunting' | 'arg' | 'raw';
+export type Source = 'graph' | 'hunting' | 'arg' | 'logs' | 'raw';
 
 /** What a tab is: a query of a source, or a workbook (which runs its widgets' queries, never its own). */
 export type TabSource = Source | 'workbook';
@@ -172,6 +172,8 @@ export interface RunResult {
   permissions: string[];
   /** The plain 8-character ID of the error report a failed run made, if it made one. */
   reportId?: string;
+  /** Whose token needs consent (outcome `consentNeeded`). */
+  consentAudience?: 'arm' | 'logs';
 }
 
 /** One line of a run's diagnostics log. A request's `detail` is its method and URL relative to the Graph version. */
@@ -714,7 +716,7 @@ export interface HistorySetting {
 
 /** What a run asked: history is filed under this, so a changed query starts a new series. */
 export interface HistoryQuery {
-  source: 'graph' | 'hunting' | 'arg';
+  source: 'graph' | 'hunting' | 'arg' | 'logs';
   text: string;
   options: QueryOptions | null;
   /** `type` is part of the series: another type writes the value into the query differently. */

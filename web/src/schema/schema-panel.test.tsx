@@ -454,4 +454,49 @@ describe('SchemaPanel', () => {
     render(<SchemaPanel source="hunting" schema={hunting} licenses={licenses} text="DeviceEvents" onInsert={() => undefined} />);
     expect(screen.queryByText('L')).toBeNull();
   });
+
+  it('the_panel_says_pick_a_workspace_without_one', () => {
+    render(<SchemaPanel source="logs" schema={undefined} text="" onInsert={() => undefined} />);
+    expect(screen.getByText('Pick a workspace to see its tables.')).toBeTruthy();
+    expect((screen.getByRole('searchbox', { name: 'Find a table or column' }) as HTMLInputElement).placeholder).toBe('No schema');
+  });
+
+  it('the_panel_shows_the_reason_when_the_schema_couldnt_be_read', () => {
+    const unread: SchemaView = {
+      ...view,
+      source: 'logs',
+      tables: [],
+      functions: [],
+      fallbackReason: "contoso-logs's tables couldn't be read.",
+    };
+    render(<SchemaPanel source="logs" workspace="contoso-logs" schema={unread} text="" onInsert={() => undefined} />);
+    expect(screen.getByText("contoso-logs's tables couldn't be read.")).toBeTruthy();
+  });
+
+  it('a_logs_schema_that_needs_consent_offers_the_grant_and_reads_again', async () => {
+    bridge.call.mockImplementation((method: string) => Promise.resolve(method === 'schema.get' ? { ...view, source: 'logs' } : {}));
+    const id = useTabs.getState().open('logs');
+    useTabs.getState().setOptions(id, {
+      timespan: 'P1D',
+      scope: null,
+      workspaces: [{ customerId: 'aaa', name: 'w', resourceId: '/x' }],
+    });
+    render(
+      <SchemaPanel
+        source="logs"
+        workspace="w"
+        schema={undefined}
+        error="Needs consent."
+        consentNeeded
+        accountKey="k1"
+        text=""
+        onInsert={() => undefined}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Grant Log Analytics access' }));
+
+    await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('schema.get', { source: 'logs', workspace: 'aaa', refresh: false }));
+    expect(bridge.call).toHaveBeenCalledWith('account.consent', { key: 'k1', audience: 'logs' });
+  });
 });

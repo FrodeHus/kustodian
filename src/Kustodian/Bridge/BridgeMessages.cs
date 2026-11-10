@@ -95,10 +95,11 @@ public sealed class RunResultConverter : JsonConverter<RunResult>
     public override void Write(Utf8JsonWriter writer, RunResult value, JsonSerializerOptions options) =>
         JsonSerializer.Serialize(writer, new RunResultWire(value.Outcome, value.Message, value.Error, value.Columns, value.Rows,
             value.Total, value.Tables, (long)Math.Round(value.Duration.TotalMilliseconds), value.DroppedValues, value.RunId,
-            value.Diagnostics, value.Permissions, value.ReportId), options);
+            value.Diagnostics, value.Permissions, value.ReportId, value.ConsentAudience), options);
 
     private sealed record RunResultWire(RunOutcome Outcome, string? Message, GraphQueryError? Error,
         IReadOnlyList<EngineColumn> Columns, IReadOnlyList<JsonElement[]> Rows, int Total, IReadOnlyList<TableFetch> Tables,
         long DurationMs, int DroppedValues, string RunId, IReadOnlyList<DiagnosticEntry> Diagnostics,
-        IReadOnlyList<string> Permissions, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ReportId);
+        IReadOnlyList<string> Permissions, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ReportId,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ConsentAudience);
 }

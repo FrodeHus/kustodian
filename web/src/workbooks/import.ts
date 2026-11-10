@@ -100,7 +100,7 @@ export interface ImportSummary {
   linked: number;
 }
 
-const SOURCE_ORDER: Source[] = ['graph', 'hunting', 'arg'];
+const SOURCE_ORDER: Source[] = ['graph', 'hunting', 'arg', 'logs'];
 
 export function importSummary(doc: WorkbookDoc): ImportSummary {
   const used = new Set<string | undefined>(doc.widgets.map((w) => w.query?.source));

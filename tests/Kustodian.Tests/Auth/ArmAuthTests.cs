@@ -153,6 +153,7 @@ public sealed class ArmAuthTests : IDisposable
         await SendForAccountAsync(client, "https://management.azure.com.evil.example/x", leak: true);
         await SendForAccountAsync(client, "http://management.azure.com/x", leak: true);
         await SendForAccountAsync(client, "https://graph.microsoft.com/beta/x", leak: true);
+        await SendForAccountAsync(client, "https://management.azure.com:8443/x", leak: true);
 
         Assert.Equal("Bearer arm-tok", inner.Seen[0]);
         Assert.Equal("Bearer arm-tok", inner.Seen[1]);
@@ -365,6 +366,23 @@ public sealed class ArmAuthTests : IDisposable
         Assert.Single(arg.Requests);
         var recorded = Assert.Single(await recent.ListAsync(Ct));
         Assert.Equal(("arg", "resources", "consentNeeded"), (recorded.Source, recorded.Text, recorded.Outcome));
+    }
+
+    [Theory]
+    [InlineData("arm")]
+    [InlineData("logs")]
+    public async Task Consent_needed_carries_the_audience(string audience)
+    {
+        var source = new FakeSource("arg", (_, _, _, _, _, _, _) => throw new ConsentRequiredException(audience));
+        var bridge = new Messaging.Bridge(_ => { });
+        new QueryHandler(GraphSchemaCatalog.Beta, () => Task.FromResult<string?>("acct-1"), FakeSource.Map(source), null)
+            .Register(bridge);
+
+        var reply = await Send(bridge, "query.run", new { tabId = "t1", source = "arg", kql = "resources", refresh = false, runId = RunId });
+
+        var result = reply.GetProperty("result");
+        Assert.Equal("consentNeeded", result.GetProperty("outcome").GetString());
+        Assert.Equal(audience, result.GetProperty("consentAudience").GetString());
     }
 
     [Fact]
@@ -750,6 +768,116 @@ public sealed class ArmAuthTests : IDisposable
         Assert.Single(clients.For(ClientConfig.GraphCli).Interactive);
     }
 
+    [Fact]
+    public void Logs_scope() => Assert.Equal("https://api.loganalytics.io/.default", Audience.LogAnalytics.ScopeFor());
+
+    [Fact]
+    public async Task Logs_token_only_to_the_logs_host()
+    {
+        var tokens = new FixedTokens("logs-tok");
+        var inner = new RecordingHandler();
+        using var client = new HttpClient(new LogsAuthHandler(tokens) { InnerHandler = inner });
+
+        await SendForAccountAsync(client, "https://api.loganalytics.azure.com/v1/workspaces/w/query");
+        await SendForAccountAsync(client, "https://management.azure.com/x", leak: true);
+        await SendForAccountAsync(client, "https://api.loganalytics.io/v1/x", leak: true);
+        await SendForAccountAsync(client, "http://api.loganalytics.azure.com/v1/x", leak: true);
+        await SendForAccountAsync(client, "https://evil.example/x", leak: true);
+        await SendForAccountAsync(client, "https://api.loganalytics.azure.com:8443/v1/x", leak: true);
+
+        Assert.Equal("Bearer logs-tok", inner.Seen[0]);
+        Assert.All(inner.Seen.Skip(1), a => Assert.Null(a));
+        Assert.Equal([(Audience.LogAnalytics, "acct-1")], tokens.AskedFor);
+    }
+
+    [Fact]
+    public async Task Logs_request_without_account_throws_SignInRequired()
+    {
+        var tokens = new FixedTokens("logs-tok");
+        using var client = new HttpClient(new LogsAuthHandler(tokens) { InnerHandler = new RecordingHandler() });
+
+        await Assert.ThrowsAsync<SignInRequiredException>(() =>
+            client.GetAsync("https://api.loganalytics.azure.com/v1/x", Ct));
+
+        Assert.Empty(tokens.AskedFor);
+    }
+
+    [Fact]
+    public void Logs_client_does_not_follow_redirects()
+    {
+        var tokens = new FixedTokens("logs-tok");
+
+        var handler = LogsHttp.CreateHandler(tokens);
+        using var client = LogsHttp.CreateClient(tokens);
+
+        var auth = Assert.IsType<LogsAuthHandler>(handler);
+        var diagnostics = Assert.IsType<DiagnosticsHandler>(auth.InnerHandler);
+        Assert.False(Assert.IsType<SocketsHttpHandler>(diagnostics.InnerHandler).AllowAutoRedirect);
+        Assert.Equal(new Uri("https://api.loganalytics.azure.com/"), client.BaseAddress);
+        handler.Dispose();
+    }
+
+    [Fact]
+    public async Task GraphCli_account_gets_logs_tokens_from_the_Azure_CLI_client()
+    {
+        var clients = new MsalPerClient();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
+        clients.For(ClientConfig.AzureCli).Cache(ArmMsal.Ada);
+
+        Assert.Equal("azure-cli:logs-token", await service.GetTokenAsync(account.Key, Audience.LogAnalytics, Ct));
+
+        Assert.DoesNotContain(clients.For(ClientConfig.GraphCli).Silent, s => s.Scope == Audience.LogAnalytics.ScopeFor());
+    }
+
+    [Fact]
+    public async Task GraphCli_account_logs_consent_asks_the_Azure_CLI_client_for_the_logs_scope()
+    {
+        var clients = new MsalPerClient();
+        var service = new AccountService(clients.Create, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.GraphCli, Ct);
+
+        await service.ConsentAsync(account.Key, Audience.LogAnalytics, Ct);
+
+        Assert.Equal(("https://api.loganalytics.io/.default", "ada@contoso.com", false), clients.For(ClientConfig.AzureCli).Interactive[^1]);
+        Assert.DoesNotContain(clients.For(ClientConfig.GraphCli).Interactive, i => i.Scope == Audience.LogAnalytics.ScopeFor());
+    }
+
+    [Fact]
+    public async Task Logs_ui_required_is_consent_for_logs()
+    {
+        var msal = new ArmMsal { LogsNeedsUi = true };
+        var service = new AccountService(_ => msal, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.AzureCli, Ct);
+
+        var consent = await Assert.ThrowsAsync<ConsentRequiredException>(() => service.GetTokenAsync(account.Key, Audience.LogAnalytics, Ct));
+        Assert.Equal("logs", consent.Audience);
+        Assert.Equal(ConsentRequiredException.LogsMessage, consent.Message);
+
+        msal.LogsUiFailure = new MsalUiRequiredException("invalid_grant", "AADSTS700082: The refresh token has expired.");
+        await Assert.ThrowsAsync<SignInRequiredException>(() => service.GetTokenAsync(account.Key, Audience.LogAnalytics, Ct));
+        Assert.False(Assert.Single(await service.ListAccountsAsync()).Expired);
+    }
+
+    [Fact]
+    public async Task Consent_and_refresh_accept_logs()
+    {
+        var msal = new ArmMsal();
+        var service = new AccountService(_ => msal, new JsonFileStore(_dir));
+        var account = await service.SignInInteractiveAsync(ClientConfig.AzureCli, Ct);
+        var bridge = new Messaging.Bridge(_ => { });
+        new AccountHandler(service, new MemoryOnly("x"), new MemoryGraphObjectCache(TimeProvider.System), NoGraphProbeCache.Instance).Register(bridge);
+
+        var consent = await Send(bridge, "account.consent", new { key = account.Key, audience = "logs" });
+        var refresh = await Send(bridge, "account.refresh", new { key = account.Key, audience = "logs" });
+        var unknown = await Send(bridge, "account.consent", new { key = account.Key, audience = "nope" });
+
+        Assert.False(consent.TryGetProperty("error", out _));
+        Assert.False(refresh.TryGetProperty("error", out _));
+        Assert.Contains(msal.Interactive, i => i.Scope == Audience.LogAnalytics.ScopeFor());
+        Assert.Contains("arm, graph or logs", unknown.GetProperty("error").GetProperty("message").GetString());
+    }
+
     private static async Task SendForAccountAsync(HttpClient client, string url, bool leak = false)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url).ForAccount("acct-1");
@@ -857,6 +985,11 @@ public sealed class ArmAuthTests : IDisposable
 
         public bool ArmNeedsUi { get; set; }
 
+        public bool LogsNeedsUi { get; set; }
+
+        /// <summary>What a silent Logs acquire throws while <see cref="LogsNeedsUi"/>; a consent-classified failure when null.</summary>
+        public MsalUiRequiredException? LogsUiFailure { get; set; }
+
         /// <summary>What a silent ARM acquire throws while <see cref="ArmNeedsUi"/>; a consent-classified failure when null.</summary>
         public MsalUiRequiredException? ArmUiFailure { get; set; }
 
@@ -915,24 +1048,31 @@ public sealed class ArmAuthTests : IDisposable
             }
 
             var arm = scope == Audience.Arm.ScopeFor();
+            var logs = scope == Audience.LogAnalytics.ScopeFor();
+            if (logs && LogsNeedsUi)
+            {
+                throw LogsUiFailure ?? new MsalUiRequiredException("invalid_grant", "consent needed", null,
+                    UiRequiredExceptionClassification.ConsentRequired);
+            }
+
             if (arm && ArmNeedsUi)
             {
                 throw ArmUiFailure ?? new MsalUiRequiredException("invalid_grant", "consent needed", null,
                     UiRequiredExceptionClassification.ConsentRequired);
             }
 
-            if (!arm && GraphNeedsUi)
+            if (!arm && !logs && GraphNeedsUi)
             {
                 throw new MsalUiRequiredException("ui_required", "interaction required");
             }
 
-            if (!arm && forceRefresh)
+            if (!arm && !logs && forceRefresh)
             {
                 IEnumerable<string> granted = GrantHiddenForRefreshes-- > 0 ? [] : GrantedGraph;
                 return Task.FromResult(new MsalToken(JwtWithScopes(["User.Read", .. granted]), DateTimeOffset.UtcNow.AddHours(1)));
             }
 
-            return Task.FromResult(new MsalToken(TokenPrefix + (arm ? "arm-token" : "graph-token"), DateTimeOffset.UtcNow.AddHours(1)));
+            return Task.FromResult(new MsalToken(TokenPrefix + (arm ? "arm-token" : logs ? "logs-token" : "graph-token"), DateTimeOffset.UtcNow.AddHours(1)));
         }
 
         public Task<IReadOnlyList<MsalAccount>> GetAccountsAsync() =>
@@ -966,7 +1106,7 @@ public sealed class ArmAuthTests : IDisposable
                 ArmNeedsUi = false;
             }
 
-            if (consent && scope != Audience.Arm.ScopeFor() && account == SignsInAs)
+            if (consent && scope != Audience.Arm.ScopeFor() && scope != Audience.LogAnalytics.ScopeFor() && account == SignsInAs)
             {
                 GrantedGraph.Add(scope["https://graph.microsoft.com/".Length..]);
             }

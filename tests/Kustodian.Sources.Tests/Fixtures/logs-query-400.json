@@ -1,0 +1,1 @@
+{"error":{"code":"BadArgumentError","message":"The request had some invalid properties","innererror":{"code":"SyntaxError","message":"A recognition error occurred in the query.","innererror":{"code":"SYN0002","message":"Query could not be parsed at 'x' on line [2,5]","line":2,"pos":4}}}}

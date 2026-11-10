@@ -91,6 +91,9 @@ public sealed record RunResult(RunOutcome Outcome, string? Message, GraphQueryEr
     /// least to ask for first. Empty for every other outcome.</summary>
     public IReadOnlyList<string> Permissions { get; init; } = [];
 
+    /// <summary>For a <see cref="RunOutcome.ConsentNeeded"/> run, whose token needs consent: <c>arm</c> or <c>logs</c>. Null otherwise.</summary>
+    public string? ConsentAudience { get; init; }
+
     /// <summary>The ID of the error report the host captured for this run (every outcome but <see cref="RunOutcome.Ok"/>); null
     /// until then.</summary>
     public string? ReportId { get; init; }

@@ -4,7 +4,6 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
 using Kustodian.Graph.Engine;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Run;
@@ -29,7 +28,7 @@ public sealed record HuntingAnswer(RunOutcome Outcome, string? Message, IReadOnl
 /// <see cref="OperationCanceledException"/>. The request, its body read included, has <see cref="Timeout"/> on
 /// <paramref name="time"/>'s clock, which also dates a <c>Retry-After</c>.
 /// </summary>
-public sealed partial class HuntingClient(HttpClient graph, TimeProvider? time = null)
+public sealed class HuntingClient(HttpClient graph, TimeProvider? time = null)
 {
     private readonly TimeProvider _time = time ?? TimeProvider.System;
 
@@ -126,38 +125,12 @@ public sealed partial class HuntingClient(HttpClient graph, TimeProvider? time =
                 return HuntingAnswer.Failure(RunOutcome.Throttled,
                     wait is { } seconds ? string.Create(CultureInfo.InvariantCulture, $"{message} Try again in {seconds} s.") : message);
             case HttpStatusCode.BadRequest:
-                var position = Position(message);
+                var position = KustoPosition.Of(message);
                 return new HuntingAnswer(RunOutcome.QueryError, message, [], [], position?.Line, position?.Column);
             default:
                 return HuntingAnswer.Failure(RunOutcome.Failed, message);
         }
     }
-
-    /// <summary>The position a query error names: Kusto's <c>line [L,C]</c>, or <c>line L, column C</c> (also <c>position</c>
-    /// or <c>pos</c>). Null when it names none. See <c>Fixtures/hunting-run-400.json</c>: no real body with a position has been
-    /// recorded, so these are the forms Kusto writes.</summary>
-    internal static (int Line, int Column)? Position(string message)
-    {
-        var match = BracketPosition().Match(message);
-        if (!match.Success)
-        {
-            match = WordPosition().Match(message);
-        }
-
-        return match.Success
-            && int.TryParse(match.Groups["line"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var line)
-            && int.TryParse(match.Groups["column"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var column)
-            && line > 0 && column > 0
-            ? (line, column)
-            : null;
-    }
-
-    [GeneratedRegex(@"\bline\s*\[\s*(?<line>[0-9]{1,6})\s*,\s*(?<column>[0-9]{1,6})\s*\]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex BracketPosition();
-
-    [GeneratedRegex(@"\bline\s+(?<line>[0-9]{1,6})\s*,?\s*(?:column|col|position|pos)\s+(?<column>[0-9]{1,6})\b",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex WordPosition();
 
     /// <summary>The columns from <c>schema</c> and the rows from <c>results</c>, through <see cref="ServerRows.Shape"/>.</summary>
     private static HuntingAnswer Parse(byte[] body)

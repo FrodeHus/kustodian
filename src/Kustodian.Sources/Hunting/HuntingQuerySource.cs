@@ -54,11 +54,10 @@ public sealed class HuntingQuerySource(HuntingClient client, ArmDirectory direct
             // account's own list has it.
             if (workspace is not null)
             {
-                var visible = await directory.WorkspacesAsync(request.AccountKey, ct);
-                var match = visible.FirstOrDefault(w => string.Equals(w.CustomerId, workspace.CustomerId, StringComparison.OrdinalIgnoreCase));
+                var (match, blocked) = await WorkspaceCheck.RunAsync(directory, request.AccountKey, workspace, ct);
                 if (match is null)
                 {
-                    return End(RunOutcome.WorkspaceUnavailable, $"{(string.IsNullOrEmpty(name) ? ShortId(workspace.CustomerId) : name)} isn't available to this account. Pick a workspace.");
+                    return End(RunOutcome.WorkspaceUnavailable, blocked);
                 }
 
                 name = match.Name;
@@ -85,19 +84,12 @@ public sealed class HuntingQuerySource(HuntingClient client, ArmDirectory direct
 
             return End(answer.Outcome, answer.Message, answer: answer.Outcome == RunOutcome.Ok ? answer : null);
         }
-        catch (ArmDirectoryException ex)
-        {
-            return End(RunOutcome.WorkspaceUnavailable, ex.Message);
-        }
         catch (Exception ex) when (SourceFailure.Handles(ex, ct))
         {
             var (outcome, message, cause) = SourceFailure.Of(ex, _log, "hunting");
             return End(outcome, message) with { Cause = cause };
         }
     }
-
-    /// <summary>An id as the pickers show it: the first and last 4 characters.</summary>
-    private static string ShortId(string id) => id.Length > 12 ? $"{id[..4]}…{id[^4..]}" : id;
 
     /// <summary>Whether the answer has a string <c>TenantId</c> column with a non-empty value other than
     /// <paramref name="customerId"/> (a workspace's customer id is a GUID: compared ignoring case).</summary>
