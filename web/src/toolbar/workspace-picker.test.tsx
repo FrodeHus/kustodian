@@ -55,10 +55,12 @@ function Picker({
   initial = null,
   onChange,
   onSignIn = () => undefined,
+  primaryLabel,
 }: {
   initial?: QueryWorkspace[] | null;
   onChange: (w: QueryWorkspace[] | null) => void;
   onSignIn?: () => void;
+  primaryLabel?: string | null;
 }) {
   const [value, setValue] = useState<QueryWorkspace[] | null>(initial);
   const [open, setOpen] = useState(false);
@@ -67,6 +69,7 @@ function Picker({
       workspaces={value}
       accountKey="k1"
       onSignIn={onSignIn}
+      {...(primaryLabel !== undefined ? { primaryLabel } : {})}
       open={open}
       onOpenChange={setOpen}
       onChange={(w) => {
@@ -100,6 +103,16 @@ describe('WorkspacePicker', () => {
     await screen.findByText('rg-security · Contoso Production · westeurope');
     // A subscription the account's list lacks shows by its id.
     expect(screen.getByText(`rg-logging · ${OTHER} · northeurope`)).toBeTruthy();
+  });
+
+  it('the_logs_picker_has_no_primary_workspace_entry', async () => {
+    render(<Picker primaryLabel={null} onChange={() => undefined} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Workspace: Pick a workspace' }));
+    const dialog = screen.getByRole('dialog', { name: 'Workspace' });
+    await within(dialog).findByText('contoso-sentinel');
+    expect(within(dialog).queryByText('Primary workspace')).toBeNull();
+    expect(within(dialog).getAllByRole('radio')).toHaveLength(2);
+    expect((within(dialog).getAllByRole('radio') as HTMLInputElement[]).some((r) => r.checked)).toBe(false);
   });
 
   it('picking_a_workspace_reports_one_entry', async () => {

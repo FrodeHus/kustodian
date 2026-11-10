@@ -1,4 +1,4 @@
-import { Component, Suspense, lazy, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Component, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { call } from './bridge';
 import { blockAt } from './editor/block-at';
 import type { KqlEditorHandle } from './editor/kql-editor';
@@ -40,10 +40,20 @@ import { SignIn } from './signin/sign-in';
 import { PANELS, type PanelName } from './side/panels';
 import { Rail, SidePanel } from './side/side-panel';
 import { Splitter } from './shell/splitter';
-import { DEFAULT_TIMESPAN, runParameters, sentText, useTabs, type RunMode, type Tab, type TabCursor } from './tabs/tab-store';
+import {
+  DEFAULT_TIMESPAN,
+  LOGS_TIMESPAN,
+  runParameters,
+  sentText,
+  useTabs,
+  type RunMode,
+  type Tab,
+  type TabCursor,
+} from './tabs/tab-store';
 import { TabStrip } from './tabs/tab-strip';
 import { SaveButton } from './toolbar/save-button';
 import { ScopePicker } from './toolbar/scope-picker';
+import { rememberLogsWorkspace, setMemoryAccount } from './toolbar/workspace-memory';
 import { WorkspacePicker } from './toolbar/workspace-picker';
 import { exceedsDays } from './toolbar/timespan';
 import { TimespanPicker } from './toolbar/timespan-picker';
@@ -86,6 +96,7 @@ function schemaFooter(
   view: SchemaView | undefined,
   resourceTypes: string[] | undefined,
   downloaded: boolean,
+  workspaceName?: string,
 ): string | null {
   if (source === 'arg') {
     return resourceTypes
@@ -104,6 +115,9 @@ function schemaFooter(
     const refresh = view.fallbackReason?.replace(/\s*The schema read earlier is shown\.?$/, '').replace(/\.$/, '');
     return refresh ? `${tenant} · ${refresh}` : tenant;
   }
+  if (source === 'logs') {
+    return workspaceName ? `Tables from ${workspaceName} · ${formatDate(view.generatedAt)}` : null;
+  }
   // The full source (metadata commit, permissions URL) is the span's tooltip; it's too long for the status bar.
   return `${downloaded ? 'Downloaded' : 'Built-in'} Graph schema · ${formatDate(view.generatedAt)}`;
 }
@@ -113,6 +127,7 @@ const LANGUAGE: Record<TabSource, string> = {
   graph: 'KQL',
   hunting: 'KQL · advanced hunting',
   arg: 'KQL · Resource Graph',
+  logs: 'KQL · Log Analytics',
   raw: 'Raw request',
   workbook: 'Workbook',
 };
@@ -128,10 +143,13 @@ const activeResult = () => {
   return run?.state === 'done' && run.result?.outcome === 'ok' ? run.result : undefined;
 };
 
+/** A Log Analytics query runs on a workspace the user picked, never a default. */
+const lacksWorkspace = (tab: Pick<Tab, 'source' | 'options'>) => tab.source === 'logs' && !tab.options?.workspaces?.length;
+
 /** Runs the active tab: `block` runs the selection instead when there is one. */
 function runActive(mode: 'block' | 'all', refresh = false) {
   const tab = activeTab();
-  if (!tab) {
+  if (!tab || lacksWorkspace(tab)) {
     return;
   }
   const selected = mode === 'block' && (useTabs.getState().cursors[tab.id]?.selection ?? '') !== '';
@@ -285,7 +303,7 @@ export function App() {
         } else if (state.tabs !== previous.tabs) {
           const source = state.tabs.find((t) => t.id === state.activeId)?.source;
           setPicker((open) =>
-            source === 'hunting'
+            source === 'hunting' || source === 'logs'
               ? open === 'timespan' || open === 'workspace'
                 ? open
                 : null
@@ -315,7 +333,7 @@ export function App() {
     const fail = (what: string) => (e: unknown) => setProblem(`${what}: ${errorText(e)}`, reportIdOf(e));
     const runnable = () => {
       const tab = activeTab();
-      return !!tab && tab.source !== 'raw' && tab.source !== 'workbook';
+      return !!tab && tab.source !== 'raw' && tab.source !== 'workbook' && !lacksWorkspace(tab);
     };
     const explainable = () => activeTab()?.source === 'graph';
     const withTab = (action: (tab: Tab) => void) => () => {
@@ -403,7 +421,14 @@ export function App() {
         id: 'schema.refresh',
         title: 'Refresh schema',
         group: 'View',
-        run: withTab((tab) => void useSchemas.getState().load(schemaSourceOf(tab.source), { refresh: true })),
+        run: withTab((tab) => {
+          const customerId = tab.options?.workspaces?.[0]?.customerId;
+          if (tab.source !== 'logs') {
+            void useSchemas.getState().load(schemaSourceOf(tab.source), { refresh: true });
+          } else if (customerId) {
+            void useSchemas.getState().loadLogs(customerId, { refresh: true });
+          }
+        }),
         enabled: () => activeTab() !== undefined,
       },
       {
@@ -481,7 +506,7 @@ export function App() {
         title: 'Pick timespan',
         group: 'Run',
         run: () => setPicker('timespan'),
-        enabled: () => activeTab()?.source === 'hunting',
+        enabled: () => activeTab()?.source === 'hunting' || activeTab()?.source === 'logs',
       },
       {
         id: 'toolbar.scope',
@@ -558,11 +583,19 @@ export function App() {
 
   const account = accounts?.accounts.find((a) => a.active);
   const accountKey = account?.key;
+  // A new Log Analytics tab starts on the workspace this account last picked.
+  useEffect(() => {
+    setMemoryAccount(accountKey ?? null);
+  }, [accountKey]);
   useEffect(() => {
     createAppAllowed.current = canCreateApp(account);
   }, [account]);
   const graphSchema = useSchemas((s) => s.byKey.graph);
-  const schemas = useSchemas((s) => s.byKey);
+  const byKey = useSchemas((s) => s.byKey);
+  // A logs tab completes against its workspace's tables, so its entry is that workspace's view (none until it is read).
+  const activeWorkspace = active?.source === 'logs' ? active.options?.workspaces?.[0]?.customerId : undefined;
+  const logsView = useSchemas((s) => (activeWorkspace ? s.logsByWorkspace[activeWorkspace] : undefined));
+  const schemas = useMemo(() => ({ ...byKey, logs: logsView }), [byKey, logsView]);
   const resourceTypes = useSchemas((s) => s.resourceTypes);
 
   // Another account sees another hunting schema and other resource types: every schema is read again.
@@ -684,7 +717,13 @@ export function App() {
     }
   };
   const footerSource = schemaSourceOf(active?.source ?? 'graph');
-  const footer = schemaFooter(footerSource, schemas[footerSource], resourceTypes, graphSchemaStatus?.downloaded === true);
+  const footer = schemaFooter(
+    footerSource,
+    schemas[footerSource],
+    resourceTypes,
+    graphSchemaStatus?.downloaded === true,
+    active?.options?.workspaces?.[0]?.name,
+  );
 
   return (
     <div className="flex h-full flex-col">
@@ -794,7 +833,8 @@ export function App() {
                   source={active?.source ?? 'graph'}
                   text={active?.text ?? ''}
                   onInsert={insert}
-                  workspace={active?.source === 'hunting' ? active.options?.workspaces?.[0]?.name : undefined}
+                  workspace={active?.source === 'hunting' || active?.source === 'logs' ? active.options?.workspaces?.[0]?.name : undefined}
+                  workspaceId={active?.source === 'logs' ? active.options?.workspaces?.[0]?.customerId : undefined}
                   accountKey={accountKey}
                   onSignIn={() => setAccountsOpen(true)}
                 />
@@ -845,7 +885,11 @@ export function App() {
                   >
                     <EditorFailed>
                       <Suspense fallback={<p className="faint m-0 p-4 text-[12px]">Loading the editor…</p>}>
-                        <KqlEditor ref={editor} schemas={schemas} onRun={(mode) => void useTabs.getState().run(active.id, mode)} />
+                        <KqlEditor
+                          ref={editor}
+                          schemas={schemas}
+                          onRun={(mode) => !lacksWorkspace(active) && void useTabs.getState().run(active.id, mode)}
+                        />
                       </Suspense>
                     </EditorFailed>
                   </div>
@@ -894,6 +938,10 @@ export function App() {
                             const hunting = useSchemas.getState().byKey.hunting;
                             if (hunting?.origin === 'builtIn' || hunting?.fallbackReason) {
                               void useSchemas.getState().load('hunting', { refresh: true });
+                            }
+                            const workspace = active.source === 'logs' ? active.options?.workspaces?.[0]?.customerId : undefined;
+                            if (workspace) {
+                              void useSchemas.getState().loadLogs(workspace, { refresh: true });
                             }
                             void useTabs.getState().rerun(id);
                           });
@@ -1019,6 +1067,9 @@ function Toolbar(props: ToolbarProps) {
     onSignIn,
   } = props;
   const running = tab.run?.state === 'running';
+  // A Log Analytics query runs on a workspace the user picked, never a default.
+  const needsWorkspace = lacksWorkspace(tab);
+  const runTitle = needsWorkspace ? 'Pick a workspace before running.' : undefined;
   const setOptions = (change: Partial<QueryOptions>) =>
     useTabs.getState().setOptions(tab.id, {
       timespan: tab.options?.timespan ?? null,
@@ -1028,7 +1079,7 @@ function Toolbar(props: ToolbarProps) {
     });
   return (
     <div className="toolbar">
-      <button type="button" className="btn primary" onClick={() => onRun('block')}>
+      <button type="button" className="btn primary" disabled={needsWorkspace} title={runTitle} onClick={() => onRun('block')}>
         <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path d="M6 4v16l14-8z" />
         </svg>
@@ -1036,32 +1087,37 @@ function Toolbar(props: ToolbarProps) {
       </button>
       <span className="faint whitespace-nowrap text-[12px]">the block at the cursor</span>
       <span className="kbd">{MOD} Enter</span>
-      <button type="button" className="btn ghost" onClick={() => onRun('all')}>
+      <button type="button" className="btn ghost" disabled={needsWorkspace} title={runTitle} onClick={() => onRun('all')}>
         Run all <span className="kbd">{SHIFT} Enter</span>
       </button>
       <span className="sep" aria-hidden="true" />
-      {tab.source === 'hunting' && (
+      {(tab.source === 'hunting' || tab.source === 'logs') && (
         <WorkspacePicker
           workspaces={tab.options?.workspaces}
           // Without a workspace the data reaches back 30 days only, so a longer timespan goes back to the default.
-          onChange={(workspaces) =>
+          onChange={(workspaces) => {
+            // Only an actual pick is remembered, under the account that picked it.
+            if (tab.source === 'logs' && accountKey) {
+              rememberLogsWorkspace(accountKey, workspaces);
+            }
             setOptions({
               workspaces,
-              ...(!workspaces?.length && tab.options?.timespan && exceedsDays(tab.options.timespan, 30)
+              ...(tab.source === 'hunting' && !workspaces?.length && tab.options?.timespan && exceedsDays(tab.options.timespan, 30)
                 ? { timespan: DEFAULT_TIMESPAN }
                 : {}),
-            })
-          }
+            });
+          }}
+          {...(tab.source === 'logs' ? { primaryLabel: null } : {})}
           accountKey={accountKey ?? null}
           onSignIn={onSignIn}
           open={picker === 'workspace'}
           onOpenChange={(open) => onPicker(open ? 'workspace' : null)}
         />
       )}
-      {tab.source === 'hunting' && (
+      {(tab.source === 'hunting' || tab.source === 'logs') && (
         <TimespanPicker
-          timespan={tab.options?.timespan}
-          maxDays={tab.options?.workspaces?.length ? 730 : 30}
+          timespan={tab.options?.timespan ?? (tab.source === 'logs' ? LOGS_TIMESPAN : undefined)}
+          maxDays={tab.source === 'logs' || tab.options?.workspaces?.length ? 730 : 30}
           onChange={(timespan) => setOptions({ timespan })}
           open={picker === 'timespan'}
           onOpenChange={(open) => onPicker(open ? 'timespan' : null)}

@@ -43,8 +43,8 @@ interface WorkspacePickerProps {
   onSignIn: () => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** What the no-workspace entry is called. */
-  primaryLabel?: string;
+  /** What the no-workspace entry is called; null leaves it out (a Log Analytics tab needs a workspace). */
+  primaryLabel?: string | null;
 }
 
 /**
@@ -105,7 +105,7 @@ export function WorkspacePicker({
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => onOpenChange(!open)}
       >
-        Workspace: {chosen ? (listed?.name ?? chosen.name) : primaryLabel}
+        Workspace: {chosen ? (listed?.name ?? chosen.name) : (primaryLabel ?? 'Pick a workspace')}
         {missing && ' · not available'} <span aria-hidden="true">▾</span>
       </button>
       {open && (
@@ -127,7 +127,7 @@ export function WorkspacePicker({
 
 interface WorkspaceDialogProps {
   chosen: QueryWorkspace | undefined;
-  primaryLabel: string;
+  primaryLabel: string | null;
   accountKey: string | null;
   onSignIn: () => void;
   onRead: (workspaces: ArmWorkspace[] | null) => void;
@@ -200,16 +200,20 @@ function WorkspaceDialog({ chosen, primaryLabel, accountKey, onSignIn, onRead, o
         onChange={(e) => setSearch(e.target.value)}
       />
       <div className="max-h-[300px] overflow-y-auto">
-        <label className="flex min-h-[44px] items-center gap-2.5 px-1.5">
-          <input type="radio" name="workspace" checked={!chosen} onChange={() => onPick(null)} />
-          <span className="flex flex-col">
-            <span>{primaryLabel}</span>
-            <span className="faint text-[11.5px]">
-              Default. Defender&apos;s tables, plus your primary Sentinel workspace if one is connected.
-            </span>
-          </span>
-        </label>
-        <div className="my-1 h-px bg-line" />
+        {primaryLabel !== null && (
+          <>
+            <label className="flex min-h-[44px] items-center gap-2.5 px-1.5">
+              <input type="radio" name="workspace" checked={!chosen} onChange={() => onPick(null)} />
+              <span className="flex flex-col">
+                <span>{primaryLabel}</span>
+                <span className="faint text-[11.5px]">
+                  Default. Defender&apos;s tables, plus your primary Sentinel workspace if one is connected.
+                </span>
+              </span>
+            </label>
+            <div className="my-1 h-px bg-line" />
+          </>
+        )}
         {shown.map((w) => (
           <label key={w.customerId} className="flex min-h-[44px] items-center gap-2.5 px-1.5">
             <input
@@ -245,6 +249,7 @@ function WorkspaceDialog({ chosen, primaryLabel, accountKey, onSignIn, onRead, o
           {problem.fix === 'consent' && (
             <ConsentButton
               accountKey={accountKey ?? undefined}
+              audience="arm"
               onGranted={() => {
                 // Read again, now that Azure access is granted.
                 setRead(null);

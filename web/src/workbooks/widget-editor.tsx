@@ -7,7 +7,8 @@ import { useSchemas } from '../schema/schema-store';
 import { errorText } from '../shell/errors';
 import { inSendDetails } from '../shell/send-details-marker';
 import { SourceBadge } from '../tabs/source-badge';
-import { DEFAULT_TIMESPAN } from '../tabs/tab-store';
+import { DEFAULT_TIMESPAN, LOGS_TIMESPAN } from '../tabs/tab-store';
+import { TimespanPicker } from '../toolbar/timespan-picker';
 import { exceedsDays } from '../toolbar/timespan';
 import { WorkspacePicker } from '../toolbar/workspace-picker';
 import type { HistorySeries, LibraryList, ParameterDef, RunResult, SavedQuery } from '../wire';
@@ -29,6 +30,7 @@ const SOURCE_NAMES: [WidgetQuery['source'], string][] = [
   ['graph', 'Graph'],
   ['hunting', 'Defender hunting'],
   ['arg', 'Resource Graph'],
+  ['logs', 'Log Analytics'],
 ];
 const FROM_NAMES: [ParamFrom, string][] = [
   ['workbook', 'Workbook'],
@@ -91,6 +93,7 @@ export function WidgetEditor({
   const [section, setSection] = useState<Section>('query');
   const [asking, setAsking] = useState(false);
   const [pickingWorkspace, setPickingWorkspace] = useState(false);
+  const [pickingTimespan, setPickingTimespan] = useState(false);
   const refocusApply = useRef(false);
   const [applyError, setApplyError] = useState<string | null>(null);
   const [queries, setQueries] = useState<SavedQuery[] | null>(null);
@@ -307,21 +310,31 @@ export function WidgetEditor({
                 ))}
               </select>
             </label>
-            {query.source === 'hunting' && (
+            {(query.source === 'hunting' || query.source === 'logs') && (
               <div className="flex">
                 <WorkspacePicker
                   workspaces={query.options?.workspaces}
-                  // Without a workspace the data reaches back 30 days only, so a longer timespan goes back to the default.
+                  // Without a workspace Defender's data reaches back 30 days only, so a longer timespan goes back to the default.
                   onChange={(workspaces) => {
                     const o = query.options ?? { timespan: null, scope: null };
-                    const over = !workspaces?.length && o.timespan && exceedsDays(o.timespan, 30);
+                    const over = query.source === 'hunting' && !workspaces?.length && o.timespan && exceedsDays(o.timespan, 30);
                     setQuery({ options: { ...o, workspaces, ...(over ? { timespan: DEFAULT_TIMESPAN } : {}) } });
                   }}
+                  {...(query.source === 'logs' ? { primaryLabel: null } : {})}
                   accountKey={accountKey}
                   onSignIn={onSignIn}
                   open={pickingWorkspace}
                   onOpenChange={setPickingWorkspace}
                 />
+                {query.source === 'logs' && (
+                  <TimespanPicker
+                    timespan={query.options?.timespan ?? LOGS_TIMESPAN}
+                    maxDays={730}
+                    onChange={(timespan) => setQuery({ options: { ...(query.options ?? { scope: null }), timespan } })}
+                    open={pickingTimespan}
+                    onOpenChange={setPickingTimespan}
+                  />
+                )}
               </div>
             )}
             <div className="card h-56 overflow-hidden">

@@ -5,6 +5,7 @@ using Kustodian.Graph.Run;
 using Kustodian.Graph.Schema;
 using Kustodian.Sources.Arg;
 using Kustodian.Sources.Hunting;
+using Kustodian.Sources.Logs;
 using Kustodian.Telemetry;
 using Microsoft.Identity.Client;
 
@@ -22,7 +23,8 @@ namespace Kustodian.Messaging.Handlers;
 /// (a role activated since, through PIM, say), signing in through the browser when it has to, and answers <c>{}</c>. The
 /// <paramref name="trail"/> hears <c>account.signIn</c> and <c>account.consent(&lt;audience&gt;)</c>.</summary>
 public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cache, IGraphObjectCache objects, IGraphProbeCache probes,
-    HuntingSchemaSource? huntingSchema = null, ArmDirectory? armDirectory = null, ITenantLicenses? licenses = null, ErrorTrail? trail = null)
+    HuntingSchemaSource? huntingSchema = null, ArmDirectory? armDirectory = null, ITenantLicenses? licenses = null, ErrorTrail? trail = null,
+    LogsSchemaSource? logsSchema = null)
 {
     public void Register(Bridge bridge)
     {
@@ -49,9 +51,10 @@ public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cac
             var audience = request.Audience switch
             {
                 "arm" => Audience.Arm,
+                "logs" => Audience.LogAnalytics,
                 "graph" => Audience.Graph,
                 _ => throw new BridgeException(
-                    BridgeErrorCodes.BadRequest, "Consent is only asked for Azure or Graph (audience arm or graph)."),
+                    BridgeErrorCodes.BadRequest, "Consent is only asked for Azure, Graph or Log Analytics (audience arm, graph or logs)."),
             };
             var scope = audience == Audience.Graph ? await RequireGraphConsentAsync(key, request.Scope) : null;
             trail?.Add($"account.consent({request.Audience})");
@@ -83,8 +86,9 @@ public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cac
             var audience = request.Audience switch
             {
                 "arm" => Audience.Arm,
+                "logs" => Audience.LogAnalytics,
                 "graph" => Audience.Graph,
-                _ => throw new BridgeException(BridgeErrorCodes.BadRequest, "A token is refreshed for Azure or Graph (audience arm or graph)."),
+                _ => throw new BridgeException(BridgeErrorCodes.BadRequest, "A token is refreshed for Azure, Graph or Log Analytics (audience arm, graph or logs)."),
             };
 
             try
@@ -109,6 +113,7 @@ public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cac
             await objects.RemoveAccountAsync(key, ct);
             await probes.RemoveAccountAsync(key, ct);
             huntingSchema?.RemoveAccount(key);
+            logsSchema?.RemoveAccount(key);
             armDirectory?.RemoveAccount(key);
             licenses?.RemoveAccount(key);
             return null;

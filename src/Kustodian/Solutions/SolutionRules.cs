@@ -8,7 +8,7 @@ public static partial class SolutionRules
     private const long QueryFileLimit = 2_097_152;
     private const long WorkbookFileLimit = 2_097_152;
     private static readonly string[] Supports = ["kustodian", "community"];
-    private static readonly string[] SourceNames = ["graph", "hunting", "arg"];
+    private static readonly string[] SourceNames = ["graph", "hunting", "arg", "logs"];
 
     [GeneratedRegex("^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]\\z")]
     private static partial Regex IdPattern();
@@ -55,7 +55,7 @@ public static partial class SolutionRules
 
         if (m.Sources.FirstOrDefault(s => !SourceNames.Contains(s)) is { } source)
         {
-            return $"Source '{source}' must be graph, hunting or arg.";
+            return $"Source '{source}' must be graph, hunting, arg or logs.";
         }
 
         return ItemsProblem("query", m.Content.Queries) ?? ItemsProblem("workbook", m.Content.Workbooks)

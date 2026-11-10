@@ -134,6 +134,7 @@ const TITLES: Record<Source, string> = {
   raw: 'Schema',
   hunting: 'Advanced hunting schema',
   arg: 'Resource Graph tables',
+  logs: 'Log Analytics schema',
 };
 
 interface SchemaPanelProps {
@@ -145,6 +146,8 @@ interface SchemaPanelProps {
   error?: string;
   /** The report ID the host gave that error, if it did. */
   errorReportId?: string;
+  /** A logs tab's read needs Log Analytics consent: the error offers the grant. */
+  consentNeeded?: boolean;
   /** The account's Resource Graph resource types (`arm.resourceTypes`), why they couldn't be listed, and what helps. */
   resourceTypes?: string[];
   resourceTypesError?: string | null;
@@ -173,6 +176,7 @@ export function SchemaPanel(props: SchemaPanelProps) {
     schema,
     error,
     errorReportId,
+    consentNeeded,
     resourceTypes,
     resourceTypesError,
     resourceTypesReportId,
@@ -313,16 +317,27 @@ export function SchemaPanel(props: SchemaPanelProps) {
         className="search"
         type="search"
         aria-label="Find a table or column"
-        placeholder={schema ? `Find among ${tables.length.toLocaleString('en-US')} tables` : error ? 'No schema' : 'Loading the schema…'}
+        placeholder={
+          schema
+            ? `Find among ${tables.length.toLocaleString('en-US')} tables`
+            : error || (source === 'logs' && !workspace)
+              ? 'No schema'
+              : 'Loading the schema…'
+        }
         value={query}
         onChange={(e) => changeQuery(e.target.value)}
         disabled={!schema}
       />
       <div className="min-h-0 flex-1 overflow-y-auto pb-3">
+        {source === 'logs' && !workspace && <p className="faint m-0 px-[14px] text-[12px]">Pick a workspace to see its tables.</p>}
+        {source === 'logs' && schema && schema.tables.length === 0 && schema.fallbackReason && (
+          <p className="faint m-0 px-[14px] text-[12px]">{schema.fallbackReason}</p>
+        )}
         {error && !schema && (
           <p role="alert" className="m-0 px-[14px] pb-2 text-[12px] text-bad">
             The schema couldn’t be loaded: {error}
             <ErrorReportActions reportId={errorReportId} uiSections={{ message: error }} />
+            {consentNeeded && <ConsentButton audience="logs" accountKey={accountKey} />}
           </p>
         )}
         {found ? (
@@ -382,7 +397,7 @@ export function SchemaPanel(props: SchemaPanelProps) {
               <div className="flex flex-wrap items-center gap-2 px-[14px] text-[12px]">
                 <p className="faint m-0 min-w-0">{resourceTypesError}</p>
                 <ErrorReportActions reportId={resourceTypesReportId} uiSections={{ message: resourceTypesError }} />
-                {resourceTypesFix === 'consent' && <ConsentButton accountKey={accountKey} />}
+                {resourceTypesFix === 'consent' && <ConsentButton audience="arm" accountKey={accountKey} />}
                 {resourceTypesFix === 'signIn' && onSignIn && (
                   <button type="button" className="btn primary shrink-0" onClick={onSignIn}>
                     Sign in

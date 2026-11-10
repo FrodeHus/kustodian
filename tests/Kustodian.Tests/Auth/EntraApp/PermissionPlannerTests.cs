@@ -104,7 +104,16 @@ public sealed class PermissionPlannerTests
         Assert.False(arg.AdminConsent);
         Assert.Equal("Azure Service Management", arg.Resource);
         Assert.Equal(SourcePermissions.ArmAppId, arg.ResourceAppId);
-        Assert.Equal("Resource Graph", plan.Groups.Single(g => g.Id == "azure").Subgroups.Single().Title);
+        Assert.Equal(["Resource Graph", "Log Analytics"], plan.Groups.Single(g => g.Id == "azure").Subgroups.Select(s => s.Title));
+    }
+
+    [Fact]
+    public void Planner_lists_Log_Analytics()
+    {
+        var logs = Plan([]).Groups.Single(g => g.Id == "azure").Subgroups[1];
+        var permission = Assert.Single(logs.Permissions);
+        Assert.Equal(("ca7f3f0b-7d91-482c-8e09-c5d840d0eac5", "Data.Read", false, "Log Analytics tabs"),
+            (permission.ResourceAppId, permission.Name, permission.AdminConsent, permission.Unlocks));
     }
 
     [Fact]

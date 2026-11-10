@@ -39,6 +39,7 @@
   --src-graph: #0b6fae;
   --src-hunt: #a05a00;
   --src-arg: #1e7a4e;
+  --src-logs: #7a3ec8;
   color-scheme: light;
 }
 
@@ -70,6 +71,7 @@
     --src-graph: #4cc2ff;
     --src-hunt: #f5a524;
     --src-arg: #7fd4a8;
+    --src-logs: #c9a0ff;
     color-scheme: dark;
   }
 }
@@ -177,6 +179,7 @@ body {
   .tab[data-source='graph'], .tab[data-source='raw'] { --tab-src: var(--src-graph); }
   .tab[data-source='hunting'] { --tab-src: var(--src-hunt); }
   .tab[data-source='arg'] { --tab-src: var(--src-arg); }
+  .tab[data-source='logs'] { --tab-src: var(--src-logs); }
   .tab[data-source] { box-shadow: inset 0 2px 0 color-mix(in srgb, var(--tab-src, transparent) 45%, transparent); }
   .tab.on[data-source] { box-shadow: inset 0 2px 0 var(--tab-src, transparent); }
   .tab > button[role='tab'] { display: flex; align-items: center; gap: 8px; height: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
@@ -320,10 +323,12 @@ body {
   .src.graph { background: rgba(11, 111, 174, 0.1); color: var(--src-graph); }
   .src.hunt { background: rgba(160, 90, 0, 0.1); color: var(--src-hunt); }
   .src.arg { background: rgba(30, 122, 78, 0.1); color: var(--src-arg); }
+  .src.logs { background: rgba(122, 62, 200, 0.1); color: var(--src-logs); }
   @media screen {
     :root:not(.theme-light) .src.graph { background: rgba(76, 194, 255, 0.16); }
     :root:not(.theme-light) .src.hunt { background: rgba(245, 165, 36, 0.16); }
     :root:not(.theme-light) .src.arg { background: rgba(127, 212, 168, 0.16); }
+    :root:not(.theme-light) .src.logs { background: rgba(201, 160, 255, 0.16); }
   }
   .menu { position: absolute; z-index: 3; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
   .menu button:not(.btn) { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }

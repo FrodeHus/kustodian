@@ -7,6 +7,12 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Log Analytics source**: a fourth source that runs KQL directly against one Log Analytics workspace, in tabs
+  and in workbook widgets. Pick a workspace (there is no Primary workspace); completion and the schema panel list that
+  workspace's tables.
+  The timespan starts at 1 day and goes up to 730. It needs the Log Analytics API `Data.Read` permission and Reader or Log
+  Analytics Reader on the workspace; the run offers **Grant Log Analytics access** when consent is needed. Community
+  solutions never carry a workspace. See [docs/EntraPermissions.md](docs/EntraPermissions.md#log-analytics).
 - **Hunting in a workspace**: a Workspace picker beside the hunting timespan sends the query to a Log Analytics workspace. The
   default, **Primary workspace**, sends none. The workspace is saved with the query, in history and in workbook widgets, and
   with one the timespan goes up to 730 days (a 90-day preset is added; without one it stays at 30). Workspaces are listed

@@ -58,7 +58,7 @@ export function toParameterValues(params: ResolvedParam[]): ParameterValue[] {
 }
 
 /** Widgets a change to workbook parameter `name` reruns: data widgets whose resolved `name` comes from the workbook, and,
- * for the huntingTimespan parameter, the hunting widgets that send its value as their timespan. */
+ * for the huntingTimespan parameter, the hunting and Log Analytics widgets that send its value as their timespan. */
 export function widgetsUsing(doc: WorkbookDoc, name: string): string[] {
   const none: ViewValues = { workbook: {}, widgets: {} };
   const hunting = doc.parameters.find((p) => p.huntingTimespan)?.name === name;
@@ -66,17 +66,19 @@ export function widgetsUsing(doc: WorkbookDoc, name: string): string[] {
     .filter(
       (w) =>
         widgetParams(doc, w, none).some((p) => p.name === name && p.from === 'workbook') ||
-        (hunting && w.query?.source === 'hunting' && (at(w.parameters, name)?.from ?? 'workbook') === 'workbook'),
+        (hunting && takesTimespan(w.query?.source) && (at(w.parameters, name)?.from ?? 'workbook') === 'workbook'),
     )
     .map((w) => w.id);
 }
+
+const takesTimespan = (source: string | undefined) => source === 'hunting' || source === 'logs';
 
 /** The hunting timespan a widget sends: the huntingTimespan parameter's ISO value, else the widget's own options. */
 export function widgetRunOptions(doc: WorkbookDoc, widget: Widget, values: ViewValues): QueryOptions | null | { problem: string } {
   if (!widget.query) {
     return null;
   }
-  const hunting = widget.query.source === 'hunting' ? doc.parameters.find((p) => p.huntingTimespan) : undefined;
+  const hunting = takesTimespan(widget.query.source) ? doc.parameters.find((p) => p.huntingTimespan) : undefined;
   if (hunting) {
     const entry = at(widget.parameters, hunting.name);
     // A widget that sets the parameter itself (shown or fixed) overrides the workbook's value (spec 6.4).
@@ -86,13 +88,14 @@ export function widgetRunOptions(doc: WorkbookDoc, widget: Widget, values: ViewV
         : entry?.from === 'widget'
           ? (at(at(values.widgets, widget.id), hunting.name) ?? entry.value)
           : (at(values.workbook, hunting.name) ?? hunting.value);
-    // Only the timespan is replaced; a workspace reaches back further (host: 730 days) than the default 30.
+    // Only the timespan is replaced; a workspace reaches back further (host: 730 days) than the default 30, and Log Analytics always does.
     const workspaces = widget.query.options?.workspaces;
-    const maxDays = workspaces?.length ? 730 : 30;
+    const logs = widget.query.source === 'logs';
+    const maxDays = logs || workspaces?.length ? 730 : 30;
     const timespan = isoTimespan(value.trim(), maxDays);
     return timespan
       ? { timespan, scope: null, ...(workspaces && { workspaces }) }
-      : { problem: huntingTimespanProblem(hunting.name, value, maxDays) ?? '' };
+      : { problem: huntingTimespanProblem(hunting.name, value, maxDays, logs ? 'Log Analytics' : 'Defender hunting') ?? '' };
   }
   return runOptions({ source: widget.query.source, options: widget.query.options ?? undefined }) ?? null;
 }
@@ -113,7 +116,7 @@ export function workbookValues(doc: WorkbookDoc, values: ViewValues): Record<str
 }
 
 /** Why `value` can't be the Defender hunting timespan, said on the parameter and on the widgets it stops; null when it can. */
-export function huntingTimespanProblem(name: string, value: string, maxDays = 30): string | null {
+export function huntingTimespanProblem(name: string, value: string, maxDays = 30, what = 'Defender hunting'): string | null {
   const v = value.trim();
   if (isoTimespan(v, maxDays)) {
     return null;
@@ -121,6 +124,6 @@ export function huntingTimespanProblem(name: string, value: string, maxDays = 30
   // The KQL form, but zero or over the limit; anything else isn't a timespan Kustodian converts.
   const inRange = /^([0-9]+(?:\.[0-9]+)?)(d|h|m|s|ms)$/.exec(v);
   return inRange && Number(inRange[1]) > 0
-    ? `${name}: at most ${maxDays} days for Defender hunting.`
-    : `${name}: a timespan such as 7d, 12h or 30m for Defender hunting.`;
+    ? `${name}: at most ${maxDays} days for ${what}.`
+    : `${name}: a timespan such as 7d, 12h or 30m for ${what}.`;
 }

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BridgeError } from '../bridge';
+import { SOURCES } from '../tabs/sources';
 import { useTabs } from '../tabs/tab-store';
 import type { AccountInfo, RelationshipFetch, RunResult, TableFetch } from '../wire';
 import { RunStatus } from './run-status';
@@ -289,6 +290,62 @@ describe('RunStatus', () => {
     await screen.findByText('● 1 row');
     expect(call).toHaveBeenCalledWith('account.consent', { key: 'k1', audience: 'arm' });
     expect(call.mock.calls.filter((c) => c[0] === 'query.run')).toHaveLength(2);
+  });
+
+  it('consent_needed_for_logs_offers_grant_log_analytics_access', async () => {
+    const message = 'Kustodian needs your permission to read Log Analytics for this account.';
+    call.mockImplementation((method: string) =>
+      Promise.resolve(
+        method === 'query.run'
+          ? call.mock.calls.filter((c) => c[0] === 'query.run').length === 1
+            ? result({ outcome: 'consentNeeded', consentAudience: 'logs', message, rows: [], columns: [], total: 0, tables: [] })
+            : result({ tables: [] })
+          : {},
+      ),
+    );
+    const id = useTabs.getState().open('logs');
+    useTabs.getState().setText(id, 'AppRequests | take 5');
+    await useTabs.getState().run(id, 'all');
+
+    render(
+      <RunStatus
+        run={useTabs.getState().tabs[0]?.run}
+        accountKey="k1"
+        onConsented={() => void useTabs.getState().rerun(id)}
+        onSignIn={() => undefined}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: 'Grant Azure access' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Grant Log Analytics access' }));
+    await waitFor(() => expect(call).toHaveBeenCalledWith('account.consent', { key: 'k1', audience: 'logs' }));
+  });
+
+  it('a_refused_logs_run_refreshes_the_logs_token', () => {
+    call.mockResolvedValue({});
+    render(
+      <RunStatus
+        run={{ ...done(result({ outcome: 'noPermission', message: 'No.', rows: [], total: 0, tables: [] })), source: 'logs' }}
+        accountKey="k1"
+        onSignIn={() => undefined}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Refresh/ }));
+    expect(call).toHaveBeenCalledWith('account.refresh', { key: 'k1', audience: 'logs' });
+  });
+
+  it('logs_wording_says_the_progress_the_host_sent', () => {
+    const run = {
+      state: 'running' as const,
+      source: 'logs' as const,
+      runId: 'r1',
+      startedAt: 0,
+      origin: { line: 1, column: 1 },
+      stage: 'requesting',
+      detail: 'Running the query in Log Analytics on contoso-logs',
+    };
+    render(<RunStatus run={run} onSignIn={() => undefined} />);
+    expect(screen.getByRole('status').textContent).toBe('Running the query in Log Analytics on contoso-logs');
+    expect(SOURCES.logs.name).toBe('Log Analytics');
   });
 
   it('consent_does_not_rerun_a_tab_whose_source_changed', async () => {

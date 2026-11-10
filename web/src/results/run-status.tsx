@@ -134,6 +134,10 @@ function sourceChips(result: RunResult, source: Source, scope: ArgScope | null |
     const queries = serverRequests(result);
     return queries > 0 ? [{ text: plural(queries, 'hunting query', 'hunting queries') }] : [];
   }
+  if (source === 'logs') {
+    const queries = serverRequests(result);
+    return queries > 0 ? [{ text: plural(queries, 'Log Analytics query', 'Log Analytics queries') }] : [];
+  }
   if (source === 'arg') {
     const pages = serverRequests(result);
     return pages > 0 ? [{ text: `${plural(pages, 'page')} · ${scopeText(scope)}` }] : [];
@@ -186,6 +190,15 @@ interface RunStatusProps {
   /** A run on a workspace the account can't see didn't run: this opens the workspace picker. */
   onPickWorkspace?: (opener: HTMLElement) => void;
 }
+
+/** Whose token a refused run of the source refreshes. */
+const refreshAudience: Record<Source, 'graph' | 'arm' | 'logs'> = {
+  graph: 'graph',
+  raw: 'graph',
+  hunting: 'graph',
+  arg: 'arm',
+  logs: 'logs',
+};
 
 /** The permissions to offer granting for relationship columns refused in full, each once. */
 function relationshipGrants(result: RunResult, source: Source, account: AccountInfo | undefined): string[] {
@@ -269,13 +282,15 @@ export function RunStatus({
             Create Entra ID application…
           </button>
         )}
-        {result.outcome === 'consentNeeded' && <ConsentButton accountKey={accountKey} onGranted={() => onConsented?.()} />}
+        {result.outcome === 'consentNeeded' && (
+          <ConsentButton accountKey={accountKey} audience={result.consentAudience ?? 'arm'} onGranted={() => onConsented?.()} />
+        )}
         {offer && 'scope' in offer && <GrantPermissionButton accountKey={accountKey} scope={offer.scope} onGranted={() => onGranted?.()} />}
         {offer && 'held' in offer && (
           <span className="chip warn">{`You have ${offer.held}; your account may be missing a role that this data needs.`}</span>
         )}
         {result.outcome === 'noPermission' && (
-          <RefreshTokenButton accountKey={accountKey} audience={source === 'arg' ? 'arm' : 'graph'} onRefreshed={() => onGranted?.()} />
+          <RefreshTokenButton accountKey={accountKey} audience={refreshAudience[source]} onRefreshed={() => onGranted?.()} />
         )}
         {grants.map((s) => (
           <GrantPermissionButton key={s} accountKey={accountKey} scope={s} onGranted={() => onGranted?.()} />
