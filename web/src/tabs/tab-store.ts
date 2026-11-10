@@ -191,6 +191,8 @@ interface TabsState {
   /** Runs again what the tab's last run sent, from where it began, with the tab's options now (after granting Azure access,
    * say); the cursor may have moved since. Does nothing when the tab has never run, or its source has changed since the run. */
   rerun(id: string): Promise<void>;
+  /** Runs `kql`, which begins at `origin` in the editor, as `rerun` does but with new text. A raw or workbook tab never runs. */
+  runText(id: string, kql: string, origin: TabRun['origin']): Promise<void>;
   cancel(id: string): void;
 }
 
@@ -459,6 +461,13 @@ export const useTabs = create<TabsState>()((set, get) => {
       // source's query).
       if (tab && tab.source !== 'raw' && tab.source !== 'workbook' && last?.kql !== undefined && (last.source ?? 'graph') === tab.source) {
         await send(tab, tab.source, last.kql, last.origin, false);
+      }
+    },
+
+    async runText(id, kql, origin) {
+      const tab = get().tabs.find((t) => t.id === id);
+      if (tab && tab.source !== 'raw' && tab.source !== 'workbook') {
+        await send(tab, tab.source, kql, origin, false);
       }
     },
 

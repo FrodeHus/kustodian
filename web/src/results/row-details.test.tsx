@@ -157,4 +157,30 @@ describe('RowDetails', () => {
 
     expect((await screen.findByRole('alert')).textContent).toBe('Couldn’t copy: the clipboard isn’t available here.');
   });
+
+  it('each property has a Filter… menu with the cell menu’s items', () => {
+    const onFilter = vi.fn();
+    render(<RowDetails columns={columns} row={row} onClose={() => undefined} onFilter={onFilter} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filter on displayName' }));
+    const menu = screen.getByRole('menu');
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((b) => b.textContent),
+    ).toEqual(['Filter by "HR Connector"', 'Exclude "HR Connector"']);
+    // Esc closes the menu, not the sheet.
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(screen.getByRole('dialog')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filter on owner' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Exclude null' }));
+    expect(onFilter).toHaveBeenCalledWith(columns[2], null, 'ne');
+  });
+
+  it('without onFilter, properties have no Filter… button', () => {
+    render(<RowDetails columns={columns} row={row} onClose={() => undefined} />);
+    expect(screen.queryByRole('button', { name: /^Filter on/ })).toBeNull();
+  });
 });

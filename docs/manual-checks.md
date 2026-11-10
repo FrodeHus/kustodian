@@ -272,7 +272,21 @@ All 10 packages were then put in one folder and `checksums.sh` wrote one `SHA256
   `kustodian.desktop` by `WM_CLASS` (GNOME, KDE) may not group the window with its launcher or show its icon from the
   desktop file. The window's own icon (`_NET_WM_ICON`) is set.
 
-### Notes
+### Smart filter (2026-11-10)
+
+Keyboard users reach Filter by and Exclude through row details: select a row with the arrow keys, Enter opens it, then the
+property's **Filter…** button. The grid focuses rows, not cells, so it has no cell to anchor a keyboard (Shift+F10) menu to.
+
+| Check | macOS | Windows | Linux |
+| --- | --- | --- | --- |
+| Right-click a cell: the menu opens at the pointer, inside the grid, in every theme (glass included) | - | - | - |
+| Filter by adds `\| where` to the query in the editor, runs it, and one undo (Cmd/Ctrl+Z) removes the line | - | - | - |
+| From the keyboard: Enter on a row, Tab to a property's Filter…, Enter, arrow keys, Enter runs the filter; Esc closes only the menu | - | - | - |
+| Graph `users \| project id, displayName \| take 50`, Filter by a name: Explain shows the name in `$filter`; Cmd/Ctrl+Z removes the line. Once in a light theme, once in a dark one | - | - | - |
+| Log Analytics tab on a workspace, `SigninLogs \| project TimeGenerated, UserPrincipalName \| take 50`, Filter by a user: the line goes before `take` and the run returns only that user | - | - | - |
+| Graph `users \| take 50`, Filter by a name: Explain shows `$filter` and `$top=50`; Cmd/Ctrl+Z removes the line. Once in a light theme, once in a dark one | - | - | - |
+
+## Notes
 
 - macOS window: the owner's own Kustodian had quit before this check, and the builder's instance was started with `HOME`
   pointed at an empty temporary folder, so it didn't touch the owner's user-data folder. As in Plan 3, it still showed an

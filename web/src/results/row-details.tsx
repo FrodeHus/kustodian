@@ -3,7 +3,8 @@ import type { ResultColumn } from '../wire';
 import { copyFailed, copyText } from './copy';
 import { cellText, type Row } from './export';
 import { PropertyGrid } from './property-grid';
-import type { Notice } from './result-grid';
+import { FilterItems, MenuButton, type Notice, type OnFilter } from './result-grid';
+import { filterOps } from './smart-filter';
 
 const isComplex = (value: unknown): value is Record<string, unknown> | unknown[] => typeof value === 'object' && value !== null;
 
@@ -35,9 +36,21 @@ const rowJson = (columns: ResultColumn[], row: Row) =>
  * opened while it shows takes its place without moving focus, and is announced.
  *
  * It isn't modal (ruling 26): focus may go elsewhere, such as into the editor. While focus is in the sheet, Tab and Shift+Tab
- * cycle through its buttons.
+ * cycle through its buttons. With `onFilter`, each property has a Filter… menu: the grid's cell menu, for the keyboard too.
  */
-export function RowDetails({ columns, row, onClose, id }: { columns: ResultColumn[]; row: Row; onClose: () => void; id?: string }) {
+export function RowDetails({
+  columns,
+  row,
+  onClose,
+  id,
+  onFilter,
+}: {
+  columns: ResultColumn[];
+  row: Row;
+  onClose: () => void;
+  id?: string;
+  onFilter?: OnFilter;
+}) {
   const [notice, setNotice] = useState<Notice | null>(null);
   // Fully opened dynamic values, by column; another row starts closed again, with no notice.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -184,6 +197,11 @@ export function RowDetails({ columns, row, onClose, id }: { columns: ResultColum
                   >
                     {all ? 'Collapse' : 'Expand all'}
                   </button>
+                )}
+                {onFilter && filterOps(column, value).length > 0 && (
+                  <MenuButton label={`Filter on ${column.name}`} icon="Filter…">
+                    <FilterItems column={column} value={value} onFilter={onFilter} />
+                  </MenuButton>
                 )}
                 <button
                   type="button"

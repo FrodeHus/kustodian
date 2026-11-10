@@ -11,13 +11,14 @@ using Kustodian.Library;
 using Kustodian.Sources;
 using Kustodian.Storage;
 using Kustodian.Telemetry;
+using Kusto.Language;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Kustodian.Messaging.Handlers;
 
-/// <summary><c>query.complete</c>, <c>query.explain</c>, <c>query.run</c> and <c>query.cancel</c>. A run goes to the source
-/// its <c>source</c> names in <paramref name="sources"/> (an unknown one is a <c>bad_request</c>), with its <c>options</c>
+/// <summary><c>query.complete</c>, <c>query.explain</c>, <c>query.filterAt</c>, <c>query.run</c> and <c>query.cancel</c>. A run goes
+/// to the source its <c>source</c> names in <paramref name="sources"/> (an unknown one is a <c>bad_request</c>), with its <c>options</c>
 /// (<see cref="QueryOptions"/>; options that aren't valid are a <c>bad_request</c> and nothing runs). Each tab has at most one
 /// run: a new run on a tab cancels the one before, and <c>query.cancel</c> cancels it. A cancelled run answers with the error
 /// code <c>cancelled</c>. Every run that finishes is added to <paramref name="recent"/> (when given), unless its <c>addToRecent</c> is
@@ -31,7 +32,11 @@ namespace Kustodian.Messaging.Handlers;
 /// the user) answers <see cref="RunOutcome.ConsentNeeded"/> with its message; the account stays signed in. With a
 /// <paramref name="reporter"/>, every run that doesn't end <see cref="RunOutcome.Ok"/> (nor cancelled) gets a report ID; it is
 /// reported when the run failed unexpectedly (<see cref="RunResult.Cause"/>). The <paramref name="trail"/> hears
-/// <c>run.start(&lt;source&gt;)</c> and <c>run.end(&lt;outcome&gt;)</c>.</summary>
+/// <c>run.start(&lt;source&gt;)</c> and <c>run.end(&lt;outcome&gt;)</c>. <c>query.filterAt</c> answers <c>{offset, name}</c>: where a
+/// smart filter's <c>where</c> line goes in a query of <c>graph</c>, <c>hunting</c>, <c>arg</c> or <c>logs</c> (<see cref="FilterPlacement"/>;
+/// another source is a <c>bad_request</c>), found in the text with its parameters substituted and mapped back to the text as
+/// written (in the text as written when they can't be substituted), null when it isn't a query; and the column's name as KQL
+/// accepts it (bracket-quoted when Kusto won't take it bare).</summary>
 public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeAccount, IReadOnlyDictionary<string, IQuerySource> sources,
     RecentService? recent = null, TimeProvider? time = null, ILogger<QueryHandler>? logger = null, GraphLimits? limits = null,
     ITenantLicenses? licenses = null, ErrorReporter? reporter = null, ErrorTrail? trail = null)
@@ -40,6 +45,7 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
     private const string ExplainRefused = "Explain is only available for Microsoft Graph.";
     private const string CompletionRefused = "Completion comes from the editor for this source.";
     private const long BytesPerMegabyte = 1L << 20;
+    private static readonly string[] FilterSources = [GraphSource, "hunting", "arg", "logs"];
     private static readonly ParameterValue DefaultParameter = new("", "text", "", false);
 
     private readonly TimeProvider _time = time ?? TimeProvider.System;
@@ -61,6 +67,12 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
         {
             var request = ReadWithParameters<ExplainParams>(p);
             return Task.Run<object?>(async () => Explain(request, await LicenseGateAsync(ct)));
+        });
+        // Placing a filter parses (and for Graph binds) the query: CPU work, off the dispatching thread.
+        bridge.Register("query.filterAt", (p, _) =>
+        {
+            var request = ReadWithParameters<FilterAtParams>(p);
+            return Task.Run<object?>(() => FilterAt(request));
         });
         bridge.Register("query.run", async (p, ct) => await RunAsync(bridge, ReadWithParameters<RunParams>(p), ct));
         bridge.Register("query.cancel", (p, _) =>
@@ -96,6 +108,49 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
         }
 
         return GraphExplain.Explain(schema, p.Kql, p.Parameters ?? [], _time.GetUtcNow(), _limits, gate);
+    }
+
+    private FilterAtAnswer FilterAt(FilterAtParams p)
+    {
+        if (p.Source is null || !FilterSources.Contains(p.Source))
+        {
+            throw new BridgeException(BridgeErrorCodes.BadRequest, $"Unknown source {p.Source}.");
+        }
+
+        if (p.Kql is null || p.Column is null)
+        {
+            throw new BridgeException(BridgeErrorCodes.BadRequest, "Placing a filter needs kql and a column.");
+        }
+
+        var name = KustoFacts.BracketNameIfNecessary(p.Column);
+        var graph = p.Source == GraphSource ? schema : null;
+        var substituted = ParameterSubstitution.Apply(p.Kql, p.Parameters ?? []);
+        if (substituted.Text is not { } text)
+        {
+            return new FilterAtAnswer(FilterPlacement.Offset(p.Kql, p.Column, graph), name);
+        }
+
+        if (FilterPlacement.Offset(text, p.Column, graph) is not { } offset)
+        {
+            return new FilterAtAnswer(null, name);
+        }
+
+        var before = text.AsSpan(0, offset);
+        var lineStart = before.LastIndexOf('\n') + 1;
+        var (line, column) = substituted.MapBack(before.Count('\n') + 1, offset - lineStart + 1);
+        return new FilterAtAnswer(OffsetOf(p.Kql, line, column), name);
+    }
+
+    /// <summary>The character offset of a 1-based line and column in <paramref name="text"/>.</summary>
+    private static int OffsetOf(string text, int line, int column)
+    {
+        var lineStart = 0;
+        for (var current = 1; current < line; current++)
+        {
+            lineStart = text.IndexOf('\n', lineStart) + 1;
+        }
+
+        return lineStart + column - 1;
     }
 
     private async Task<RunResult> RunAsync(Bridge bridge, RunParams p, CancellationToken closing)
@@ -286,8 +341,8 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
         return text.ToString().TrimEnd();
     }
 
-    /// <summary>A <c>query.run</c>'s or <c>query.explain</c>'s params, each parameter's missing fields taken from
-    /// <see cref="DefaultParameter"/>, and the options' from theirs (<see cref="QueryOptionsDefaults"/>). A parameter that isn't
+    /// <summary>A <c>query.run</c>'s, <c>query.explain</c>'s or <c>query.filterAt</c>'s params, each parameter's missing fields taken
+    /// from <see cref="DefaultParameter"/>, and the options' from theirs (<see cref="QueryOptionsDefaults"/>). A parameter that isn't
     /// an object, or options with a null among their ids, are a <c>bad_request</c>.</summary>
     private static T ReadWithParameters<T>(JsonElement p)
         where T : class, IHasParameters
@@ -374,6 +429,10 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
         IReadOnlyList<ParameterValue>? Parameters = null, string? RunId = null, QueryOptions? Options = null, bool AddToRecent = true) : IHasParameters;
 
     private sealed record ExplainParams(string? Source, string? Kql, IReadOnlyList<ParameterValue>? Parameters = null) : IHasParameters;
+
+    private sealed record FilterAtParams(string? Source, string? Kql, string? Column, IReadOnlyList<ParameterValue>? Parameters = null) : IHasParameters;
+
+    private sealed record FilterAtAnswer(int? Offset, string Name);
 
     private sealed record CancelParams(string? TabId);
 }
