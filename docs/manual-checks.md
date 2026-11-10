@@ -282,6 +282,8 @@ property's **Filter…** button. The grid focuses rows, not cells, so it has no 
 | Right-click a cell: the menu opens at the pointer, inside the grid, in every theme (glass included) | - | - | - |
 | Filter by adds `\| where` to the query in the editor, runs it, and one undo (Cmd/Ctrl+Z) removes the line | - | - | - |
 | From the keyboard: Enter on a row, Tab to a property's Filter…, Enter, arrow keys, Enter runs the filter; Esc closes only the menu | - | - | - |
+| Graph `users \| project id, displayName \| take 50`, Filter by a name: Explain shows the name in `$filter`; Cmd/Ctrl+Z removes the line. Once in a light theme, once in a dark one | - | - | - |
+| Graph `users \| take 50`, Filter by a name: Explain shows `$filter` and `$top=50`; Cmd/Ctrl+Z removes the line. Once in a light theme, once in a dark one | - | - | - |
 
 ## Notes
 
