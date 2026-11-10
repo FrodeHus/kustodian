@@ -258,6 +258,7 @@ describe('ChartView', () => {
   it('chart_view_offers_heatmap', () => {
     const { container } = render(<Chart columns={columns} rows={rows} kql="t" />);
     expect(screen.getByRole('option', { name: 'Heatmap' })).toBeTruthy();
+    expect(screen.getByText('Values', { selector: 'span' })).toBeTruthy();
     expect(screen.getByRole('combobox', { name: 'Chart type' })).toHaveProperty('value', 'column');
     expect(container.querySelector('[data-chart="bar"]')).toBeTruthy();
     expect(screen.queryByRole('grid')).toBeNull();
@@ -282,6 +283,8 @@ describe('ChartView', () => {
     expect(optionNames('Rows')).toEqual(expect.arrayContaining(['Day', 'Hour']));
     expect(optionNames('Rows')).not.toContain('TimeGenerated');
     expect(screen.queryByRole('combobox', { name: 'Stacking' })).toBeNull();
+    expect(screen.getByText('Value', { selector: 'span' })).toBeTruthy();
+    expect(screen.queryByText('Values', { selector: 'span' })).toBeNull();
     expect(screen.getByRole('checkbox', { name: 'sum_' })).toHaveProperty('checked', true);
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'count_' }));

@@ -152,10 +152,62 @@ describe('HeatmapView', () => {
   it('heatmap_view_legend_and_notes', () => {
     render(<HeatmapView data={data()} value="count_" />);
     const legend = screen.getByTestId('heat-legend');
-    expect(legend.textContent).toContain('5');
-    expect(legend.textContent).toContain('412');
-    expect(legend.textContent).toContain('count_');
+    // The left end is where the colour starts, min(0, min), not the smallest value.
+    expect([...legend.children].map((c) => c.textContent)).toEqual(['0', '', '412', 'count_']);
     expect(screen.getByText(data().notes[0]!)).toBeTruthy();
+  });
+
+  it('heatmap_view_formats_values', () => {
+    const d = data();
+    d.cells[0]![0] = { value: 1234567.0000000002, rows: 1 };
+    d.min = -2.5;
+    d.max = 1234567.0000000002;
+    const { container } = render(<HeatmapView data={d} value="v" />);
+    expect([...screen.getByTestId('heat-legend').children].map((c) => c.textContent)).toEqual(['-2.5', '', '1,234,567', 'v']);
+    fireEvent.mouseOver(cells(container)[0]!);
+    expect(screen.getByTestId('heat-tip').textContent).toContain('— 1,234,567 v');
+  });
+
+  it('heatmap_view_roles', () => {
+    render(<HeatmapView data={data()} value="v" />);
+    expect(screen.getByTestId('heat-tip').getAttribute('aria-live')).toBe('polite');
+    const heads = screen.getAllByRole('columnheader');
+    expect(heads.map((h) => h.textContent)).toEqual(['a', 'b', 'c']);
+    for (const h of heads) {
+      expect(h.parentElement!.getAttribute('role')).toBe('row');
+    }
+    expect(heads[0]!.parentElement!.style.display).toBe('contents');
+    expect(screen.getAllByRole('rowheader').map((h) => h.textContent)).toEqual(['Teams', 'Other']);
+  });
+
+  it('heatmap_view_active_descendant', () => {
+    const { container } = render(<HeatmapView data={data()} value="v" />);
+    const grid = screen.getByRole('grid');
+    fireEvent.focus(grid);
+    fireEvent.keyDown(grid, { key: 'ArrowRight' });
+    const id = grid.getAttribute('aria-activedescendant');
+    expect(id).toBeTruthy();
+    expect(document.getElementById(id!)).toBe(cells(container)[1]);
+  });
+
+  it('heatmap_view_clamps_active_to_new_data', () => {
+    const { container, rerender } = render(<HeatmapView data={data()} value="v" />);
+    const grid = screen.getByRole('grid');
+    fireEvent.focus(grid);
+    fireEvent.click(cells(container)[5]!);
+    const one: HeatmapData = {
+      rows: axis('r', ['x']),
+      columns: axis('c', ['y']),
+      cells: [[{ value: 7, rows: 1 }]],
+      min: 7,
+      max: 7,
+      notes: [],
+    };
+    rerender(<HeatmapView data={one} value="v" />);
+    const ring = screen.getByTestId('heat-ring');
+    expect([ring.style.gridRow, ring.style.gridColumn]).toEqual(['2 / span 1', '2 / span 1']);
+    expect(screen.getByTestId('heat-tip').textContent).toBe('x / y — 7 v');
+    expect(document.getElementById(grid.getAttribute('aria-activedescendant')!)).toBe(cells(container)[0]);
   });
 
   it('heatmap_view_single_cell', () => {

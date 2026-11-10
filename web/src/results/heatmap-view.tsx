@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { useId, useMemo, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import type { CellMatch } from './chart-shape';
 import { TOOLTIP, dateTick } from './chart-style';
 import { heatStrength, type HeatmapAxis, type HeatmapData } from './heatmap-shape';
@@ -9,6 +9,7 @@ const LABEL_PX = 120;
 // shortcut: column labels are thinned to about this many, whatever the width; measure the grid if that proves too coarse or too dense.
 const MAX_COLUMN_LABELS = 12;
 
+const num = (n: number) => n.toLocaleString('en-US');
 const label = (axis: HeatmapAxis, i: number) => (axis.kind === 'datetime' ? dateTick(axis.labels[i]!) : axis.labels[i]!);
 
 /** A heatmap drawn as a CSS grid: colour only, with the exact value on hover or focus. `fit` squeezes it into its width. */
@@ -25,8 +26,14 @@ export default function HeatmapView({
 }) {
   const { rows, columns, cells, min, max } = data;
   const [hover, setHover] = useState<[number, number] | null>(null);
-  const [active, setActive] = useState<[number, number]>([0, 0]);
+  const [picked, setActive] = useState<[number, number]>([0, 0]);
+  // Clamped in render, so a rerun with a smaller grid never points at a missing cell.
+  const active: [number, number] = [
+    Math.max(0, Math.min(picked[0], rows.labels.length - 1)),
+    Math.max(0, Math.min(picked[1], columns.labels.length - 1)),
+  ];
   const [focused, setFocused] = useState(false);
+  const id = useId();
   const shown = hover ?? (focused ? active : null);
   const shownCell = shown ? cells[shown[0]]?.[shown[1]] : null;
   const pick = (r: number, c: number) => {
@@ -71,29 +78,33 @@ export default function HeatmapView({
     const step = Math.ceil(columns.labels.length / MAX_COLUMN_LABELS);
     return (
       <>
-        <div data-testid="heat-corner" style={{ ...sticky, ...head, gridRow: 1, zIndex: 4 }} />
-        {columns.labels.map((_, c) =>
-          c % step === 0 ? (
-            <div
-              key={c}
-              data-testid="heat-colhead"
-              title={label(columns, c)}
-              style={{
-                ...head,
-                gridRow: 1,
-                gridColumn: `${c + 2} / span ${Math.min(step, columns.labels.length - c)}`,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {label(columns, c)}
-            </div>
-          ) : null,
-        )}
+        <div role="row" style={{ display: 'contents' }}>
+          <div data-testid="heat-corner" style={{ ...sticky, ...head, gridRow: 1, zIndex: 4 }} />
+          {columns.labels.map((_, c) =>
+            c % step === 0 ? (
+              <div
+                key={c}
+                role="columnheader"
+                data-testid="heat-colhead"
+                title={label(columns, c)}
+                style={{
+                  ...head,
+                  gridRow: 1,
+                  gridColumn: `${c + 2} / span ${Math.min(step, columns.labels.length - c)}`,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {label(columns, c)}
+              </div>
+            ) : null,
+          )}
+        </div>
         {rows.labels.map((_, r) => (
           <div key={r} role="row" style={{ display: 'contents' }}>
             <div
+              role="rowheader"
               title={label(rows, r)}
               style={{ ...sticky, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 6 }}
             >
@@ -104,6 +115,7 @@ export default function HeatmapView({
               return (
                 <div
                   key={c}
+                  id={`${id}-${r}-${c}`}
                   role="gridcell"
                   data-cell=""
                   data-r={r}
@@ -124,7 +136,7 @@ export default function HeatmapView({
         ))}
       </>
     );
-  }, [rows, columns, cells, min, max]);
+  }, [rows, columns, cells, min, max, id]);
 
   const at = (e: { target: EventTarget }): [number, number] | null => {
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-cell]');
@@ -142,6 +154,7 @@ export default function HeatmapView({
         <div
           role="grid"
           tabIndex={0}
+          aria-activedescendant={`${id}-${active[0]}-${active[1]}`}
           aria-label={`Heatmap of ${value} by ${rows.column} (rows) and ${columns.column} (columns)`}
           style={grid}
           onKeyDown={onKeyDown}
@@ -184,6 +197,7 @@ export default function HeatmapView({
       </div>
       <div
         data-testid="heat-tip"
+        aria-live="polite"
         style={{
           ...TOOLTIP.contentStyle,
           padding: '4px 8px',
@@ -195,12 +209,12 @@ export default function HeatmapView({
         {shown && (
           <>
             {label(rows, shown[0])} / {label(columns, shown[1])}
-            {shownCell ? ` — ${shownCell.value} ${value}${shownCell.rows > 1 ? ` from ${shownCell.rows} rows` : ''}` : ''}
+            {shownCell ? ` — ${num(shownCell.value)} ${value}${shownCell.rows > 1 ? ` from ${shownCell.rows} rows` : ''}` : ''}
           </>
         )}
       </div>
       <div data-testid="heat-legend" className="flex items-center gap-2">
-        <span>{min}</span>
+        <span>{num(Math.min(0, min))}</span>
         <span
           style={{
             width: 120,
@@ -209,7 +223,7 @@ export default function HeatmapView({
             background: 'linear-gradient(90deg, color-mix(in srgb, var(--accent) 8%, transparent), var(--accent))',
           }}
         />
-        <span>{max}</span>
+        <span>{num(max)}</span>
         <span>{value}</span>
       </div>
     </div>

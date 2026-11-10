@@ -56,6 +56,7 @@ export interface HeatmapData {
 }
 
 export const HEATMAP_ROW_CAP = 50;
+export const HEATMAP_ORDERED_ROW_LIMIT = 200;
 export const HEATMAP_TEXT_COLUMN_CAP = 50;
 export const HEATMAP_COLUMN_LIMIT = 2000;
 export const HEATMAP_INT_GAP_LIMIT = 100;
@@ -91,14 +92,15 @@ interface Built {
 
 /**
  * One axis from the keys seen (first-seen order) and the total of each. Date, number and timespan keys go ascending, with
- * regular gaps filled; text keys keep first-seen order (`byTotal` ranks them busiest first; either way the busiest `cap` survive) and past `cap` the rest merge into
- * Other. `limit` keeps the latest slots of an ordered axis.
+ * regular gaps filled when `fill` is set (the Columns axis only); text keys keep first-seen order (`byTotal` ranks them busiest
+ * first; either way the busiest `cap` survive) and past `cap` the rest merge into Other. `limit` keeps the latest slots of an
+ * ordered axis, its note naming them `noun`.
  */
 function buildAxis(
   column: ResultColumn,
   seen: string[],
   totals: Map<string, number>,
-  opts: { byTotal: boolean; cap: number; limit: number; fill: boolean },
+  opts: { byTotal: boolean; cap: number; limit: number; fill: boolean; noun: string },
 ): Built {
   const kind: AxisKind = column.type === 'datetime' ? 'datetime' : isNumeric(column) || column.type === 'timespan' ? 'ordered' : 'text';
   const slot = new Map<string, number>();
@@ -148,7 +150,7 @@ function buildAxis(
     }
     const start = Math.max(0, total - opts.limit);
     if (total > opts.limit) {
-      note = `Showing the latest ${opts.limit.toLocaleString('en-US')} of ${total.toLocaleString('en-US')} ${column.name} columns. Use a larger bin() to see them all.`;
+      note = `Showing the latest ${opts.limit.toLocaleString('en-US')} of ${total.toLocaleString('en-US')} ${column.name} ${opts.noun}. Use a larger bin() to see them all.`;
     }
     keys = Array.from({ length: total - start }, () => null);
     if (step > 0) {
@@ -194,8 +196,9 @@ const isDayOfWeek = (key: string) => {
 /**
  * The rows of a result laid out as heatmap cells: `spec.split` names the Rows column, `spec.x` the Columns, `spec.series[0]`
  * the value. Rows with the same pair sum their values (and count the rows); a pair with no row, a null value or one that isn't
- * a finite number is empty (null), where a 0 is a cell. Text axes are capped to 50 with the rest in Other; an ordered Columns
- * axis keeps its latest 2,000; whole-number axes fill gaps of up to 100 and regular datetime axes fill theirs.
+ * a finite number is empty (null), where a 0 is a cell; a row with no Rows, Columns or value at all is skipped. Text axes are
+ * capped to 50 with the rest in Other; an ordered Rows axis keeps its latest 200 and an ordered Columns axis its latest 2,000;
+ * whole-number Columns fill gaps of up to 100 and regular datetime Columns fill theirs.
  */
 export function heatmapData(columns: ResultColumn[], rows: Row[], spec: ChartSpec): HeatmapData {
   const find = (name: string | null | undefined) => columns.findIndex((c) => c.name === name);
@@ -215,23 +218,34 @@ export function heatmapData(columns: ResultColumn[], rows: Row[], spec: ChartSpe
     }
     totals.set(key, (totals.get(key) ?? 0) + (Number.isFinite(v) ? v : 0));
   };
+  const blank = (v: unknown) => v === null || v === undefined || v === '';
   for (const row of rows) {
+    const raw = row[vi];
+    if (blank(row[ri]) && blank(row[ci]) && blank(raw)) {
+      continue; // a gap row (values history fills missing days with all-null rows)
+    }
     const r = cellText(row[ri]);
     const c = cellText(row[ci]);
-    const raw = row[vi];
-    const v = raw === null || raw === undefined || raw === '' ? Number.NaN : Number(raw);
+    const v = blank(raw) ? Number.NaN : Number(raw);
     see(rowSeen, rowTotals, r, v);
     see(colSeen, colTotals, c, v);
     if (Number.isFinite(v)) {
       pairs.push({ r, c, v });
     }
   }
-  const rowAxis = buildAxis(rowColumn, rowSeen, rowTotals, { byTotal: true, cap: HEATMAP_ROW_CAP, limit: Infinity, fill: false });
+  const rowAxis = buildAxis(rowColumn, rowSeen, rowTotals, {
+    byTotal: true,
+    cap: HEATMAP_ROW_CAP,
+    limit: HEATMAP_ORDERED_ROW_LIMIT,
+    fill: false,
+    noun: 'values',
+  });
   const colAxis = buildAxis(colColumn, colSeen, colTotals, {
     byTotal: false,
     cap: HEATMAP_TEXT_COLUMN_CAP,
     limit: HEATMAP_COLUMN_LIMIT,
     fill: true,
+    noun: 'columns',
   });
   const cells: (HeatmapCell | null)[][] = rowAxis.axis.keys.map(() => colAxis.axis.keys.map(() => null));
   for (const { r, c, v } of pairs) {

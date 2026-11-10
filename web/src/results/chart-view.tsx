@@ -515,7 +515,7 @@ export default function ChartView({
               </select>
             </label>
           )}
-          <span className="muted">Values</span>
+          <span className="muted">{type === 'heatmap' ? 'Value' : 'Values'}</span>
           {numbers.map((name) => (
             <label key={name} className="flex items-center gap-1.5">
               <input

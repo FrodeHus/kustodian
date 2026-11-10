@@ -247,6 +247,32 @@ describe('heatmapData', () => {
     expect(d.columns.labels).toEqual(['']);
     expect(d.cells).toEqual([[{ value: 3, rows: 2 }]]);
   });
+
+  it('heatmap_data_skips_all_null_rows', () => {
+    // A values-history gap day: no Rows, no Columns, no value.
+    const d = heatmapData(
+      cols('string', 'string'),
+      [
+        [null, null, null],
+        ['a', 'x', 1],
+      ],
+      spec(),
+    );
+    expect(d.rows.labels).toEqual(['a']);
+    expect(d.columns.labels).toEqual(['x']);
+    expect(d.cells).toEqual([[{ value: 1, rows: 1 }]]);
+  });
+
+  it('heatmap_data_limits_ordered_rows', () => {
+    const d = heatmapData(
+      cols('int', 'string'),
+      Array.from({ length: 250 }, (_, i) => [i, 'x', 1]),
+      spec(),
+    );
+    expect(d.rows.keys).toEqual(Array.from({ length: 200 }, (_, i) => String(i + 50)));
+    expect(d.cells).toHaveLength(200);
+    expect(d.notes).toEqual(['Showing the latest 200 of 250 r values. Use a larger bin() to see them all.']);
+  });
 });
 
 describe('heatStrength', () => {
