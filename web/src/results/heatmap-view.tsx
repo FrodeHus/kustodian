@@ -72,7 +72,11 @@ export default function HeatmapView({
       <>
         <div style={{ ...sticky, ...head, zIndex: 3 }} />
         {columns.labels.map((_, c) => (
-          <div key={c} title={label(columns, c)} style={{ ...head, overflow: 'visible', whiteSpace: 'nowrap' }}>
+          <div
+            key={c}
+            title={label(columns, c)}
+            style={{ ...head, overflow: 'visible', whiteSpace: 'nowrap', zIndex: c % step === 0 ? 3 : 2 }}
+          >
             {c % step === 0 && label(columns, c)}
           </div>
         ))}

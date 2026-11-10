@@ -56,6 +56,20 @@ describe('HeatmapView', () => {
     expect([ring.style.gridRow, ring.style.gridColumn]).toEqual(['3', '3']);
   });
 
+  it('heatmap_view_header_label_is_not_covered_by_next_cell', () => {
+    const many = data();
+    many.columns = axis(
+      'day',
+      Array.from({ length: 24 }, (_, i) => `k${i}`),
+    );
+    many.cells = many.cells.map(() => many.columns.keys.map(() => ({ value: 1, rows: 1 })));
+    render(<HeatmapView data={many} value="v" />);
+    const header = (text: string) => [...screen.getByRole('grid').querySelectorAll<HTMLElement>('[title]')].find((d) => d.title === text)!;
+    expect(header('k0').textContent).toBe('k0');
+    expect(header('k1').textContent).toBe('');
+    expect(Number(header('k0').style.zIndex)).toBeGreaterThan(Number(header('k1').style.zIndex));
+  });
+
   it('heatmap_view_keyboard', () => {
     const onPick = vi.fn();
     render(<HeatmapView data={data()} value="count_" onPick={onPick} />);
