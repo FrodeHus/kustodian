@@ -106,9 +106,11 @@ export interface WorkbookActions {
   setShown(tabId: string, widgetId: string, shown: number[]): void; // no state change when equal to the current one
   setSince(tabId: string, widgetId: string, since: string): void; // no rerun; the history view refetches
   setParamsCollapsed(tabId: string, collapsed: boolean): void;
+  /** Asks the workbook view of `tabId` to scroll `widgetId`'s frame into view and focus it; the view clears it once done. */
+  reveal(tabId: string, widgetId: string): void;
 }
 
-type Store = { byTab: Record<string, WorkbookState> } & WorkbookActions;
+type Store = { byTab: Record<string, WorkbookState>; revealing: { tabId: string; widgetId: string } | null } & WorkbookActions;
 
 export const MAX_RUNNING_PER_SOURCE = 3;
 export const TEXT_DEBOUNCE_MS = 400;
@@ -422,6 +424,7 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
 
   const store: Store = {
     byTab: {},
+    revealing: null,
 
     async load(tabId, doc, opts) {
       const fresh: WorkbookState = {
@@ -680,6 +683,10 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
 
     setSince(tabId, widgetId, since) {
       update(tabId, (s) => ({ since: { ...s.since, [widgetId]: since } }));
+    },
+
+    reveal(tabId, widgetId) {
+      set({ revealing: { tabId, widgetId } });
     },
 
     setParamsCollapsed(tabId, collapsed) {
