@@ -8,6 +8,7 @@ import { ErrorReportActions } from '../shell/error-report';
 import { editorPosition, type TabRun } from '../tabs/tab-store';
 import type { AccountInfo, ArgScope, QueryWorkspace, RunResult, Source, TableFetch } from '../wire';
 import { plural, scopeText, serverRequests } from './source-wording';
+import { fallbackText } from './workspace-fallback';
 
 const count = (n: number) => n.toLocaleString('en-US');
 
@@ -133,9 +134,9 @@ function sourceChips(result: RunResult, source: Source, scope: ArgScope | null |
   return tableChips(result.tables);
 }
 
-/** Defender answers from the primary workspace when it can't reach the one the run named. */
+/** Defender answers from the primary workspace when it can't reach the one the run named: said once it answered. */
 function fallbackChips(source: Source, workspace: QueryWorkspace | undefined): Chip[] {
-  return source === 'hunting' && workspace ? [{ text: `If Defender can't reach ${workspace.name}, it answers from your primary workspace.` }] : [];
+  return source === 'hunting' && workspace ? [{ text: fallbackText(workspace.name) }] : [];
 }
 
 function resultChips(result: RunResult, source: Source, scope: ArgScope | null | undefined, workspace?: QueryWorkspace): Chip[] {
@@ -143,7 +144,7 @@ function resultChips(result: RunResult, source: Source, scope: ArgScope | null |
     return [];
   }
   if (result.outcome !== 'ok') {
-    return [...sourceChips(result, source, scope), ...fallbackChips(source, workspace)];
+    return sourceChips(result, source, scope);
   }
   // More rows than were sent: how many there are, as "50,000 of 61,204 rows".
   const rows = result.total > result.rows.length ? `${count(result.rows.length)} of ${plural(result.total, 'row')}` : plural(result.total, 'row');
@@ -175,7 +176,7 @@ interface RunStatusProps {
   /** The active account: a refused run offers to grant the permission it needs unless the account already has it. */
   account?: AccountInfo;
   /** A run on a workspace the account can't see didn't run: this opens the workspace picker. */
-  onPickWorkspace?: () => void;
+  onPickWorkspace?: (opener: HTMLElement) => void;
 }
 
 /** The permissions to offer granting for relationship columns refused in full, each once. */
@@ -229,8 +230,8 @@ export function RunStatus({ run, scope, onSignIn, accountKey, onConsented, onGra
             )}
           </span>
         )}
-        {result.outcome === 'workspaceUnavailable' && (
-          <button type="button" className="btn primary shrink-0" onClick={onPickWorkspace}>
+        {result.outcome === 'workspaceUnavailable' && onPickWorkspace && (
+          <button type="button" className="btn primary shrink-0" onClick={(e) => onPickWorkspace(e.currentTarget)}>
             Pick a workspace
           </button>
         )}

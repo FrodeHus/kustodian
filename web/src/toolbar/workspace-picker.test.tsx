@@ -122,6 +122,30 @@ describe('WorkspacePicker', () => {
     expect(trigger.textContent).not.toContain('not available');
   });
 
+  it('the_trigger_forgets_the_list_when_the_account_changes', async () => {
+    const gone = { customerId: 'c-gone', name: 'contoso-sentinel', resourceId: '/r/gone' };
+    answers['arm.workspaces'] = () => Promise.resolve({ workspaces: [] });
+    const props = { workspaces: [gone], onChange: () => undefined, onSignIn: () => undefined, open: false, onOpenChange: () => undefined };
+    const { rerender } = render(<WorkspacePicker {...props} accountKey="k1" />);
+    rerender(<WorkspacePicker {...props} open accountKey="k1" />);
+    await screen.findByRole('button', { name: 'Workspace: contoso-sentinel · not available' });
+    rerender(<WorkspacePicker {...props} accountKey="k2" />);
+    expect(screen.getByRole('button', { name: 'Workspace: contoso-sentinel' }).className).not.toContain('bad');
+  });
+
+  it('the_chosen_radio_is_checked_ignoring_case', async () => {
+    render(<Picker initial={[{ ...sentinel, customerId: 'C-SENTINEL' }]} onChange={() => undefined} />);
+    fireEvent.click(screen.getByRole('button', { name: /Workspace:/ }));
+    expect(((await screen.findByRole('radio', { name: /contoso-sentinel/ })) as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('focus_moves_to_the_chosen_radio_once_the_list_has_rendered', async () => {
+    render(<Picker initial={[sentinel]} onChange={() => undefined} />);
+    fireEvent.click(screen.getByRole('button', { name: /Workspace:/ }));
+    const radio = await screen.findByRole('radio', { name: /contoso-sentinel/ });
+    await vi.waitFor(() => expect(document.activeElement).toBe(radio));
+  });
+
   it('consent_and_sign_in_states_match_the_scope_picker', async () => {
     const onSignIn = vi.fn();
     answers['arm.workspaces'] = () => Promise.reject(new BridgeError('consentNeeded', 'Azure needs your consent for this account.'));

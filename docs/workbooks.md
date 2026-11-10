@@ -226,7 +226,7 @@ a review first. Nothing runs, and nothing is saved, until you choose. The review
 - **What's in it**: the widgets, parameters and buttons.
 - **Workspaces**: the workspaces the file queries, with how many widgets use each. Names come from your own workspace list,
   matched by ID. A name only the file claims shows as "not available to this account", or "not checked" when your list can't be
-  read. Saving the import is the confirmation.
+  read. Saving the import, or opening it without saving, is the confirmation.
 - **Saved queries**: they are added to your library with new ids, in a folder named after the workbook, or copied into the
   widgets. **Open without saving** always copies them and saves nothing.
 - **Tool buttons**: each is matched by name to a tool in your own `tools.json`. Import never changes `tools.json`. A button

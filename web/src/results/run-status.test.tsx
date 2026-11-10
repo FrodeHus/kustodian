@@ -528,6 +528,17 @@ describe('RunStatus', () => {
     expect(screen.getByText(detail)).toBeTruthy();
   });
 
+  it('workspace_unavailable_without_a_handler_has_no_pick_button', () => {
+    render(<RunStatus run={done(result({ outcome: 'workspaceUnavailable', message: 'x', rows: [], total: 0 }))} onSignIn={() => undefined} />);
+    expect(screen.queryByRole('button', { name: 'Pick a workspace' })).toBeNull();
+  });
+
+  it('a_run_that_failed_has_no_fallback_chip', () => {
+    const r = { ...done(result({ outcome: 'queryError', message: 'bad', rows: [], total: 0 })), source: 'hunting' as const, options: { timespan: null, scope: null, workspaces: [{ customerId: 'c', name: 'contoso-sentinel', resourceId: '/x' }] } };
+    render(<RunStatus run={r} onSignIn={() => undefined} />);
+    expect(screen.queryByText(/If Defender can't reach/)).toBeNull();
+  });
+
   it('a_workspace_run_shows_the_fallback_chip', () => {
     const r = { ...done(result({})), source: 'hunting' as const, options: { timespan: null, scope: null, workspaces: [{ customerId: 'c', name: 'contoso-sentinel', resourceId: '/x' }] } };
     render(<RunStatus run={r} onSignIn={() => undefined} />);

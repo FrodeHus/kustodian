@@ -262,8 +262,8 @@ export interface QueryWorkspace {
 }
 
 /** A run's options for the server-side sources: advanced hunting's `timespan` (an ISO 8601 duration such as `P7D`, or an
- * interval `start/end`, at most 30 days) and Resource Graph's `scope`. Null parts, and null options, take the source's defaults
- * (P30D; "all I can see"). Graph ignores both. */
+ * interval `start/end`, at most 30 days without a workspace, 730 with one), its `workspaces` and Resource Graph's `scope`. Null
+ * parts, and null options, take the source's defaults (P30D; no workspace; "all I can see"). Graph ignores all three. */
 export interface QueryOptions {
   timespan: string | null;
   scope: ArgScope | null;

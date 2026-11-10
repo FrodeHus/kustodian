@@ -347,6 +347,38 @@ describe('ImportReview', () => {
     expect(within(dialog).queryByText('Looks like the safe one')).toBeNull();
   });
 
+  const savedName = () => savedWorkbook().widgets.at(-1)!.query!.options!.workspaces![0]!.name;
+
+  it('Save names a workspace the account lists as the account does, matching ids ignoring case', async () => {
+    hunting('Looks like the safe one', GUID1.toUpperCase());
+    armWorkspaces = () => Promise.resolve(listed('Real name'));
+    const dialog = await review();
+    await within(dialog).findByText('Real name');
+    fireEvent.click(screen.getByRole('button', { name: 'Save to my workbooks' }));
+    await closed();
+    expect(savedName()).toBe('Real name');
+  });
+
+  it('Open without saving names it the same way', async () => {
+    hunting('Looks like the safe one', GUID1);
+    armWorkspaces = () => Promise.resolve(listed('Real name'));
+    const dialog = await review();
+    await within(dialog).findByText('Real name');
+    fireEvent.click(screen.getByRole('button', { name: 'Open without saving' }));
+    await closed();
+    expect(useTabs.getState().tabs[0]!.workbook!.widgets.at(-1)!.query!.options!.workspaces![0]!.name).toBe('Real name');
+  });
+
+  it('Save keeps the file name for a workspace the account cannot see', async () => {
+    hunting('Their workspace', GUID1);
+    armWorkspaces = () => Promise.resolve(listed('Other', '22222222-2222-2222-2222-222222222222'));
+    const dialog = await review();
+    await within(dialog).findByText('· not available to this account');
+    fireEvent.click(screen.getByRole('button', { name: 'Save to my workbooks' }));
+    await closed();
+    expect(savedName()).toBe('Their workspace');
+  });
+
   it('says a workspace the account cannot see is not available', async () => {
     hunting('Their workspace', GUID1);
     armWorkspaces = () => Promise.resolve(listed('Other', '22222222-2222-2222-2222-222222222222'));

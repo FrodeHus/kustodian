@@ -52,7 +52,7 @@ export function WorkspacePicker({ workspaces, onChange, accountKey, onSignIn, op
   const ref = useRef<HTMLDivElement>(null);
   const chosen = workspaces?.[0];
   /** The workspaces last read, kept after the picker closes so the trigger can tell a saved one is gone. */
-  const [known, setKnown] = useState<ArmWorkspace[] | null>(null);
+  const [known, setKnown] = useState<{ accountKey: string | null; list: ArmWorkspace[] } | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -76,8 +76,11 @@ export function WorkspacePicker({ workspaces, onChange, accountKey, onSignIn, op
     };
   }, [open, onOpenChange]);
 
-  const listed = chosen && known?.find((w) => w.customerId.toLowerCase() === chosen.customerId.toLowerCase());
-  const missing = chosen !== undefined && known !== null && !listed;
+  // A list read for another account says nothing of this one.
+  const list = known?.accountKey === accountKey ? known.list : null;
+  const onRead = useCallback((l: ArmWorkspace[] | null) => setKnown(l && { accountKey, list: l }), [accountKey]);
+  const listed = chosen && list?.find((w) => w.customerId.toLowerCase() === chosen.customerId.toLowerCase());
+  const missing = chosen !== undefined && list !== null && !listed;
 
   return (
     <div ref={ref} className="relative">
@@ -98,7 +101,7 @@ export function WorkspacePicker({ workspaces, onChange, accountKey, onSignIn, op
           primaryLabel={primaryLabel}
           accountKey={accountKey}
           onSignIn={onSignIn}
-          onRead={setKnown}
+          onRead={onRead}
           onPick={(w) => {
             onChange(w ? [{ customerId: w.customerId, name: w.name, resourceId: w.resourceId }] : null);
             onOpenChange(false);
@@ -142,8 +145,15 @@ function WorkspaceDialog({ chosen, primaryLabel, accountKey, onSignIn, onRead, o
 
   useEffect(() => {
     load();
-    ref.current?.querySelector<HTMLInputElement>('input[type="radio"]:checked')?.focus();
   }, [load]);
+
+  // The chosen entry is only there once the list has rendered.
+  const loaded = read !== null;
+  useEffect(() => {
+    if (loaded) {
+      ref.current?.querySelector<HTMLInputElement>('input[type="radio"]:checked')?.focus();
+    }
+  }, [loaded]);
 
   // A mousedown doesn't move focus, so a click lands even where WebKit wouldn't focus what was clicked; the search still takes it.
   const keepFocus = (e: ReactMouseEvent) => {
@@ -178,7 +188,7 @@ function WorkspaceDialog({ chosen, primaryLabel, accountKey, onSignIn, onRead, o
         <div className="my-1 h-px bg-line" />
         {shown.map((w) => (
           <label key={w.customerId} className="flex min-h-[44px] items-center gap-2.5 px-1.5">
-            <input type="radio" name="workspace" checked={chosen?.customerId === w.customerId} onChange={() => onPick(w)} />
+            <input type="radio" name="workspace" checked={chosen?.customerId.toLowerCase() === w.customerId.toLowerCase()} onChange={() => onPick(w)} />
             <span className="flex min-w-0 flex-col">
               <span className="truncate">{w.name}</span>
               <span className="faint truncate text-[11.5px]">

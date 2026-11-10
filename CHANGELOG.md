@@ -12,7 +12,8 @@ follow [Semantic Versioning](https://semver.org/).
   with one the timespan goes up to 730 days (a 90-day preset is added; without one it stays at 30). Workspaces are listed
   through Azure Resource Graph, and querying one needs Microsoft Sentinel Reader on it. If Defender can't reach it, it answers
   from your primary workspace; Kustodian says so on every workspace run and warns when the result's `TenantId` shows rows from
-  another workspace. Choosing Primary workspace with a timespan over 30 days brings it back to 30 days. A saved workspace this account can't see blocks the run, and so does a workspace list that can't be read. The schema panel doesn't list a workspace's
+  another workspace. Choosing Primary workspace with a timespan over 30 days brings it back to 30 days. A saved workspace this
+  account can't see blocks the run, and so does a workspace list that can't be read. The schema panel doesn't list a workspace's
   Sentinel tables yet; queries on them still run. See [docs/EntraPermissions.md](docs/EntraPermissions.md#hunting-in-a-workspace).
 - **Workspaces in workbooks**: a widget can have a workspace, and the workbook's timespan parameter keeps each widget's.
   Importing a shared workbook file lists the workspaces it queries, named from your own workspace list by ID. Community

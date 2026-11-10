@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { call } from '../bridge';
 import { useRevisions } from '../library/saving';
 import { useTabs } from '../tabs/tab-store';
-import type { FileFilter, OpenedFile, SavedFile, SavedQuery, ToolList, WorkbookList, WorkbookSummary } from '../wire';
+import type { ArmWorkspace, FileFilter, OpenedFile, SavedFile, SavedQuery, ToolList, WorkbookList, WorkbookSummary } from '../wire';
 import { applyImport, importFolder, linkedQueries, readWorkbookFile } from './import';
 import type { WorkbookDoc } from './model';
 import { withFileVersion } from './model';
@@ -90,6 +90,8 @@ export interface ReviewChoices {
   addQueries: boolean;
   tools: Record<string, string | null>;
   replace: boolean;
+  /** The account's workspace list as the review read it; null when it couldn't be read. */
+  accountWorkspaces?: ArmWorkspace[] | null;
 }
 
 const collides = (p: PendingImport) => p.existing !== null || p.openTabId !== null;
@@ -101,7 +103,7 @@ const saveId = (p: PendingImport, c: ReviewChoices) => (collides(p) && (!c.repla
  * whatever Replace says: an unsaved tab with my workbook's id would save over it. */
 export function openImported(p: PendingImport, c: ReviewChoices): void {
   const id = collides(p) ? crypto.randomUUID() : p.doc.id;
-  useTabs.getState().openWorkbook(applyImport(p.doc, { added: null, tools: c.tools, id }), { dirty: true });
+  useTabs.getState().openWorkbook(applyImport(p.doc, { added: null, tools: c.tools, id, accountWorkspaces: c.accountWorkspaces }), { dirty: true });
 }
 
 export type AddedQueries = Record<string, { id: string; name: string }>;
@@ -123,7 +125,7 @@ export async function saveImported(p: PendingImport, c: ReviewChoices, added: Ad
         added[q.savedId] = { id: saved.id, name: saved.name };
       }
     }
-    const doc = applyImport(p.doc, { added: c.addQueries ? added : null, tools: c.tools, id: saveId(p, c) });
+    const doc = applyImport(p.doc, { added: c.addQueries ? added : null, tools: c.tools, id: saveId(p, c), accountWorkspaces: c.accountWorkspaces });
     const { workbook } = await call<{ workbook: WorkbookDoc }>('workbook.save', { workbook: withFileVersion(doc) });
     useTabs.getState().openWorkbook(workbook, { savedId: workbook.id });
   } finally {

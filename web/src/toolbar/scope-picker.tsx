@@ -19,8 +19,6 @@ const KINDS: { kind: ArgScope['kind']; label: string }[] = [
   { kind: 'all', label: 'All I can see' },
 ];
 
-/** A subscription id as the list shows it: its first and last four characters. */
-
 /** Why a list couldn't be read, and what helps: granting Azure access, signing in again, or nothing the picker can offer. */
 interface Problem {
   text: string;

@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { call } from '../bridge';
 import { MenuButton, NoticeLine, type Notice } from '../results/result-grid';
 import { RunStatus } from '../results/run-status';
+import { fallbackText } from '../results/workspace-fallback';
 import { errorText } from '../shell/errors';
 import { reportIdOf } from '../shell/report-id';
 import { SourceBadge } from '../tabs/source-badge';
@@ -166,12 +167,13 @@ function ToolButtonItems({
 }
 
 /** What a widget shows while it has no result: running, waiting, blocked, gone, or the error view. Null when it has one. */
-function runBody(tabId: string, widget: Widget, run: WidgetRun | undefined, onSignIn: () => void): ReactNode {
+function runBody(tabId: string, widget: Widget, run: WidgetRun | undefined, onSignIn: () => void, onPickWorkspace?: (opener: HTMLElement) => void): ReactNode {
   const source = widget.query?.source ?? 'graph';
   const errorView = (result: RunResult, at: number | undefined) => (
     <RunStatus
       run={{ state: 'done', source, runId: result.runId, result, startedAt: at ?? Date.now(), origin: { line: 1, column: 1 }, kql: widget.query?.text }}
       onSignIn={onSignIn}
+      onPickWorkspace={onPickWorkspace}
       onConsented={() => void useWorkbooks.getState().runWidget(tabId, widget.id)}
       onGranted={() => void useWorkbooks.getState().runWidget(tabId, widget.id)}
     />
@@ -639,12 +641,17 @@ export function WidgetFrame({
           </div>
         )}
         <div className={`flex min-h-0 flex-1 flex-col overflow-hidden ${bare && widget.type !== 'tabs' ? 'pt-3' : ''}`}>
-          {(widget.query && runBody(tabId, widget, run, onSignIn)) ?? (
+          {(widget.query && runBody(tabId, widget, run, onSignIn, editing?.onEditWidget)) ?? (
             <HistoryData.Provider value={{ ...history, filter, setFilter }}>
               {full ? <SheetHost.Provider value={null}>{children}</SheetHost.Provider> : children}
             </HistoryData.Provider>
           )}
         </div>
+        {result?.outcome === 'ok' && widget.query?.source === 'hunting' && live.query?.options?.workspaces?.[0] && (
+          <p className="faint m-0 px-3 pb-2 text-[11.5px]">
+            {`Workspace ${live.query.options.workspaces[0].name}. ${fallbackText(live.query.options.workspaces[0].name)}`}
+          </p>
+        )}
         {widget.history && (
           <footer className="faint flex flex-col gap-0.5 px-3 pb-2 text-[11.5px]">
             <span>

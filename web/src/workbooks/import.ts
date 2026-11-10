@@ -150,6 +150,8 @@ export interface ImportChoices {
   /** the file's tool name → one of my tool names, or null to leave the button off. */
   tools: Record<string, string | null>;
   id: string;
+  /** The account's workspaces, when the review read them: a file's workspace the list has is named as the list names it. */
+  accountWorkspaces?: { customerId: string; name: string }[] | null;
 }
 
 /** Own-property lookup: a file's tool name or saved id such as "constructor" must not find Object.prototype. */
@@ -160,6 +162,12 @@ export function applyImport(doc: WorkbookDoc, choices: ImportChoices): WorkbookD
     const next: Widget = { ...w };
     if (w.query?.saved) {
       next.query = { ...w.query, saved: (choices.added && pick(choices.added, w.query.saved.id)) || null };
+    }
+    const workspaces = w.query?.options?.workspaces;
+    if (w.query?.options && workspaces && choices.accountWorkspaces) {
+      const mine = choices.accountWorkspaces;
+      const named = workspaces.map((x) => ({ ...x, name: mine.find((m) => m.customerId.toLowerCase() === x.customerId.toLowerCase())?.name ?? x.name }));
+      next.query = { ...(next.query ?? w.query), options: { ...w.query.options, workspaces: named } };
     }
     if (w.tools) {
       next.tools = w.tools.flatMap((b) => {

@@ -1,5 +1,3 @@
-import { useEffect, useState } from 'react';
-import { call } from '../bridge';
 import { shortId } from '../toolbar/short-id';
 import type { ArmWorkspacesAnswer, QueryWorkspace } from '../wire';
 
@@ -8,23 +6,8 @@ import type { ArmWorkspacesAnswer, QueryWorkspace } from '../wire';
  * its author's text, so each row is matched by id against the account's own list and shows the account's name; one the account
  * can't see shows the file's name with that said, and while the list loads or can't be read, that it wasn't checked.
  */
-export function WorkspaceRows({ found }: { found: { workspace: QueryWorkspace; widgets: number }[] }) {
-  // undefined: still reading; null: couldn't be read.
-  const [mine, setMine] = useState<ArmWorkspacesAnswer['workspaces'] | null | undefined>(undefined);
+export function WorkspaceRows({ found, mine }: { found: { workspace: QueryWorkspace; widgets: number }[]; mine: ArmWorkspacesAnswer['workspaces'] | null | undefined }) {
   const any = found.length > 0;
-  useEffect(() => {
-    if (!any) {
-      return;
-    }
-    let live = true;
-    call<ArmWorkspacesAnswer>('arm.workspaces').then(
-      (a) => live && setMine(a.workspaces),
-      () => live && setMine(null),
-    );
-    return () => {
-      live = false;
-    };
-  }, [any]);
 
   return (
     any && (
