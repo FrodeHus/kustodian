@@ -16,16 +16,21 @@ public sealed record ParameterDef(string Name, string Type, string Value, bool R
 /// (<see cref="UpstreamHash"/>) and of the item's content as installed (<see cref="ContentHash"/>).</summary>
 public sealed record SolutionOrigin(string SolutionId, string SolutionVersion, string ItemId, string UpstreamHash, string ContentHash);
 
+/// <summary>A highlight rule of a query: rows (or <see cref="Column"/>'s cells, by <see cref="Target"/>) matching
+/// <see cref="Op"/> and <see cref="Value"/> get <see cref="Colour"/>. The UI interprets it; the host only keeps it.</summary>
+public sealed record HighlightRule(string Id, string Column, string Op, string Value, string Colour, string Target);
+
 /// <summary>A query in the library. <see cref="Id"/> is a GUID and the file name (<c>saved/&lt;id&gt;.json</c>);
 /// <see cref="Folder"/> is one level or null. <see cref="Options"/> are the timespan or scope it runs with, null for none.
-/// <see cref="Origin"/> is set when the query was installed from a solution.</summary>
+/// <see cref="Origin"/> is set when the query was installed from a solution. <see cref="Highlights"/> are its highlight rules,
+/// null for none.</summary>
 public sealed record SavedQuery(int Version, string Id, string Name, string? Folder, string Source, string Text,
     IReadOnlyList<ParameterDef> Parameters, DateTimeOffset CreatedAt, DateTimeOffset ModifiedAt, QueryOptions? Options = null,
-    SolutionOrigin? Origin = null);
+    SolutionOrigin? Origin = null, IReadOnlyList<HighlightRule>? Highlights = null);
 
 /// <summary>What the UI sends to save a query: a null <see cref="Id"/> creates, any other updates.</summary>
 public sealed record SavedQueryInput(string? Id, string Name, string? Folder, string Source, string Text,
-    IReadOnlyList<ParameterDef> Parameters, QueryOptions? Options = null)
+    IReadOnlyList<ParameterDef> Parameters, QueryOptions? Options = null, IReadOnlyList<HighlightRule>? Highlights = null)
 {
     public static SavedQueryInput Default { get; } = new(null, "", null, "graph", "", []);
 }
@@ -49,8 +54,13 @@ public sealed class LibraryService(JsonFileStore store, TimeProvider time, ILogg
     public const int MaxNameLength = 200;
     public const int MaxFolderLength = 80;
     public const int MaxTextBytes = 1 << 20;
+    public const int MaxHighlights = 20;
+    public const int MaxHighlightValueLength = 1000;
 
     private static readonly string[] ParameterTypes = ["text", "number", "timespan", "datetime", "list"];
+    private static readonly string[] HighlightOps = ["==", "!=", ">", ">=", "<", "<=", "contains", "!contains", "isempty", "isnotempty"];
+    private static readonly string[] HighlightColours = ["danger", "warning", "success", "info"];
+    private static readonly string[] HighlightTargets = ["row", "cell"];
 
     private static readonly SavedQuery DefaultQuery = new(1, "", "", null, "graph", "", [], default, default);
     private static readonly ParameterDef DefaultParameter = new("", "text", "", false, null);
@@ -113,7 +123,7 @@ public sealed class LibraryService(JsonFileStore store, TimeProvider time, ILogg
             var now = time.GetUtcNow();
             var existing = input.Id is null ? null : await ReadAsync(RelativePath(id), ct);
             var saved = new SavedQuery(1, id, input.Name, input.Folder, input.Source, input.Text, input.Parameters.ToList(),
-                existing?.CreatedAt ?? now, now, input.Options, keepOrigin ? existing?.Origin : origin);
+                existing?.CreatedAt ?? now, now, input.Options, keepOrigin ? existing?.Origin : origin, input.Highlights);
             await store.WriteAsync(RelativePath(id), saved, ct);
             return saved;
         }
@@ -217,7 +227,7 @@ public sealed class LibraryService(JsonFileStore store, TimeProvider time, ILogg
         }
     }
 
-    private static SavedQueryInput ToInput(SavedQuery q) => new(q.Id, q.Name, q.Folder, q.Source, q.Text, q.Parameters, q.Options);
+    private static SavedQueryInput ToInput(SavedQuery q) => new(q.Id, q.Name, q.Folder, q.Source, q.Text, q.Parameters, q.Options, q.Highlights);
 
     private static string NormalizeId(string id) =>
         Guid.TryParseExact(id, "D", out var guid) ? guid.ToString("D") : throw new LibraryRejectedException("The saved query id isn't valid.");
@@ -256,7 +266,44 @@ public sealed class LibraryService(JsonFileStore store, TimeProvider time, ILogg
             return "The saved query's scope is incomplete.";
         }
 
-        return ParameterProblem(input.Parameters);
+        return ParameterProblem(input.Parameters) ?? HighlightProblem(input.Highlights);
+    }
+
+    /// <summary>What is wrong with <paramref name="rules"/>, or null when nothing is (null is none): at most
+    /// <see cref="MaxHighlights"/>, each with an id, a column, a known op, colour and target, and a value of at most
+    /// <see cref="MaxHighlightValueLength"/> characters.</summary>
+    internal static string? HighlightProblem(IReadOnlyList<HighlightRule>? rules)
+    {
+        if (rules is null)
+        {
+            return null;
+        }
+
+        if (rules.Count > MaxHighlights)
+        {
+            return $"The highlight rules can be at most {MaxHighlights}.";
+        }
+
+        foreach (var rule in rules)
+        {
+            if (rule is null || rule.Id is null || rule.Value is null || string.IsNullOrWhiteSpace(rule.Column))
+            {
+                return "The highlight rules each need an id, a column and a value.";
+            }
+
+            if (!HighlightOps.Contains(rule.Op, StringComparer.Ordinal) || !HighlightColours.Contains(rule.Colour, StringComparer.Ordinal)
+                || !HighlightTargets.Contains(rule.Target, StringComparer.Ordinal))
+            {
+                return $"The highlight rules on {rule.Column} need a known op, colour and target.";
+            }
+
+            if (rule.Value.Length > MaxHighlightValueLength)
+            {
+                return $"The highlight rules' values can be at most {MaxHighlightValueLength} characters.";
+            }
+        }
+
+        return null;
     }
 
     /// <summary>What is wrong with <paramref name="parameters"/>, or null when nothing is: each needs a name and one of the

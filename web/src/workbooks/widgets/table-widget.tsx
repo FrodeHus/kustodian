@@ -4,7 +4,7 @@ import type { Row } from '../../results/export';
 import { ResultGrid, type GridSelection } from '../../results/result-grid';
 import { RowDetails } from '../../results/row-details';
 import type { Widget } from '../model';
-import { useWorkbooks, type WidgetRun } from '../workbook-store';
+import { effectiveWidget, useWorkbooks, type WidgetRun } from '../workbook-store';
 import { HistoryTable } from './history-table';
 import { PRINT_ROWS, Printing } from './printing';
 import { SheetHost } from './sheet-host';
@@ -31,6 +31,8 @@ export function TableWidget({ widget, run, tabId }: { widget: Widget; run: Widge
   if (run.state !== 'done') {
     return null;
   }
+  // A linked widget colours by its saved query's rules, as it runs its text.
+  const highlights = (tabId === undefined ? widget : (effectiveWidget(tabId, widget) ?? widget)).query?.highlights;
   const inspected = details?.rows === run.result.rows ? details.index : null;
   const detailsRow = inspected === null ? undefined : run.result.rows[inspected];
   const sheet = (node: ReactNode) => (host ? createPortal(node, host) : node);
@@ -45,6 +47,7 @@ export function TableWidget({ widget, run, tabId }: { widget: Widget; run: Widge
         inspectorId={`${id}-details`}
         onShownChange={tabId === undefined ? undefined : (shown) => useWorkbooks.getState().setShown(tabId, widget.id, shown)}
         printRows={printing ? PRINT_ROWS : undefined}
+        highlights={highlights}
       />
       {detailsRow &&
         sheet(<RowDetails id={`${id}-details`} columns={run.result.columns} row={detailsRow} onClose={() => setDetails(null)} />)}

@@ -316,4 +316,73 @@ public sealed class SessionServiceTests : IDisposable
         Assert.Null(read.Value.Tabs[1].Raw);
         Assert.Empty(read.Value.Tabs[2].Raw!.Headers);
     }
+
+    [Fact]
+    public async Task Highlights_round_trip_through_the_session()
+    {
+        HighlightRule[] rules = [new("r1", "risk", ">=", "5", "warning", "cell")];
+        await NewService().SaveAsync(new Session(1, "a", [Tab("a") with { Highlights = rules }, Tab("b")]), Ct);
+
+        var tabs = (await NewService().GetAsync(Ct)).Value.Tabs;
+
+        Assert.Equal(rules, tabs[0].Highlights);
+        Assert.Null(tabs[1].Highlights);
+    }
+
+    [Theory]
+    [InlineData("""[{"id":"r1","column":"risk","op":"like","value":"x","colour":"danger","target":"row"}]""")]
+    [InlineData("[null]")]
+    [InlineData("\"rules\"")]
+    public async Task A_tab_s_invalid_highlights_are_dropped_and_the_tab_kept(string highlights)
+    {
+        await File.WriteAllTextAsync(Directory.CreateDirectory(_dir).FullName + "/session.json",
+            """{"version":1,"activeId":"a","tabs":[{"id":"a","source":"graph","title":"A","text":"users","dirty":false,"savedId":null,"parameters":[],"highlights":HL},{"id":"b","source":"graph","title":"B","text":"apps","dirty":false,"savedId":null,"parameters":[],"highlights":[{"id":"r2","column":"name","op":"isnotempty","value":"","colour":"success","target":"row"}]}]}"""
+                .Replace("HL", highlights),
+            Ct);
+
+        var read = await NewService().GetAsync(Ct);
+
+        Assert.False(read.Corrupt);
+        Assert.Equal(["a", "b"], read.Value.Tabs.Select(t => t.Id));
+        Assert.Null(read.Value.Tabs[0].Highlights);
+        Assert.Equal("r2", Assert.Single(read.Value.Tabs[1].Highlights!).Id);
+    }
+
+    [Fact]
+    public async Task A_tab_s_invalid_highlight_rules_are_dropped_and_its_valid_ones_kept()
+    {
+        var tooLong = new string('x', 1001);
+        await File.WriteAllTextAsync(Directory.CreateDirectory(_dir).FullName + "/session.json",
+            """{"version":1,"activeId":"a","tabs":[{"id":"a","source":"graph","title":"A","text":"users","dirty":false,"savedId":null,"parameters":[],"highlights":[{"id":"r1","column":"","op":"==","value":"x","colour":"danger","target":"row"},{"id":"r2","column":"name","op":"==","value":"x","colour":"danger","target":"row"},{"id":"r3","column":"name","op":"==","value":"LONG","colour":"danger","target":"row"},null,{"id":"r4","column":"name","op":"like","value":"x","colour":"danger","target":"row"}]}]}"""
+                .Replace("LONG", tooLong),
+            Ct);
+
+        var read = await NewService().GetAsync(Ct);
+
+        Assert.Equal("r2", Assert.Single(Assert.Single(read.Value.Tabs).Highlights!).Id);
+    }
+
+    [Fact]
+    public async Task A_tab_keeps_only_its_first_twenty_highlight_rules()
+    {
+        var rules = string.Join(",", Enumerable.Range(1, 22).Select(i => $$"""{"id":"r{{i}}","column":"name","op":"isnotempty","value":"","colour":"info","target":"row"}"""));
+        await File.WriteAllTextAsync(Directory.CreateDirectory(_dir).FullName + "/session.json",
+            $$"""{"version":1,"activeId":"a","tabs":[{"id":"a","source":"graph","title":"A","text":"users","dirty":false,"savedId":null,"parameters":[],"highlights":[{{rules}}]}]}""",
+            Ct);
+
+        var read = await NewService().GetAsync(Ct);
+
+        Assert.Equal(Enumerable.Range(1, 20).Select(i => $"r{i}"), Assert.Single(read.Value.Tabs).Highlights!.Select(r => r.Id));
+    }
+
+    [Fact]
+    public void A_bridge_session_s_invalid_highlights_are_dropped()
+    {
+        var node = System.Text.Json.Nodes.JsonNode.Parse(
+            """{"version":1,"activeId":"a","tabs":[{"id":"a","source":"graph","title":"A","text":"users","dirty":false,"savedId":null,"parameters":[],"highlights":[{"id":"r1","column":"","op":"==","value":"x","colour":"danger","target":"row"}]}]}""");
+
+        var session = SessionService.ReadInput(node, JsonFileStore.Options);
+
+        Assert.Null(Assert.Single(session!.Tabs).Highlights);
+    }
 }

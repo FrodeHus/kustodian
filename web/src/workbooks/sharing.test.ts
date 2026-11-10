@@ -104,6 +104,17 @@ describe('exportWorkbook', () => {
     expect(useWorkbooks.getState().byTab.t!.dirty).toBe(true);
   });
 
+  it('carries widget highlight rules through export and back through the reader', async () => {
+    const rule = { id: 'r1', column: 'state', op: '==', value: 'FAIL', colour: 'danger', target: 'cell' } as const;
+    const w = newWidget('table', { x: 3, y: 0, w: 3, h: 8 });
+    doc.widgets.push({ ...w, query: { ...w.query!, text: 'inline', highlights: [rule] } });
+    await open();
+    await exportWorkbook('t');
+    const parsed = parseWorkbook(JSON.parse((saveAsCalls()[0]![1] as { content: string }).content)) as WorkbookDoc;
+    expect(parsed.widgets[1]!.query!.highlights).toEqual([rule]);
+    expect('highlights' in parsed.widgets[0]!.query!).toBe(false);
+  });
+
   it('leaves remembered values out; the parameter keeps its default', async () => {
     await open();
     useWorkbooks.getState().setWorkbookValue('t', 'Who', 'remembered-me');

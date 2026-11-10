@@ -9,7 +9,15 @@ export function openSaved(q: SavedQuery) {
   if (open) {
     activate(open.id);
   } else {
-    openWith({ source: q.source, title: q.name, text: q.text, savedId: q.id, parameters: q.parameters, options: q.options ?? undefined });
+    openWith({
+      source: q.source,
+      title: q.name,
+      text: q.text,
+      savedId: q.id,
+      parameters: q.parameters,
+      options: q.options ?? undefined,
+      highlights: q.highlights ?? undefined,
+    });
   }
 }
 

@@ -6,6 +6,7 @@ using Kustodian.Library;
 using Kustodian.Raw;
 using Kustodian.Storage;
 using Kustodian.Workbooks;
+using Microsoft.Extensions.Logging;
 
 namespace Kustodian.Sessions;
 
@@ -14,10 +15,10 @@ namespace Kustodian.Sessions;
 /// <see cref="FilePath"/> is the <c>.kql</c> file it was opened from or saved to, if any. <see cref="Raw"/> is a raw request
 /// tab's version and headers (its text is the path); null for other tabs. <see cref="Options"/> are the tab's timespan or scope,
 /// null for none. A <c>workbook</c> tab (empty text) keeps its whole document in <see cref="Workbook"/>, which the host never
-/// interprets.</summary>
+/// interprets. <see cref="Highlights"/> are the tab's highlight rules, null for none; invalid ones are dropped when read.</summary>
 public sealed record SessionTab(string Id, string Source, string Title, string Text, bool Dirty, string? SavedId,
     IReadOnlyList<ParameterDef> Parameters, string? FilePath = null, RawTabRequest? Raw = null, QueryOptions? Options = null,
-    JsonObject? Workbook = null);
+    JsonObject? Workbook = null, IReadOnlyList<HighlightRule>? Highlights = null);
 
 /// <summary>A raw request tab's request: <see cref="Version"/> is <c>beta</c> or <c>v1.0</c>, or null for the settings'
 /// default; <see cref="Headers"/> are in the order the user typed them, only those the raw tab could send.</summary>
@@ -44,7 +45,7 @@ public sealed record Session(int Version, string? ActiveId, IReadOnlyList<Sessio
 /// <see cref="RawRequestService.MaxHeaders"/> of them and <see cref="RawRequestService.MaxHeaderBytes"/> in all; an unknown
 /// version is written as null.
 /// </summary>
-public sealed class SessionService(JsonFileStore store)
+public sealed class SessionService(JsonFileStore store, ILogger<SessionService>? logger = null)
 {
     public const string FileName = "session.json";
     public const int MaxTabs = 50;
@@ -56,7 +57,8 @@ public sealed class SessionService(JsonFileStore store)
     private static readonly RawTabHeader DefaultHeader = new("", "");
     private static readonly string[] RawVersions = ["beta", "v1.0"];
 
-    private readonly UserDataFile<Session> _file = new(store, FileName, () => Session.Empty, IsValid, FillElements);
+    private readonly UserDataFile<Session> _file = new(store, FileName, () => Session.Empty, IsValid,
+        filled => FillElements(filled, JsonFileStore.Options, logger));
 
     public Task<UserDataRead<Session>> GetAsync(CancellationToken ct = default) => _file.ReadAsync(ct);
 
@@ -114,7 +116,7 @@ public sealed class SessionService(JsonFileStore store)
         try
         {
             var defaults = JsonSerializer.SerializeToNode(Session.Empty, options)!.AsObject();
-            var session = FillElements(JsonDefaults.Fill(value, defaults), options).Deserialize<Session>(options);
+            var session = FillElements(JsonDefaults.Fill(value, defaults), options, null).Deserialize<Session>(options);
             return session is not null && IsValid(session) ? session : null;
         }
         catch (JsonException)
@@ -123,9 +125,7 @@ public sealed class SessionService(JsonFileStore store)
         }
     }
 
-    private static JsonObject FillElements(JsonObject filled) => FillElements(filled, JsonFileStore.Options);
-
-    private static JsonObject FillElements(JsonObject filled, JsonSerializerOptions options)
+    private static JsonObject FillElements(JsonObject filled, JsonSerializerOptions options, ILogger? log)
     {
         var tabDefaults = JsonSerializer.SerializeToNode(DefaultTab, options)!.AsObject();
         var parameterDefaults = JsonSerializer.SerializeToNode(DefaultParameter, options)!.AsObject();
@@ -148,12 +148,62 @@ public sealed class SessionService(JsonFileStore store)
                     }
 
                     // A tab's options (null when absent) and their scope take their defaults too.
-                    tabs[i] = QueryOptionsDefaults.Fill(withParameters, options);
+                    var withOptions = QueryOptionsDefaults.Fill(withParameters, options);
+                    // Highlight rules that aren't valid are dropped, not the tab or the session.
+                    var highlightsKey = withOptions.Select(p => p.Key).FirstOrDefault(k => string.Equals(k, nameof(SessionTab.Highlights), StringComparison.OrdinalIgnoreCase));
+                    if (highlightsKey is not null && withOptions[highlightsKey] is { } highlights)
+                    {
+                        withOptions[highlightsKey] = ValidHighlights(highlights, options, log);
+                    }
+
+                    tabs[i] = withOptions;
                 }
             }
         }
 
         return withTabs;
+    }
+
+    /// <summary>The valid rules of <paramref name="highlights"/>, the first <see cref="LibraryService.MaxHighlights"/>, or
+    /// null when none are; each rule dropped is logged.</summary>
+    private static JsonArray? ValidHighlights(JsonNode highlights, JsonSerializerOptions options, ILogger? log)
+    {
+        if (highlights is not JsonArray rules)
+        {
+            log?.LogWarning("A session tab's highlight rules were dropped: {Problem}", "The highlight rules aren't a list of rules.");
+            return null;
+        }
+
+        var kept = new JsonArray();
+        foreach (var rule in rules)
+        {
+            var problem = kept.Count >= LibraryService.MaxHighlights
+                ? $"The highlight rules can be at most {LibraryService.MaxHighlights}."
+                : HighlightProblem(rule, options);
+            if (problem is null)
+            {
+                kept.Add(rule!.DeepClone());
+            }
+            else
+            {
+                log?.LogWarning("A session tab's highlight rule was dropped: {Problem}", problem);
+            }
+        }
+
+        // Never an empty list: no rules is null.
+        return kept.Count > 0 ? kept : null;
+    }
+
+    private static string? HighlightProblem(JsonNode? rule, JsonSerializerOptions options)
+    {
+        try
+        {
+            return rule is JsonObject ? LibraryService.HighlightProblem([rule.Deserialize<HighlightRule>(options)!]) : "A highlight rule isn't a rule.";
+        }
+        catch (JsonException)
+        {
+            return "A highlight rule isn't a rule.";
+        }
     }
 
     /// <summary>Version 1 with every tab and parameter present (a null in an array arrives as null, whatever the types say).</summary>

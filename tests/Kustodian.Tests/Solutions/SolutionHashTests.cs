@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using Kustodian.Graph.Run;
 using Kustodian.Library;
 using Kustodian.Solutions;
 
@@ -68,5 +69,36 @@ public sealed class SolutionHashTests
         var hash = SolutionHash.Workbook(Wb("q1", "Risky users"));
         Assert.Equal(hash, SolutionHash.Workbook(Wb("q1", "Renamed")));
         Assert.NotEqual(hash, SolutionHash.Workbook(Wb("q2", "Risky users")));
+    }
+
+    private static readonly SavedQueryInput Pinned = new("1", "A", null, "graph", "users | take 1",
+        [new ParameterDef("p", "text", "v", false, null)], new QueryOptions("P1D", null));
+
+    [Fact]
+    public void Query_without_highlights_hashes_as_before_highlights()
+    {
+        // Computed by the code before highlights existed: a query without rules must hash exactly as it did.
+        const string before = "35973cae265fa9ce34098d98173a5610f5a0989de37706b2eb38d70c4291a1cd";
+        Assert.Equal(before, SolutionHash.Query(Pinned));
+        Assert.Equal(before, SolutionHash.Query(Pinned with { Highlights = [] }));
+    }
+
+    [Fact]
+    public void Query_follows_highlights()
+    {
+        var hash = SolutionHash.Query(Pinned);
+        var one = Pinned with { Highlights = [new HighlightRule("r1", "risk", "==", "high", "danger", "row")] };
+        Assert.NotEqual(hash, SolutionHash.Query(one));
+        Assert.NotEqual(SolutionHash.Query(one), SolutionHash.Query(one with { Highlights = [one.Highlights![0] with { Colour = "info" }] }));
+    }
+
+    [Fact]
+    public void Workbook_ignores_the_highlights_copied_into_a_linked_widget_but_not_an_unlinked_one()
+    {
+        static JsonObject Wb(string saved, string highlights) => JsonNode.Parse(
+            """{"widgets":[{"query":{"saved":SAVED,"text":"t","highlights":HL}}]}""".Replace("SAVED", saved).Replace("HL", highlights))!.AsObject();
+        const string rule = """[{"id":"r1","column":"risk","op":"==","value":"high","colour":"danger","target":"row"}]""";
+        Assert.Equal(SolutionHash.Workbook(Wb("""{"id":"q1"}""", "null")), SolutionHash.Workbook(Wb("""{"id":"q1"}""", rule)));
+        Assert.NotEqual(SolutionHash.Workbook(Wb("null", "null")), SolutionHash.Workbook(Wb("null", rule)));
     }
 }

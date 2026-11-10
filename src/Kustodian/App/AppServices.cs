@@ -77,7 +77,7 @@ public sealed class AppServices : IAsyncDisposable
         _workbooks = new WorkbookService(store, time, new StderrLogger<WorkbookService>());
         _history = new HistoryStore(store.Root, time, new StderrLogger<HistoryStore>());
         _solutions = new SolutionService(store, _github, _library, _workbooks, _history, time, AppVersion.Text, new StderrLogger<SolutionService>());
-        _session = new SessionService(store);
+        _session = new SessionService(store, new StderrLogger<SessionService>());
         _snippets = new SnippetService(store, new StderrLogger<SnippetService>());
         _pins = new PinHandler(store);
         _tools = new ExternalToolService(store.Root);

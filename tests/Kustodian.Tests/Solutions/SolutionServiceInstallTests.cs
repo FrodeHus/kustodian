@@ -122,7 +122,7 @@ public sealed class SolutionServiceInstallTests : IDisposable
     private string[] SavedFiles() =>
         Directory.Exists(Path.Combine(_dir, "saved")) ? Directory.GetFiles(Path.Combine(_dir, "saved"), "*.json") : [];
 
-    private static SavedQueryInput InputOf(SavedQuery q) => new(q.Id, q.Name, q.Folder, q.Source, q.Text, q.Parameters, q.Options);
+    private static SavedQueryInput InputOf(SavedQuery q) => new(q.Id, q.Name, q.Folder, q.Source, q.Text, q.Parameters, q.Options, q.Highlights);
 
     private async Task AssertNothingWritten()
     {
@@ -481,5 +481,23 @@ public sealed class SolutionServiceInstallTests : IDisposable
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             Task.FromResult(answer(request.RequestUri!.ToString()));
+    }
+
+    [Fact]
+    public async Task InstallKeepsAQuerysHighlights()
+    {
+        var query = FileJson("queries/risky-users.json");
+        query["highlights"] = JsonNode.Parse("""[{"id":"r1","column":"riskLevel","op":"==","value":"high","colour":"danger","target":"row"}]""");
+        Publish("queries/risky-users.json", Bytes(query));
+        var svc = Service();
+
+        await svc.InstallAsync(Id, Skip(), Ct);
+
+        var queries = (await _library.ListAsync(Ct)).Queries;
+        var installed = queries.Single(q => q.Origin!.ItemId == "risky-users");
+        Assert.Equal([new HighlightRule("r1", "riskLevel", "==", "high", "danger", "row")], installed.Highlights);
+        Assert.Null(queries.Single(q => q.Origin!.ItemId != "risky-users").Highlights);
+        Assert.Equal(SolutionHash.Query(InputOf(installed)), installed.Origin!.ContentHash);
+        Assert.Empty(await svc.ModifiedAsync(Id, Ct));
     }
 }

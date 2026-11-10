@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ExternalTool, HistorySeries, RunResult, SavedQuery } from '../wire';
+import type { ExternalTool, HighlightRule, HistorySeries, RunResult, SavedQuery } from '../wire';
 import type { ToolButton, Widget, WidgetType, WorkbookDoc, WorkbookParameter } from './model';
 import { defaultHistory, newWidget, newWorkbook } from './model';
 import { WidgetEditor } from './widget-editor';
@@ -397,6 +397,77 @@ describe('WidgetEditor', () => {
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Range 1d');
     apply();
     expect(applied('m').markdown).toBe('## Range {TimeRange}');
+  });
+
+  describe('Highlight', () => {
+    const rule: HighlightRule = { id: 'r1', column: 'name', op: '==', value: 'vm1', colour: 'danger', target: 'row' };
+
+    it('a table widget has a Highlight tab; a chart widget doesn’t', () => {
+      open('a');
+      expect(screen.getByRole('tab', { name: 'Highlight' })).toBeTruthy();
+      cleanup();
+      doc.widgets.push(widget('c', 'chart'));
+      open('c');
+      expect(screen.queryByRole('tab', { name: 'Highlight' })).toBeNull();
+    });
+
+    it('edits an inline widget’s rules, written on Apply', () => {
+      open('a', vms);
+      tab('Highlight');
+      fireEvent.click(screen.getByRole('button', { name: '+ Add rule' }));
+      fireEvent.change(screen.getByRole('textbox', { name: 'Value' }), { target: { value: 'vm1' } });
+      apply();
+      expect(applied().query?.highlights).toEqual([expect.objectContaining({ column: 'name', op: '==', value: 'vm1', target: 'row' })]);
+    });
+
+    it('removing the last rule leaves no highlights key', () => {
+      const a = doc.widgets[0]!;
+      doc.widgets[0] = { ...a, query: { ...a.query!, highlights: [rule] } };
+      open('a', vms);
+      tab('Highlight');
+      fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+      apply();
+      expect('highlights' in applied().query!).toBe(false);
+    });
+
+    it('a widget without rules commits with no highlights key', () => {
+      open('a');
+      fireEvent.change(screen.getByRole('textbox', { name: 'Title' }), { target: { value: 'Renamed' } });
+      apply();
+      expect(applied().title).toBe('Renamed');
+      expect('highlights' in applied().query!).toBe(false);
+    });
+
+    it('linking a saved query without rules drops the widget’s own; Copy into widget keeps none', async () => {
+      const a = doc.widgets[0]!;
+      doc.widgets[0] = { ...a, query: { ...a.query!, highlights: [rule] } };
+      open('a', vms);
+      fireEvent.click(screen.getByRole('radio', { name: 'Use a saved query' }));
+      await screen.findByRole('option', { name: 'Risky sign-ins' });
+      fireEvent.change(screen.getByRole('combobox', { name: 'Saved query' }), { target: { value: 's1' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Copy into widget' }));
+      apply();
+      expect(applied().query).toMatchObject({ saved: null, text: 'riskyUsers | take {Top}' });
+      expect('highlights' in applied().query!).toBe(false);
+    });
+
+    it('a linked widget copies its saved query’s rules and shows them read-only', async () => {
+      call.mockImplementation((method: string) =>
+        method === 'library.list'
+          ? Promise.resolve({ queries: [{ ...risky, highlights: [rule] }], folders: [], skipped: 0 })
+          : new Promise(() => undefined),
+      );
+      open('a', vms);
+      fireEvent.click(screen.getByRole('radio', { name: 'Use a saved query' }));
+      await screen.findByRole('option', { name: 'Risky sign-ins' });
+      fireEvent.change(screen.getByRole('combobox', { name: 'Saved query' }), { target: { value: 's1' } });
+      tab('Highlight');
+      expect(screen.getByText('Edit the saved query to change these.')).toBeTruthy();
+      expect(screen.getByRole('button', { name: '+ Add rule' })).toHaveProperty('disabled', true);
+      expect(screen.getByRole('textbox', { name: 'Value' })).toHaveProperty('disabled', true);
+      apply();
+      expect(applied().query).toMatchObject({ saved: { id: 's1' }, highlights: [rule] });
+    });
   });
 
   describe('Tool buttons', () => {

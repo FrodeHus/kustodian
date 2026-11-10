@@ -1,5 +1,14 @@
 import type { Transport } from './bridge';
-import type { HistoryChanges, HistoryRecordParams, HistorySeries, HistorySnapshot, Pins, QueryOptions, TrackedRow } from './wire';
+import type {
+  HighlightRule,
+  HistoryChanges,
+  HistoryRecordParams,
+  HistorySeries,
+  HistorySnapshot,
+  Pins,
+  QueryOptions,
+  TrackedRow,
+} from './wire';
 import schema from './fixtures/graph-schema.json';
 import { columnName } from './results/smart-filter';
 
@@ -571,6 +580,7 @@ interface SavedQueryInput {
   text?: string;
   parameters?: unknown[];
   options?: QueryOptions | null;
+  highlights?: HighlightRule[] | null;
 }
 
 interface SavedQuery extends SavedQueryInput {
@@ -821,6 +831,7 @@ export function createMockTransport(): Transport {
           createdAt: saved.get(key)?.createdAt ?? now,
           modifiedAt: now,
           options: input.options ?? null,
+          highlights: input.highlights?.length ? input.highlights : null,
         };
         saved.set(key, query);
         reply(id, query);

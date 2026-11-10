@@ -1,8 +1,8 @@
-import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { ResultColumn } from '../wire';
 import { CHUNKED_ABOVE, columnStats, columnStatsChunked, type ColumnStats } from './column-stats';
 import { FilterItems, MenuButton, type OnFilter } from './menu';
-import { keepInside } from './keep-inside';
+import { Popover } from './popover';
 import { shownValue } from './smart-filter';
 
 const count = (n: number) => n.toLocaleString('en-US');
@@ -38,7 +38,6 @@ export function ColumnStatsPopover({
   onClose: (refocus: boolean) => void;
   chunkedAbove?: number;
 }) {
-  const box = useRef<HTMLDivElement>(null);
   const chunked = values.length > chunkedAbove;
   const now = useMemo(() => (chunked ? null : columnStats(column, values)), [chunked, column, values]);
   const [later, setLater] = useState<ColumnStats | null>(null);
@@ -53,39 +52,8 @@ export function ColumnStatsPopover({
     return () => abort.abort();
   }, [chunked, column, values]);
 
-  // Kept inside the grid, as `Menu` does with `at`.
-  useLayoutEffect(() => {
-    if (at && box.current) {
-      keepInside(box.current, at, { capHeight: true });
-    }
-  });
-
-  const dismiss = useEffectEvent(() => onClose(false));
-  useEffect(() => {
-    box.current?.focus();
-    const onDown = (e: MouseEvent) => {
-      if (!(e.target instanceof Node) || !box.current?.contains(e.target)) {
-        dismiss();
-      }
-    };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, []);
-
   return (
-    <div
-      ref={box}
-      role="dialog"
-      aria-label={`${column.name} statistics`}
-      tabIndex={-1}
-      className="menu w-[320px] max-w-full gap-2 p-3 text-[12px] overflow-y-auto outline-none"
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') {
-          e.stopPropagation();
-          onClose(true);
-        }
-      }}
-    >
+    <Popover label={`${column.name} statistics`} at={at} className="w-[320px]" onClose={onClose}>
       <div>
         <b className="mono text-[12.5px]">{column.name}</b> statistics
       </div>
@@ -135,6 +103,6 @@ export function ColumnStatsPopover({
           )}
         </>
       )}
-    </div>
+    </Popover>
   );
 }

@@ -406,6 +406,7 @@ export function paletteVars(p: Palette): Record<string, string> {
     '--bad': p.bad,
     '--bad-soft': soft(p.bad, 14),
     '--ok': p.ok,
+    '--ok-soft': soft(p.ok, 14),
     '--kw': p.kw,
     '--tbl': p.tbl,
     '--col': p.col,

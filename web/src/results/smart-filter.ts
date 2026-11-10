@@ -138,6 +138,12 @@ export function shownValue(value: unknown): string {
   return text.length > 40 ? `${text.slice(0, 39)}…` : text;
 }
 
+/** A cell's value as a menu item shows it: `shownValue`, in quotes for a non-empty string or dynamic value. */
+export function quotedValue(column: ResultColumn, value: unknown): string {
+  const quoted = (column.type === 'string' || column.type === 'dynamic') && !isEmpty(value);
+  return quoted ? `"${shownValue(value)}"` : shownValue(value);
+}
+
 /** The query text a filter line goes into, and where it begins in the editor (lines and columns count from 1). */
 export interface FilterTarget {
   kql: string;

@@ -13,7 +13,10 @@ you edit the workbook.
 
 - **Markdown**: headings, text, links and tables. `{name}` shows the current value of a parameter. Raw HTML and images are dropped.
 - **Chart**: the Chart tab's chart types, with X, Y and series chosen in the widget editor.
-- **Table**: the result grid, with sorting and its row filter.
+- **Table**: the result grid, with sorting and its row filter, and the query's highlight rules, which colour rows or cells.
+  The widget editor has a Highlight tab to edit them. A widget linked to a saved query follows that query's rules, and its
+  Highlight tab is read-only ("Edit the saved query to change these."). Copying a saved query into a widget or linking one
+  replaces the widget's own rules. Exporting and importing a workbook carries rules, and solutions can include them.
 - **Stat**: one number from the first row, with an optional value to compare it with and an optional unit shown after it
   (`%`, `ms`, `days`; at most 12 characters).
 

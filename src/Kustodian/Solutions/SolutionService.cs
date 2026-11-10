@@ -418,7 +418,7 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
 
     private static bool IsModified(JsonObject wb) => SolutionHash.Workbook(wb) != OriginOf(wb)?.ContentHash;
 
-    private static SavedQueryInput InputOf(SavedQuery q) => new(q.Id, q.Name, q.Folder, q.Source, q.Text, q.Parameters, q.Options);
+    private static SavedQueryInput InputOf(SavedQuery q) => new(q.Id, q.Name, q.Folder, q.Source, q.Text, q.Parameters, q.Options, q.Highlights);
 
     private static SolutionOrigin? OriginOf(JsonObject wb)
     {
