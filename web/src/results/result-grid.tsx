@@ -586,14 +586,6 @@ export function ResultGrid({
           })}
         </>
       </MenuButton>
-      {nested && grouping.length > 0 && (
-        <span className="chip min-w-0 max-w-[16rem]" title={`Grouped by ${grouping.join(' › ')}`}>
-          <span className="truncate">Grouped by {grouping.join(' › ')}</span>
-          <button type="button" className="shrink-0 cursor-pointer" aria-label="Clear grouping" onClick={() => setGrouping([])}>
-            ✕
-          </button>
-        </span>
-      )}
       <MenuButton label="Copy as" primary>
         <>
           <span className="faint px-2.5 py-1 text-[11.5px]">{chosenLabel}</span>
@@ -618,6 +610,17 @@ export function ResultGrid({
   return (
     <div ref={root} className="relative flex min-h-0 flex-1 flex-col">
       {toolbar === undefined ? <div className="rbar justify-end">{tools}</div> : toolbar && createPortal(tools, toolbar)}
+      {/* Its own line, like the chart filter's chip: the result bar has no room to spare. */}
+      {nested && grouping.length > 0 && (
+        <div className="flex px-3 pt-2">
+          <span className="chip min-w-0" title={`Grouped by ${grouping.join(' › ')}`}>
+            <span className="truncate">Grouped by {grouping.join(' › ')}</span>
+            <button type="button" className="shrink-0 cursor-pointer" aria-label="Clear grouping" onClick={() => setGrouping([])}>
+              ✕
+            </button>
+          </span>
+        </div>
+      )}
       <div
         ref={scroller}
         className="min-h-0 flex-1 overflow-auto"

@@ -34,7 +34,8 @@
 - Copy:
   - The header menu item is `Group by this column`. When the column is already grouped it reads `Stop grouping by this
     column`. When three columns are already grouped, the item is disabled with the title `Up to 3 columns`.
-  - The chip reads `Grouped by A › B` (title the same, at most 16rem wide and truncated), and its clear button is labelled
+  - The chip reads `Grouped by A › B` (title the same, truncated), on its own line at the top of the grid like the chart
+    filter's chip, since the result bar has no room to spare. Its clear button is labelled
     `Clear grouping`.
   - On the Rows grid the toolbar button reads just `Group by`; the chip names the columns. Single-column grids (widgets,
     history, Compare) keep `Group by: x`.
