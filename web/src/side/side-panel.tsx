@@ -16,6 +16,7 @@ export function Rail({ panel, onChoose }: { panel: PanelName | null; onChoose: (
         <button
           key={p.name}
           type="button"
+          data-panel={p.name}
           aria-pressed={p.name === panel}
           aria-label={p.label}
           title={p.label}
