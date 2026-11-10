@@ -77,12 +77,15 @@ export function TabsWidget({
   editing,
   body,
   onSignIn,
+  printing,
 }: {
   tabId: string;
   widget: Widget;
   editing: GridEditing | undefined;
   body: (w: Widget) => ReactNode;
   onSignIn?: () => void;
+  /** Print or save as PDF is under way: every tab is rendered for print, each under its name. */
+  printing?: boolean;
 }) {
   const state = useWorkbooks((s) => s.byTab[tabId]);
   const id = useId();
@@ -257,8 +260,22 @@ export function TabsWidget({
   const empty = shown !== undefined && childrenOf(state.doc.widgets, widget.id, shown).length === 0;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="rbar shrink-0 pr-10">
+    <div className="wb-tabs flex min-h-0 flex-1 flex-col">
+      {printing && (
+        <div className="print-only wb-print-tabs px-3 pb-3">
+          {tabs.map((t) => (
+            <section key={t.id}>
+              <h3 className="wb-print-tab">{t.name}</h3>
+              {childrenOf(state.doc.widgets, widget.id, t.id).length === 0 ? (
+                <p className="faint m-0 text-[12px]">No widgets on this tab</p>
+              ) : (
+                <WidgetGrid tabId={tabId} place={{ tabs: widget.id, tab: t.id }} editing={undefined} body={body} onSignIn={onSignIn} />
+              )}
+            </section>
+          ))}
+        </div>
+      )}
+      <div className="rbar screen-only shrink-0 pr-10">
         <div role="tablist" aria-label={widget.title || 'Tabs'} className="flex min-w-0 items-center gap-1.5 overflow-x-auto">
           {tabs.map((t) =>
             t.id === renaming ? (
@@ -372,7 +389,7 @@ export function TabsWidget({
         role="tabpanel"
         aria-labelledby={shown && `${id}-${shown}`}
         tabIndex={0}
-        className="min-h-0 flex-1 overflow-auto p-3"
+        className={`min-h-0 flex-1 overflow-auto p-3 ${printing ? 'screen-only' : ''}`}
       >
         {empty && <p className="faint m-0 pb-2 text-[12px]">{editing ? 'Drag a widget here or use Move to…' : 'No widgets on this tab'}</p>}
         {shown !== undefined && (!empty || editing) && (

@@ -135,6 +135,13 @@ describe('WorkbookView', () => {
     print.mockRestore();
   });
 
+  it('prints the parameters as a table of their shown values', () => {
+    show({});
+    const table = screen.getByRole('table', { name: 'Workbook parameters' });
+    expect(table.closest('.print-only')).toBeTruthy();
+    expect([...table.querySelectorAll('tbody tr')].map((r) => r.textContent)).toEqual(['Environmentprod', 'Days7']);
+  });
+
   it('offers a text parameter with choices as a select, and fills Markdown with a parameter added since opening', () => {
     // Region isn't in the view values (it was added after the workbook opened): its default stands in.
     doc.parameters = [...doc.parameters, { ...env, name: 'Region', type: 'text', value: 'eu', choices: ['eu', 'us'], label: null }];

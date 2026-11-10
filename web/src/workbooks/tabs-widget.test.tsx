@@ -91,6 +91,25 @@ beforeEach(() => {
 });
 
 describe('TabsWidget', () => {
+  it('print renders every tab under its name, running the hidden tabs’ widgets that haven’t run first', async () => {
+    const print = vi.spyOn(window, 'print').mockImplementation(() => undefined);
+    call.mockResolvedValue(false);
+    doc.widgets = doc.widgets.map((w) => (w.id === 'b' ? { ...w, query: { ...w.query!, text: 'Users' } } : w));
+    const { container } = show();
+    fireEvent.click(screen.getByRole('button', { name: 'Workbook menu' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Print or save as PDF…' }));
+    await vi.waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+    expect(runWidget).toHaveBeenCalledWith('t', 'b');
+    const printed = container.querySelector('.wb-print-tabs')!;
+    expect([...printed.querySelectorAll('h3')].map((h) => h.textContent)).toEqual(['Overview', 'Details', 'Empty']);
+    expect(within(printed as HTMLElement).getByRole('region', { name: 'Beta' })).toBeTruthy();
+    // The screen keeps its one tab; the print copy goes once the print ends.
+    expect(printed.classList.contains('print-only')).toBe(true);
+    fireEvent(window, new Event('afterprint'));
+    expect(container.querySelector('.wb-print-tabs')).toBeNull();
+    print.mockRestore();
+  });
+
   it('a workbook with a tabs widget shows plain widgets and the first tab’s widgets only', () => {
     show();
     expect(screen.getByRole('region', { name: 'Notes' })).toBeTruthy();
