@@ -153,6 +153,20 @@ describe('parseWorkbook on a damaged file', () => {
     expect(t && ('chart' in t || 'stat' in t)).toBe(false);
   });
 
+  it('keeps a stat unit trimmed and at most 12 characters, and drops an empty or non-string one', () => {
+    const stat = (unit: unknown) => {
+      const w = doc({
+        ...example(),
+        widgets: [{ id: 's', type: 'stat', title: '', layout: { x: 0, y: 0, w: 2, h: 6 }, stat: { value: 'v', compare: null, unit } }],
+      }).widgets[0];
+      return w?.stat;
+    };
+    expect(stat(' % ')).toMatchObject({ value: 'v', unit: '%' });
+    expect(stat('a very long unit name')?.unit).toBe('a very long ');
+    expect(stat('  ')?.unit).toBeUndefined();
+    expect(stat(5)?.unit).toBeUndefined();
+  });
+
   it('keeps only widget parameter entries with a known from and a string value', () => {
     expect(d().widgets[1]?.parameters).toEqual({ D: { from: 'widget', value: 'd' } });
   });

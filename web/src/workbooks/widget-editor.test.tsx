@@ -243,6 +243,15 @@ describe('WidgetEditor', () => {
     expect(applied().chart).toMatchObject({ type: 'line' });
   });
 
+  it('a stat widget’s Unit writes widget.stat.unit and keeps its columns', () => {
+    doc.widgets[0] = { ...doc.widgets[0]!, type: 'stat', stat: { value: 'n', compare: 'm' } };
+    open('a');
+    tab('Visualization');
+    fireEvent.change(screen.getByRole('textbox', { name: 'Unit' }), { target: { value: '%' } });
+    apply();
+    expect(applied().stat).toEqual({ value: 'n', compare: 'm', unit: '%' });
+  });
+
   it('the preview draws the chart alone, as the Visualization tab sets it', async () => {
     const result = {
       outcome: 'ok',

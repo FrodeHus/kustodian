@@ -59,7 +59,8 @@ export interface Widget {
   query?: WidgetQuery;
   parameters: Record<string, WidgetParam>;
   chart?: Picked;
-  stat?: { value: string | null; compare: string | null };
+  /** `unit`, shown after the number (%, ms, days), when set. */
+  stat?: { value: string | null; compare: string | null; unit?: string };
   selection?: RowSelectionMode; // table widgets only
   tools?: ToolButton[]; // table widgets only
   history?: WidgetHistory; // stat, chart and table widgets only
@@ -166,6 +167,12 @@ type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
 const str = (v: unknown, fallback: string) => (typeof v === 'string' ? v : fallback);
 const strOrNull = (v: unknown) => (typeof v === 'string' ? v : null);
+export const MAX_UNIT_LENGTH = 12;
+/** A stat's unit: trimmed and capped; none when empty or not a string. */
+const unitOf = (v: unknown) => {
+  const u = typeof v === 'string' ? v.trim().slice(0, MAX_UNIT_LENGTH) : '';
+  return u ? { unit: u } : {};
+};
 const bool = (v: unknown) => v === true;
 const choices = (v: unknown) => (Array.isArray(v) && v.every((c) => typeof c === 'string') ? v : null);
 const FROMS: unknown[] = ['workbook', 'widget', 'fixed'] satisfies ParamFrom[];
@@ -300,7 +307,9 @@ function parseWidget(v: unknown): Widget | null {
         }
       : {}),
     ...(parsedHistory ? { history: parsedHistory } : {}),
-    ...(isObj(stat) ? { stat: { ...stat, value: strOrNull(stat.value), compare: strOrNull(stat.compare) } } : {}),
+    ...(isObj(stat)
+      ? { stat: { ...stat, value: strOrNull(stat.value), compare: strOrNull(stat.compare), unit: undefined, ...unitOf(stat.unit) } }
+      : {}),
   };
 }
 
