@@ -97,7 +97,7 @@ describe('ResultPanel', () => {
   it('result_panel_keeps_grouping_across_remounts', () => {
     const first = render(<ResultPanel {...props} />);
     fireEvent.click(screen.getByRole('button', { name: 'Group by' }));
-    fireEvent.click(within(screen.getByRole('menu', { name: 'Group by' })).getByRole('menuitemradio', { name: 'displayName' }));
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Group by' })).getByRole('menuitemcheckbox', { name: 'displayName' }));
     expect(useTabs.getState().groupings.t1).toEqual(['displayName']);
     first.unmount();
 

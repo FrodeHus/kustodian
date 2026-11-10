@@ -3,7 +3,6 @@ import {
   columnGroupingFeature,
   columnOrderingFeature,
   columnVisibilityFeature,
-  createExpandedRowModel,
   createFilteredRowModel,
   createGroupedRowModel,
   createSortedRowModel,
@@ -50,7 +49,6 @@ const features = tableFeatures({
   filteredRowModel: createFilteredRowModel(),
   groupedRowModel: createGroupedRowModel(),
   sortedRowModel: createSortedRowModel(),
-  expandedRowModel: createExpandedRowModel(),
 });
 type Features = typeof features;
 
@@ -83,9 +81,26 @@ const rowContains: FilterFn<Features, Row> = (row, _columnId, filter: string) =>
 /** A cell matches when its text is exactly the filter's: the rows behind a chart mark (see `markFilter`). */
 const cellIs: FilterFn<Features, Row> = (row, columnId, value: string) => cellText(row.getValue(columnId)) === value;
 
+/** At most this many grouping columns. */
+const MAX_GROUPING = 3;
+
+/** A level of groups ordered by their row count, largest first (ties keep TanStack's order); a level of rows as it is. */
+function bySize(rows: TableRow<Features, Row>[]): TableRow<Features, Row>[] {
+  if (!rows[0]?.getIsGrouped()) {
+    return rows;
+  }
+  const size = new Map(rows.map((r) => [r, leaves(r.subRows).length]));
+  return rows.toSorted((a, b) => (size.get(b) ?? 0) - (size.get(a) ?? 0));
+}
+
 /** The leaf rows under `rows` in the order shown, groups opened or not. */
 function leaves(rows: TableRow<Features, Row>[]): TableRow<Features, Row>[] {
-  return rows.flatMap((r) => (r.getIsGrouped() ? leaves(r.subRows) : [r]));
+  return bySize(rows).flatMap((r) => (r.getIsGrouped() ? leaves(r.subRows) : [r]));
+}
+
+/** The rows shown: each group row, then what is under it when it is open. */
+function shownRows(rows: TableRow<Features, Row>[]): TableRow<Features, Row>[] {
+  return bySize(rows).flatMap((r) => (r.getIsGrouped() && r.getIsExpanded() ? [r, ...shownRows(r.subRows)] : [r]));
 }
 
 interface Opened {
@@ -197,7 +212,7 @@ const inspectIcon = (
 );
 
 /**
- * The Rows tab (spec 6.5): a virtualized grid with sort, a row filter, hidden and reordered columns, grouping by a column,
+ * The Rows tab (spec 6.5): a virtualized grid with sort, a row filter, hidden and reordered columns, grouping by up to three columns (groups largest first),
  * row selection (click, Shift-click a range, Ctrl/⌘-click to toggle), copy as CSV, Markdown or JSON, and dynamic cells opened
  * as formatted JSON. Each row starts with an inspect button that opens it in the row details sheet, or closes it there.
  */
@@ -247,7 +262,20 @@ export function ResultGrid({
   const wanted = givenGrouping ?? ownGrouping;
   const grouping = useMemo(() => wanted.filter((id) => columns.some((c) => c.name === id)), [wanted, columns]);
   const dropped = grouping.length !== wanted.length;
-  const setGrouping = (next: string[]) => (givenGrouping && onGroupingChange ? onGroupingChange(next) : setOwnGrouping(next));
+  const setGrouping = (next: string[]) => {
+    setExpanded({});
+    if (givenGrouping && onGroupingChange) {
+      onGroupingChange(next);
+    } else {
+      setOwnGrouping(next);
+    }
+  };
+  /** Adds the column at the end of the grouping, or takes it out. */
+  const toggleGrouping = (id: string) => setGrouping(grouping.includes(id) ? grouping.filter((c) => c !== id) : [...grouping, id]);
+  /** No more columns can be added to the grouping, and `id` isn't one of them. */
+  const isFull = (id: string) => !grouping.includes(id) && grouping.length >= MAX_GROUPING;
+  // The query tab's Rows grid nests up to three columns; other grids group by one.
+  const nested = statistics;
   const reportDropped = useEffectEvent(() => onGroupingChange?.(grouping));
   useEffect(() => {
     if (dropped && givenGrouping) {
@@ -302,7 +330,7 @@ export function ResultGrid({
     sortDescFirst: false,
   });
 
-  const visible = table.getRowModel().rows;
+  const visible = shownRows(table.getSortedRowModel().rows);
   const shownLeaves = visible.filter((r) => !r.getIsGrouped());
   const visibleColumns = table.getVisibleLeafColumns();
   const virtualizer = useVirtualizer({
@@ -405,8 +433,6 @@ export function ResultGrid({
     );
   };
 
-  const groupedBy = grouping[0];
-
   /** Opens a cell's smart filter menu at the pointer, kept inside the grid; a cell it offers nothing for keeps the browser's. */
   const openCellMenu = (e: MouseEvent, column: ResultColumn | undefined, value: unknown) => {
     const box = root.current?.getBoundingClientRect();
@@ -494,28 +520,52 @@ export function ResultGrid({
           </button>
         </>
       </MenuButton>
-      <MenuButton label="Group by" text={groupedBy ? `Group by: ${groupedBy}` : undefined}>
+      <MenuButton label="Group by" text={grouping.length > 0 ? `Group by: ${grouping.join(' › ')}` : undefined}>
         <>
-          {[undefined, ...ids].map((id) => (
-            <button
-              key={id ?? ''}
-              type="button"
-              role="menuitemradio"
-              aria-checked={groupedBy === id}
-              tabIndex={-1}
-              onClick={() => {
-                setGrouping(id ? [id] : []);
-                setExpanded({});
-              }}
-            >
-              <span aria-hidden="true" className="w-3 text-accent">
-                {groupedBy === id ? '●' : ''}
-              </span>
-              <span className={id ? 'mono' : undefined}>{id ?? 'No grouping'}</span>
-            </button>
-          ))}
+          <button
+            type="button"
+            role={nested ? 'menuitem' : 'menuitemradio'}
+            aria-checked={nested ? undefined : grouping.length === 0}
+            tabIndex={-1}
+            onClick={() => setGrouping([])}
+          >
+            <span aria-hidden="true" className="w-3 text-accent">
+              {!nested && grouping.length === 0 ? '●' : ''}
+            </span>
+            No grouping
+          </button>
+          {ids.map((id) => {
+            const on = grouping.includes(id);
+            const full = nested && isFull(id);
+            return (
+              <button
+                key={id}
+                type="button"
+                role={nested ? 'menuitemcheckbox' : 'menuitemradio'}
+                aria-checked={on}
+                tabIndex={-1}
+                data-keep-open={nested || undefined}
+                disabled={full}
+                title={full ? `Up to ${MAX_GROUPING} columns` : undefined}
+                onClick={() => (nested ? toggleGrouping(id) : setGrouping([id]))}
+              >
+                <span aria-hidden="true" className="w-3 text-accent">
+                  {on ? (nested ? '✓' : '●') : ''}
+                </span>
+                <span className="mono">{id}</span>
+              </button>
+            );
+          })}
         </>
       </MenuButton>
+      {nested && grouping.length > 0 && (
+        <span className="chip min-w-0">
+          <span className="truncate">Grouped by {grouping.join(' › ')}</span>
+          <button type="button" className="shrink-0 cursor-pointer" aria-label="Clear grouping" onClick={() => setGrouping([])}>
+            ✕
+          </button>
+        </span>
+      )}
       <MenuButton label="Copy as" primary>
         <>
           <span className="faint px-2.5 py-1 text-[11.5px]">{chosenLabel}</span>
@@ -630,12 +680,29 @@ export function ResultGrid({
               if (row.getIsGrouped()) {
                 const value = row.groupingValue;
                 const open = row.getIsExpanded();
+                const column = meta.get(row.groupingColumnId ?? '');
                 return (
                   <tr key={row.id} data-index={item.index} style={{ height: ROW_HEIGHT }}>
-                    <td colSpan={span} className="bg-panel2">
-                      <button type="button" aria-expanded={open} onClick={row.getToggleExpandedHandler()}>
+                    <td
+                      colSpan={span}
+                      className="bg-panel2"
+                      style={{ paddingLeft: 12 + row.depth * 18 }}
+                      // A group's own row is its first row: its value is the one the grouping value was made from.
+                      onContextMenu={(e) => column && openCellMenu(e, column, row.original[columns.indexOf(column)])}
+                    >
+                      <button
+                        type="button"
+                        aria-expanded={open}
+                        onClick={row.getToggleExpandedHandler()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                            row.toggleExpanded(e.key === 'ArrowRight');
+                            e.preventDefault();
+                          }
+                        }}
+                      >
                         {open ? '▾' : '▸'} {row.groupingColumnId}: {value === '' ? 'null' : cellText(value)} ·{' '}
-                        {count(row.getLeafRows().length)}
+                        {count(leaves(row.subRows).length)}
                       </button>
                     </td>
                   </tr>
@@ -768,6 +835,16 @@ export function ResultGrid({
             }}
           >
             Column statistics
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            tabIndex={-1}
+            disabled={isFull(columnMenu.column.name)}
+            title={isFull(columnMenu.column.name) ? `Up to ${MAX_GROUPING} columns` : undefined}
+            onClick={() => toggleGrouping(columnMenu.column.name)}
+          >
+            {grouping.includes(columnMenu.column.name) ? 'Stop grouping by this column' : 'Group by this column'}
           </button>
         </Menu>
       )}
