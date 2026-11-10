@@ -7,6 +7,10 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Grouping by several columns**: group the Rows tab by up to three columns, from a column header's menu (Group by this
+  column) or the Group by menu. A **Grouped by** chip clears it, a group row has Filter by and Exclude on the tabs where the
+  smart filter is offered, and a tab keeps its grouping across tab switches and reruns while Kustodian runs (it isn't saved,
+  and a column a rerun no longer returns is dropped).
 - **Column statistics**: a column header's menu shows the column's distinct and empty counts, its top 10 values with their
   share, and min, max and average for numbers or earliest and latest for dates, from the rows shown. Filter by or Exclude a
   top value from there, on the tabs where the smart filter is offered.
@@ -47,6 +51,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Group by**: on query tabs the Group by menu now takes several columns (up to three, nested), and groups are sorted by
+  size, largest first, at every level, also in workbook tables and the Compare view, which keep a single column.
 - **A little colour**: each side panel's icon on the rail has its own colour from the theme, and each query tab has a stripe
   along its top in its source's colour: blue for Graph, amber for advanced hunting, green for Resource Graph.
 - **Workbook widget headers** have more room for the title: the source badge is gone (the widget editor still shows the

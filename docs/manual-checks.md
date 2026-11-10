@@ -296,6 +296,17 @@ property's **Filter…** button. The grid focuses rows, not cells, so it has no 
 | From the keyboard: Tab to the column's chevron, Enter, Enter on Column statistics, Esc closes it and focus returns to the chevron | - | - | - |
 | Hunting `range x from 1 to 300000 step 1`, open the statistics for `x`: it shows `Counting…` and the app stays responsive | - | - | - |
 
+### Grouping (2026-11-10)
+
+| Check | macOS | Windows | Linux |
+| --- | --- | --- | --- |
+| Group a hunting result by two columns from the header menu: the chip reads `Grouped by A › B`, groups start closed, largest first | - | - | - |
+| Rerun, then switch tabs and back: the grouping stays | - | - | - |
+| Rerun a query without one grouped column: it drops that column | - | - | - |
+| From the keyboard: Tab to a group row, Right opens it, Left closes it | - | - | - |
+| Right-click a group row, Filter by: the query gets the `\| where` line and reruns | - | - | - |
+| Once in a light theme, once in a dark one | - | - | - |
+
 ## Notes
 
 - macOS window: the owner's own Kustodian had quit before this check, and the builder's instance was started with `HOME`
