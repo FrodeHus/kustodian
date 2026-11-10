@@ -33,6 +33,16 @@ describe('ResultGrid', () => {
     expect(rendered).toBeLessThan(100);
   });
 
+  it('for print renders every row up to the limit, and says how many were left out', () => {
+    const rows = Array.from({ length: 700 }, (_, i) => [`app ${i}`, i, ['a']]);
+    const { container, rerender } = render(<ResultGrid columns={columns} rows={rows} printRows={500} />);
+    expect(bodyRows(container)).toHaveLength(500);
+    expect(screen.getByText('First 500 of 700 rows.')).toBeTruthy();
+    rerender(<ResultGrid columns={columns} rows={rows.slice(0, 300)} printRows={500} />);
+    expect(bodyRows(container)).toHaveLength(300);
+    expect(screen.queryByText(/^First /)).toBeNull();
+  });
+
   it('result_grid_sorts_filters_and_shows_dynamic_as_json', () => {
     const rows = [
       ['Payroll', 2, { kind: 'secret' }],

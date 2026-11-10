@@ -489,9 +489,21 @@ body {
     box-shadow: none !important;
     background: none !important;
   }
-  .wb-printing .wb-widget:has(.md, .wb-print-tabs) { height: auto; }
-  .wb-printing .wb-widget:has(.wb-print-tabs) { break-inside: auto; }
-  .wb-printing .wb-widget:has(.md, .wb-print-tabs) > div, .wb-printing :is(.md, .wb-tabs) { flex: none; overflow: visible !important; }
+  .wb-printing .wb-widget:has(.md, .wb-print-tabs, .datagrid) { height: auto; }
+  .wb-printing .wb-widget:has(.wb-print-tabs, .datagrid) { break-inside: auto; }
+  .wb-printing .wb-widget:has(.md, .wb-print-tabs) > div, .wb-printing :is(.md, .wb-tabs, div:has(.datagrid)) {
+    flex: none;
+    min-height: auto;
+    overflow: visible !important;
+  }
+  /* A table's rows (up to PRINT_ROWS) at the page's width: columns sized to their content, cell text wrapped, not cut off. */
+  .wb-printing .datagrid { table-layout: auto; }
+  .wb-printing .datagrid col { width: auto !important; }
+  .wb-printing .datagrid :is(th, td, th button, td button) { white-space: normal; overflow-wrap: break-word; max-width: none; overflow: visible; }
+  /* JSON can be one long word: it breaks anywhere, so its column doesn't take the page. */
+  .wb-printing .datagrid td button { overflow-wrap: anywhere; text-align: left; }
+  .wb-printing .datagrid :is(th, .inspect-col, .select-col) { position: static; }
+  .wb-printing .datagrid tr { break-inside: avoid; }
   /* A tab is a report section: a full-width heading over a thin rule. */
   .wb-print-tab { margin: 18px 0 10px; padding-bottom: 4px; border-bottom: 1px solid var(--line); font-size: 15px; font-weight: 600; break-after: avoid; }
 }
