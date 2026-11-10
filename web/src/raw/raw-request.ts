@@ -72,7 +72,9 @@ export function openRaw(seed: { path?: string; version?: string } = {}): string 
   while (used.has(`Raw request ${n}`)) {
     n++;
   }
-  return useTabs.getState().openWith({ source: 'raw', title: `Raw request ${n}`, text: seed.path ?? '', raw: { version: seed.version ?? null, headers: [] } });
+  return useTabs
+    .getState()
+    .openWith({ source: 'raw', title: `Raw request ${n}`, text: seed.path ?? '', raw: { version: seed.version ?? null, headers: [] } });
 }
 
 export interface RawState {

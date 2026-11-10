@@ -26,7 +26,8 @@ const parsed = (value: unknown): unknown => {
 const valueText = (value: unknown) => (isComplex(value) ? JSON.stringify(value, null, 2) : cellText(value));
 
 /** The row as one JSON object keyed by column name. */
-const rowJson = (columns: ResultColumn[], row: Row) => JSON.stringify(Object.fromEntries(columns.map((c, i) => [c.name, row[i] ?? null])), null, 2);
+const rowJson = (columns: ResultColumn[], row: Row) =>
+  JSON.stringify(Object.fromEntries(columns.map((c, i) => [c.name, row[i] ?? null])), null, 2);
 
 /**
  * Row details (spec 6.5, mockup Palette): a side sheet with every column of one row, dynamic values as a tree to open and close,
@@ -140,7 +141,10 @@ export function RowDetails({ columns, row, onClose, id }: { columns: ResultColum
         {switches > 0 ? `Showing ${title}` : ''}
       </p>
       {notice && (
-        <p role={notice.tone === 'bad' ? 'alert' : 'status'} className={`m-0 border-b border-line px-3.5 py-1.5 text-[12px] ${notice.tone === 'bad' ? 'bg-bad-soft text-bad' : 'text-muted'}`}>
+        <p
+          role={notice.tone === 'bad' ? 'alert' : 'status'}
+          className={`m-0 border-b border-line px-3.5 py-1.5 text-[12px] ${notice.tone === 'bad' ? 'bg-bad-soft text-bad' : 'text-muted'}`}
+        >
           {notice.text}
         </p>
       )}

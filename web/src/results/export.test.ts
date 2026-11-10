@@ -106,7 +106,15 @@ describe('export', () => {
       { name: 'v', type: 'string' },
       { name: 'n', type: 'long' },
     ];
-    const rows = [['=1+1', -5], ['+SUM(A1)', 3], ['-x', null], ['@cmd', null], ['\tx', null], ['\rx', null], ['safe', null]];
+    const rows = [
+      ['=1+1', -5],
+      ['+SUM(A1)', 3],
+      ['-x', null],
+      ['@cmd', null],
+      ['\tx', null],
+      ['\rx', null],
+      ['safe', null],
+    ];
 
     await exportResult('excel', 'q', { columns: cols, rows });
 
@@ -118,7 +126,10 @@ describe('export', () => {
   });
 
   it('Markdown_escapes_pipes', () => {
-    const rows = [['a|b', 1, { x: 'c|d' }], ['line\nbreak', null, null]];
+    const rows = [
+      ['a|b', 1, { x: 'c|d' }],
+      ['line\nbreak', null, null],
+    ];
 
     expect(toMarkdown(columns, rows)).toBe(
       ['| name | n | tags |', '| --- | --- | --- |', '| a\\|b | 1 | {"x":"c\\|d"} |', '| line<br>break |  |  |'].join('\n'),
@@ -126,7 +137,10 @@ describe('export', () => {
   });
 
   it('Json_export_keys_by_column', () => {
-    const rows = [['Contoso', 1, { kind: 'secret' }], ['Legacy', null, ['a']]];
+    const rows = [
+      ['Contoso', 1, { kind: 'secret' }],
+      ['Legacy', null, ['a']],
+    ];
 
     expect(JSON.parse(toJson(columns, rows))).toEqual([
       { name: 'Contoso', n: 1, tags: { kind: 'secret' } },

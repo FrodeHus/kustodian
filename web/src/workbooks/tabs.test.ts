@@ -50,7 +50,12 @@ describe('places', () => {
 });
 
 describe('moveTo', () => {
-  const base = () => [tabsW('T', ['A', 'B']), w('a', 10), inTab('x', 't1', 0, { history: { mode: 'values', interval: 'run', retentionDays: 30, keys: [], keep: [], since: 'previous' } }), inTab('y', 't2')];
+  const base = () => [
+    tabsW('T', ['A', 'B']),
+    w('a', 10),
+    inTab('x', 't1', 0, { history: { mode: 'values', interval: 'run', retentionDays: 30, keys: [], keep: [], since: 'previous' } }),
+    inTab('y', 't2'),
+  ];
   it('keeps the id and history, lands at the bottom, and empties the source', () => {
     const out = moveTo(base(), 'x', { tabs: 'T', tab: 't2' });
     const x = out.find((i) => i.id === 'x')!;
@@ -151,7 +156,11 @@ describe('duplicateWidget', () => {
     expect(kids[0]!.id).not.toBe('x');
   });
   it('returns null over 100 widgets and changes nothing', () => {
-    const l = [tabsW('T', ['A']), ...Array.from({ length: 45 }, (_, i) => inTab(`k${i}`, 't1', i * 4)), ...Array.from({ length: 14 }, (_, i) => w(`o${i}`, i * 4))];
+    const l = [
+      tabsW('T', ['A']),
+      ...Array.from({ length: 45 }, (_, i) => inTab(`k${i}`, 't1', i * 4)),
+      ...Array.from({ length: 14 }, (_, i) => w(`o${i}`, i * 4)),
+    ];
     expect(l).toHaveLength(60);
     expect(duplicateWidget(l, 'T')).toBeNull();
     expect(MAX_WIDGETS).toBe(100);

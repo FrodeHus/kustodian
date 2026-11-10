@@ -101,14 +101,27 @@ describe('RowDetails', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Expand app' }));
     const all = screen.getByRole('group', { name: 'app' });
     expect(gridRows(all)).toContain('[0] = admin');
-    expect(within(all).getAllByRole('button').every((b) => b.getAttribute('aria-expanded') === 'true')).toBe(true);
+    expect(
+      within(all)
+        .getAllByRole('button')
+        .every((b) => b.getAttribute('aria-expanded') === 'true'),
+    ).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Collapse app' }));
     expect(gridRows(screen.getByRole('group', { name: 'app' }))).not.toContain('name = Ada');
   });
 
   it('row_details_parses_json_text_and_shows_it_raw_on_request', async () => {
     const text = '{"deviceId":"d-1","isCompliant":true}';
-    render(<RowDetails columns={[{ name: 'deviceDetail', type: 'string' }, { name: 'note', type: 'string' }]} row={[text, '{not json']} onClose={() => undefined} />);
+    render(
+      <RowDetails
+        columns={[
+          { name: 'deviceDetail', type: 'string' },
+          { name: 'note', type: 'string' },
+        ]}
+        row={[text, '{not json']}
+        onClose={() => undefined}
+      />,
+    );
 
     expect(screen.getByText('deviceDetail · string · JSON')).toBeTruthy();
     expect(gridRows(screen.getByRole('group', { name: 'deviceDetail' }))).toEqual(['deviceId = d-1', 'isCompliant = true']);

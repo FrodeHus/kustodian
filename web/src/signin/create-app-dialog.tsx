@@ -60,7 +60,13 @@ export function CreateAppDialog({
           return;
         }
         setPlan(p);
-        setTicked(new Set(allPermissions(p.groups).filter((x) => x.ticked).map(permKey)));
+        setTicked(
+          new Set(
+            allPermissions(p.groups)
+              .filter((x) => x.ticked)
+              .map(permKey),
+          ),
+        );
         setPhase('choose');
       },
       (e: unknown) => {
@@ -200,7 +206,10 @@ export function CreateAppDialog({
       >
         <div className="flex flex-col gap-1 border-b border-line px-6 pt-5 pb-3.5">
           <h1 className="m-0 text-[18px] font-semibold">Create Entra ID application</h1>
-          <span className="muted">The least set of read permissions that lets Kustodian query everything. Untick what you don’t want; nothing is created until you click Create.</span>
+          <span className="muted">
+            The least set of read permissions that lets Kustodian query everything. Untick what you don’t want; nothing is created until you
+            click Create.
+          </span>
         </div>
 
         {planError !== null ? (
@@ -222,7 +231,11 @@ export function CreateAppDialog({
             {phase === 'creating' ? (
               <ol className="m-0 flex list-none flex-col gap-2 p-0" role="status" aria-label="Progress">
                 {STEPS.map((s, i) => (
-                  <li key={s.id} aria-current={i === stepAt ? 'step' : undefined} className={i > stepAt ? 'faint' : i === stepAt ? 'font-semibold' : 'muted'}>
+                  <li
+                    key={s.id}
+                    aria-current={i === stepAt ? 'step' : undefined}
+                    className={i > stepAt ? 'faint' : i === stepAt ? 'font-semibold' : 'muted'}
+                  >
                     {i < stepAt ? '✓' : i === stepAt ? '…' : '○'} {s.label}
                   </li>
                 ))}
@@ -234,7 +247,9 @@ export function CreateAppDialog({
                   <ErrorReportActions reportId={problem?.reportId} uiSections={{ message: problem?.text ?? '' }} />
                 </span>
                 <span className="muted">
-                  {mayExist ? 'The app may have been created. Check App registrations in Entra before trying again.' : 'Nothing was created.'}
+                  {mayExist
+                    ? 'The app may have been created. Check App registrations in Entra before trying again.'
+                    : 'Nothing was created.'}
                 </span>
                 {signInGone ? (
                   <button type="button" className="btn primary" data-autofocus="" onClick={onClose}>
@@ -249,7 +264,15 @@ export function CreateAppDialog({
             )}
           </div>
         ) : phase === 'created' && result !== null ? (
-          <CreatedView name={name} initial={result} listed={chosen.length} onClose={onClose} onSwitched={onSwitched} onSwitching={setSwitching} onClientId={onClientId} />
+          <CreatedView
+            name={name}
+            initial={result}
+            listed={chosen.length}
+            onClose={onClose}
+            onSwitched={onSwitched}
+            onSwitching={setSwitching}
+            onClientId={onClientId}
+          />
         ) : (
           <div className="flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col border-r border-line">
@@ -274,7 +297,13 @@ export function CreateAppDialog({
             <div className="flex w-[400px] shrink-0 flex-col gap-3.5 overflow-auto px-5 py-[18px]">
               <div className="field">
                 <label htmlFor="entra-app-name">Name</label>
-                <input id="entra-app-name" className="textbox" data-autofocus="" value={typedName ?? plan.defaultName} onChange={(e) => setName(e.target.value)} />
+                <input
+                  id="entra-app-name"
+                  className="textbox"
+                  data-autofocus=""
+                  value={typedName ?? plan.defaultName}
+                  onChange={(e) => setName(e.target.value)}
+                />
               </div>
               <b className="text-[13px]">What will be created</b>
               <div className="card flex flex-col gap-2 bg-panel2 px-3.5 py-3">
@@ -286,7 +315,10 @@ export function CreateAppDialog({
               </div>
               <div className="card flex flex-col gap-2 bg-panel2 px-3.5 py-3">
                 <b>Service principal</b>
-                <span className="muted text-[12px]">The app’s enterprise application{plan.tenantName ? ` in ${plan.tenantName}` : ''}, so it can be consented to and signed in to.</span>
+                <span className="muted text-[12px]">
+                  The app’s enterprise application{plan.tenantName ? ` in ${plan.tenantName}` : ''}, so it can be consented to and signed in
+                  to.
+                </span>
               </div>
               <div className="card flex flex-col gap-2 bg-panel2 px-3.5 py-3">
                 <b>API permissions (delegated)</b>

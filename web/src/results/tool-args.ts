@@ -34,7 +34,13 @@ export const startMapping = (tool: ExternalTool, columns: ResultColumn[], saved:
 export type TypedValues = Record<string, string>;
 
 /** The arguments a tool gets for a row, as the host fills them in from the typed values, else the mapped columns. */
-export const fillArgs = (tool: ExternalTool, columns: ResultColumn[], row: Row, mapping: ColumnMapping, values: TypedValues = {}): string[] =>
+export const fillArgs = (
+  tool: ExternalTool,
+  columns: ResultColumn[],
+  row: Row,
+  mapping: ColumnMapping,
+  values: TypedValues = {},
+): string[] =>
   tool.args.map((a) =>
     a.replace(PLACEHOLDER, (_, name: string) =>
       Object.hasOwn(values, name) ? (values[name] as string) : cellText(row[columns.findIndex((c) => c.name === (mapping[name] || name))]),

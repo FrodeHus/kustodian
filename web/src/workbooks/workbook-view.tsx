@@ -66,7 +66,14 @@ function ParamControl({ tabId, param, value }: { tabId: string; param: WorkbookP
     control = (
       <MenuButton label={label} text={shownValue(param, value)} field>
         {param.all && (
-          <button type="button" role="menuitemcheckbox" aria-checked={every} tabIndex={-1} data-keep-open onClick={() => set(every ? '' : choices.join('\n'))}>
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            aria-checked={every}
+            tabIndex={-1}
+            data-keep-open
+            onClick={() => set(every ? '' : choices.join('\n'))}
+          >
             <Check on={every} />
             Select all
           </button>
@@ -170,7 +177,17 @@ const SUMMARY_MAX = 4;
 
 /** The workbook's parameters: a header that collapses them to a line of their values (view state, never in the doc), and Reset,
  * which puts changed values back to their defaults. */
-function ParameterBar({ tabId, parameters, values, collapsed }: { tabId: string; parameters: WorkbookParameter[]; values: Record<string, string>; collapsed: boolean }) {
+function ParameterBar({
+  tabId,
+  parameters,
+  values,
+  collapsed,
+}: {
+  tabId: string;
+  parameters: WorkbookParameter[];
+  values: Record<string, string>;
+  collapsed: boolean;
+}) {
   const store = useWorkbooks.getState();
   const valueOf = (p: WorkbookParameter) => values[p.name] ?? p.value;
   const changed = parameters.filter((p) => valueOf(p) !== p.value);
@@ -200,7 +217,11 @@ function ParameterBar({ tabId, parameters, values, collapsed }: { tabId: string;
           </button>
         )}
         {changed.length > 0 && (
-          <button type="button" className="btn ghost ml-auto" onClick={() => changed.forEach((p) => store.setWorkbookValue(tabId, p.name, p.value, { now: true }))}>
+          <button
+            type="button"
+            className="btn ghost ml-auto"
+            onClick={() => changed.forEach((p) => store.setWorkbookValue(tabId, p.name, p.value, { now: true }))}
+          >
             Reset
           </button>
         )}
@@ -311,7 +332,10 @@ function SavedQueryPicker({ onPick, onClose }: { onPick: (q: SavedQuery) => void
 
 /** Ctrl/⌘+Z and Ctrl/⌘+Shift+Z are the workbook's own except in a text field, which keeps its native undo. */
 function inTextField(target: EventTarget) {
-  return target instanceof HTMLElement && (target.matches('input, textarea, select') || target.isContentEditable || !!target.closest('.monaco-editor'));
+  return (
+    target instanceof HTMLElement &&
+    (target.matches('input, textarea, select') || target.isContentEditable || !!target.closest('.monaco-editor'))
+  );
 }
 
 /** "Updated 12 s ago": since the last widget run ended, ticking each second. */
@@ -391,7 +415,8 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
     say(`Added ${what}${tab ? ` to ${tab.name}` : ''} at column ${widget.layout.x + 1}, row ${widget.layout.y + 1}`);
   };
   // Into the selected tab while it's the one shown; a tabs widget always goes to the top level.
-  const into = (type: WidgetType) => (type !== 'tabs' && selectedPlace && visibleTab(state, selectedPlace.tabs) === selectedPlace.tab ? selectedPlace : null);
+  const into = (type: WidgetType) =>
+    type !== 'tabs' && selectedPlace && visibleTab(state, selectedPlace.tabs) === selectedPlace.tab ? selectedPlace : null;
   const placed = (type: WidgetType) => {
     const at = into(type);
     const min = MIN_SIZE[type];
@@ -411,7 +436,13 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
     }
     const widget = placed('table');
     widget.title = q.name;
-    widget.query = { source: q.source, text: q.text, options: q.options ?? null, parameters: q.parameters, saved: { id: q.id, name: q.name } };
+    widget.query = {
+      source: q.source,
+      text: q.text,
+      options: q.options ?? null,
+      parameters: q.parameters,
+      saved: { id: q.id, name: q.name },
+    };
     add(widget, q.name);
   };
   const startEditing = () => {
@@ -461,7 +492,10 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
     const grips = [...(grid?.querySelectorAll<HTMLElement>(':scope > .wb-widget > header .wb-grip') ?? [])];
     const at = narrowOrder(siblings(doc.widgets, placeOf(w))).findIndex((x) => x.id === w.id);
     const next = grips[at + 1] ?? grips[at - 1];
-    store().edit(tabId, (d) => ({ ...d, widgets: w.type === 'tabs' ? removeTabs(d.widgets, w.id, children ?? 'move') : d.widgets.filter((x) => x.id !== w.id) }));
+    store().edit(tabId, (d) => ({
+      ...d,
+      widgets: w.type === 'tabs' ? removeTabs(d.widgets, w.id, children ?? 'move') : d.widgets.filter((x) => x.id !== w.id),
+    }));
     focusNext.current = () => next ?? undoRef.current;
     say(`Removed ${w.title || 'Untitled widget'}`);
   };
@@ -472,8 +506,13 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
     if (to && now && visibleTab(now, to.tabs) !== to.tab) {
       store().showTab(tabId, to.tabs, to.tab);
     }
-    focusNext.current = () => [...(sheetHost?.querySelectorAll<HTMLElement>('[data-wb-grip]') ?? [])].find((g) => g.dataset.wbGrip === w.id);
-    say(to ? `Moved to ${doc.widgets.find((x) => x.id === to.tabs)?.tabs?.find((t) => t.id === to.tab)?.name ?? ''}` : 'Moved to the top level');
+    focusNext.current = () =>
+      [...(sheetHost?.querySelectorAll<HTMLElement>('[data-wb-grip]') ?? [])].find((g) => g.dataset.wbGrip === w.id);
+    say(
+      to
+        ? `Moved to ${doc.widgets.find((x) => x.id === to.tabs)?.tabs?.find((t) => t.id === to.tab)?.name ?? ''}`
+        : 'Moved to the top level',
+    );
   };
   const undo = () => {
     store().undoEdit(tabId);
@@ -484,7 +523,16 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
     say('Redone');
   };
   const onKey = (e: KeyboardEvent) => {
-    if (!editing || editingWidget || parametersOpen || picking || removingTabs || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z' || inTextField(e.target)) {
+    if (
+      !editing ||
+      editingWidget ||
+      parametersOpen ||
+      picking ||
+      removingTabs ||
+      !(e.ctrlKey || e.metaKey) ||
+      e.key.toLowerCase() !== 'z' ||
+      inTextField(e.target)
+    ) {
       return;
     }
     e.preventDefault();
@@ -584,7 +632,9 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
               role="menuitem"
               tabIndex={-1}
               onClick={() =>
-                exportWorkbook(tabId).catch((e: unknown) => setProblem({ text: `The workbook couldn’t be exported: ${errorText(e)}`, reportId: reportIdOf(e) }))
+                exportWorkbook(tabId).catch((e: unknown) =>
+                  setProblem({ text: `The workbook couldn’t be exported: ${errorText(e)}`, reportId: reportIdOf(e) }),
+                )
               }
             >
               Export…
@@ -657,7 +707,9 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
           <ErrorReportActions reportId={problem.reportId} uiSections={{ message: problem.text }} />
         </p>
       )}
-      {doc.parameters.length > 0 && <ParameterBar tabId={tabId} parameters={doc.parameters} values={values.workbook} collapsed={paramsCollapsed} />}
+      {doc.parameters.length > 0 && (
+        <ParameterBar tabId={tabId} parameters={doc.parameters} values={values.workbook} collapsed={paramsCollapsed} />
+      )}
       <SheetHost.Provider value={sheetHost}>
         <div className="wb-canvas min-h-0 flex-1 overflow-auto p-3">
           {doc.widgets.length === 0 && !editing ? (

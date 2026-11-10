@@ -43,7 +43,23 @@ describe('diffRows', () => {
       { name: 'id', type: 'string' },
       { name: 'v', type: 'dynamic' },
     ];
-    const diff = diffRows({ columns: cols, rows: [['1', { a: 1 }], ['2', [1]]] }, { columns: cols, rows: [['1', { a: 1 }], ['2', [2]]] }, 'id');
+    const diff = diffRows(
+      {
+        columns: cols,
+        rows: [
+          ['1', { a: 1 }],
+          ['2', [1]],
+        ],
+      },
+      {
+        columns: cols,
+        rows: [
+          ['1', { a: 1 }],
+          ['2', [2]],
+        ],
+      },
+      'id',
+    );
 
     expect(diff.changed.map((c) => c.key)).toEqual(['2']);
     expect(diff.same).toBe(1);
@@ -54,15 +70,32 @@ describe('diffRows', () => {
       { name: 'app', type: 'string' },
       { name: 'n', type: 'long' },
     ];
-    const first = { columns: cols, rows: [['Teams', 1], ['Teams', 2], ['Teams', 3], ['Mail', 4]] };
-    const second = { columns: cols, rows: [['Teams', 1], ['Teams', 9]] };
+    const first = {
+      columns: cols,
+      rows: [
+        ['Teams', 1],
+        ['Teams', 2],
+        ['Teams', 3],
+        ['Mail', 4],
+      ],
+    };
+    const second = {
+      columns: cols,
+      rows: [
+        ['Teams', 1],
+        ['Teams', 9],
+      ],
+    };
 
     const diff = diffRows(first, second, 'app');
 
     // The first Teams with the first, the second with the second; the third Teams and Mail are left over.
     expect(diff.same).toBe(1);
     expect(diff.changed).toEqual([{ key: 'Teams', columns: ['n'], before: ['Teams', 2], after: ['Teams', 9] }]);
-    expect(diff.removed).toEqual([['Teams', 3], ['Mail', 4]]);
+    expect(diff.removed).toEqual([
+      ['Teams', 3],
+      ['Mail', 4],
+    ]);
     expect(diff.added).toEqual([]);
     // The summary adds up to both runs' row counts.
     expect(diff.added.length + diff.changed.length + diff.same).toBe(second.rows.length);
@@ -75,8 +108,21 @@ describe('diffRows', () => {
       { name: 'n', type: 'long' },
     ];
     const diff = diffRows(
-      { columns: cols, rows: [[null, 1], ['', 2]] },
-      { columns: cols, rows: [[null, 1], [null, 5], ['', 2]] },
+      {
+        columns: cols,
+        rows: [
+          [null, 1],
+          ['', 2],
+        ],
+      },
+      {
+        columns: cols,
+        rows: [
+          [null, 1],
+          [null, 5],
+          ['', 2],
+        ],
+      },
       'owner',
     );
 
@@ -90,9 +136,23 @@ describe('diffRows', () => {
       { name: 'app', type: 'string' },
       { name: 'id', type: 'string' },
     ];
-    const first = { columns: cols, rows: [['Teams', '1'], ['Teams', '2']] };
+    const first = {
+      columns: cols,
+      rows: [
+        ['Teams', '1'],
+        ['Teams', '2'],
+      ],
+    };
     expect(defaultKey(first, { columns: cols, rows: [['Mail', '3']] })).toEqual({ key: 'id', unique: true });
-    expect(defaultKey(first, { columns: cols, rows: [['Mail', '3'], ['Chat', '3']] })).toEqual({ key: 'app', unique: false });
+    expect(
+      defaultKey(first, {
+        columns: cols,
+        rows: [
+          ['Mail', '3'],
+          ['Chat', '3'],
+        ],
+      }),
+    ).toEqual({ key: 'app', unique: false });
     expect(defaultKey(first, { columns: [{ name: 'other', type: 'string' }], rows: [] })).toBeUndefined();
   });
 

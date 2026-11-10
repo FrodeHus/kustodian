@@ -64,7 +64,9 @@ export function MarkdownWidget({ text, values }: { text: string; values: Record<
           {failed}
         </p>
       )}
-      <Markdown components={components} remarkPlugins={remarkPlugins}>{withValues(text, values)}</Markdown>
+      <Markdown components={components} remarkPlugins={remarkPlugins}>
+        {withValues(text, values)}
+      </Markdown>
     </div>
   );
 }

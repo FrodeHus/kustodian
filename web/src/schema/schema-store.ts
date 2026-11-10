@@ -51,7 +51,16 @@ export type ResourceTypesFix = 'consent' | 'signIn' | null;
 
 const empty = (): Pick<
   SchemasState,
-  'byKey' | 'errors' | 'errorReportIds' | 'loading' | 'resourceTypes' | 'resourceTypesError' | 'resourceTypesReportId' | 'resourceTypesFix' | 'listedByDefault' | 'licenses'
+  | 'byKey'
+  | 'errors'
+  | 'errorReportIds'
+  | 'loading'
+  | 'resourceTypes'
+  | 'resourceTypesError'
+  | 'resourceTypesReportId'
+  | 'resourceTypesFix'
+  | 'listedByDefault'
+  | 'licenses'
 > => ({
   byKey: { graph: undefined, hunting: undefined, arg: undefined, raw: undefined },
   errors: {},
@@ -66,7 +75,11 @@ const empty = (): Pick<
 });
 
 const fixOf = (e: unknown): ResourceTypesFix =>
-  e instanceof BridgeError && e.code === 'consentNeeded' ? 'consent' : e instanceof BridgeError && e.code === 'signInNeeded' ? 'signIn' : null;
+  e instanceof BridgeError && e.code === 'consentNeeded'
+    ? 'consent'
+    : e instanceof BridgeError && e.code === 'signInNeeded'
+      ? 'signIn'
+      : null;
 
 /** Counts resets: an answer to a read started before the last one belongs to another account and is dropped. */
 let generation = 0;
@@ -196,7 +209,12 @@ type Tabs = ReturnType<typeof useTabs.getState>['tabs'];
 function graphRunFinished(tabs: Tabs, previous: Tabs): boolean {
   const before = new Map(previous.map((t) => [t.id, t.run]));
   return tabs.some(
-    (t) => t.run && t.run !== before.get(t.id) && t.run.state === 'done' && (t.run.source ?? 'graph') === 'graph' && before.get(t.id)?.state === 'running',
+    (t) =>
+      t.run &&
+      t.run !== before.get(t.id) &&
+      t.run.state === 'done' &&
+      (t.run.source ?? 'graph') === 'graph' &&
+      before.get(t.id)?.state === 'running',
   );
 }
 

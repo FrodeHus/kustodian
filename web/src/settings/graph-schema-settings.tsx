@@ -18,7 +18,14 @@ export function GraphSchemaSettings() {
   const checking = useGraphSchemaUpdate((s) => s.checking);
   const [result, setResult] = useState<{ tone: 'ok' | 'bad'; text: string; reportId?: string } | null>(null);
 
-  useEffect(() => void useGraphSchemaUpdate.getState().load().catch(() => undefined), []);
+  useEffect(
+    () =>
+      void useGraphSchemaUpdate
+        .getState()
+        .load()
+        .catch(() => undefined),
+    [],
+  );
 
   const refresh = () =>
     useGraphSchemaUpdate
@@ -55,15 +62,18 @@ export function GraphSchemaSettings() {
           {checking ? 'Refreshing…' : 'Refresh now'}
         </button>
         {result && (
-          <span className={`text-[12px] ${result.tone === 'bad' ? 'text-bad' : 'text-muted'}`} role={result.tone === 'bad' ? 'alert' : 'status'}>
+          <span
+            className={`text-[12px] ${result.tone === 'bad' ? 'text-bad' : 'text-muted'}`}
+            role={result.tone === 'bad' ? 'alert' : 'status'}
+          >
             {result.text}
             {result.tone === 'bad' && <ErrorReportActions reportId={result.reportId} uiSections={{ message: result.text }} />}
           </span>
         )}
       </div>
       <span className="faint text-[12px]">
-        Kustodian checks GitHub for a newer schema when it starts. Refresh now downloads the published schema again, even when it is the
-        one in use.
+        Kustodian checks GitHub for a newer schema when it starts. Refresh now downloads the published schema again, even when it is the one
+        in use.
       </span>
     </>
   );

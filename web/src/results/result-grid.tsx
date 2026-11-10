@@ -294,7 +294,16 @@ interface GridProps {
 
 /** A magnifier: the inspect button's icon. */
 const inspectIcon = (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    aria-hidden="true"
+  >
     <circle cx="10.5" cy="10.5" r="6.5" />
     <path d="m15.5 15.5 5 5" />
   </svg>
@@ -361,7 +370,15 @@ export function ResultGrid({
     features,
     data: rows,
     columns: defs,
-    state: { sorting, globalFilter: filter, columnFilters: cellFilters, columnVisibility: visibility, columnOrder: order, grouping, expanded },
+    state: {
+      sorting,
+      globalFilter: filter,
+      columnFilters: cellFilters,
+      columnVisibility: visibility,
+      columnOrder: order,
+      grouping,
+      expanded,
+    },
     onSortingChange: setSorting,
     onGlobalFilterChange: setFilter,
     onColumnVisibilityChange: setVisibility,
@@ -517,10 +534,26 @@ export function ResultGrid({
                 </span>
                 <span className="mono truncate">{id}</span>
               </button>
-              <button type="button" role="menuitem" tabIndex={-1} data-keep-open aria-label={`Move ${id} earlier`} disabled={!neighbour(id, -1)} onClick={() => move(id, -1)}>
+              <button
+                type="button"
+                role="menuitem"
+                tabIndex={-1}
+                data-keep-open
+                aria-label={`Move ${id} earlier`}
+                disabled={!neighbour(id, -1)}
+                onClick={() => move(id, -1)}
+              >
                 ↑
               </button>
-              <button type="button" role="menuitem" tabIndex={-1} data-keep-open aria-label={`Move ${id} later`} disabled={!neighbour(id, 1)} onClick={() => move(id, 1)}>
+              <button
+                type="button"
+                role="menuitem"
+                tabIndex={-1}
+                data-keep-open
+                aria-label={`Move ${id} later`}
+                disabled={!neighbour(id, 1)}
+                onClick={() => move(id, 1)}
+              >
                 ↓
               </button>
             </div>
@@ -557,13 +590,7 @@ export function ResultGrid({
           <span className="faint px-2.5 py-1 text-[11.5px]">{chosenLabel}</span>
           {[true, false].flatMap((header) =>
             COPY_FORMATS.map(({ format, name }) => (
-              <button
-                key={`${header}-${format}`}
-                type="button"
-                role="menuitem"
-                tabIndex={-1}
-                onClick={() => copy(format, header)}
-              >
+              <button key={`${header}-${format}`} type="button" role="menuitem" tabIndex={-1} onClick={() => copy(format, header)}>
                 {header ? 'Rows' : 'Cells'} as {name}
               </button>
             )),
@@ -582,7 +609,14 @@ export function ResultGrid({
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       {toolbar === undefined ? <div className="rbar justify-end">{tools}</div> : toolbar && createPortal(tools, toolbar)}
-      <div ref={scroller} className="min-h-0 flex-1 overflow-auto" tabIndex={0} role="region" aria-label="Result rows" onKeyDown={onGridKey}>
+      <div
+        ref={scroller}
+        className="min-h-0 flex-1 overflow-auto"
+        tabIndex={0}
+        role="region"
+        aria-label="Result rows"
+        onKeyDown={onGridKey}
+      >
         <table className="datagrid">
           <colgroup>
             {checkboxes && <col style={{ width: 30 }} />}
@@ -655,7 +689,8 @@ export function ResultGrid({
                   <tr key={row.id} data-index={item.index} style={{ height: ROW_HEIGHT }}>
                     <td colSpan={span} className="bg-panel2">
                       <button type="button" aria-expanded={open} onClick={row.getToggleExpandedHandler()}>
-                        {open ? '▾' : '▸'} {row.groupingColumnId}: {value === '' ? 'null' : cellText(value)} · {count(row.getLeafRows().length)}
+                        {open ? '▾' : '▸'} {row.groupingColumnId}: {value === '' ? 'null' : cellText(value)} ·{' '}
+                        {count(row.getLeafRows().length)}
                       </button>
                     </td>
                   </tr>

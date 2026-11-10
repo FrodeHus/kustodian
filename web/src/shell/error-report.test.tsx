@@ -112,7 +112,10 @@ describe('ErrorReportActions', () => {
     expect(screen.getByText(/no longer available/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     await waitFor(() =>
-      expect(call).toHaveBeenCalledWith('errors.send', { reportId: 'K7Q2M9XD', sections: { query: 'users | take 5', message: 'It broke.' } }),
+      expect(call).toHaveBeenCalledWith('errors.send', {
+        reportId: 'K7Q2M9XD',
+        sections: { query: 'users | take 5', message: 'It broke.' },
+      }),
     );
   });
 });
@@ -202,9 +205,11 @@ describe('Send details dialog inside a modal with a focus trap', () => {
 
 describe('ErrorBoundary', () => {
   it('reports_a_render_error_and_shows_its_id', async () => {
-    call.mockReset().mockImplementation((method: string) =>
-      Promise.resolve(method === 'errors.report' ? { reportId: 'K7Q2M9XD' } : { report: null, canSend: true }),
-    );
+    call
+      .mockReset()
+      .mockImplementation((method: string) =>
+        Promise.resolve(method === 'errors.report' ? { reportId: 'K7Q2M9XD' } : { report: null, canSend: true }),
+      );
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const Bomb = () => {
       throw new Error('render failed');

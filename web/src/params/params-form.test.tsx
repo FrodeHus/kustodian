@@ -29,7 +29,9 @@ const saved: SavedQuery = {
 beforeEach(() => {
   bridge.call.mockReset();
   bridge.call.mockImplementation((method: string, params?: { query?: SavedQuery }) =>
-    Promise.resolve(method === 'library.list' ? ({ queries: [saved], folders: ['Apps'], skipped: 0 } satisfies LibraryList) : (params?.query ?? null)),
+    Promise.resolve(
+      method === 'library.list' ? ({ queries: [saved], folders: ['Apps'], skipped: 0 } satisfies LibraryList) : (params?.query ?? null),
+    ),
   );
   useTabs.setState({ tabs: [], activeId: null, cursors: {} });
 });
@@ -60,7 +62,9 @@ describe('ParamsForm', () => {
     // A new placeholder starts as text; make it a list.
     const audiences = screen.getByRole('group', { name: 'audiences' });
     fireEvent.change(within(audiences).getByRole('combobox', { name: 'Type' }), { target: { value: 'list' } });
-    fireEvent.change(within(audiences).getByRole('textbox', { name: 'audiences · list' }), { target: { value: 'AzureADMyOrg\nAzureADMultipleOrgs' } });
+    fireEvent.change(within(audiences).getByRole('textbox', { name: 'audiences · list' }), {
+      target: { value: 'AzureADMyOrg\nAzureADMultipleOrgs' },
+    });
     fireEvent.click(within(audiences).getByRole('checkbox', { name: 'Required' }));
 
     expect(screen.getByLabelText('The query as it will run').textContent).toBe(
@@ -106,6 +110,8 @@ describe('ParamsForm', () => {
     expect(remember).toHaveProperty('disabled', true);
     // Said on screen, not only in a tooltip.
     expect(screen.getByText('Save the query to the library first to keep defaults with it.')).toBeTruthy();
-    expect(remember.getAttribute('aria-describedby')).toBe(screen.getByText('Save the query to the library first to keep defaults with it.').id);
+    expect(remember.getAttribute('aria-describedby')).toBe(
+      screen.getByText('Save the query to the library first to keep defaults with it.').id,
+    );
   });
 });

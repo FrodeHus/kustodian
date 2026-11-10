@@ -103,7 +103,10 @@ export function RawTab({ tab, schema, defaultVersion, accountKey, onSignIn }: Ra
       useTabs.getState().setTitle(tab.id, `GET /${path.split('?')[0] ?? ''}`);
     } catch (e) {
       const message = errorText(e);
-      updateRaw(tab.id, { sending: false, error: failure(e, /^The version /.test(message) ? 'version' : /header/i.test(message) ? 'headers' : 'path') });
+      updateRaw(tab.id, {
+        sending: false,
+        error: failure(e, /^The version /.test(message) ? 'version' : /header/i.test(message) ? 'headers' : 'path'),
+      });
     }
   }
 
@@ -129,12 +132,15 @@ export function RawTab({ tab, schema, defaultVersion, accountKey, onSignIn }: Ra
     const base = label && label !== 'value' && !/^\d+$/.test(label) ? label : segment || 'value';
     const name = `${base.replace(/[^A-Za-z0-9_]/g, '_')}_rows`;
     const { kql, truncated, rows } = toDatatable(name, array);
-    const text = truncated ? `// Only the first ${rows.toLocaleString('en-US')} of ${array.length.toLocaleString('en-US')} rows are here.\n${kql}` : kql;
+    const text = truncated
+      ? `// Only the first ${rows.toLocaleString('en-US')} of ${array.length.toLocaleString('en-US')} rows are here.\n${kql}`
+      : kql;
     useTabs.getState().openWith({ source: 'graph', title: name, text });
   };
 
   const error = state.error;
-  const refusal = (about: NonNullable<RawState['error']>['about']) => (error?.code === 'bad_request' && error.about === about ? error.message : null);
+  const refusal = (about: NonNullable<RawState['error']>['about']) =>
+    error?.code === 'bad_request' && error.about === about ? error.message : null;
   const pathError = refusal('path');
   const versionError = refusal('version');
   const last = state.pages.at(-1);
@@ -162,7 +168,13 @@ export function RawTab({ tab, schema, defaultVersion, accountKey, onSignIn }: Ra
           run: () => void actions.current.send(),
           enabled: () => useTabs.getState().activeId === tab.id,
         },
-        { id: 'raw.next', title: 'Next page of the raw response', group: 'Run', run: () => void actions.current.next(), enabled: () => actions.current.canNext },
+        {
+          id: 'raw.next',
+          title: 'Next page of the raw response',
+          group: 'Run',
+          run: () => void actions.current.next(),
+          enabled: () => actions.current.canNext,
+        },
       ]),
     [tab.id],
   );
@@ -192,13 +204,7 @@ export function RawTab({ tab, schema, defaultVersion, accountKey, onSignIn }: Ra
             {versionError}
           </span>
         )}
-        <PathInput
-          tabId={tab.id}
-          text={tab.text}
-          schema={schema}
-          invalid={pathError !== null}
-          onSend={() => void send()}
-        />
+        <PathInput tabId={tab.id} text={tab.text} schema={schema} invalid={pathError !== null} onSend={() => void send()} />
         <button type="button" className="btn primary" disabled={state.sending} onClick={() => void send()}>
           Send <span className="kbd">{MOD} Enter</span>
         </button>
@@ -280,7 +286,9 @@ export function RawTab({ tab, schema, defaultVersion, accountKey, onSignIn }: Ra
           ) : (
             !error && (
               <div className="flex flex-1 items-center justify-center">
-                <span className="faint text-[12px]">{state.sending ? 'Sending…' : `Send the request with ${MOD} Enter. Graph’s answer shows here.`}</span>
+                <span className="faint text-[12px]">
+                  {state.sending ? 'Sending…' : `Send the request with ${MOD} Enter. Graph’s answer shows here.`}
+                </span>
               </div>
             )
           )}
@@ -404,7 +412,13 @@ function PathInput({ tabId, text, schema, invalid, onSend }: PathInputProps) {
         onKeyDown={onKeyDown}
       />
       {completion && (
-        <div className="menu" role="listbox" id={listId} aria-label="Completions" style={{ left: 0, top: 36, minWidth: 260, maxHeight: 280, overflowY: 'auto' }}>
+        <div
+          className="menu"
+          role="listbox"
+          id={listId}
+          aria-label="Completions"
+          style={{ left: 0, top: 36, minWidth: 260, maxHeight: 280, overflowY: 'auto' }}
+        >
           {completion.items.map((item, i) => (
             <button
               key={item}
@@ -442,10 +456,21 @@ function rowNotice(headers: RawTabHeader[], i: number): string | null {
   return later ? `${name} is set again below; only the last one is sent.` : null;
 }
 
-function HeadersEditor({ headers, error, onChange }: { headers: RawTabHeader[]; error: string | null; onChange: (headers: RawTabHeader[]) => void }) {
+function HeadersEditor({
+  headers,
+  error,
+  onChange,
+}: {
+  headers: RawTabHeader[];
+  error: string | null;
+  onChange: (headers: RawTabHeader[]) => void;
+}) {
   const set = (i: number, change: Partial<RawTabHeader>) => onChange(headers.map((h, j) => (j === i ? { ...h, ...change } : h)));
   return (
-    <section aria-label="Request headers" className="flex w-[34%] max-w-[420px] min-w-[240px] shrink-0 flex-col overflow-auto border-r border-line">
+    <section
+      aria-label="Request headers"
+      className="flex w-[34%] max-w-[420px] min-w-[240px] shrink-0 flex-col overflow-auto border-r border-line"
+    >
       <div className="rbar">
         <b className="text-[12.5px]">Headers · {headers.length}</b>
       </div>
@@ -474,7 +499,12 @@ function HeadersEditor({ headers, error, onChange }: { headers: RawTabHeader[]; 
                   value={h.value}
                   onChange={(e) => set(i, { value: e.target.value })}
                 />
-                <button type="button" className="btn ghost" aria-label={`Remove header ${i + 1}`} onClick={() => onChange(headers.filter((_, j) => j !== i))}>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  aria-label={`Remove header ${i + 1}`}
+                  onClick={() => onChange(headers.filter((_, j) => j !== i))}
+                >
                   ×
                 </button>
               </div>
@@ -543,9 +573,7 @@ function PageBody({ page, number, onOpenArray }: { page: RawResponse; number: nu
   return (
     <div className="mb-3 flex flex-col gap-1">
       {number !== null && <b className="text-[12.5px]">Page {number}</b>}
-      {page.truncated && (
-        <span className="text-[12px] text-warn">The body was cut off at the host’s limit, so it is shown as text.</span>
-      )}
+      {page.truncated && <span className="text-[12px] text-warn">The body was cut off at the host’s limit, so it is shown as text.</span>}
       {parsed.ok ? (
         <div className="codeblock overflow-x-auto">
           <JsonValue label={null} value={parsed.value} depth={0} onOpenArray={onOpenArray} />
@@ -610,7 +638,12 @@ function JsonValue({ label, value, depth, onOpenArray }: { label: string | null;
           {label === null ? 'body' : label} <span className="faint">{summary}</span>
         </button>
         {array && (
-          <button type="button" className="btn ghost h-auto px-1 text-[11.5px]" aria-label={`Open ${label ?? 'body'} as a KQL tab`} onClick={() => onOpenArray(label, value)}>
+          <button
+            type="button"
+            className="btn ghost h-auto px-1 text-[11.5px]"
+            aria-label={`Open ${label ?? 'body'} as a KQL tab`}
+            onClick={() => onOpenArray(label, value)}
+          >
             Open as KQL tab
           </button>
         )}

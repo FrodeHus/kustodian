@@ -54,7 +54,11 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
     defaultClient !== null
       ? { choice: isGraphCli(defaultClient) ? 'graphCli' : 'own', clientId: defaultClient, tenant: defaults?.tenant ?? '' }
       : active
-        ? { choice: active.clientKind, clientId: active.clientKind === 'own' ? active.clientId : '', tenant: active.clientKind === 'own' ? active.tenantId : '' }
+        ? {
+            choice: active.clientKind,
+            clientId: active.clientKind === 'own' ? active.clientId : '',
+            tenant: active.clientKind === 'own' ? active.tenantId : '',
+          }
         : null;
   const prefilled = !touched && start !== null;
   const choice: ClientKind = prefilled ? start.choice : pickedChoice;
@@ -121,7 +125,12 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
           <h1 className="m-0 text-[22px] leading-7 font-semibold">Sign in to Microsoft Graph</h1>
           <span className="muted">Queries run as you, with your delegated permissions, in the tenant you sign in to.</span>
         </div>
-        <button type="button" className="btn primary h-10 justify-center text-[14px]" disabled={!canSignIn} onClick={() => signInHere(false)}>
+        <button
+          type="button"
+          className="btn primary h-10 justify-center text-[14px]"
+          disabled={!canSignIn}
+          onClick={() => signInHere(false)}
+        >
           Sign in with your browser
         </button>
         <button type="button" className="btn h-10 justify-center" disabled={!canSignIn} onClick={() => signInHere(true)}>
@@ -259,7 +268,11 @@ export function SignIn({ list, onChanged, onBack, error: listError = null, defau
                     disabled={busy}
                     aria-label={`Sign in again as ${a.username}`}
                     onClick={() =>
-                      void signIn({ ...(a.clientKind === 'azureCli' ? {} : { clientId: a.clientId }), tenant: a.tenantId, deviceCode: false })
+                      void signIn({
+                        ...(a.clientKind === 'azureCli' ? {} : { clientId: a.clientId }),
+                        tenant: a.tenantId,
+                        deviceCode: false,
+                      })
                     }
                   >
                     Sign in

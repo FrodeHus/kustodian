@@ -57,7 +57,19 @@ const rowsOf = (rows: TrackedRow[], change: string) => rows.map((r) => [...r.val
  * A Row tracking table (screen 8): Open now is `open`, the run's grid with its selection and tools; New since, No longer
  * reported since and Both show the tracked rows, with what changed and when, and no selection (a tool can't act on them).
  */
-export function HistoryTable({ tabId, widgetId, since, rowCount, open }: { tabId: string; widgetId: string; since: string; rowCount: number; open: ReactNode }) {
+export function HistoryTable({
+  tabId,
+  widgetId,
+  since,
+  rowCount,
+  open,
+}: {
+  tabId: string;
+  widgetId: string;
+  since: string;
+  rowCount: number;
+  open: ReactNode;
+}) {
   const { changes, filter: chosen, setFilter } = useContext(HistoryData);
   // Until the changes are read (or when reading failed) only Open now can show.
   const filter = changes ? chosen : 'open';
@@ -92,7 +104,11 @@ export function HistoryTable({ tabId, widgetId, since, rowCount, open }: { tabId
           </span>
         )}
       </div>
-      {filter === 'open' || !changes ? open : <ResultGrid key={filter} columns={[...changes.columns, ...ADDED]} rows={shown} selection="none" />}
+      {filter === 'open' || !changes ? (
+        open
+      ) : (
+        <ResultGrid key={filter} columns={[...changes.columns, ...ADDED]} rows={shown} selection="none" />
+      )}
     </div>
   );
 }

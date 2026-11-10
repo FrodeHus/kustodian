@@ -79,9 +79,16 @@ function builtInReason(reason: string | null): string {
 }
 
 /** The status bar's schema text for the source (spec 8: the hunting footer says where the schema came from). */
-function schemaFooter(source: Source, view: SchemaView | undefined, resourceTypes: string[] | undefined, downloaded: boolean): string | null {
+function schemaFooter(
+  source: Source,
+  view: SchemaView | undefined,
+  resourceTypes: string[] | undefined,
+  downloaded: boolean,
+): string | null {
   if (source === 'arg') {
-    return resourceTypes ? `Resource Graph tables · ${resourceTypes.length.toLocaleString('en-US')} resource types` : 'Resource Graph tables';
+    return resourceTypes
+      ? `Resource Graph tables · ${resourceTypes.length.toLocaleString('en-US')} resource types`
+      : 'Resource Graph tables';
   }
   if (!view) {
     return null;
@@ -100,7 +107,13 @@ function schemaFooter(source: Source, view: SchemaView | undefined, resourceType
 }
 
 /** What the status bar calls the active tab's language. */
-const LANGUAGE: Record<TabSource, string> = { graph: 'KQL', hunting: 'KQL · advanced hunting', arg: 'KQL · Resource Graph', raw: 'Raw request', workbook: 'Workbook' };
+const LANGUAGE: Record<TabSource, string> = {
+  graph: 'KQL',
+  hunting: 'KQL · advanced hunting',
+  arg: 'KQL · Resource Graph',
+  raw: 'Raw request',
+  workbook: 'Workbook',
+};
 
 const activeTab = (): Tab | undefined => {
   const { tabs, activeId } = useTabs.getState();
@@ -154,7 +167,6 @@ function cycleTab(step: number) {
     activate(next.id);
   }
 }
-
 
 /** What the window says at startup when the settings file couldn't be used, or null when it could. */
 function settingsNotice(answer: SettingsAnswer): string | null {
@@ -242,7 +254,14 @@ export function App() {
   // Offline or GitHub down: no dialog, and nothing to say about it.
   useEffect(() => void newerRelease().then(setUpdate, () => undefined), []);
   // A newer Graph schema is downloaded now and used after a restart (the footer says so); offline, nothing is said.
-  useEffect(() => void useGraphSchemaUpdate.getState().check().catch(() => undefined), []);
+  useEffect(
+    () =>
+      void useGraphSchemaUpdate
+        .getState()
+        .check()
+        .catch(() => undefined),
+    [],
+  );
   const graphSchemaStatus = useGraphSchemaUpdate((s) => s.status);
 
   // The last session's tabs come back, or one empty Graph tab.
@@ -364,7 +383,12 @@ export function App() {
       { id: 'tab.new', title: 'New Microsoft Graph query', group: 'Tabs', shortcut: 'Mod+T', run: () => useTabs.getState().open('graph') },
       { id: 'tab.newRaw', title: 'New raw Graph request', group: 'Tabs', run: () => openRaw() },
       { id: 'tab.newWorkbook', title: 'New workbook', group: 'Tabs', run: () => void useTabs.getState().openWorkbook() },
-      { id: 'workbook.import', title: 'Import workbook…', group: 'Tabs', run: () => void importWorkbook().catch(fail('The workbook couldn’t be imported')) },
+      {
+        id: 'workbook.import',
+        title: 'Import workbook…',
+        group: 'Tabs',
+        run: () => void importWorkbook().catch(fail('The workbook couldn’t be imported')),
+      },
       {
         id: 'schema.refresh',
         title: 'Refresh schema',
@@ -372,11 +396,39 @@ export function App() {
         run: withTab((tab) => void useSchemas.getState().load(schemaSourceOf(tab.source), { refresh: true })),
         enabled: () => activeTab() !== undefined,
       },
-      { id: 'tab.next', title: 'Next tab', group: 'Tabs', shortcut: 'Ctrl+Tab', run: () => cycleTab(1), enabled: () => useTabs.getState().tabs.length > 1 },
-      { id: 'tab.previous', title: 'Previous tab', group: 'Tabs', shortcut: 'Ctrl+Shift+Tab', run: () => cycleTab(-1), enabled: () => useTabs.getState().tabs.length > 1 },
-      { id: 'run.block', title: 'Run the block at the cursor', group: 'Run', shortcut: 'Mod+Enter', run: () => runActive('block'), enabled: runnable },
+      {
+        id: 'tab.next',
+        title: 'Next tab',
+        group: 'Tabs',
+        shortcut: 'Ctrl+Tab',
+        run: () => cycleTab(1),
+        enabled: () => useTabs.getState().tabs.length > 1,
+      },
+      {
+        id: 'tab.previous',
+        title: 'Previous tab',
+        group: 'Tabs',
+        shortcut: 'Ctrl+Shift+Tab',
+        run: () => cycleTab(-1),
+        enabled: () => useTabs.getState().tabs.length > 1,
+      },
+      {
+        id: 'run.block',
+        title: 'Run the block at the cursor',
+        group: 'Run',
+        shortcut: 'Mod+Enter',
+        run: () => runActive('block'),
+        enabled: runnable,
+      },
       { id: 'run.all', title: 'Run all', group: 'Run', shortcut: 'Shift+Enter', run: () => runActive('all'), enabled: runnable },
-      { id: 'run.refresh', title: 'Run without cache', group: 'Run', shortcut: 'Mod+Shift+Enter', run: () => runActive('block', true), enabled: runnable },
+      {
+        id: 'run.refresh',
+        title: 'Run without cache',
+        group: 'Run',
+        shortcut: 'Mod+Shift+Enter',
+        run: () => runActive('block', true),
+        enabled: runnable,
+      },
       {
         id: 'run.cancel',
         title: 'Cancel the run',
@@ -414,10 +466,29 @@ export function App() {
           return !!tab && tab.source !== 'raw' && findParams(tab.text).length > 0;
         },
       },
-      { id: 'toolbar.timespan', title: 'Pick timespan', group: 'Run', run: () => setPicker('timespan'), enabled: () => activeTab()?.source === 'hunting' },
-      { id: 'toolbar.scope', title: 'Pick scope', group: 'Run', run: () => setPicker('scope'), enabled: () => activeTab()?.source === 'arg' },
+      {
+        id: 'toolbar.timespan',
+        title: 'Pick timespan',
+        group: 'Run',
+        run: () => setPicker('timespan'),
+        enabled: () => activeTab()?.source === 'hunting',
+      },
+      {
+        id: 'toolbar.scope',
+        title: 'Pick scope',
+        group: 'Run',
+        run: () => setPicker('scope'),
+        enabled: () => activeTab()?.source === 'arg',
+      },
       { id: 'settings.open', title: 'Settings', group: 'Window', shortcut: 'Mod+Comma', run: () => setSettingsOpen(true) },
-      { id: 'editor.format', title: 'Format the query', group: 'Editor', shortcut: 'Shift+Alt+F', run: () => editor.current?.format(), enabled: runnable },
+      {
+        id: 'editor.format',
+        title: 'Format the query',
+        group: 'Editor',
+        shortcut: 'Shift+Alt+F',
+        run: () => editor.current?.format(),
+        enabled: runnable,
+      },
       {
         id: 'file.save',
         title: 'Save',
@@ -426,11 +497,36 @@ export function App() {
         run: withTab(saveTab),
         enabled: () => runnable() || activeTab()?.source === 'workbook',
       },
-      { id: 'file.saveAs', title: 'Save as', group: 'File', shortcut: 'Mod+Shift+S', run: withTab((tab) => setSaving(tab.id)), enabled: runnable },
-      { id: 'file.saveToFile', title: 'Save to file', group: 'File', run: withTab((tab) => void saveToFile(tab.id).catch(saveFailed)), enabled: runnable },
-      { id: 'file.open', title: 'Open .kql', group: 'File', shortcut: 'Mod+O', run: () => void openKqlFile().catch(fail('The file couldn’t be opened')) },
+      {
+        id: 'file.saveAs',
+        title: 'Save as',
+        group: 'File',
+        shortcut: 'Mod+Shift+S',
+        run: withTab((tab) => setSaving(tab.id)),
+        enabled: runnable,
+      },
+      {
+        id: 'file.saveToFile',
+        title: 'Save to file',
+        group: 'File',
+        run: withTab((tab) => void saveToFile(tab.id).catch(saveFailed)),
+        enabled: runnable,
+      },
+      {
+        id: 'file.open',
+        title: 'Open .kql',
+        group: 'File',
+        shortcut: 'Mod+O',
+        run: () => void openKqlFile().catch(fail('The file couldn’t be opened')),
+      },
       ...exportCommands,
-      { id: 'results.pin', title: 'Pin the result to compare', group: 'Results', run: withTab((tab) => useTabs.getState().pin(tab.id)), enabled: hasResult },
+      {
+        id: 'results.pin',
+        title: 'Pin the result to compare',
+        group: 'Results',
+        run: withTab((tab) => useTabs.getState().pin(tab.id)),
+        enabled: hasResult,
+      },
       {
         id: 'results.unpin',
         title: 'Unpin the compared result',
@@ -485,7 +581,16 @@ export function App() {
   const solutionOpen = useSolutionDialog((s) => s.id !== null);
   useEffect(() => {
     shortcutsOn.current =
-      !signingIn && !settingsOpen && !paletteOpen && saving === null && !confirming && !askTelemetry && !askErrorReports && !update && !importOpen && !solutionOpen;
+      !signingIn &&
+      !settingsOpen &&
+      !paletteOpen &&
+      saving === null &&
+      !confirming &&
+      !askTelemetry &&
+      !askErrorReports &&
+      !update &&
+      !importOpen &&
+      !solutionOpen;
     paletteShown.current = paletteOpen;
     settingsShown.current = settingsOpen;
   });
@@ -496,7 +601,8 @@ export function App() {
   useEffect(() => {
     const hasFiles = (e: DragEvent) => !!e.dataTransfer && [...e.dataTransfer.types].includes('Files');
     const inTextBox = (e: DragEvent) =>
-      e.target instanceof Element && !!e.target.closest('input, textarea, [contenteditable]:not([contenteditable="false"]), .monaco-editor');
+      e.target instanceof Element &&
+      !!e.target.closest('input, textarea, [contenteditable]:not([contenteditable="false"]), .monaco-editor');
     // A drag the page handles itself (the Parameters list) already called preventDefault.
     const refuse = (e: DragEvent) => {
       if (!e.defaultPrevented && !hasFiles(e) && !inTextBox(e)) {
@@ -639,7 +745,15 @@ export function App() {
         )}
         {settingsOpen && (
           <div className="absolute inset-0 z-10 flex justify-end">
-            {!signingIn && <button type="button" aria-label="Close settings" tabIndex={-1} className="absolute inset-0 cursor-default bg-black/40" onClick={closeSettings} />}
+            {!signingIn && (
+              <button
+                type="button"
+                aria-label="Close settings"
+                tabIndex={-1}
+                className="absolute inset-0 cursor-default bg-black/40"
+                onClick={closeSettings}
+              />
+            )}
             <div
               role="dialog"
               aria-label="Settings"
@@ -673,10 +787,20 @@ export function App() {
                   accountKey={accountKey}
                   onSignIn={() => setAccountsOpen(true)}
                 />
-                <Splitter orientation="vertical" label="Resize the side panel" size={sideWidth} onSize={setSideWidth} min={180} reserve={360} />
+                <Splitter
+                  orientation="vertical"
+                  label="Resize the side panel"
+                  size={sideWidth}
+                  onSize={setSideWidth}
+                  min={180}
+                  reserve={360}
+                />
               </>
             )}
-            <main className="workspace" style={editorHeight === null ? undefined : ({ '--editor-h': `${editorHeight}px` } as CSSProperties)}>
+            <main
+              className="workspace"
+              style={editorHeight === null ? undefined : ({ '--editor-h': `${editorHeight}px` } as CSSProperties)}
+            >
               {active ? (
                 <>
                   {!raw && !workbook && (
@@ -704,7 +828,10 @@ export function App() {
                       <ParamsForm tab={active} query={runnableText} onRun={() => runActive('block')} />
                     </div>
                   )}
-                  <div className="relative min-h-[160px] shrink-0 basis-(--editor-h,38%) border-b border-line" hidden={raw || workbook || showingParams}>
+                  <div
+                    className="relative min-h-[160px] shrink-0 basis-(--editor-h,38%) border-b border-line"
+                    hidden={raw || workbook || showingParams}
+                  >
                     <EditorFailed>
                       <Suspense fallback={<p className="faint m-0 p-4 text-[12px]">Loading the editor…</p>}>
                         <KqlEditor ref={editor} schemas={schemas} onRun={(mode) => void useTabs.getState().run(active.id, mode)} />
@@ -712,7 +839,14 @@ export function App() {
                     </EditorFailed>
                   </div>
                   {!raw && !workbook && (
-                    <Splitter orientation="horizontal" label="Resize the query editor" size={editorHeight} onSize={setEditorHeight} min={160} reserve={200} />
+                    <Splitter
+                      orientation="horizontal"
+                      label="Resize the query editor"
+                      size={editorHeight}
+                      onSize={setEditorHeight}
+                      min={160}
+                      reserve={200}
+                    />
                   )}
                   {workbook ? (
                     // A workbook that breaks its view shows the error in its tab; the app and the other tabs stay.
@@ -785,9 +919,7 @@ export function App() {
           </footer>
         </div>
       </div>
-      {savingTab?.source === 'workbook' && (
-        <SaveWorkbookDialog tab={savingTab} onClose={() => setSaving(null)} />
-      )}
+      {savingTab?.source === 'workbook' && <SaveWorkbookDialog tab={savingTab} onClose={() => setSaving(null)} />}
       {savingTab && savingTab.source !== 'workbook' && (
         <SaveDialog
           tab={savingTab}
@@ -858,7 +990,22 @@ interface ToolbarProps {
 }
 
 function Toolbar(props: ToolbarProps) {
-  const { tab, onRun, onFormat, paramCount, paramsOpen, onParams, explaining, onExplain, onSave, onSaveAs, picker, onPicker, accountKey, onSignIn } = props;
+  const {
+    tab,
+    onRun,
+    onFormat,
+    paramCount,
+    paramsOpen,
+    onParams,
+    explaining,
+    onExplain,
+    onSave,
+    onSaveAs,
+    picker,
+    onPicker,
+    accountKey,
+    onSignIn,
+  } = props;
   const running = tab.run?.state === 'running';
   const setOptions = (change: Partial<QueryOptions>) =>
     useTabs.getState().setOptions(tab.id, { timespan: tab.options?.timespan ?? null, scope: tab.options?.scope ?? null, ...change });

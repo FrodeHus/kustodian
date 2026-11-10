@@ -48,7 +48,13 @@ function result(overrides: Partial<RunResult>): RunResult {
   };
 }
 
-const done = (r: RunResult) => ({ state: 'done' as const, runId: r.runId, result: r, startedAt: Date.parse('2026-10-21T09:41:12Z'), origin: { line: 1, column: 1 } });
+const done = (r: RunResult) => ({
+  state: 'done' as const,
+  runId: r.runId,
+  result: r,
+  startedAt: Date.parse('2026-10-21T09:41:12Z'),
+  origin: { line: 1, column: 1 },
+});
 
 beforeEach(() => {
   call.mockReset();
@@ -66,7 +72,12 @@ describe('RunStatus', () => {
 
   it('run_status_shows_unlicensed_columns_chip_with_names_and_graphs_reason', () => {
     const reason = "Neither tenant is B2C or tenant doesn't have premium license";
-    render(<RunStatus run={done(result({ tables: [{ ...fetch, table: 'users', unlicensed: ['signInActivity', 'aboutMe'], unlicensedReason: reason }] }))} onSignIn={() => undefined} />);
+    render(
+      <RunStatus
+        run={done(result({ tables: [{ ...fetch, table: 'users', unlicensed: ['signInActivity', 'aboutMe'], unlicensedReason: reason }] }))}
+        onSignIn={() => undefined}
+      />,
+    );
 
     const chip = screen.getByText('signInActivity, aboutMe: left out, the tenant lacks a license, values empty');
     expect(chip.closest('[title]')?.getAttribute('title')).toBe(`users: ${reason}`);
@@ -77,7 +88,9 @@ describe('RunStatus', () => {
     render(<RunStatus run={done(result({ tables: [{ ...fetch, table: 'users', licenseLeftOut: left }] }))} onSignIn={() => undefined} />);
 
     const chip = screen.getByText("signInActivity: left out, the tenant doesn't have Microsoft Entra ID P1 or P2, values empty");
-    expect(chip.closest('[title]')?.getAttribute('title')).toBe('users.signInActivity needs Microsoft Entra ID P1 or P2: https://learn.microsoft.com/a');
+    expect(chip.closest('[title]')?.getAttribute('title')).toBe(
+      'users.signInActivity needs Microsoft Entra ID P1 or P2: https://learn.microsoft.com/a',
+    );
   });
 
   it('run_status_shows_a_run_stopped_for_a_missing_license', () => {
@@ -89,7 +102,14 @@ describe('RunStatus', () => {
 
   it('a_failed_run_with_a_report_id_shows_the_report_actions', () => {
     call.mockResolvedValue({ report: null, canSend: true });
-    const failed = result({ outcome: 'failed', message: 'A Graph query failed unexpectedly.', rows: [], total: 0, tables: [], reportId: 'K7Q2M9XD' });
+    const failed = result({
+      outcome: 'failed',
+      message: 'A Graph query failed unexpectedly.',
+      rows: [],
+      total: 0,
+      tables: [],
+      reportId: 'K7Q2M9XD',
+    });
     render(<RunStatus run={done(failed)} onSignIn={() => undefined} />);
 
     expect(screen.getByText('Report ID: K7Q2-M9XD')).toBeTruthy();
@@ -97,7 +117,12 @@ describe('RunStatus', () => {
   });
 
   it('a_failed_run_without_a_report_id_shows_no_report_actions', () => {
-    render(<RunStatus run={done(result({ outcome: 'failed', message: 'It failed.', rows: [], total: 0, tables: [] }))} onSignIn={() => undefined} />);
+    render(
+      <RunStatus
+        run={done(result({ outcome: 'failed', message: 'It failed.', rows: [], total: 0, tables: [] }))}
+        onSignIn={() => undefined}
+      />,
+    );
 
     expect(screen.queryByText(/Report ID/)).toBeNull();
   });
@@ -169,7 +194,14 @@ describe('RunStatus', () => {
 
   it('status_wording_follows_source', () => {
     const request = (detail: string) => ({ atMs: 0, kind: 'request' as const, detail, status: 200, durationMs: 900, bytes: 4096 });
-    const retry = { atMs: 950, kind: 'retry' as const, detail: 'Sending the page again after 2 s', status: null, durationMs: null, bytes: null };
+    const retry = {
+      atMs: 950,
+      kind: 'retry' as const,
+      detail: 'Sending the page again after 2 s',
+      status: null,
+      durationMs: null,
+      bytes: null,
+    };
 
     // Graph: its requests.
     const view = render(<RunStatus run={done(result({}))} onSignIn={() => undefined} />);
@@ -184,19 +216,41 @@ describe('RunStatus', () => {
     // Resource Graph: its pages (a page sent again counts once) and the scope.
     const arg = result({
       tables: [],
-      diagnostics: [request('POST providers/Microsoft.ResourceGraph/resources'), retry, request('POST providers/Microsoft.ResourceGraph/resources'), request('POST providers/Microsoft.ResourceGraph/resources')],
+      diagnostics: [
+        request('POST providers/Microsoft.ResourceGraph/resources'),
+        retry,
+        request('POST providers/Microsoft.ResourceGraph/resources'),
+        request('POST providers/Microsoft.ResourceGraph/resources'),
+      ],
     });
     view.rerender(<RunStatus run={{ ...done(arg), source: 'arg' }} onSignIn={() => undefined} />);
     expect(screen.getByText('2 pages · all I can see')).toBeTruthy();
     expect(screen.queryByText(/Graph request/)).toBeNull();
-    view.rerender(<RunStatus run={{ ...done(arg), source: 'arg' }} scope={{ kind: 'subscriptions', ids: ['a', 'b', 'c'] }} onSignIn={() => undefined} />);
+    view.rerender(
+      <RunStatus
+        run={{ ...done(arg), source: 'arg' }}
+        scope={{ kind: 'subscriptions', ids: ['a', 'b', 'c'] }}
+        onSignIn={() => undefined}
+      />,
+    );
     expect(screen.getByText('2 pages · 3 subscriptions')).toBeTruthy();
-    view.rerender(<RunStatus run={{ ...done(arg), source: 'arg' }} scope={{ kind: 'managementGroup', ids: ['contoso-platform'] }} onSignIn={() => undefined} />);
+    view.rerender(
+      <RunStatus
+        run={{ ...done(arg), source: 'arg' }}
+        scope={{ kind: 'managementGroup', ids: ['contoso-platform'] }}
+        onSignIn={() => undefined}
+      />,
+    );
     expect(screen.getByText('2 pages · contoso-platform')).toBeTruthy();
   });
 
   it('run_status_shows_an_ok_runs_note', () => {
-    const truncated = result({ tables: [], total: 3, rows: [['a'], ['b'], ['c']], message: 'Resource Graph cut this result short; include the id column to page through all rows.' });
+    const truncated = result({
+      tables: [],
+      total: 3,
+      rows: [['a'], ['b'], ['c']],
+      message: 'Resource Graph cut this result short; include the id column to page through all rows.',
+    });
 
     render(<RunStatus run={{ ...done(truncated), source: 'arg' }} onSignIn={() => undefined} />);
 
@@ -220,7 +274,14 @@ describe('RunStatus', () => {
     useTabs.getState().setText(id, 'Resources | take 5');
     await useTabs.getState().run(id, 'all');
 
-    const Status = () => <RunStatus run={useTabs((s) => s.tabs[0]?.run)} accountKey="k1" onConsented={() => void useTabs.getState().rerun(id)} onSignIn={() => undefined} />;
+    const Status = () => (
+      <RunStatus
+        run={useTabs((s) => s.tabs[0]?.run)}
+        accountKey="k1"
+        onConsented={() => void useTabs.getState().rerun(id)}
+        onSignIn={() => undefined}
+      />
+    );
     render(<Status />);
     expect(screen.getByText(message)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Grant Azure access' }));
@@ -232,7 +293,11 @@ describe('RunStatus', () => {
 
   it('consent_does_not_rerun_a_tab_whose_source_changed', async () => {
     call.mockImplementation((method: string) =>
-      Promise.resolve(method === 'query.run' ? result({ outcome: 'consentNeeded', message: 'Grant access.', rows: [], columns: [], total: 0, tables: [] }) : {}),
+      Promise.resolve(
+        method === 'query.run'
+          ? result({ outcome: 'consentNeeded', message: 'Grant access.', rows: [], columns: [], total: 0, tables: [] })
+          : {},
+      ),
     );
     const id = useTabs.getState().open('arg');
     useTabs.getState().setText(id, 'Resources | take 5');
@@ -240,7 +305,14 @@ describe('RunStatus', () => {
     // Ruling 6: the Resource Graph query must never go to Graph; access is still granted.
     useTabs.getState().setSource(id, 'graph');
 
-    render(<RunStatus run={useTabs.getState().tabs[0]?.run} accountKey="k1" onConsented={() => void useTabs.getState().rerun(id)} onSignIn={() => undefined} />);
+    render(
+      <RunStatus
+        run={useTabs.getState().tabs[0]?.run}
+        accountKey="k1"
+        onConsented={() => void useTabs.getState().rerun(id)}
+        onSignIn={() => undefined}
+      />,
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Grant Azure access' }));
 
     await waitFor(() => expect(call).toHaveBeenCalledWith('account.consent', { key: 'k1', audience: 'arm' }));
@@ -312,7 +384,14 @@ describe('RunStatus', () => {
       const onGranted = vi.fn();
       const onConsented = vi.fn();
       render(
-        <RunStatus run={refused(['Reports.Read.All'])} account={account('graphCli')} accountKey="k1" onGranted={onGranted} onConsented={onConsented} onSignIn={() => undefined} />,
+        <RunStatus
+          run={refused(['Reports.Read.All'])}
+          account={account('graphCli')}
+          accountKey="k1"
+          onGranted={onGranted}
+          onConsented={onConsented}
+          onSignIn={() => undefined}
+        />,
       );
       const grant = screen.getByRole('button', { name: /^Grant permission/ });
       expect(grant.getAttribute('title')).toBe('Reports.Read.All');
@@ -324,11 +403,25 @@ describe('RunStatus', () => {
 
     it.each([
       ['cancelled', new BridgeError('cancelled', 'The request was cancelled.')],
-      ['refused by Microsoft', new BridgeError('failed', 'AADSTS90094: An administrator of Contoso has set a policy that prevents you from granting Kustodian the permissions it is requesting.')],
+      [
+        'refused by Microsoft',
+        new BridgeError(
+          'failed',
+          'AADSTS90094: An administrator of Contoso has set a policy that prevents you from granting Kustodian the permissions it is requesting.',
+        ),
+      ],
     ])('grant_permission_%s_shows_not_granted_note', async (_, error) => {
       call.mockRejectedValueOnce(error);
       const onGranted = vi.fn();
-      render(<RunStatus run={refused(['Reports.Read.All'])} account={account('own')} accountKey="k1" onGranted={onGranted} onSignIn={() => undefined} />);
+      render(
+        <RunStatus
+          run={refused(['Reports.Read.All'])}
+          account={account('own')}
+          accountKey="k1"
+          onGranted={onGranted}
+          onSignIn={() => undefined}
+        />,
+      );
       fireEvent.click(screen.getByRole('button', { name: /^Grant permission/ }));
       expect(await screen.findByText('Not granted. An administrator has to grant Reports.Read.All.')).toBeTruthy();
       expect(onGranted).not.toHaveBeenCalled();
@@ -352,7 +445,14 @@ describe('RunStatus', () => {
     });
 
     it('no_permission_with_the_permission_held_shows_the_role_note', () => {
-      render(<RunStatus run={refused(['Reports.Read.All'])} account={account('graphCli', ['reports.read.all'])} accountKey="k1" onSignIn={() => undefined} />);
+      render(
+        <RunStatus
+          run={refused(['Reports.Read.All'])}
+          account={account('graphCli', ['reports.read.all'])}
+          accountKey="k1"
+          onSignIn={() => undefined}
+        />,
+      );
       expect(screen.queryByRole('button', { name: /^Grant permission/ })).toBeNull();
       expect(screen.getByText('You have Reports.Read.All; your account may be missing a role that this data needs.')).toBeTruthy();
     });
@@ -369,7 +469,9 @@ describe('RunStatus', () => {
         filteredLocally: false,
         limited: 0,
       };
-      const run = done(result({ tables: [{ ...fetch, table: 'users', relationships: [relationship, { ...relationship, column: 'ownedObjects' }] }] }));
+      const run = done(
+        result({ tables: [{ ...fetch, table: 'users', relationships: [relationship, { ...relationship, column: 'ownedObjects' }] }] }),
+      );
       render(<RunStatus run={run} account={account('graphCli')} accountKey="k1" onSignIn={() => undefined} />);
       const buttons = screen.getAllByRole('button', { name: /^Grant permission/ });
       expect(buttons).toHaveLength(1);
@@ -418,7 +520,9 @@ describe('RunStatus', () => {
 
     it('shows_all_refused', () => {
       show('users', [rel({ refused: 40 })]);
-      expect(screen.getByText('No permission to read users.memberOf; it needs one of: GroupMember.Read.All, Directory.Read.All')).toBeTruthy();
+      expect(
+        screen.getByText('No permission to read users.memberOf; it needs one of: GroupMember.Read.All, Directory.Read.All'),
+      ).toBeTruthy();
     });
 
     it('shows_all_refused_without_permissions_to_name', () => {
@@ -449,7 +553,9 @@ describe('RunStatus', () => {
     it('shows_filtered_locally', () => {
       show('users', [rel({ filteredLocally: true, objects: 87 })]);
       expect(
-        screen.getByText('users.memberOf read for all 87 listed objects; the filter ran locally. Use a filter Graph can apply (==, startswith) to read fewer.'),
+        screen.getByText(
+          'users.memberOf read for all 87 listed objects; the filter ran locally. Use a filter Graph can apply (==, startswith) to read fewer.',
+        ),
       ).toBeTruthy();
     });
 

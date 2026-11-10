@@ -107,7 +107,16 @@ describe('session sync', () => {
         version: 1,
         activeId: 'b',
         tabs: [
-          { id: 'a', source: 'graph', title: 'Apps', text: 'applications | take 2', dirty: true, savedId: 's1', parameters: [], filePath: null },
+          {
+            id: 'a',
+            source: 'graph',
+            title: 'Apps',
+            text: 'applications | take 2',
+            dirty: true,
+            savedId: 's1',
+            parameters: [],
+            filePath: null,
+          },
           saved.tabs[1],
         ],
       },
@@ -136,7 +145,6 @@ describe('session sync', () => {
     await vi.waitFor(() => expect(useTabs.getState().tabs).toHaveLength(1));
     expect(useTabs.getState().tabs[0]).toMatchObject({ source: 'graph', title: 'Query 1', text: '', dirty: false });
     stop();
-
   });
 
   it('an_unreadable_session_is_never_overwritten_and_is_restored_when_a_retry_reads_it', async () => {
@@ -144,7 +152,9 @@ describe('session sync', () => {
     let reads = 0;
     bridge.call.mockImplementation((method: string) => {
       if (method === 'session.get') {
-        return ++reads <= 2 ? Promise.reject(new BridgeError('failed', 'The file is locked.')) : Promise.resolve({ session: saved, corrupt: false });
+        return ++reads <= 2
+          ? Promise.reject(new BridgeError('failed', 'The file is locked.'))
+          : Promise.resolve({ session: saved, corrupt: false });
       }
       return Promise.resolve({ dropped: 0 });
     });
@@ -201,9 +211,7 @@ describe('session sync', () => {
     vi.useFakeTimers();
     const answers: ((a: { dropped: number }) => void)[] = [];
     bridge.call.mockImplementation((method: string) =>
-      method === 'session.get'
-        ? Promise.resolve({ session: saved, corrupt: false })
-        : new Promise((resolve) => answers.push(resolve)),
+      method === 'session.get' ? Promise.resolve({ session: saved, corrupt: false }) : new Promise((resolve) => answers.push(resolve)),
     );
     stop = startSessionSync();
     await vi.waitFor(() => expect(useTabs.getState().tabs).toHaveLength(2));
@@ -270,7 +278,9 @@ describe('session sync', () => {
     const notify = vi.fn();
     stop = startSessionSync(notify);
 
-    await vi.waitFor(() => expect(notify).toHaveBeenCalledWith('The session file couldn’t be read, so it was set aside. Kustodian started with an empty tab.'));
+    await vi.waitFor(() =>
+      expect(notify).toHaveBeenCalledWith('The session file couldn’t be read, so it was set aside. Kustodian started with an empty tab.'),
+    );
     expect(useTabs.getState().tabs).toHaveLength(1);
   });
 
@@ -283,14 +293,27 @@ describe('session sync', () => {
     useTabs.getState().setSource('b', 'hunting');
     await vi.advanceTimersByTimeAsync(1000);
 
-    expect(saves().at(-1)?.tabs.map((t) => [t.id, t.source])).toEqual([
+    expect(
+      saves()
+        .at(-1)
+        ?.tabs.map((t) => [t.id, t.source]),
+    ).toEqual([
       ['a', 'graph'],
       ['b', 'hunting'],
     ]);
   });
 
   it('session_restore_keeps_each_tab_source', async () => {
-    host({ session: { ...saved, tabs: [{ ...saved.tabs[0]!, source: 'arg' }, { ...saved.tabs[1]!, source: 'hunting' }] }, corrupt: false });
+    host({
+      session: {
+        ...saved,
+        tabs: [
+          { ...saved.tabs[0]!, source: 'arg' },
+          { ...saved.tabs[1]!, source: 'hunting' },
+        ],
+      },
+      corrupt: false,
+    });
     stop = startSessionSync();
     await vi.waitFor(() => expect(useTabs.getState().tabs.map((t) => t.source)).toEqual(['arg', 'hunting']));
   });
@@ -298,7 +321,10 @@ describe('session sync', () => {
   it('restored_arg_tab_keeps_its_scope', async () => {
     vi.useFakeTimers();
     const scope = { kind: 'subscriptions' as const, ids: ['00000000-0000-0000-0000-000000000011'] };
-    host({ session: { ...saved, tabs: [{ ...saved.tabs[0]!, source: 'arg', options: { timespan: null, scope } }, saved.tabs[1]!] }, corrupt: false });
+    host({
+      session: { ...saved, tabs: [{ ...saved.tabs[0]!, source: 'arg', options: { timespan: null, scope } }, saved.tabs[1]!] },
+      corrupt: false,
+    });
     stop = startSessionSync();
     await vi.waitFor(() => expect(useTabs.getState().tabs).toHaveLength(2));
 
@@ -329,6 +355,11 @@ describe('session sync', () => {
     host({ session: written, corrupt: false });
     stop = startSessionSync();
     await vi.waitFor(() => expect(useTabs.getState().tabs).toHaveLength(2));
-    expect(useTabs.getState().tabs.find((t) => t.id === id)).toMatchObject({ source: 'workbook', title: 'Hygiene', workbook: doc, dirty: true });
+    expect(useTabs.getState().tabs.find((t) => t.id === id)).toMatchObject({
+      source: 'workbook',
+      title: 'Hygiene',
+      workbook: doc,
+      dirty: true,
+    });
   });
 });

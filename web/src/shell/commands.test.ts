@@ -122,7 +122,9 @@ describe('commands', () => {
 
   it('a_disabled_command_does_not_run', () => {
     const cancel = vi.fn();
-    keep(registerCommands([{ id: 'run.cancel', title: 'Cancel the run', group: 'Run', shortcut: 'Mod+.', run: cancel, enabled: () => false }]));
+    keep(
+      registerCommands([{ id: 'run.cancel', title: 'Cancel the run', group: 'Run', shortcut: 'Mod+.', run: cancel, enabled: () => false }]),
+    );
     keep(bindGlobalKeys());
 
     const event = key({ key: '.', code: 'Period', ctrlKey: true });
@@ -178,7 +180,9 @@ describe('commands', () => {
     // raw.send says it shares the shortcut with run.block, so that collision is meant.
     expect(warn).not.toHaveBeenCalled();
     // Any other collision still warns, enabled predicates or not.
-    keep(registerCommands([{ id: 'other', title: 'Other', group: 'Run', shortcut: 'Mod+Enter', run: () => undefined, enabled: () => false }]));
+    keep(
+      registerCommands([{ id: 'other', title: 'Other', group: 'Run', shortcut: 'Mod+Enter', run: () => undefined, enabled: () => false }]),
+    );
     expect(warn).toHaveBeenCalledWith('The shortcut Mod+Enter of other is also the shortcut of run.block.');
     warn.mockClear();
 

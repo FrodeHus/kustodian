@@ -79,7 +79,11 @@ describe('RawTab', () => {
 
     expect(await screen.findByText('200 OK')).toBeTruthy();
     // A leading slash is dropped: the host takes the path relative to the version.
-    expect(bridge.call).toHaveBeenCalledWith('raw.send', { version: 'beta', path: 'me/memberOf', headers: { ConsistencyLevel: 'eventual' } });
+    expect(bridge.call).toHaveBeenCalledWith('raw.send', {
+      version: 'beta',
+      path: 'me/memberOf',
+      headers: { ConsistencyLevel: 'eventual' },
+    });
     expect(screen.getByText(/120 ms/)).toBeTruthy();
     const body = screen.getByRole('region', { name: 'Response body' });
     expect(body.textContent).toContain('"SOC Analysts"');
@@ -170,7 +174,19 @@ describe('RawTab', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Header 2 name' }), { target: { value: 'ConsistencyLevel' } });
     fireEvent.change(screen.getByRole('textbox', { name: 'Header 2 value' }), { target: { value: 'eventual' } });
     expect(screen.getByText("The Proxy-Authorization header can't be set from the raw tab.")).toBeTruthy();
-    for (const name of ['Connection', 'Keep-Alive', 'TE', 'Trailer', 'Transfer-Encoding', 'Upgrade', 'Expect', 'Content-Type', 'Content-Length', 'Content-Encoding', 'proxy-connection']) {
+    for (const name of [
+      'Connection',
+      'Keep-Alive',
+      'TE',
+      'Trailer',
+      'Transfer-Encoding',
+      'Upgrade',
+      'Expect',
+      'Content-Type',
+      'Content-Length',
+      'Content-Encoding',
+      'proxy-connection',
+    ]) {
       expect(headerProblem(name, 'x')).toBe(`The ${name} header can't be set from the raw tab.`);
     }
     // What the session would keep of the tab's headers.
@@ -186,7 +202,13 @@ describe('RawTab', () => {
     // Graph paths, not KQL names: a nested collection completes with its slash, and its own columns.
     expect(completePath(graph, 'auditLogs/s', 11)).toEqual({ from: 0, items: ['auditLogs/signIns'] });
     expect(completePath(graph, 'auditLogs_', 10).items).toEqual([]);
-    expect(completePath(graph, 'auditLogs/signIns?$select=', 26).items).toEqual(['id', 'createdDateTime', 'userPrincipalName', 'appDisplayName', 'ipAddress']);
+    expect(completePath(graph, 'auditLogs/signIns?$select=', 26).items).toEqual([
+      'id',
+      'createdDateTime',
+      'userPrincipalName',
+      'appDisplayName',
+      'ipAddress',
+    ]);
     // The table whose path is the longest prefix of the typed path.
     expect(completePath(graph, 'auditLogs/signIns/x?$select=app', 31).items).toEqual(['appDisplayName']);
 
@@ -195,7 +217,11 @@ describe('RawTab', () => {
     const path = screen.getByRole('combobox', { name: 'Request path' });
     fireEvent.change(path, { target: { value: 'us', selectionStart: 2 } });
     const list = screen.getByRole('listbox', { name: 'Completions' });
-    expect(within(list).getAllByRole('option').map((o) => o.textContent)).toEqual(['users']);
+    expect(
+      within(list)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual(['users']);
 
     fireEvent.keyDown(path, { key: 'Enter' });
     expect(useTabs.getState().tabs[0]!.text).toBe('users');
@@ -288,7 +314,9 @@ describe('RawTab', () => {
     const next = await screen.findByRole('button', { name: 'Next page' });
     fireEvent.click(next);
     await waitFor(() => expect(next.getAttribute('aria-describedby')).not.toBeNull());
-    expect(document.getElementById(next.getAttribute('aria-describedby')!)?.textContent).toBe('A next link must be an https URL on graph.microsoft.com.');
+    expect(document.getElementById(next.getAttribute('aria-describedby')!)?.textContent).toBe(
+      'A next link must be an https URL on graph.microsoft.com.',
+    );
     expect(screen.getByRole('combobox', { name: 'Request path' }).getAttribute('aria-invalid')).toBe('false');
   });
 
@@ -322,7 +350,11 @@ describe('RawTab', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Send/ }));
 
     await waitFor(() =>
-      expect(bridge.call).toHaveBeenCalledWith('raw.send', { version: 'beta', path: 'me/memberOf', headers: { prefer: 'second', ConsistencyLevel: 'eventual' } }),
+      expect(bridge.call).toHaveBeenCalledWith('raw.send', {
+        version: 'beta',
+        path: 'me/memberOf',
+        headers: { prefer: 'second', ConsistencyLevel: 'eventual' },
+      }),
     );
   });
 

@@ -43,13 +43,22 @@ export function UpdateDialog({ info, onClose }: { info: UpdateInfo; onClose: () 
           </span>
         )}
         <div className="flex justify-end gap-2">
-          <button type="button" className="btn ghost" onClick={() => void attempt(() => writeSettings((s) => ({ ...s, skippedVersion: info.latest })))}>
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={() => void attempt(() => writeSettings((s) => ({ ...s, skippedVersion: info.latest })))}
+          >
             Skip this version
           </button>
           <button type="button" className="btn" onClick={onClose}>
             Remind me later
           </button>
-          <button type="button" className="btn primary" autoFocus onClick={() => void attempt(() => call('app.openRelease', { version: info.latest }))}>
+          <button
+            type="button"
+            className="btn primary"
+            autoFocus
+            onClick={() => void attempt(() => call('app.openRelease', { version: info.latest }))}
+          >
             Update
           </button>
         </div>

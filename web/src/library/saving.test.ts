@@ -31,7 +31,11 @@ describe('saving', () => {
     useTabs.getState().setText(id, 'users');
 
     expect(await saveToFile(id)).toBe(false);
-    expect(bridge.call).toHaveBeenCalledWith('file.saveAs', { suggestedName: 'Query 1.kql', filters: [{ name: 'KQL', extensions: ['kql'] }], content: 'users' });
+    expect(bridge.call).toHaveBeenCalledWith('file.saveAs', {
+      suggestedName: 'Query 1.kql',
+      filters: [{ name: 'KQL', extensions: ['kql'] }],
+      content: 'users',
+    });
     expect(useTabs.getState().tabs[0]).toMatchObject({ title: 'Query 1', dirty: true });
   });
 
@@ -43,7 +47,17 @@ describe('saving', () => {
 
     const saving = saveToLibrary(id, 'Users', null);
     useTabs.getState().setText(id, 'users | take 1');
-    answer({ id: 'q1', name: 'Users', folder: null, source: 'graph', text: 'users', parameters: [], version: 1, createdAt: '', modifiedAt: '' });
+    answer({
+      id: 'q1',
+      name: 'Users',
+      folder: null,
+      source: 'graph',
+      text: 'users',
+      parameters: [],
+      version: 1,
+      createdAt: '',
+      modifiedAt: '',
+    });
     await saving;
 
     expect(useTabs.getState().tabs[0]).toMatchObject({ savedId: 'q1', title: 'Users', dirty: true, text: 'users | take 1' });
@@ -51,7 +65,11 @@ describe('saving', () => {
 
   it('save_to_file_of_a_library_tab_makes_the_file_where_save_goes', async () => {
     bridge.call.mockImplementation((method: string) =>
-      Promise.resolve(method === 'file.saveAs' ? { path: '/q/u.kql', name: 'u.kql' } : { id: 'q1', name: 'Users', folder: null, source: 'graph', text: 'users', parameters: [] }),
+      Promise.resolve(
+        method === 'file.saveAs'
+          ? { path: '/q/u.kql', name: 'u.kql' }
+          : { id: 'q1', name: 'Users', folder: null, source: 'graph', text: 'users', parameters: [] },
+      ),
     );
     const id = useTabs.getState().openWith({ source: 'graph', title: 'Users', text: 'users', savedId: 'q1' });
 

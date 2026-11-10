@@ -38,12 +38,18 @@ describe('TabStrip', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'New tab' }));
     fireEvent.click(screen.getByRole('menuitem', { name: /Defender hunting query/ }));
-    expect(within(screen.getByRole('tab', { selected: true }).parentElement!).getByTitle('Defender advanced hunting')).toHaveProperty('textContent', 'AH');
+    expect(within(screen.getByRole('tab', { selected: true }).parentElement!).getByTitle('Defender advanced hunting')).toHaveProperty(
+      'textContent',
+      'AH',
+    );
     expect(screen.queryByRole('menu')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'New tab' }));
     fireEvent.click(screen.getByRole('menuitem', { name: /Resource Graph query/ }));
-    expect(within(screen.getByRole('tab', { selected: true }).parentElement!).getByTitle('Azure Resource Graph')).toHaveProperty('textContent', 'ARG');
+    expect(within(screen.getByRole('tab', { selected: true }).parentElement!).getByTitle('Azure Resource Graph')).toHaveProperty(
+      'textContent',
+      'ARG',
+    );
 
     act(() => {
       expect(runCommand('tab.newHunting')).toBe(true);

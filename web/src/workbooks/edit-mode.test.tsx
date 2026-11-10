@@ -28,7 +28,22 @@ const runAll = vi.fn(() => Promise.resolve());
 
 function show() {
   useWorkbooks.setState({
-    byTab: { t: { doc, values: { workbook: {}, widgets: {} }, runs: {}, editing: false, undo: [], redo: [], dirty: false, selections: {}, history: {}, since: {}, activeTabs: {}, stale: {} } },
+    byTab: {
+      t: {
+        doc,
+        values: { workbook: {}, widgets: {} },
+        runs: {},
+        editing: false,
+        undo: [],
+        redo: [],
+        dirty: false,
+        selections: {},
+        history: {},
+        since: {},
+        activeTabs: {},
+        stale: {},
+      },
+    },
     runAll,
   });
   const view = render(<WorkbookView tabId="t" />);
@@ -190,7 +205,17 @@ describe('workbook edit mode', () => {
     show();
     // 12 columns of 88 px with 12 px gaps: 100 px per column; rows are 8 + 12 = 20 px.
     const grid = document.querySelector('.wb-grid')!;
-    grid.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, width: 1188, height: 600, right: 1188, bottom: 600, toJSON: () => ({}) });
+    grid.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 1188,
+      height: 600,
+      right: 1188,
+      bottom: 600,
+      toJSON: () => ({}),
+    });
     const g = grip('Users');
     fireEvent.pointerDown(g, { clientX: 10, clientY: 10, button: 0, pointerId: 1 });
     fireEvent.pointerMove(g, { clientX: 10 + 2 * 100 + 30, clientY: 10 + 3 * 20 + 4, pointerId: 1, buttons: 1 });
@@ -208,7 +233,17 @@ describe('workbook edit mode', () => {
   it('Esc during a drag drops it, and so does losing the pointer capture: nothing moves', () => {
     show();
     const grid = document.querySelector('.wb-grid')!;
-    grid.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, width: 1188, height: 600, right: 1188, bottom: 600, toJSON: () => ({}) });
+    grid.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 1188,
+      height: 600,
+      right: 1188,
+      bottom: 600,
+      toJSON: () => ({}),
+    });
     const g = grip('Users');
     const before = layoutOf('a');
     fireEvent.pointerDown(g, { clientX: 10, clientY: 10, button: 0, pointerId: 1 });
@@ -229,7 +264,10 @@ describe('workbook edit mode', () => {
   });
 
   it('stops adding and duplicating at 100 widgets, and says why', () => {
-    doc = { ...doc, widgets: Array.from({ length: 100 }, (_, i) => widget(`w${i}`, 'markdown', `Note ${i}`, (i % 3) * 4, Math.floor(i / 3) * 12)) };
+    doc = {
+      ...doc,
+      widgets: Array.from({ length: 100 }, (_, i) => widget(`w${i}`, 'markdown', `Note ${i}`, (i % 3) * 4, Math.floor(i / 3) * 12)),
+    };
     show();
     fireEvent.click(screen.getByRole('button', { name: '+ Add widget' }));
     expect(screen.getByText('A workbook can have at most 100 widgets.')).toBeTruthy();
@@ -256,7 +294,17 @@ describe('workbook edit mode', () => {
   it('the corner handle resizes', () => {
     show();
     const grid = document.querySelector('.wb-grid')!;
-    grid.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, width: 1188, height: 600, right: 1188, bottom: 600, toJSON: () => ({}) });
+    grid.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 1188,
+      height: 600,
+      right: 1188,
+      bottom: 600,
+      toJSON: () => ({}),
+    });
     fireEvent.focus(grip('Users'));
     const corner = document.querySelector('.wb-resize-corner')!;
     fireEvent.pointerDown(corner, { clientX: 0, clientY: 0, button: 0, pointerId: 1 });
@@ -267,7 +315,20 @@ describe('workbook edit mode', () => {
 
   it('From a saved query… adds a linked Table widget titled with the query’s name', async () => {
     call.mockResolvedValue({
-      queries: [{ id: 'q1', name: 'Risky sign-ins', folder: null, source: 'hunting', text: 'SigninLogs', parameters: [], options: { timespan: 'P1D' }, version: 1, createdAt: '', modifiedAt: '' }],
+      queries: [
+        {
+          id: 'q1',
+          name: 'Risky sign-ins',
+          folder: null,
+          source: 'hunting',
+          text: 'SigninLogs',
+          parameters: [],
+          options: { timespan: 'P1D' },
+          version: 1,
+          createdAt: '',
+          modifiedAt: '',
+        },
+      ],
       folders: [],
       skipped: 0,
     });
@@ -280,7 +341,13 @@ describe('workbook edit mode', () => {
     const added = state().doc.widgets.at(-1)!;
     expect(added.type).toBe('table');
     expect(added.title).toBe('Risky sign-ins');
-    expect(added.query).toEqual({ source: 'hunting', text: 'SigninLogs', options: { timespan: 'P1D' }, parameters: [], saved: { id: 'q1', name: 'Risky sign-ins' } });
+    expect(added.query).toEqual({
+      source: 'hunting',
+      text: 'SigninLogs',
+      options: { timespan: 'P1D' },
+      parameters: [],
+      saved: { id: 'q1', name: 'Risky sign-ins' },
+    });
     expect(screen.queryByRole('dialog')).toBeNull();
     // Done re-reads the library for the new link, then runs without skipping the result cache.
     call.mockClear();
@@ -333,7 +400,23 @@ describe('workbook edit mode', () => {
   });
 
   it('the parameters dialog focuses its first parameter on open, or Add parameter when there is none', () => {
-    doc = { ...doc, parameters: [{ name: 'Env', type: 'text', value: '', required: false, choices: null, label: null, multi: false, all: false, remember: false, huntingTimespan: false }] };
+    doc = {
+      ...doc,
+      parameters: [
+        {
+          name: 'Env',
+          type: 'text',
+          value: '',
+          required: false,
+          choices: null,
+          label: null,
+          multi: false,
+          all: false,
+          remember: false,
+          huntingTimespan: false,
+        },
+      ],
+    };
     show();
     fireEvent.click(screen.getByRole('button', { name: 'Parameters' }));
     expect(document.activeElement).toBe(within(screen.getByRole('list', { name: 'Parameters' })).getByRole('button'));
@@ -347,7 +430,9 @@ describe('workbook edit mode', () => {
     show();
     fireEvent.focus(grip('Users'));
     fireEvent.click(within(screen.getByRole('region', { name: 'Users' })).getByRole('button', { name: 'Edit widget' }));
-    expect(document.activeElement).toBe(within(screen.getByRole('dialog', { name: 'Edit widget' })).getByRole('textbox', { name: 'Title' }));
+    expect(document.activeElement).toBe(
+      within(screen.getByRole('dialog', { name: 'Edit widget' })).getByRole('textbox', { name: 'Title' }),
+    );
   });
 
   it('the widget editor, parameters dialog and saved-query picker cover the whole window, outside the workspace', () => {
@@ -432,7 +517,11 @@ describe('workbook edit mode', () => {
     fireEvent.focus(grip('Sections'));
     fireEvent.click(within(screen.getByRole('region', { name: 'Sections' })).getByRole('button', { name: 'Edit widget' }));
     const dialog = screen.getByRole('dialog', { name: 'Edit widget' });
-    expect(within(dialog).getAllByRole('textbox').map((t) => t.getAttribute('aria-label') ?? (t.closest('label')?.textContent ?? ''))).toEqual(['Title']);
+    expect(
+      within(dialog)
+        .getAllByRole('textbox')
+        .map((t) => t.getAttribute('aria-label') ?? t.closest('label')?.textContent ?? ''),
+    ).toEqual(['Title']);
     expect(within(dialog).getAllByRole('checkbox')).toHaveLength(1);
     expect(within(dialog).getByRole('checkbox', { name: 'Hide the title bar outside edit mode' })).toBeTruthy();
     expect(within(dialog).queryByRole('tablist')).toBeNull();
@@ -440,7 +529,14 @@ describe('workbook edit mode', () => {
   });
 
   describe('a tabs widget with widgets', () => {
-    const tabsWidget = () => ({ ...widget('tw', 'tabs', '', 0, 12), layout: { x: 0, y: 12, w: 12, h: 30 }, tabs: [{ id: 't1', name: 'One' }, { id: 't2', name: 'Two' }] });
+    const tabsWidget = () => ({
+      ...widget('tw', 'tabs', '', 0, 12),
+      layout: { x: 0, y: 12, w: 12, h: 30 },
+      tabs: [
+        { id: 't1', name: 'One' },
+        { id: 't2', name: 'Two' },
+      ],
+    });
     const kids = () => [
       { ...widget('k1', 'markdown', 'Kid one', 0, 0), in: { tabs: 'tw', tab: 't1' } },
       { ...widget('k2', 'markdown', 'Kid two', 4, 0), in: { tabs: 'tw', tab: 't1' } },
@@ -503,19 +599,35 @@ describe('workbook edit mode', () => {
     });
 
     it('Duplicate on a tabs widget is disabled when its copies would pass 100 widgets', () => {
-      const fill = Array.from({ length: 92 }, (_, i) => widget(`w${i}`, 'markdown', `Note ${i}`, (i % 3) * 4, 100 + Math.floor(i / 3) * 12));
+      const fill = Array.from({ length: 92 }, (_, i) =>
+        widget(`w${i}`, 'markdown', `Note ${i}`, (i % 3) * 4, 100 + Math.floor(i / 3) * 12),
+      );
       doc = { ...doc, widgets: [...doc.widgets, ...fill, { ...tabsWidget(), title: 'Sections' }, ...kids()] };
       show();
       fireEvent.focus(grip('Sections'));
-      const dup = within(screen.getByRole('region', { name: 'Sections' })).getAllByRole('button', { name: 'Duplicate' })[0] as HTMLButtonElement;
+      const dup = within(screen.getByRole('region', { name: 'Sections' })).getAllByRole('button', {
+        name: 'Duplicate',
+      })[0] as HTMLButtonElement;
       expect(dup.disabled).toBe(true);
       expect(dup.title).toBe('A workbook can have at most 100 widgets.');
       fireEvent.focus(grip('Note 0'));
-      expect((within(screen.getByRole('region', { name: 'Note 0' })).getByRole('button', { name: 'Duplicate' }) as HTMLButtonElement).disabled).toBe(false);
+      expect(
+        (within(screen.getByRole('region', { name: 'Note 0' })).getByRole('button', { name: 'Duplicate' }) as HTMLButtonElement).disabled,
+      ).toBe(false);
     });
 
     describe('moving widgets between places', () => {
-      const rect = (top: number) => () => ({ x: 0, y: top, left: 0, top, width: 1188, height: 600, right: 1188, bottom: top + 600, toJSON: () => ({}) });
+      const rect = (top: number) => () => ({
+        x: 0,
+        y: top,
+        left: 0,
+        top,
+        width: 1188,
+        height: 600,
+        right: 1188,
+        bottom: top + 600,
+        toJSON: () => ({}),
+      });
       const gridOf = (key: string) => document.querySelector<HTMLElement>(`[data-wb-place="${key}"]`)!;
       const openMoveTo = (title: string) => {
         fireEvent.click(screen.getByRole('button', { name: `${title} menu` }));
@@ -543,9 +655,17 @@ describe('workbook edit mode', () => {
         show();
         openMoveTo('Kid one');
         const menu = screen.getByRole('menu', { name: 'Kid one menu' });
-        expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Top level', 'One (here)', 'Two']);
+        expect(
+          within(menu)
+            .getAllByRole('menuitem')
+            .map((i) => i.textContent),
+        ).toEqual(['Top level', 'One (here)', 'Two']);
         const group = within(menu).getByRole('group', { name: 'Sections' });
-        expect(within(group).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['One (here)', 'Two']);
+        expect(
+          within(group)
+            .getAllByRole('menuitem')
+            .map((i) => i.textContent),
+        ).toEqual(['One (here)', 'Two']);
         expect((within(group).getByRole('menuitem', { name: 'One (here)' }) as HTMLButtonElement).disabled).toBe(true);
         expect(document.activeElement).toBe(within(menu).getByRole('menuitem', { name: 'Top level' }));
       });
@@ -742,7 +862,7 @@ describe('workbook edit mode', () => {
         expect(state().doc.widgets.find((w) => w.id === 'a')?.in).toEqual({ tabs: 'tw', tab: 't1' });
       });
 
-      it('Ctrl+Z in the delete-tab confirm isn\'t the workbook\'s undo', () => {
+      it("Ctrl+Z in the delete-tab confirm isn't the workbook's undo", () => {
         show();
         fireEvent.click(screen.getByRole('button', { name: 'One tab menu' }));
         fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));

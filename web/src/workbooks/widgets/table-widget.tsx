@@ -43,7 +43,8 @@ export function TableWidget({ widget, run, tabId }: { widget: Widget; run: Widge
         inspectorId={`${id}-details`}
         onShownChange={tabId === undefined ? undefined : (shown) => useWorkbooks.getState().setShown(tabId, widget.id, shown)}
       />
-      {detailsRow && sheet(<RowDetails id={`${id}-details`} columns={run.result.columns} row={detailsRow} onClose={() => setDetails(null)} />)}
+      {detailsRow &&
+        sheet(<RowDetails id={`${id}-details`} columns={run.result.columns} row={detailsRow} onClose={() => setDetails(null)} />)}
     </div>
   );
   return tabId !== undefined && widget.history?.mode === 'rows' && since !== undefined ? (

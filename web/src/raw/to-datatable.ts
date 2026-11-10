@@ -21,17 +21,76 @@ function isDateTime(value: string): boolean {
   const [year, month, day, hour, minute, second, offsetHours, offsetMinutes] = m.slice(1).map((v) => (v === undefined ? 0 : Number(v)));
   const days = new Date(Date.UTC(year!, month!, 0)).getUTCDate();
   return (
-    month! >= 1 && month! <= 12 && day! >= 1 && day! <= days && hour! <= 23 && minute! <= 59 && second! <= 59 && offsetHours! <= 14 && offsetMinutes! <= 59
+    month! >= 1 &&
+    month! <= 12 &&
+    day! >= 1 &&
+    day! <= days &&
+    hour! <= 23 &&
+    minute! <= 59 &&
+    second! <= 59 &&
+    offsetHours! <= 14 &&
+    offsetMinutes! <= 59
   );
 }
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /** Words the KQL parser reserves, or reads as a type or literal, where a name is expected: a name that is one goes in `['…']`. */
 const KEYWORDS = new Set([
-  'and', 'as', 'asc', 'between', 'bool', 'boolean', 'by', 'contains', 'count', 'datatable', 'date', 'datetime', 'decimal', 'declare',
-  'default', 'desc', 'double', 'dynamic', 'extend', 'false', 'float', 'from', 'guid', 'has', 'in', 'int', 'int64', 'kind', 'let',
-  'like', 'long', 'not', 'null', 'of', 'on', 'or', 'order', 'print', 'project', 'range', 'real', 'set', 'sort', 'step', 'string',
-  'summarize', 'take', 'time', 'timespan', 'to', 'true', 'typeof', 'union', 'where', 'with',
+  'and',
+  'as',
+  'asc',
+  'between',
+  'bool',
+  'boolean',
+  'by',
+  'contains',
+  'count',
+  'datatable',
+  'date',
+  'datetime',
+  'decimal',
+  'declare',
+  'default',
+  'desc',
+  'double',
+  'dynamic',
+  'extend',
+  'false',
+  'float',
+  'from',
+  'guid',
+  'has',
+  'in',
+  'int',
+  'int64',
+  'kind',
+  'let',
+  'like',
+  'long',
+  'not',
+  'null',
+  'of',
+  'on',
+  'or',
+  'order',
+  'print',
+  'project',
+  'range',
+  'real',
+  'set',
+  'sort',
+  'step',
+  'string',
+  'summarize',
+  'take',
+  'time',
+  'timespan',
+  'to',
+  'true',
+  'typeof',
+  'union',
+  'where',
+  'with',
 ]);
 
 /** A column name: as written when it is a plain identifier, else in `['…']`. */
@@ -138,10 +197,16 @@ function literal(type: ColumnType, value: unknown): string {
  * - At most `maxRows` rows are taken, and no more than fit in {@link MAX_DATATABLE_BYTES} of KQL; `truncated` says rows were
  *   left out, and `rows` how many are in.
  */
-export function toDatatable(name: string, array: unknown[], maxRows = MAX_DATATABLE_ROWS): { kql: string; truncated: boolean; rows: number } {
-  const rows = array.slice(0, maxRows).map((item) =>
-    item !== null && typeof item === 'object' && !Array.isArray(item) ? (item as Record<string, unknown>) : { value: item },
-  );
+export function toDatatable(
+  name: string,
+  array: unknown[],
+  maxRows = MAX_DATATABLE_ROWS,
+): { kql: string; truncated: boolean; rows: number } {
+  const rows = array
+    .slice(0, maxRows)
+    .map((item) =>
+      item !== null && typeof item === 'object' && !Array.isArray(item) ? (item as Record<string, unknown>) : { value: item },
+    );
   const keys: string[] = [];
   const seen = new Set<string>();
   for (const row of rows) {

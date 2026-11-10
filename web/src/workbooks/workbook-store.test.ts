@@ -75,7 +75,14 @@ function widget(id: string, text: string, query: Partial<WidgetQuery> = {}, para
 
 /** A tabs widget `T` with tabs `one` and `two`, a plain widget `p`, and data widgets `a` (in one) and `b` (in two). */
 function tabbedDoc(parameters: WorkbookParameter[] = [], texts = { p: 'Tp', a: 'Ta', b: 'Tb' }): WorkbookDoc {
-  const tabs: Widget = { ...newWidget('tabs', { x: 0, y: 0, w: 4, h: 12 }), id: 'T', tabs: [{ id: 'one', name: 'One' }, { id: 'two', name: 'Two' }] };
+  const tabs: Widget = {
+    ...newWidget('tabs', { x: 0, y: 0, w: 4, h: 12 }),
+    id: 'T',
+    tabs: [
+      { id: 'one', name: 'One' },
+      { id: 'two', name: 'Two' },
+    ],
+  };
   return docOf(parameters, [
     tabs,
     widget('p', texts.p),
@@ -156,7 +163,10 @@ describe('workbook store', () => {
   });
 
   it('a workbook value reruns only the widgets using it; text waits 400 ms after the last change, Enter runs at once', async () => {
-    const doc = docOf([wbParam('Name', 'x'), wbParam('Kind', 'k', { type: 'list', choices: ['k', 'j'] })], [widget('a', 'T {Name}'), widget('b', 'T {Kind}')]);
+    const doc = docOf(
+      [wbParam('Name', 'x'), wbParam('Kind', 'k', { type: 'list', choices: ['k', 'j'] })],
+      [widget('a', 'T {Name}'), widget('b', 'T {Kind}')],
+    );
     void useWorkbooks.getState().load('t', doc);
     await flush();
     runs.forEach((r) => r.answer(result([])));
@@ -355,7 +365,9 @@ describe('workbook store', () => {
     let open!: () => void;
     libraryGate = new Promise((resolve) => (open = resolve));
     remembered = { Name: 'kept' };
-    void useWorkbooks.getState().load('t', docOf([wbParam('Name', 'x', { remember: true })], [widget('a', 'T {Name}'), widget('b', 'users')]));
+    void useWorkbooks
+      .getState()
+      .load('t', docOf([wbParam('Name', 'x', { remember: true })], [widget('a', 'T {Name}'), widget('b', 'users')]));
     await flush();
     useWorkbooks.getState().setWorkbookValue('t', 'Name', 'mine', { now: true });
     runs = [];
@@ -470,10 +482,23 @@ describe('workbook store', () => {
 
   it('a damaged workbook from the session is repaired; one that cannot be read is said once and not tried again', async () => {
     const good = widget('a', 'users');
-    const damaged = { ...docOf([], []), parameters: undefined, widgets: [good, { ...good, id: 'b', type: 'map' }] } as unknown as WorkbookDoc;
+    const damaged = {
+      ...docOf([], []),
+      parameters: undefined,
+      widgets: [good, { ...good, id: 'b', type: 'map' }],
+    } as unknown as WorkbookDoc;
     const other = { ...docOf([], []), kind: 'other' } as unknown as WorkbookDoc;
-    const tabOf = (id: string, title: string, workbook: WorkbookDoc) =>
-      ({ id, source: 'workbook' as const, title, text: '', dirty: true, savedId: null, parameters: [], filePath: null, workbook });
+    const tabOf = (id: string, title: string, workbook: WorkbookDoc) => ({
+      id,
+      source: 'workbook' as const,
+      title,
+      text: '',
+      dirty: true,
+      savedId: null,
+      parameters: [],
+      filePath: null,
+      workbook,
+    });
     useTabs.getState().restore({ version: 1, activeId: 'w1', tabs: [tabOf('w1', 'Fixed', damaged), tabOf('w2', 'Other', other)] });
     const notify = vi.fn();
     const stop = startWorkbookTabs(notify);
@@ -520,7 +545,12 @@ describe('workbook store', () => {
           {
             workbookId: tab().doc.id,
             widgetId: 'a',
-            query: { source: 'graph', text: 'T {Name}', options: runs[0]!.params.options ?? null, parameters: [{ name: 'Name', value: 'x', type: 'text' }] },
+            query: {
+              source: 'graph',
+              text: 'T {Name}',
+              options: runs[0]!.params.options ?? null,
+              parameters: [{ name: 'Name', value: 'x', type: 'text' }],
+            },
             setting: { mode: 'values', interval: 'day', retentionDays: 30, keys: [] },
             label: 'Name = x',
             columns: [{ name: 'n', type: 'long' }],
@@ -529,7 +559,13 @@ describe('workbook store', () => {
         ],
       ]);
       // The resolved query of that run, so the widget reads the series the record wrote.
-      expect(tab().history.a).toEqual({ skipped: null, reset: false, recordedAt: expect.any(Number), query: records()[0]![1].query, pending: 0 });
+      expect(tab().history.a).toEqual({
+        skipped: null,
+        reset: false,
+        recordedAt: expect.any(Number),
+        query: records()[0]![1].query,
+        pending: 0,
+      });
     });
 
     it('the_hunting_timespan_is_a_parameter_of_the_series_not_part_of_the_query', async () => {
@@ -618,7 +654,14 @@ describe('workbook store', () => {
       await open(withHistory('a'));
       await answer(result([[1]]));
       expect(state('a')).toBe('done');
-      expect(tab().history.a).toEqual({ skipped: null, reset: false, recordedAt: null, query: expect.any(Object), error: 'disk', pending: 0 });
+      expect(tab().history.a).toEqual({
+        skipped: null,
+        reset: false,
+        recordedAt: null,
+        query: expect.any(Object),
+        error: 'disk',
+        pending: 0,
+      });
       // The next answer that records clears it.
       recordAnswer = { recorded: true, skipped: null, reset: false };
       void useWorkbooks.getState().runWidget('t', 'a');
@@ -708,7 +751,10 @@ describe('tabs', () => {
 
   it('a parameter change reruns visible widgets and marks hidden ones that ran as stale', async () => {
     const doc = tabbedDoc([wbParam('N', 'x')], { p: 'T {N}', a: 'T {N}', b: 'T {N}' });
-    doc.widgets.push({ ...widget('c', 'T {N}'), in: { tabs: 'T', tab: 'two' } }, { ...widget('d', 'Tfixed'), in: { tabs: 'T', tab: 'two' } });
+    doc.widgets.push(
+      { ...widget('c', 'T {N}'), in: { tabs: 'T', tab: 'two' } },
+      { ...widget('d', 'Tfixed'), in: { tabs: 'T', tab: 'two' } },
+    );
     void useWorkbooks.getState().load('t', doc);
     await flush();
     await answerAll();
@@ -806,7 +852,10 @@ describe('tabs', () => {
     useWorkbooks.getState().showTab('t', 'T', 'one');
     void useWorkbooks.getState().runAll('t', { refresh: true });
     await flush();
-    expect(runs.map((r) => [r.params.tabId, r.params.refresh]).sort()).toEqual([['t/a', true], ['t/p', true]]);
+    expect(runs.map((r) => [r.params.tabId, r.params.refresh]).sort()).toEqual([
+      ['t/a', true],
+      ['t/p', true],
+    ]);
     expect(tab().stale).toEqual({ b: true });
   });
 
@@ -836,7 +885,9 @@ describe('tabs', () => {
     await flush();
     useWorkbooks.getState().showTab('t', 'T', 'two');
     expect(visibleTab(tab(), 'T')).toBe('two');
-    useWorkbooks.getState().edit('t', (d) => ({ ...d, widgets: d.widgets.map((w) => (w.id === 'T' ? { ...w, tabs: [{ id: 'one', name: 'One' }] } : w)) }));
+    useWorkbooks
+      .getState()
+      .edit('t', (d) => ({ ...d, widgets: d.widgets.map((w) => (w.id === 'T' ? { ...w, tabs: [{ id: 'one', name: 'One' }] } : w)) }));
     expect(visibleTab(tab(), 'T')).toBe('one');
   });
 

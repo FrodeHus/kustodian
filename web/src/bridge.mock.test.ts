@@ -2,7 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { createBridge } from './bridge';
 import { createMockTransport } from './bridge.mock';
 import { BridgeError } from './bridge';
-import type { ArmManagementGroupsAnswer, ArmResourceTypesAnswer, ArmSubscriptionsAnswer, ListedByDefault, RecentRun, RunResult, SchemaLicenses, SchemaView } from './wire';
+import type {
+  ArmManagementGroupsAnswer,
+  ArmResourceTypesAnswer,
+  ArmSubscriptionsAnswer,
+  ListedByDefault,
+  RecentRun,
+  RunResult,
+  SchemaLicenses,
+  SchemaView,
+} from './wire';
 
 describe('bridge mock', () => {
   it('mock_answers_the_arm_methods_in_the_hosts_shapes', async () => {
@@ -43,7 +52,15 @@ describe('bridge mock', () => {
     expect(graph.tables.some((t) => t.name === 'applications')).toBe(true);
     expect(hunting).toMatchObject({ source: 'hunting', origin: 'tenant', fallbackReason: null });
     expect(hunting.functions.map((f) => f.name)).toEqual(['AssignedIPAddresses', 'DeviceFromIP', 'FileProfile', 'SeenBy']);
-    expect(hunting.tables[0]?.columns[0]).toEqual({ name: 'Timestamp', type: 'datetime', description: '', filterable: null, listable: null, complexType: null, collection: false });
+    expect(hunting.tables[0]?.columns[0]).toEqual({
+      name: 'Timestamp',
+      type: 'datetime',
+      description: '',
+      filterable: null,
+      listable: null,
+      complexType: null,
+      collection: false,
+    });
     expect(arg).toMatchObject({ source: 'arg', origin: 'builtIn', functions: [] });
     expect(arg.tables.map((t) => t.name)).toContain('Resources');
     expect(arg.tables[0]?.path).toBeNull();
@@ -56,7 +73,19 @@ describe('bridge mock', () => {
     const listed = await bridge.call<ListedByDefault>('schema.listedByDefault', { source: 'graph' });
 
     expect(Object.keys(listed)).toEqual(['tables']);
-    expect(listed.tables.users).toEqual(['businessPhones', 'displayName', 'givenName', 'id', 'jobTitle', 'mail', 'mobilePhone', 'officeLocation', 'preferredLanguage', 'surname', 'userPrincipalName']);
+    expect(listed.tables.users).toEqual([
+      'businessPhones',
+      'displayName',
+      'givenName',
+      'id',
+      'jobTitle',
+      'mail',
+      'mobilePhone',
+      'officeLocation',
+      'preferredLanguage',
+      'surname',
+      'userPrincipalName',
+    ]);
     await expect(bridge.call('schema.listedByDefault', { source: 'hunting' })).rejects.toMatchObject({
       code: 'bad_request',
       message: 'Unknown source hunting.',
@@ -91,15 +120,29 @@ describe('bridge mock', () => {
     const bridge = createBridge(createMockTransport());
 
     await expect(
-      bridge.call('query.run', { tabId: 't', source: 'hunting', kql: 'DeviceInfo', refresh: false, options: { timespan: 'P45D', scope: null } }),
+      bridge.call('query.run', {
+        tabId: 't',
+        source: 'hunting',
+        kql: 'DeviceInfo',
+        refresh: false,
+        options: { timespan: 'P45D', scope: null },
+      }),
     ).rejects.toMatchObject({ code: 'bad_request', message: 'The timespan can cover at most 30 days.' });
     await expect(
-      bridge.call('query.run', { tabId: 't', source: 'arg', kql: 'Resources', refresh: false, options: { timespan: null, scope: { kind: 'subscriptions', ids: [] } } }),
+      bridge.call('query.run', {
+        tabId: 't',
+        source: 'arg',
+        kql: 'Resources',
+        refresh: false,
+        options: { timespan: null, scope: { kind: 'subscriptions', ids: [] } },
+      }),
     ).rejects.toMatchObject({ code: 'bad_request', message: 'Pick 1 to 100 subscriptions.' });
 
     const options = { timespan: '2026-10-01T00:00:00Z/2026-10-08T00:00:00Z', scope: null };
     await bridge.call('query.run', { tabId: 't', source: 'hunting', kql: 'DeviceInfo', refresh: false, options });
-    expect(await bridge.call<{ runs: RecentRun[] }>('recent.list')).toMatchObject({ runs: [{ source: 'hunting', text: 'DeviceInfo', options }] });
+    expect(await bridge.call<{ runs: RecentRun[] }>('recent.list')).toMatchObject({
+      runs: [{ source: 'hunting', text: 'DeviceInfo', options }],
+    });
     await expect(bridge.call('account.consent', { key: 'mock-account', audience: 'arm' })).resolves.toEqual({});
   });
 });

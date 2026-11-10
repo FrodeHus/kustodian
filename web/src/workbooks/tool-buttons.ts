@@ -37,4 +37,5 @@ export const effectiveSelection = (selection: Widget['selection'], stored: RowSe
   selection === 'none' ? { selected: [], shown: stored?.shown ?? null } : (stored ?? NO_SELECTION);
 
 /** The run's result when it answered ok; buttons are off without one. */
-export const okResult = (run: WidgetRun | undefined): RunResult | null => (run?.state === 'done' && run.result.outcome === 'ok' ? run.result : null);
+export const okResult = (run: WidgetRun | undefined): RunResult | null =>
+  run?.state === 'done' && run.result.outcome === 'ok' ? run.result : null;

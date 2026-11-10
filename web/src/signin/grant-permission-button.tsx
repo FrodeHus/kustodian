@@ -15,7 +15,15 @@ const notGranted = (e: unknown) =>
  * audience: "graph", scope}`). Once granted, `onGranted` runs the query again. The user cancelling, or Microsoft refusing (an
  * administrator has to grant it), is shown next to the button as "Not granted"; any other failure as the host's message.
  */
-export function GrantPermissionButton({ accountKey, scope, onGranted }: { accountKey: string | undefined; scope: string; onGranted?: () => void }) {
+export function GrantPermissionButton({
+  accountKey,
+  scope,
+  onGranted,
+}: {
+  accountKey: string | undefined;
+  scope: string;
+  onGranted?: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<Shown | null>(null);
 
@@ -32,14 +40,25 @@ export function GrantPermissionButton({ accountKey, scope, onGranted }: { accoun
       },
       (e: unknown) => {
         setBusy(false);
-        setProblem(notGranted(e) ? { text: `Not granted. An administrator has to grant ${scope}.` } : { text: errorText(e), reportId: reportIdOf(e) });
+        setProblem(
+          notGranted(e)
+            ? { text: `Not granted. An administrator has to grant ${scope}.` }
+            : { text: errorText(e), reportId: reportIdOf(e) },
+        );
       },
     );
   };
 
   return (
     <>
-      <button type="button" className="btn shrink-0" title={scope} aria-label={`Grant permission ${scope}`} disabled={busy || !accountKey} onClick={grant}>
+      <button
+        type="button"
+        className="btn shrink-0"
+        title={scope}
+        aria-label={`Grant permission ${scope}`}
+        disabled={busy || !accountKey}
+        onClick={grant}
+      >
         Grant permission…
       </button>
       {problem && (

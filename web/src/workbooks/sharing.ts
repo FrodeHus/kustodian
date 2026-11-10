@@ -72,10 +72,7 @@ export async function importWorkbook(): Promise<void> {
   }
   // The file is untrusted: the host checks it as it would a save, before anything is shown.
   await call('workbook.check', { workbook: withFileVersion(doc) });
-  const [tools, list] = await Promise.all([
-    call<ToolList>('tools.list').catch(() => null),
-    call<WorkbookList>('workbook.list'),
-  ]);
+  const [tools, list] = await Promise.all([call<ToolList>('tools.list').catch(() => null), call<WorkbookList>('workbook.list')]);
   useImportReview.getState().show({
     fileName: file.name,
     text: JSON.stringify(doc, null, 2),

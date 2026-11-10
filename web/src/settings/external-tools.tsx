@@ -72,12 +72,18 @@ export function ExternalTools() {
     <>
       <div className="flex items-start gap-3">
         <span className="muted flex-1 text-[12px]">
-          Commands of your own that the Rows tab’s Run tool menu runs on the selected rows, in this order. Changes are saved to tools.json at once.
+          Commands of your own that the Rows tab’s Run tool menu runs on the selected rows, in this order. Changes are saved to tools.json
+          at once.
         </span>
         <button type="button" className="btn ghost" onClick={openFile}>
           Open tools.json
         </button>
-        <button type="button" className="btn primary" disabled={!list || list.problem !== null} onClick={() => setEditing({ at: null, tool: blank })}>
+        <button
+          type="button"
+          className="btn primary"
+          disabled={!list || list.problem !== null}
+          onClick={() => setEditing({ at: null, tool: blank })}
+        >
           Add tool
         </button>
       </div>
@@ -104,7 +110,13 @@ export function ExternalTools() {
               <li key={tool.name} className="flex flex-col gap-1.5 border-t border-line py-2.5">
                 <div className="flex items-start gap-3">
                   <div className="flex flex-col">
-                    <button type="button" className="btn ghost h-4 px-1 text-[10px]" aria-label={`Move ${tool.name} up`} disabled={at === 0} onClick={() => move(at, -1)}>
+                    <button
+                      type="button"
+                      className="btn ghost h-4 px-1 text-[10px]"
+                      aria-label={`Move ${tool.name} up`}
+                      disabled={at === 0}
+                      onClick={() => move(at, -1)}
+                    >
                       ▲
                     </button>
                     <button
@@ -123,16 +135,30 @@ export function ExternalTools() {
                       <span className="chip shrink-0">{tool.mode === 'batch' ? 'Batch' : 'Each row'}</span>
                     </div>
                     <span className="mono muted text-[11.5px] break-all">{commandLine(tool.command, tool.args)}</span>
-                    {parameters.length > 0 && <span className="mono text-[11px] text-accent">{parameters.map((p) => `{${p}}`).join(' ')}</span>}
-                    {list?.missing.includes(tool.name) && <span className="chip warn">No file at “{tool.command}”: give the full path</span>}
+                    {parameters.length > 0 && (
+                      <span className="mono text-[11px] text-accent">{parameters.map((p) => `{${p}}`).join(' ')}</span>
+                    )}
+                    {list?.missing.includes(tool.name) && (
+                      <span className="chip warn">No file at “{tool.command}”: give the full path</span>
+                    )}
                   </div>
                   <button type="button" className="btn" onClick={() => setEditing({ at, tool })}>
                     Edit…
                   </button>
-                  <button type="button" className="btn ghost" aria-label={`Duplicate ${tool.name}`} onClick={() => change([...tools.slice(0, at + 1), { ...tool, name: copyName(tool.name) }, ...tools.slice(at + 1)])}>
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    aria-label={`Duplicate ${tool.name}`}
+                    onClick={() => change([...tools.slice(0, at + 1), { ...tool, name: copyName(tool.name) }, ...tools.slice(at + 1)])}
+                  >
                     Duplicate
                   </button>
-                  <button type="button" className="btn ghost text-bad" aria-label={`Delete ${tool.name}`} onClick={() => setDeleting(tool.name)}>
+                  <button
+                    type="button"
+                    className="btn ghost text-bad"
+                    aria-label={`Delete ${tool.name}`}
+                    onClick={() => setDeleting(tool.name)}
+                  >
                     Delete
                   </button>
                 </div>
@@ -269,7 +295,9 @@ function ToolDialog({ tool: initial, taken, onClose, onSave }: ToolDialogProps) 
               Browse…
             </button>
           </div>
-          <span className="faint text-[12px]">A full path: an app started from the Finder or the Start menu doesn’t get your shell’s PATH.</span>
+          <span className="faint text-[12px]">
+            A full path: an app started from the Finder or the Start menu doesn’t get your shell’s PATH.
+          </span>
         </div>
         <fieldset className="field m-0 border-0 p-0">
           <legend className="mb-1.5 p-0 text-[12px] font-semibold text-muted">Runs</legend>
@@ -304,7 +332,12 @@ function ToolDialog({ tool: initial, taken, onClose, onSave }: ToolDialogProps) 
                 value={arg}
                 onChange={(e) => edit({ args: args.map((a, i) => (i === at ? e.target.value : a)) })}
               />
-              <button type="button" className="btn ghost" aria-label={`Remove argument ${at + 1}`} onClick={() => edit({ args: args.filter((_, i) => i !== at) })}>
+              <button
+                type="button"
+                className="btn ghost"
+                aria-label={`Remove argument ${at + 1}`}
+                onClick={() => edit({ args: args.filter((_, i) => i !== at) })}
+              >
                 ×
               </button>
             </div>

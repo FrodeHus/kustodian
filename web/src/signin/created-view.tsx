@@ -157,7 +157,12 @@ export function CreatedView({ name, initial, listed, onClose, onSwitched, onSwit
         <IdRow label="Client ID" value={appId} onCopy={() => void copy(appId, 'Client ID')} />
         <IdRow label="Tenant ID" value={tenantId} onCopy={() => void copy(tenantId, 'Tenant ID')} />
         <div>
-          <button type="button" className="btn" disabled={busy} onClick={() => void run(async () => void (await call('entraApp.openPortal', { appId })))}>
+          <button
+            type="button"
+            className="btn"
+            disabled={busy}
+            onClick={() => void run(async () => void (await call('entraApp.openPortal', { appId })))}
+          >
             Open in Entra admin center
           </button>
         </div>
@@ -180,7 +185,9 @@ export function CreatedView({ name, initial, listed, onClose, onSwitched, onSwit
           <span className="text-[12.5px] text-warn">
             {`${appId} exists without its enterprise application. ${result.servicePrincipalMessage ?? 'The service principal could not be created.'}`}
           </span>
-          <span className="muted text-[12px]">Kustodian doesn’t delete it for you. An admin’s consent (next step) also creates the enterprise application.</span>
+          <span className="muted text-[12px]">
+            Kustodian doesn’t delete it for you. An admin’s consent (next step) also creates the enterprise application.
+          </span>
           <div className="flex gap-2">
             <button type="button" className="btn primary" disabled={busy} onClick={() => void retry()}>
               Try again
@@ -214,7 +221,13 @@ export function CreatedView({ name, initial, listed, onClose, onSwitched, onSwit
               {`${adminScopes.length} of the ${listed} permissions need an admin’s consent. Until an admin grants them, signing in with this app will ask for admin approval. Microsoft’s page shows the admin exactly what is granted.`}
             </span>
             <div className="flex flex-wrap gap-2">
-              <button ref={grantButton} type="button" className={`btn${openPrimary ? ' primary' : ''}`} disabled={busy} onClick={() => void openConsent()}>
+              <button
+                ref={grantButton}
+                type="button"
+                className={`btn${openPrimary ? ' primary' : ''}`}
+                disabled={busy}
+                onClick={() => void openConsent()}
+              >
                 Open admin consent page
               </button>
               <button type="button" className={`btn${copyPrimary ? ' primary' : ''}`} disabled={busy} onClick={() => void copyLink()}>
@@ -224,7 +237,9 @@ export function CreatedView({ name, initial, listed, onClose, onSwitched, onSwit
                 Check again
               </button>
             </div>
-            {copyPrimary && <span className="muted text-[12px]">You can’t grant this yourself. Send the link to an admin, then click Check again.</span>}
+            {copyPrimary && (
+              <span className="muted text-[12px]">You can’t grant this yourself. Send the link to an admin, then click Check again.</span>
+            )}
             {status && (
               <span className={status.missing.length > 0 ? 'text-[12.5px] text-warn' : 'text-[12.5px] text-ok'} role="status">
                 {`Granted for the tenant: ${grantedCount} of ${adminScopes.length}`}

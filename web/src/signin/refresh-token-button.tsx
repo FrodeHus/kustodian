@@ -8,7 +8,15 @@ import { errorText } from '../shell/errors';
  * alone. Once refreshed, `onRefreshed` runs the query again. The user cancelling says nothing; any other failure is shown next to
  * the button.
  */
-export function RefreshTokenButton({ accountKey, audience, onRefreshed }: { accountKey: string | undefined; audience: 'graph' | 'arm'; onRefreshed?: () => void }) {
+export function RefreshTokenButton({
+  accountKey,
+  audience,
+  onRefreshed,
+}: {
+  accountKey: string | undefined;
+  audience: 'graph' | 'arm';
+  onRefreshed?: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 

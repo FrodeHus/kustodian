@@ -59,7 +59,14 @@ export function TitleBar({
       <div className="flex min-w-0 grow self-stretch">{children}</div>
       <div className="relative" ref={menuRef}>
         {/* Named by its visible text (WCAG 2.5.3); the title says what it does. */}
-        <button type="button" className="pill" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)} title="Account and settings">
+        <button
+          type="button"
+          className="pill"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onClick={() => setOpen((o) => !o)}
+          title="Account and settings"
+        >
           {account ? (
             <>
               <span className={account.expired ? 'dot-off' : 'dot-ok'} aria-hidden="true" />
@@ -73,10 +80,19 @@ export function TitleBar({
           </svg>
         </button>
         {open && (
-          <div className="menu" role="menu" aria-label="Account and settings" style={{ right: 0, top: 30, width: 280 }} onMouseDown={(e) => e.preventDefault()}>
+          <div
+            className="menu"
+            role="menu"
+            aria-label="Account and settings"
+            style={{ right: 0, top: 30, width: 280 }}
+            onMouseDown={(e) => e.preventDefault()}
+          >
             {account && (
               <div className="flex items-center gap-3 border-b border-line px-2.5 pt-1.5 pb-2.5 mb-1">
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent-soft font-semibold text-accent" aria-hidden="true">
+                <span
+                  className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent-soft font-semibold text-accent"
+                  aria-hidden="true"
+                >
                   {account.username.charAt(0).toUpperCase()}
                 </span>
                 <span className="flex min-w-0 flex-col text-[12px]">

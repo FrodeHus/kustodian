@@ -18,8 +18,7 @@ const components = import.meta.glob<string>(['./**/*.tsx', '!./**/*.test.tsx'], 
   eager: true,
 });
 
-const classesIn = (css: string) =>
-  new Set([...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/\.([A-Za-z_][\w-]*)/g)].map((m) => m[1]!));
+const classesIn = (css: string) => new Set([...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/\.([A-Za-z_][\w-]*)/g)].map((m) => m[1]!));
 
 /** The class tokens a component's `className` attributes name: a plain string, or the string literals of an expression. */
 function classNamesIn(tsx: string): string[] {

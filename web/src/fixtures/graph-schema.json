@@ -10,9 +10,7 @@
       "area": "Apps and permissions",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/application?view=graph-rest-beta",
-      "permissions": [
-        "Application.Read.All"
-      ],
+      "permissions": ["Application.Read.All"],
       "columns": [
         {
           "name": "id",
@@ -85,9 +83,7 @@
       "area": "Users, groups and directory",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/user?view=graph-rest-beta",
-      "permissions": [
-        "User.ReadBasic.All"
-      ],
+      "permissions": ["User.ReadBasic.All"],
       "columns": [
         {
           "name": "id",
@@ -142,9 +138,7 @@
       "area": "Apps and permissions",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/serviceprincipal?view=graph-rest-beta",
-      "permissions": [
-        "Application.Read.All"
-      ],
+      "permissions": ["Application.Read.All"],
       "columns": [
         {
           "name": "id",
@@ -190,10 +184,7 @@
       "area": "Users, groups and directory",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/group?view=graph-rest-beta",
-      "permissions": [
-        "Group-NestingSupport.ReadWrite.All",
-        "Group.ReadBasic.All"
-      ],
+      "permissions": ["Group-NestingSupport.ReadWrite.All", "Group.ReadBasic.All"],
       "columns": [
         {
           "name": "id",
@@ -239,9 +230,7 @@
       "area": "Sign-in and audit logs",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/signin?view=graph-rest-beta",
-      "permissions": [
-        "AuditLog.Read.All"
-      ],
+      "permissions": ["AuditLog.Read.All"],
       "columns": [
         {
           "name": "id",
@@ -296,9 +285,7 @@
       "area": "Devices and Intune",
       "description": "",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/device?view=graph-rest-beta",
-      "permissions": [
-        "Device.Read.All"
-      ],
+      "permissions": ["Device.Read.All"],
       "columns": [
         {
           "name": "id",
@@ -353,9 +340,7 @@
       "area": "Devices and Intune",
       "description": "Devices that are managed or pre-enrolled through Intune. Limited support for $filter: Only properties whose descriptions mention support for $filter may be used, and combinations of those filtered properties must use 'and', not 'or'.",
       "docsUrl": "https://learn.microsoft.com/graph/api/resources/manageddevice?view=graph-rest-beta",
-      "permissions": [
-        "DeviceManagementManagedDevices.Read.All"
-      ],
+      "permissions": ["DeviceManagementManagedDevices.Read.All"],
       "columns": [
         {
           "name": "id",

@@ -95,7 +95,8 @@ export function SnippetPanel({ onInsert, source = 'graph' }: { onInsert: (text: 
 
   const needle = search.trim().toLowerCase();
   const shown = (snippets ?? []).filter(
-    (s) => (all || s.source === source) && (!needle || s.name.toLowerCase().includes(needle) || s.description.toLowerCase().includes(needle)),
+    (s) =>
+      (all || s.source === source) && (!needle || s.name.toLowerCase().includes(needle) || s.description.toLowerCase().includes(needle)),
   );
   const mine = shown.filter((s) => !s.builtIn);
 
@@ -139,7 +140,14 @@ export function SnippetPanel({ onInsert, source = 'graph' }: { onInsert: (text: 
   return (
     <aside className="side" aria-label="Snippets">
       <PanelHeading title="Snippets" source={source} all={all} onAll={setAll} />
-      <input className="search" type="search" aria-label="Find a snippet" placeholder="Find a snippet" value={search} onChange={(e) => setSearch(e.target.value)} />
+      <input
+        className="search"
+        type="search"
+        aria-label="Find a snippet"
+        placeholder="Find a snippet"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
       <div className="min-h-0 flex-1 overflow-y-auto pb-3">
         {problem && (
           <p role="alert" className="m-0 px-[14px] pb-2 text-[12px] text-bad">
@@ -159,7 +167,9 @@ export function SnippetPanel({ onInsert, source = 'graph' }: { onInsert: (text: 
             {mine.length > 0 ? (
               <ul className="side-list">{mine.map(row)}</ul>
             ) : (
-              <p className="faint m-0 px-[14px] text-[12px]">{needle ? 'None of yours matches.' : 'Select part of a query and save it as a snippet.'}</p>
+              <p className="faint m-0 px-[14px] text-[12px]">
+                {needle ? 'None of yours matches.' : 'Select part of a query and save it as a snippet.'}
+              </p>
             )}
           </section>
         )}
@@ -176,7 +186,14 @@ export function SnippetPanel({ onInsert, source = 'graph' }: { onInsert: (text: 
               }
             }}
           >
-            <input className="textbox" aria-label="Snippet name" placeholder="Snippet name" autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+            <input
+              className="textbox"
+              aria-label="Snippet name"
+              placeholder="Snippet name"
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
             <div className="flex justify-end gap-1.5">
               <button type="button" className="btn ghost" onClick={() => setNaming(null)}>
                 Cancel

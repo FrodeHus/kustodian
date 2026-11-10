@@ -92,14 +92,22 @@ export function RecentPanel({ source = 'graph' }: { source?: Source }) {
             <ErrorReportActions reportId={problem.reportId} uiSections={{ message: problem.text }} />
           </p>
         )}
-        {shown?.length === 0 && <p className="faint m-0 px-[14px] text-[12px]">{runs?.length ? 'No runs of this source yet.' : 'No runs yet.'}</p>}
+        {shown?.length === 0 && (
+          <p className="faint m-0 px-[14px] text-[12px]">{runs?.length ? 'No runs of this source yet.' : 'No runs yet.'}</p>
+        )}
         <ul className="side-list">
           {shown?.map((run) => {
             const title = runTitle(run.text);
             const at = when(run.startedAt);
             return (
               <li key={run.id} className="side-item">
-                <button type="button" className="side-open flex-col !items-start" aria-label={`Open the run “${title}” from ${at}`} title={run.text} onClick={() => openRecent(run)}>
+                <button
+                  type="button"
+                  className="side-open flex-col !items-start"
+                  aria-label={`Open the run “${title}” from ${at}`}
+                  title={run.text}
+                  onClick={() => openRecent(run)}
+                >
                   <span className="flex w-full min-w-0 items-center gap-1.5">
                     {all && <SourceBadge source={run.source} titled />}
                     <span className="mono truncate">{title}</span>
