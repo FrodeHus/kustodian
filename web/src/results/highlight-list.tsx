@@ -61,16 +61,24 @@ export function HighlightList({
   readOnly?: boolean;
 }) {
   const listId = useId();
-  // The control focused when a rule moved: React moves its row, which can drop focus.
-  const refocus = useRef<HTMLElement | null>(null);
+  const list = useRef<HTMLDivElement>(null);
+  // The moved rule and the control (by name) to focus after the move: React moves its row, which can drop focus, and a move
+  // button that is now disabled can't keep it. Then its other move button, or the rule's first control, takes it.
+  const refocus = useRef<{ id: string; control: string } | null>(null);
   useLayoutEffect(() => {
-    refocus.current?.focus();
+    const want = refocus.current;
     refocus.current = null;
+    const group = want && [...(list.current?.querySelectorAll<HTMLElement>('[data-rule]') ?? [])].find((g) => g.dataset.rule === want.id);
+    if (!group) return;
+    const other = want.control === 'Move up' ? 'Move down' : 'Move up';
+    const pick = (sel: string) => group.querySelector<HTMLElement>(`${sel}:not(:disabled)`);
+    (pick(`[aria-label="${want.control}"]`) ?? pick(`[aria-label="${other}"]`) ?? pick('select, input, button'))?.focus();
   }, [rules]);
 
   const set = (i: number, patch: Partial<HighlightRule>) => onChange(rules.map((r, j) => (j === i ? { ...r, ...patch } : r)));
-  const move = (i: number, to: number) => {
+  const move = (i: number, to: number, control: string) => {
     if (to < 0 || to >= rules.length) return;
+    refocus.current = { id: rules[i]!.id, control };
     const next = [...rules];
     [next[i], next[to]] = [next[to]!, next[i]!];
     onChange(next);
@@ -78,13 +86,13 @@ export function HighlightList({
   const onKey = (e: KeyboardEvent, i: number) => {
     if (readOnly || !e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
     e.preventDefault();
-    refocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    move(i, e.key === 'ArrowUp' ? i - 1 : i + 1);
+    const control = document.activeElement instanceof HTMLElement ? (document.activeElement.getAttribute('aria-label') ?? '') : '';
+    move(i, e.key === 'ArrowUp' ? i - 1 : i + 1, control);
   };
   const full = rules.length >= MAX_HIGHLIGHTS;
 
   return (
-    <div className="flex flex-col gap-2 text-[12px]">
+    <div ref={list} className="flex flex-col gap-2 text-[12px]">
       <datalist id={listId}>
         {columns.map((c) => (
           <option key={c.name} value={c.name} />
@@ -94,7 +102,14 @@ export function HighlightList({
         const problem = ruleProblem(rule, columns);
         const type = columns.find((c) => c.name === rule.column)?.type;
         return (
-          <div key={rule.id} role="group" aria-label={`Rule ${i + 1}`} className="flex flex-col gap-1" onKeyDown={(e) => onKey(e, i)}>
+          <div
+            key={rule.id}
+            role="group"
+            aria-label={`Rule ${i + 1}`}
+            data-rule={rule.id}
+            className="flex flex-col gap-1"
+            onKeyDown={(e) => onKey(e, i)}
+          >
             <div className="flex flex-wrap items-center gap-1.5">
               <ColourTarget rule={rule} disabled={readOnly} onChange={(patch) => set(i, patch)} />
               <input
@@ -135,7 +150,7 @@ export function HighlightList({
                 className="btn ghost"
                 aria-label="Move up"
                 disabled={readOnly || i === 0}
-                onClick={() => move(i, i - 1)}
+                onClick={() => move(i, i - 1, 'Move up')}
               >
                 ↑
               </button>
@@ -144,7 +159,7 @@ export function HighlightList({
                 className="btn ghost"
                 aria-label="Move down"
                 disabled={readOnly || i === rules.length - 1}
-                onClick={() => move(i, i + 1)}
+                onClick={() => move(i, i + 1, 'Move down')}
               >
                 ↓
               </button>

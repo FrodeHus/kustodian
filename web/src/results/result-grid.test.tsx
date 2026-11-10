@@ -783,6 +783,7 @@ describe('ResultGrid highlight rules', () => {
     const onHighlightsChange = vi.fn();
     rerender(<ResultGrid columns={cols} rows={rows} onFilter={vi.fn()} onHighlightsChange={onHighlightsChange} />);
     fireEvent.contextMenu(screen.getByText('FAIL'));
+    expect(screen.getByRole('menu', { name: 'state cell' })).toBeTruthy();
     fireEvent.click(screen.getByRole('menuitem', { name: 'Highlight rows where state == "FAIL"…' }));
     expect(screen.queryByRole('menu')).toBeNull();
     fireEvent.click(
@@ -790,6 +791,23 @@ describe('ResultGrid highlight rules', () => {
     );
     expect(onHighlightsChange).toHaveBeenCalledWith([expect.objectContaining({ column: 'state', op: '==', value: 'FAIL' })]);
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('an empty cell offers Highlight rows where <column> is empty…, with only highlight items and a neutral label', () => {
+    const onHighlightsChange = vi.fn();
+    const { container } = render(<ResultGrid columns={cols} rows={[[null, 3]]} onHighlightsChange={onHighlightsChange} />);
+    fireEvent.contextMenu(container.querySelector('tbody tr[data-index] td:nth-child(2)')!);
+    const menu = screen.getByRole('menu', { name: 'state cell' });
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((b) => b.textContent),
+    ).toEqual(['Highlight rows where state is empty…', 'Highlight rules…']);
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Highlight rows where state is empty…' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Highlight rows where state is empty' })).getByRole('button', { name: 'Add' }),
+    );
+    expect(onHighlightsChange).toHaveBeenCalledWith([expect.objectContaining({ column: 'state', op: 'isempty', value: '' })]);
   });
 
   it('opens the rule list from the cell menu and the column menu with no rules, and from the chip with some', () => {

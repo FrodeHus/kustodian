@@ -35,7 +35,7 @@ import { RunToolDialog, ToolItems } from './run-tool';
 import { FilterItems, MenuButton, Menu, type OnFilter } from './menu';
 import { filterOps, quotedValue } from './smart-filter';
 import { HighlightFromCell, HighlightListPopover } from './highlight-popover';
-import { compileRules, highlightOf, MAX_HIGHLIGHTS } from './highlights';
+import { compileRules, highlightOf, isEmpty, MAX_HIGHLIGHTS } from './highlights';
 
 const ROW_HEIGHT = 29;
 // One empty list, so a grid with no cell filters doesn't hand the table a new state each render.
@@ -880,7 +880,7 @@ export function ResultGrid({
       {opened && <JsonPanel opened={opened} onClose={() => setOpened(null)} />}
       {cellMenu && (onFilter || onHighlightsChange) && (
         <Menu
-          label={`Filter on ${cellMenu.column.name}`}
+          label={`${cellMenu.column.name} cell`}
           at={{ x: cellMenu.x, y: cellMenu.y }}
           onClose={(refocus) => {
             setCellMenu(null);
@@ -901,7 +901,7 @@ export function ResultGrid({
                 title={ruleCount >= MAX_HIGHLIGHTS ? `Up to ${MAX_HIGHLIGHTS} rules` : undefined}
                 onClick={() => setHighlightFrom(cellMenu)}
               >
-                Highlight rows where {cellMenu.column.name} == {quotedValue(cellMenu.column, cellMenu.value)}…
+                {`Highlight rows where ${cellMenu.column.name} ${isEmpty(cellMenu.value) ? 'is empty' : `== ${quotedValue(cellMenu.column, cellMenu.value)}`}…`}
               </button>
               <button
                 type="button"

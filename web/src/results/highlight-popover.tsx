@@ -1,61 +1,9 @@
-import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import type { HighlightRule, ResultColumn } from '../wire';
 import { ColourTarget, HighlightList } from './highlight-list';
 import { ruleFromCell } from './highlights';
-import { keepInside } from './keep-inside';
+import { Popover } from './popover';
 import { quotedValue } from './smart-filter';
-
-/** A dialog at a point in its parent, kept inside it, as the column statistics are: Esc closes it with `true`, for focus to go
- * back; a mousedown outside with `false`. */
-function Popover({
-  label,
-  at,
-  className,
-  onClose,
-  children,
-}: {
-  label: string;
-  at?: { x: number; y: number };
-  className: string;
-  onClose: (refocus: boolean) => void;
-  children: ReactNode;
-}) {
-  const box = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    if (at && box.current) {
-      keepInside(box.current, at, { capHeight: true });
-    }
-  });
-  const dismiss = useEffectEvent(() => onClose(false));
-  useEffect(() => {
-    box.current?.focus();
-    const onDown = (e: MouseEvent) => {
-      if (!(e.target instanceof Node) || !box.current?.contains(e.target)) {
-        dismiss();
-      }
-    };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, []);
-
-  return (
-    <div
-      ref={box}
-      role="dialog"
-      aria-label={label}
-      tabIndex={-1}
-      className={`menu max-w-full gap-2 overflow-y-auto p-3 text-[12px] outline-none ${className}`}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') {
-          e.stopPropagation();
-          onClose(true);
-        }
-      }}
-    >
-      {children}
-    </div>
-  );
-}
 
 /** "Highlight rows where …": the rule a cell prefills, with its colour and row or cell to pick, then Add. */
 export function HighlightFromCell({
@@ -72,7 +20,7 @@ export function HighlightFromCell({
   onClose: (refocus: boolean) => void;
 }) {
   const [rule, setRule] = useState(() => ruleFromCell(column, value));
-  const text = rule.op === 'isempty' ? `${column.name} isempty` : `${column.name} == ${quotedValue(column, value)}`;
+  const text = rule.op === 'isempty' ? `${column.name} is empty` : `${column.name} == ${quotedValue(column, value)}`;
   return (
     <Popover label={`Highlight rows where ${text}`} at={at} className="w-[300px]" onClose={onClose}>
       <div>

@@ -72,6 +72,24 @@ describe('HighlightList', () => {
     expect(onChange).toHaveBeenLastCalledWith([b, a]);
   });
 
+  it('keeps focus on the moved rule: Alt+Down on its control, and a move button that becomes disabled hands focus to the other', () => {
+    const onChange = vi.fn();
+    const [a, b] = [rule('a'), rule('b', { value: 'OK' })];
+    const { rerender } = render(<HighlightList rules={[a, b]} columns={columns} onChange={onChange} />);
+    const value = within(screen.getByRole('group', { name: 'Rule 1' })).getByRole('textbox', { name: 'Value' });
+    value.focus();
+    fireEvent.keyDown(value, { key: 'ArrowDown', altKey: true });
+    rerender(<HighlightList rules={[b, a]} columns={columns} onChange={onChange} />);
+    expect(document.activeElement).toBe(within(screen.getByRole('group', { name: 'Rule 2' })).getByRole('textbox', { name: 'Value' }));
+    expect((document.activeElement as HTMLInputElement).value).toBe('FAIL');
+
+    const up = within(screen.getByRole('group', { name: 'Rule 2' })).getByRole('button', { name: 'Move up' });
+    up.focus();
+    fireEvent.click(up);
+    rerender(<HighlightList rules={[a, b]} columns={columns} onChange={onChange} />);
+    expect(document.activeElement).toBe(within(screen.getByRole('group', { name: 'Rule 1' })).getByRole('button', { name: 'Move down' }));
+  });
+
   it('notes a rule not in this result and a value it can’t read', () => {
     render(
       <HighlightList

@@ -84,7 +84,8 @@ function compare(op: HighlightOp, a: Scalar, b: Scalar): boolean {
   }
 }
 
-const isEmpty = (v: unknown): boolean => v === null || v === undefined || v === '';
+/** Null, missing or `''`: what isempty matches. */
+export const isEmpty = (v: unknown): boolean => v === null || v === undefined || v === '';
 
 interface Compiled {
   rule: HighlightRule;
