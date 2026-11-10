@@ -52,6 +52,8 @@ function Review({ p }: { p: PendingImport }) {
   // Saving or opening names each workspace as the account does; the file's name stays where the list lacks it or wasn't read.
   const withMine = { ...choices, accountWorkspaces: mine };
   const [busy, setBusy] = useState(false);
+  // Until the list is read, a save would keep the file's names for workspaces the account can see.
+  const waiting = busy || (found.length > 0 && mine === undefined);
   const [error, setError] = useState<Shown | null>(null);
   const id = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -112,7 +114,7 @@ function Review({ p }: { p: PendingImport }) {
           <button
             type="button"
             className="btn"
-            disabled={busy}
+            disabled={waiting}
             onClick={() => {
               openImported(p, withMine);
               close();
@@ -120,7 +122,7 @@ function Review({ p }: { p: PendingImport }) {
           >
             Open without saving
           </button>
-          <button type="button" className="btn primary" autoFocus disabled={busy} onClick={save}>
+          <button type="button" className="btn primary" autoFocus disabled={waiting} onClick={save}>
             Save to my workbooks
           </button>
         </div>
