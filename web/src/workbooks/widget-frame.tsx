@@ -786,7 +786,7 @@ export function WidgetFrame({
         {/* A slow run's time and the workbook parameters it uses (named on hover): in the title row they took a small widget's room.
             Left of the resize corner. */}
         {(slow || used.length > 0) && (
-          <div className={`faint absolute bottom-1.5 ${selected ? 'right-5' : 'right-2'} flex items-center gap-1.5`}>
+          <div className={`screen-only faint absolute bottom-1.5 ${selected ? 'right-5' : 'right-2'} flex items-center gap-1.5`}>
             {slow && (
               <span className="mono text-[11px]" title="How long the last run took">
                 {duration(result.durationMs)}

@@ -471,6 +471,44 @@ body {
     height: auto !important;
     overflow: visible !important;
   }
-  .wb-printing button, .wb-printing [role='menu'] { display: none !important; }
-  .wb-widget { break-inside: avoid; }
+  /* No controls on paper: the parameter bar (a table of values prints instead), filter boxes and other fields. */
+  /* A table's own buttons stay: they carry its column names, grouped rows and JSON cells. Its select and inspect columns stay
+   * (its colgroup sizes them), empty. */
+  .wb-printing :is(button:not(table button), [role='menu'], input, textarea, select, .param-bar, .col-menu, .inspect-col button),
+  .screen-only { display: none !important; }
+  .wb-printing :is(.select-col, .inspect-col) { background: none !important; }
+  /* Widgets in one column at their own height; a Markdown widget, or a tabs widget (each tab under its name), as tall as its
+   * content, so nothing is cut off at the widget's edge. */
+  .wb-printing .wb-grid { display: flex; flex-direction: column; gap: 12px; }
+  /* No card around a widget on paper: its title and content print as plain sections. */
+  .wb-printing .wb-widget {
+    height: calc(var(--h) * 8px + (var(--h) - 1) * 12px);
+    break-inside: avoid;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: none !important;
+  }
+  .wb-printing .wb-widget:has(.md, .wb-print-tabs, .datagrid) { height: auto; }
+  .wb-printing .wb-widget:has(.wb-print-tabs, .datagrid) { break-inside: auto; }
+  .wb-printing .wb-widget:has(.md, .wb-print-tabs) > div, .wb-printing :is(.md, .wb-tabs, div:has(.datagrid)) {
+    flex: none;
+    min-height: auto;
+    overflow: visible !important;
+  }
+  /* A table's rows (up to PRINT_ROWS) at the page's width: columns sized to their content, cell text wrapped, not cut off. */
+  .wb-printing .datagrid { table-layout: auto; }
+  .wb-printing .datagrid col { width: auto !important; }
+  .wb-printing .datagrid :is(th, td, th button, td button) { white-space: normal; overflow-wrap: break-word; max-width: none; overflow: visible; }
+  /* JSON can be one long word: it breaks anywhere, so its column doesn't take the page. */
+  .wb-printing .datagrid td button { overflow-wrap: anywhere; text-align: left; }
+  .wb-printing .datagrid :is(th, .inspect-col, .select-col) { position: static; }
+  .wb-printing .datagrid tr { break-inside: avoid; }
+  /* A tab is a report section: a full-width heading over a thin rule. */
+  .wb-print-tab { margin: 18px 0 10px; padding-bottom: 4px; border-bottom: 1px solid var(--line); font-size: 15px; font-weight: 600; break-after: avoid; }
+}
+/* Off the screen, but laid out at the widget's width rather than display: none, so a chart or grid in it measures a real size
+ * and has drawn by the time it prints. */
+@media screen {
+  .print-only { position: absolute; inset-inline: 0; top: 0; height: 0; overflow: hidden; visibility: hidden; pointer-events: none; }
 }
