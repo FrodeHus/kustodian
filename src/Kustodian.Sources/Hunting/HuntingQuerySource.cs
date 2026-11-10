@@ -1,6 +1,8 @@
+using System.Text.Json;
 using Kustodian.Graph.Query;
 using Kustodian.Graph.Run;
 using Microsoft.Extensions.Logging;
+using Kustodian.Sources.Arg;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Kustodian.Sources.Hunting;
@@ -11,7 +13,7 @@ namespace Kustodian.Sources.Hunting;
 /// written. The timespan is the run's option, or 30 days. Every way a run can fail is an outcome of the <see cref="RunResult"/>
 /// (sign-in included); only <see cref="ConsentRequiredException"/> and the caller cancelling are thrown.
 /// </summary>
-public sealed class HuntingQuerySource(HuntingClient client, TimeProvider time, ILogger<HuntingQuerySource>? logger = null) : IQuerySource
+public sealed class HuntingQuerySource(HuntingClient client, ArmDirectory directory, TimeProvider time, ILogger<HuntingQuerySource>? logger = null) : IQuerySource
 {
     public const string DefaultTimespan = "P30D";
 
@@ -43,11 +45,30 @@ public sealed class HuntingQuerySource(HuntingClient client, TimeProvider time, 
             return End(RunOutcome.QueryError, invalid.Message);
         }
 
+        var workspace = request.Options?.Workspaces is { Count: > 0 } chosen ? chosen[0] : null;
+        // The name shown is the account's own: the request's is the text of whoever wrote the query.
+        var name = workspace?.Name;
         try
         {
+            // Graph answers from the primary workspace when it can't find the one asked for, so the id is only sent once the
+            // account's own list has it.
+            if (workspace is not null)
+            {
+                var visible = await directory.WorkspacesAsync(request.AccountKey, ct);
+                var match = visible.FirstOrDefault(w => string.Equals(w.CustomerId, workspace.CustomerId, StringComparison.OrdinalIgnoreCase));
+                if (match is null)
+                {
+                    return End(RunOutcome.WorkspaceUnavailable, $"{(string.IsNullOrEmpty(name) ? ShortId(workspace.CustomerId) : name)} isn't available to this account. Pick a workspace.");
+                }
+
+                name = match.Name;
+                diagnostics.Add(new DiagnosticEntry(diagnostics.NowMs, DiagnosticKinds.Note,
+                    $"If Defender can't reach {name}, it answers from your primary workspace.", null, null, null));
+            }
+
             progress?.Report(new RunEvent("requesting", "Running the query in Microsoft Defender", diagnostics.RunId));
             var answer = await client.RunAsync(request.AccountKey, substitution.Text!, request.Options?.Timespan ?? DefaultTimespan,
-                diagnostics, ct);
+                workspace?.CustomerId, diagnostics, ct);
             progress?.Report(new RunEvent("done", "Microsoft Defender answered", diagnostics.RunId));
             if (answer.Outcome == RunOutcome.QueryError && answer is { Line: { } line, Column: { } column })
             {
@@ -55,12 +76,35 @@ public sealed class HuntingQuerySource(HuntingClient client, TimeProvider time, 
                 return End(answer.Outcome, answer.Message, new GraphQueryError(mappedLine, mappedColumn, answer.Message ?? ""));
             }
 
+            if (workspace is not null && answer.Outcome == RunOutcome.Ok && ForeignTenantId(answer, workspace.CustomerId))
+            {
+                diagnostics.Add(new DiagnosticEntry(diagnostics.NowMs, DiagnosticKinds.Warning,
+                    $"Some rows came from another workspace than {name}: Defender may have answered from your primary workspace.",
+                    null, null, null));
+            }
+
             return End(answer.Outcome, answer.Message, answer: answer.Outcome == RunOutcome.Ok ? answer : null);
+        }
+        catch (ArmDirectoryException ex)
+        {
+            return End(RunOutcome.WorkspaceUnavailable, ex.Message);
         }
         catch (Exception ex) when (SourceFailure.Handles(ex, ct))
         {
             var (outcome, message, cause) = SourceFailure.Of(ex, _log, "hunting");
             return End(outcome, message) with { Cause = cause };
         }
+    }
+
+    /// <summary>An id as the pickers show it: the first and last 4 characters.</summary>
+    private static string ShortId(string id) => id.Length > 12 ? $"{id[..4]}…{id[^4..]}" : id;
+
+    /// <summary>Whether the answer has a string <c>TenantId</c> column with a non-empty value other than
+    /// <paramref name="customerId"/> (a workspace's customer id is a GUID: compared ignoring case).</summary>
+    private static bool ForeignTenantId(HuntingAnswer answer, string customerId)
+    {
+        var index = answer.Columns.ToList().FindIndex(c => c.Name == "TenantId");
+        return index >= 0 && answer.Rows.Any(r => r[index] is { ValueKind: JsonValueKind.String } v
+            && v.GetString() is { Length: > 0 } id && !string.Equals(id, customerId, StringComparison.OrdinalIgnoreCase));
     }
 }

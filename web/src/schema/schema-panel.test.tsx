@@ -22,6 +22,14 @@ beforeEach(() => {
 });
 
 describe('SchemaPanel', () => {
+  it('schema_panel_notes_that_a_workspaces_tables_arent_listed', () => {
+    const { rerender } = render(<SchemaPanel source="hunting" schema={view} text="" onInsert={() => undefined} />);
+    expect(screen.queryByText(/Sentinel tables aren't listed here yet/)).toBeNull();
+    rerender(<SchemaPanel source="hunting" workspace="contoso-sentinel" schema={view} text="" onInsert={() => undefined} />);
+    expect(screen.getByText('contoso-sentinel')).toBeTruthy();
+    expect(screen.getByText("Its Sentinel tables aren't listed here yet. Queries on them still run.")).toBeTruthy();
+  });
+
   it('schema_panel_shows_tables_in_the_query_with_column_tags_and_descriptions', () => {
     render(<SchemaPanel schema={view} text="applications | take 5" onInsert={() => undefined} />);
 

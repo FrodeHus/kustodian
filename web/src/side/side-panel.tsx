@@ -41,10 +41,12 @@ interface SidePanelProps {
   accountKey?: string;
   /** Opens sign-in, when the schema panel's resource types need the account to sign in again. */
   onSignIn?: () => void;
+  /** The active hunting tab's workspace name, for the schema panel's note. */
+  workspace?: string;
 }
 
 /** The side panel the rail chose, for the active tab's source. */
-export function SidePanel({ panel, source: tabSource, text, onInsert, accountKey, onSignIn }: SidePanelProps) {
+export function SidePanel({ panel, source: tabSource, text, onInsert, accountKey, onSignIn, workspace }: SidePanelProps) {
   const source = schemaSourceOf(tabSource);
   const schema = useSchemas((s) => s.byKey[source]);
   const error = useSchemas((s) => s.errors[source]);
@@ -82,6 +84,7 @@ export function SidePanel({ panel, source: tabSource, text, onInsert, accountKey
           licenses={licenses}
           text={text}
           onInsert={onInsert}
+          workspace={workspace}
         />
       );
   }

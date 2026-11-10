@@ -4,7 +4,9 @@ import { ErrorReportActions, type Shown } from '../shell/error-report';
 import { reportIdOf } from '../shell/report-id';
 import { inSendDetails } from '../shell/send-details-marker';
 import { SourceBadge } from '../tabs/source-badge';
-import { importFolder, importSummary, matchTools } from './import';
+import { importFolder, importSummary, matchTools, workspacesIn } from './import';
+import { useAccountWorkspaces } from './account-workspaces';
+import { WorkspaceRows } from './workspace-rows';
 import { noQueriesAdded, openImported, saveImported, useImportReview, type PendingImport, type ReviewChoices } from './sharing';
 
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -45,6 +47,10 @@ function Review({ p }: { p: PendingImport }) {
     tools: Object.fromEntries(matches.map((m) => [m.tool, m.mine ? m.tool : null])),
     replace: false,
   }));
+  const found = workspacesIn(p.doc);
+  const mine = useAccountWorkspaces(found.length > 0);
+  // Saving or opening names each workspace as the account does; the file's name stays where the list lacks it or wasn't read.
+  const withMine = { ...choices, accountWorkspaces: mine };
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Shown | null>(null);
   const id = useId();
@@ -70,7 +76,7 @@ function Review({ p }: { p: PendingImport }) {
   const save = () => {
     setBusy(true);
     setError(null);
-    saveImported(p, choices, added.current).then(close, (err: unknown) => {
+    saveImported(p, withMine, added.current).then(close, (err: unknown) => {
       setBusy(false);
       setError({ text: errorText(err), reportId: reportIdOf(err) });
     });
@@ -108,7 +114,7 @@ function Review({ p }: { p: PendingImport }) {
             className="btn"
             disabled={busy}
             onClick={() => {
-              openImported(p, choices);
+              openImported(p, withMine);
               close();
             }}
           >
@@ -138,6 +144,7 @@ function Review({ p }: { p: PendingImport }) {
                 Queries, layout, parameters and button settings only. A workbook file never holds results or tokens.
               </span>
             </Section>
+            <WorkspaceRows found={found} mine={mine} />
             {summary.linked > 0 && (
               <Section title="Saved queries">
                 <span>

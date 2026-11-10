@@ -7,6 +7,9 @@ import { useSchemas } from '../schema/schema-store';
 import { errorText } from '../shell/errors';
 import { inSendDetails } from '../shell/send-details-marker';
 import { SourceBadge } from '../tabs/source-badge';
+import { DEFAULT_TIMESPAN } from '../tabs/tab-store';
+import { exceedsDays } from '../toolbar/timespan';
+import { WorkspacePicker } from '../toolbar/workspace-picker';
 import type { HistorySeries, LibraryList, ParameterDef, RunResult, SavedQuery } from '../wire';
 import type { ParamFrom, Widget, WidgetQuery } from './model';
 import { MAX_UNIT_LENGTH } from './model';
@@ -67,7 +70,19 @@ const fromSaved = (query: WidgetQuery, q: SavedQuery, linked: boolean): WidgetQu
  * with a preview run of the draft; a Markdown widget has its text and a rendered preview instead. Apply writes the draft as
  * one `edit` and reruns the widget; Cancel writes nothing.
  */
-export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widgetId: string; onClose: () => void }) {
+export function WidgetEditor({
+  tabId,
+  widgetId,
+  onClose,
+  accountKey = null,
+  onSignIn = () => undefined,
+}: {
+  tabId: string;
+  widgetId: string;
+  onClose: () => void;
+  accountKey?: string | null;
+  onSignIn?: () => void;
+}) {
   const doc = useWorkbooks((s) => s.byTab[tabId]?.doc);
   const values = useWorkbooks((s) => s.byTab[tabId]?.values);
   const lastRun = useWorkbooks((s) => s.byTab[tabId]?.runs[widgetId]);
@@ -75,6 +90,7 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
   const [draft, setDraft] = useState(original);
   const [section, setSection] = useState<Section>('query');
   const [asking, setAsking] = useState(false);
+  const [pickingWorkspace, setPickingWorkspace] = useState(false);
   const refocusApply = useRef(false);
   const [applyError, setApplyError] = useState<string | null>(null);
   const [queries, setQueries] = useState<SavedQuery[] | null>(null);
@@ -291,6 +307,23 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
                 ))}
               </select>
             </label>
+            {query.source === 'hunting' && (
+              <div className="flex">
+                <WorkspacePicker
+                  workspaces={query.options?.workspaces}
+                  // Without a workspace the data reaches back 30 days only, so a longer timespan goes back to the default.
+                  onChange={(workspaces) => {
+                    const o = query.options ?? { timespan: null, scope: null };
+                    const over = !workspaces?.length && o.timespan && exceedsDays(o.timespan, 30);
+                    setQuery({ options: { ...o, workspaces, ...(over ? { timespan: DEFAULT_TIMESPAN } : {}) } });
+                  }}
+                  accountKey={accountKey}
+                  onSignIn={onSignIn}
+                  open={pickingWorkspace}
+                  onOpenChange={setPickingWorkspace}
+                />
+              </div>
+            )}
             <div className="card h-56 overflow-hidden">
               <Suspense fallback={<p className="faint m-0 p-4 text-[12px]">Loading the editor…</p>}>
                 <KqlEditor

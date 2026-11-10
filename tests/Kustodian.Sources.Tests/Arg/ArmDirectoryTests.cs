@@ -169,6 +169,91 @@ public class ArmDirectoryTests
         Assert.Equal(3, arm.Seen.Count);
     }
 
+    private const string TwoWorkspaces = """
+        {"totalRecords":2,"count":2,"data":[
+        {"name":"contoso-sentinel","resourceId":"/subscriptions/s1/resourceGroups/rg-security/providers/microsoft.operationalinsights/workspaces/contoso-sentinel","customerId":"c1","resourceGroup":"rg-security","subscriptionId":"s1","location":"westeurope"},
+        {"name":"contoso-logs","resourceId":"/subscriptions/s2/resourceGroups/rg-logging/providers/microsoft.operationalinsights/workspaces/contoso-logs","customerId":"c2","resourceGroup":"rg-logging","subscriptionId":"s2","location":"northeurope"}]}
+        """;
+
+    [Fact]
+    public async Task Workspaces_come_from_resource_graph()
+    {
+        var arm = new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK, TwoWorkspaces));
+
+        var workspaces = await Directory(arm).WorkspacesAsync(Account, Ct);
+
+        var body = JsonNode.Parse(Assert.Single(arm.Seen).Body!)!.AsObject();
+        Assert.Equal(ArmDirectory.WorkspacesQuery, body["query"]!.GetValue<string>());
+        Assert.Contains("microsoft.operationalinsights/workspaces", ArmDirectory.WorkspacesQuery);
+        Assert.Equal(
+        [
+            new ArmWorkspace("c1", "contoso-sentinel",
+                "/subscriptions/s1/resourceGroups/rg-security/providers/microsoft.operationalinsights/workspaces/contoso-sentinel",
+                "rg-security", "s1", "westeurope"),
+            new ArmWorkspace("c2", "contoso-logs",
+                "/subscriptions/s2/resourceGroups/rg-logging/providers/microsoft.operationalinsights/workspaces/contoso-logs",
+                "rg-logging", "s2", "northeurope"),
+        ], workspaces);
+    }
+
+    [Fact]
+    public async Task A_row_without_a_customer_id_is_left_out()
+    {
+        var arm = new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK,
+            """{"totalRecords":2,"data":[{"name":"a","resourceId":"/a","customerId":"","resourceGroup":"rg","subscriptionId":"s","location":"l"},{"name":"b","resourceId":"/b","customerId":"c","resourceGroup":"rg","subscriptionId":"s","location":"l"}]}"""));
+
+        var workspaces = await Directory(arm).WorkspacesAsync(Account, Ct);
+
+        Assert.Equal("b", Assert.Single(workspaces).Name);
+    }
+
+    [Fact]
+    public async Task Workspaces_are_kept_ten_minutes_per_account()
+    {
+        var arm = new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK, TwoWorkspaces));
+        var directory = Directory(arm);
+
+        await directory.WorkspacesAsync(Account, Ct);
+        _time.Advance(TimeSpan.FromMinutes(9));
+        await directory.WorkspacesAsync(Account, Ct);
+        Assert.Single(arm.Seen);
+
+        await directory.WorkspacesAsync("account-2", Ct);
+        Assert.Equal(2, arm.Seen.Count);
+
+        _time.Advance(TimeSpan.FromMinutes(1));
+        await directory.WorkspacesAsync(Account, Ct);
+        Assert.Equal(3, arm.Seen.Count);
+    }
+
+    [Fact]
+    public async Task RemoveAccount_forgets_workspaces()
+    {
+        var arm = new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK, TwoWorkspaces));
+        var directory = Directory(arm);
+        await directory.WorkspacesAsync(Account, Ct);
+
+        directory.RemoveAccount(Account);
+        await directory.WorkspacesAsync(Account, Ct);
+
+        Assert.Equal(2, arm.Seen.Count);
+    }
+
+    [Fact]
+    public async Task A_failed_read_throws_and_is_not_kept()
+    {
+        var fail = true;
+        var arm = new StubGraph(_ => fail
+            ? StubGraph.Json(HttpStatusCode.InternalServerError, """{"error":{"message":"boom"}}""")
+            : StubGraph.Json(HttpStatusCode.OK, TwoWorkspaces));
+        var directory = Directory(arm);
+
+        await Assert.ThrowsAsync<ArmDirectoryException>(() => directory.WorkspacesAsync(Account, Ct));
+        fail = false;
+        Assert.Equal(2, (await directory.WorkspacesAsync(Account, Ct)).Count);
+        Assert.Equal(2, arm.Seen.Count);
+    }
+
     [Fact]
     public async Task Directory_lets_consent_and_sign_in_through()
     {

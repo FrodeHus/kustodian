@@ -74,9 +74,11 @@
 .src.graph{background:rgba(76,194,255,.16);color:#4CC2FF}
 .src.hunt{background:rgba(245,165,36,.16);color:#F5A524}
 .src.arg{background:rgba(127,212,168,.16);color:#7FD4A8}
+.src.logs{background:rgba(201,160,255,.16);color:#C9A0FF}
 .light .src.graph{background:rgba(11,111,174,.10);color:#0B6FAE}
 .light .src.hunt{background:rgba(160,90,0,.10);color:#A05A00}
 .light .src.arg{background:rgba(30,122,78,.10);color:#1E7A4E}
+.light .src.logs{background:rgba(122,62,200,.10);color:#7A3EC8}
 .menu{position:absolute;z-index:3;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 18px 40px rgba(0,0,0,.45);padding:6px;display:flex;flex-direction:column;gap:2px}
 .menu button{display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--text);font:inherit;text-align:left}
 .menu button:hover,.menu button.on{background:var(--raise)}

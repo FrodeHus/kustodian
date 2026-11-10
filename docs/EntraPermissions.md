@@ -121,6 +121,21 @@ Common Microsoft Graph permissions:
 
 Ask only for the read permissions you need. Kustodian doesn't need write permissions to query.
 
+## Hunting in a workspace
+
+Defender advanced hunting can target a Log Analytics workspace. The **Workspace** picker beside the timespan defaults to
+**Primary workspace**: Kustodian sends no workspace, and Graph uses your primary Sentinel workspace if one is connected. Pick a
+workspace and Kustodian sends its ID with the query.
+
+- **Listing workspaces** goes through Azure Resource Graph, so it needs the same Azure Service Management `user_impersonation`
+  permission as Resource Graph queries. Kustodian already asks for it.
+- **Querying a workspace** needs at least **Microsoft Sentinel Reader** on the workspace, plus `ThreatHunting.Read.All` as
+  before.
+- **Timespan**: with a workspace it can go up to 730 days (there is a 90-day preset). With **Primary workspace** it is at most 30
+  days, and choosing Primary workspace with a longer timespan brings it back to 30 days.
+- If Defender can't reach the workspace you picked, it answers from your primary workspace. Kustodian says so on every
+  workspace run, and warns when the result's `TenantId` shows rows from another workspace.
+
 ## Troubleshooting
 
 - **A table answers "No permission"**: the sign-in lacks its permission. Check **What this sign-in can read**, run Explain on
@@ -129,4 +144,8 @@ Ask only for the read permissions you need. Kustodian doesn't need write permiss
   logs, for example, need a role such as Reports Reader or Security Reader.
 - **"Your tenant doesn't let you register applications"**: an administrator can turn on **Users can register applications**,
   give you the Application Developer role, or create the app for you (Option B).
+- **"{name} isn't available to this account. Pick a workspace."**: the saved workspace is in another tenant, was removed, or
+  you have no access to it. The picker shows it as "· not available". Pick another.
+- **A run with a workspace doesn't start and shows an error**: Kustodian couldn't read the workspace list, for example because
+  Azure access isn't granted or Azure can't be reached. Grant Azure access or try again.
 - **You added permissions after signing in**: sign in again so the token picks them up.

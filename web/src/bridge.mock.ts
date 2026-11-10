@@ -179,6 +179,42 @@ const schemaLicenses = {
   },
 };
 
+const workspace = (name: string, resourceGroup: string, subscriptionId: string, location: string, customerId: string) => ({
+  customerId,
+  name,
+  resourceId: `/subscriptions/${subscriptionId}/resourceGroups/${resourceGroup}/providers/microsoft.operationalinsights/workspaces/${name}`,
+  resourceGroup,
+  subscriptionId,
+  location,
+});
+const armWorkspaces = {
+  workspaces: [
+    workspace(
+      'appi-web-prod-ws',
+      'rg-web-prod',
+      '00000000-0000-0000-0000-000000000011',
+      'westeurope',
+      '5b0e2c1a-3f4d-4e6a-9c1b-7a8d2e4f6a10',
+    ),
+    workspace('contoso-dev-logs', 'rg-dev', '00000000-0000-0000-0000-000000000012', 'westeurope', '8d3f9a52-1c7e-4b08-a6d4-2e9b5c7f1a33'),
+    workspace('contoso-logs', 'rg-logging', '00000000-0000-0000-0000-000000000011', 'westeurope', 'c41a7e90-6b2d-4f35-8e17-d09a3b6c5e22'),
+    workspace(
+      'contoso-sentinel',
+      'rg-security',
+      '00000000-0000-0000-0000-000000000011',
+      'westeurope',
+      'e7a9b3d4-52c1-4a68-b0f3-91d6c8e2a477',
+    ),
+    workspace(
+      'contoso-sentinel-dr',
+      'rg-security',
+      '00000000-0000-0000-0000-000000000011',
+      'northeurope',
+      '2f6c8d10-9a4b-47e3-85d2-b3e1f7a09c55',
+    ),
+  ],
+};
+
 /** The columns Graph lists for a user without `$select`. */
 const listedUserColumns = [
   'businessPhones',
@@ -1081,6 +1117,9 @@ export function createMockTransport(): Transport {
         break;
       case 'arm.managementGroups':
         reply(id, armManagementGroups);
+        break;
+      case 'arm.workspaces':
+        reply(id, armWorkspaces);
         break;
       case 'arm.resourceTypes':
         reply(id, armResourceTypes);

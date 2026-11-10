@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hunting with a workspace picker</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="studio.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#4CC2FF}a:hover{color:#8FD8FF}</style>
+</helmet>
+<div class="studio" style="width: 1440px; height: 900px; display: flex; flex-direction: column;">
+<div class="titlebar"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><span class="brand">Kustodian</span><div style="flex-grow: 1;"></div><span class="pill"><span class="dot-ok" aria-hidden="true"></span><b>Contoso Ltd</b> · kari@contoso.com</span></div>
+<div class="tabs" role="tablist" aria-label="Open queries">
+<button type="button" role="tab" class="tab" aria-selected="false"><span class="src graph">GR</span>Expired app credentials <span class="x" aria-hidden="true">×</span></button>
+<button type="button" role="tab" class="tab" aria-selected="true"><span class="src hunt">AH</span>Risky sign-ins, 90 days <span class="mod" aria-label="Unsaved changes"></span></button>
+<button type="button" role="tab" class="tab" aria-selected="false"><span class="src arg">ARG</span>Public storage accounts <span class="x" aria-hidden="true">×</span></button>
+<button type="button" class="tab-add" aria-label="New tab">+</button>
+</div>
+<div class="body">
+<aside class="side" aria-label="Advanced hunting schema">
+<h2>Advanced hunting schema</h2>
+<input class="search" type="search" aria-label="Find a table or column" placeholder="Find a table or column">
+<ul class="tree">
+<li><button type="button">▸ <span class="mono">AlertEvidence</span></button></li>
+<li><button type="button">▸ <span class="mono">AlertInfo</span></button></li>
+<li><button type="button">▸ <span class="mono">CloudAppEvents</span></button></li>
+<li><button type="button">▸ <span class="mono">DeviceEvents</span></button></li>
+<li><button type="button">▸ <span class="mono">DeviceProcessEvents</span></button></li>
+<li><button type="button">▸ <span class="mono">EmailEvents</span></button></li>
+<li><button type="button">▸ <span class="mono">IdentityLogonEvents</span></button></li>
+<li><button type="button">▸ <span class="mono">AADSignInEventsBeta</span></button></li>
+</ul>
+<div style="margin: 12px; padding: 10px 12px; border-radius: 8px; background: var(--panel2); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px;">
+<span style="font-weight: 600; font-size: 12px;">contoso-sentinel</span>
+<span class="muted" style="font-size: 12px;">Its Sentinel tables aren't listed here yet. Queries on them still run.</span>
+</div>
+<span class="faint" style="font-size: 12px; padding: 12px 14px; margin-top: auto;">Tenant schema · read 09:12</span>
+</aside>
+<main class="main" style="position: relative;">
+<div class="toolbar">
+<button type="button" class="btn primary">Run</button>
+<span class="sep" aria-hidden="true"></span>
+<div style="position: relative;">
+<button type="button" class="btn" aria-expanded="true" aria-haspopup="dialog">Workspace: contoso-sentinel ▾</button>
+<div class="menu" role="dialog" aria-label="Workspace" style="left: 0; top: 36px; width: 460px; padding: 12px; gap: 8px;">
+<input class="search" type="search" aria-label="Find a workspace" placeholder="Find among 5 workspaces" style="margin: 0; width: 100%;">
+<label style="display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 6px;"><input type="radio" name="ws"> <span style="display: flex; flex-direction: column;"><span>Primary workspace</span><span class="faint" style="font-size: 11.5px;">Default. Defender's tables, plus your primary Sentinel workspace if one is connected.</span></span></label>
+<div style="height: 1px; background: var(--line);"></div>
+<label style="display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 6px; border-radius: 6px; background: var(--raise);"><input type="radio" name="ws" checked> <span style="display: flex; flex-direction: column;"><span>contoso-sentinel</span><span class="faint" style="font-size: 11.5px;">rg-security · Contoso Production · westeurope</span></span></label>
+<label style="display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 6px;"><input type="radio" name="ws"> <span style="display: flex; flex-direction: column;"><span>contoso-sentinel-dr</span><span class="faint" style="font-size: 11.5px;">rg-security · Contoso Production · northeurope</span></span></label>
+<label style="display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 6px;"><input type="radio" name="ws"> <span style="display: flex; flex-direction: column;"><span>contoso-logs</span><span class="faint" style="font-size: 11.5px;">rg-logging · Contoso Shared Services · westeurope</span></span></label>
+<label style="display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 6px;"><input type="radio" name="ws"> <span style="display: flex; flex-direction: column;"><span>appi-web-prod-ws</span><span class="faint" style="font-size: 11.5px;">rg-web-prod · Contoso Production · westeurope</span></span></label>
+<span class="faint" style="font-size: 12px;">Defender reaches a workspace's tables when it's onboarded to the Defender portal and you have Microsoft Sentinel Reader on it. The workspace is saved with the query.</span>
+</div>
+</div>
+<button type="button" class="btn">Timespan: 90 days ▾</button>
+<button type="button" class="btn">Parameters</button>
+<button type="button" class="btn ghost">Format</button>
+<div style="flex-grow: 1;"></div>
+<span class="src hunt" style="height: 22px; padding: 0 8px; font-size: 11px;">ADVANCED HUNTING</span>
+<span class="muted" style="font-size: 12px;">Runs in Microsoft Defender · with contoso-sentinel</span>
+</div>
+<div class="editor" role="textbox" aria-multiline="true" aria-label="KQL query" tabindex="0" style="height: 168px;">
+<div class="ln"><span class="g">1</span><span class="cm">// Risky sign-ins from the Sentinel workspace, joined with Defender's device data</span></div>
+<div class="ln"><span class="g">2</span><span class="t">SigninLogs</span></div>
+<div class="ln"><span class="g">3</span>| <span class="k">where</span> <span class="c">RiskLevelDuringSignIn</span> <span class="k">in</span> (<span class="s">"high"</span>, <span class="s">"medium"</span>)</div>
+<div class="ln cur"><span class="g">4</span>| <span class="k">summarize</span> signIns = <span class="f">count</span>(), lastSeen = <span class="f">max</span>(<span class="c">TimeGenerated</span>) <span class="k">by</span> <span class="c">UserPrincipalName</span>, <span class="c">IPAddress</span></div>
+<div class="ln"><span class="g">5</span>| <span class="k">order by</span> signIns <span class="k">desc</span></div>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line);">
+<span class="chip ok">● 42 rows</span><span class="chip">contoso-sentinel · 90 days</span><span class="chip warn">If Defender can't reach contoso-sentinel, it answers from your primary workspace</span>
+<div style="flex-grow: 1;"></div><span class="mono faint" style="font-size: 11.5px;">10:21:05 · 2.4 s · security/runHuntingQuery</span>
+</div>
+<div class="rbar"><div role="tablist" aria-label="Result" style="display: flex;"><button type="button" role="tab" class="rtab" aria-selected="true">Rows · 42</button><button type="button" role="tab" class="rtab" aria-selected="false">Chart</button><button type="button" role="tab" class="rtab" aria-selected="false">JSON</button><button type="button" role="tab" class="rtab" aria-selected="false">Diagnostics</button></div><div style="flex-grow: 1;"></div><button type="button" class="btn">Export ▾</button></div>
+<div style="flex: 1; min-height: 0; overflow: hidden;">
+<table class="grid">
+<thead><tr><th scope="col">UserPrincipalName</th><th scope="col">IPAddress</th><th scope="col" class="num">signIns</th><th scope="col">lastSeen</th></tr></thead>
+<tbody>
+<tr><td>t.dahl@contoso.example</td><td>185.220.101.4</td><td class="num">17</td><td>2026-11-09T22:41:08Z</td></tr>
+<tr><td>svc-backup@contoso.example</td><td>45.134.26.19</td><td class="num">9</td><td>2026-11-08T03:12:55Z</td></tr>
+<tr><td>m.lind@contoso.example</td><td>102.67.88.201</td><td class="num">6</td><td>2026-10-30T14:05:31Z</td></tr>
+</tbody>
+</table>
+</div>
+</main>
+</div>
+<div class="status"><span>Ln 4, Col 104</span><span>KQL · Advanced hunting</span><div style="flex-grow: 1;"></div><span>Graph token · ThreatHunting.Read.All</span><span>Dark</span></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

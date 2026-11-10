@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Saved workspace not available</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="studio.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#4CC2FF}a:hover{color:#8FD8FF}</style>
+</helmet>
+<div class="studio" style="width: 1440px; height: 900px; display: flex; flex-direction: column;">
+<div class="titlebar"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><span class="brand">Kustodian</span><div style="flex-grow: 1;"></div><span class="pill"><span class="dot-ok" aria-hidden="true"></span><b>Fabrikam</b> · kari@fabrikam.com</span></div>
+<div class="tabs" role="tablist" aria-label="Open queries">
+<button type="button" role="tab" class="tab" aria-selected="true"><span class="src hunt">AH</span>New admin consents <span class="x" aria-hidden="true">×</span></button>
+<button type="button" class="tab-add" aria-label="New tab">+</button>
+</div>
+<div class="body">
+<aside class="side" aria-label="Advanced hunting schema">
+<h2>Advanced hunting schema</h2>
+<input class="search" type="search" aria-label="Find a table or column" placeholder="Find a table or column">
+<ul class="tree">
+<li><button type="button">▸ <span class="mono">AlertEvidence</span></button></li>
+<li><button type="button">▸ <span class="mono">AlertInfo</span></button></li>
+<li><button type="button">▸ <span class="mono">CloudAppEvents</span></button></li>
+<li><button type="button">▸ <span class="mono">DeviceEvents</span></button></li>
+<li><button type="button">▸ <span class="mono">IdentityLogonEvents</span></button></li>
+</ul>
+<span class="faint" style="font-size: 12px; padding: 12px 14px; margin-top: auto;">Tenant schema · read 11:40</span>
+</aside>
+<main class="main" style="position: relative;">
+<div class="toolbar">
+<button type="button" class="btn primary" disabled style="opacity: .45; cursor: not-allowed;">Run</button>
+<span class="sep" aria-hidden="true"></span>
+<button type="button" class="btn" style="border-color: var(--bad); color: var(--bad);">Workspace: contoso-sentinel · not available ▾</button>
+<button type="button" class="btn">Timespan: 30 days ▾</button>
+<button type="button" class="btn">Parameters</button>
+<div style="flex-grow: 1;"></div>
+<span class="src hunt" style="height: 22px; padding: 0 8px; font-size: 11px;">ADVANCED HUNTING</span>
+<span class="muted" style="font-size: 12px;">Saved query · from My queries / Identity</span>
+</div>
+<div class="editor" role="textbox" aria-multiline="true" aria-label="KQL query" tabindex="0" style="height: 168px;">
+<div class="ln"><span class="g">1</span><span class="cm">// Admin consents granted in the last 30 days</span></div>
+<div class="ln"><span class="g">2</span><span class="t">AuditLogs</span></div>
+<div class="ln cur"><span class="g">3</span>| <span class="k">where</span> <span class="c">OperationName</span> == <span class="s">"Consent to application"</span></div>
+<div class="ln"><span class="g">4</span>| <span class="k">extend</span> app = <span class="f">tostring</span>(<span class="c">TargetResources</span>[<span class="n">0</span>].displayName)</div>
+<div class="ln"><span class="g">5</span>| <span class="k">project</span> <span class="c">TimeGenerated</span>, app, <span class="c">InitiatedBy</span></div>
+</div>
+<div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px;">
+<div class="card" role="alert" style="width: 560px; padding: 24px; display: flex; flex-direction: column; gap: 14px; border-color: var(--bad);">
+<span class="chip bad" style="align-self: flex-start;">Not run</span>
+<span style="font-size: 16px; font-weight: 600;">contoso-sentinel isn't available to this account</span>
+<span class="muted">This query is saved with the workspace contoso-sentinel (rg-security, Contoso Production). kari@fabrikam.com can't see it, so Kustodian won't send the query: Defender would answer from your primary workspace instead.</span>
+<div style="display: flex; gap: 8px;">
+<button type="button" class="btn primary" style="height: 36px;">Pick a workspace</button>
+<button type="button" class="btn" style="height: 36px;">Switch account</button>
+</div>
+</div>
+</div>
+</main>
+</div>
+<div class="status"><span>Ln 3, Col 52</span><span>KQL · Advanced hunting</span><div style="flex-grow: 1;"></div><span>Graph token · ThreatHunting.Read.All</span><span>Dark</span></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

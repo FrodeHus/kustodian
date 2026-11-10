@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Import review, workspaces</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="studio.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#4CC2FF}a:hover{color:#8FD8FF}</style>
+</helmet>
+<div class="studio" style="width: 1440px; height: 900px; display: flex; flex-direction: column;">
+<div class="titlebar"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><span class="brand">Kustodian</span><div style="flex-grow: 1;"></div><span class="pill"><span class="dot-ok" aria-hidden="true"></span><b>Contoso Ltd</b> · kari@contoso.com</span></div>
+<div class="tabs" role="tablist" aria-label="Open queries">
+<button type="button" role="tab" class="tab" aria-selected="true"><span class="src graph">WB</span>SOC weekly.kustodian-workbook <span class="x" aria-hidden="true">×</span></button>
+<button type="button" class="tab-add" aria-label="New tab">+</button>
+</div>
+<main class="main" style="position: relative; flex: 1; min-height: 0;">
+<div class="overlay" aria-hidden="true"></div>
+<div class="card" role="dialog" aria-modal="true" aria-labelledby="wb-import-title" style="position: absolute; z-index: 4; left: 50%; top: 60px; transform: translateX(-50%); width: 900px; padding: 20px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 18px 40px rgba(0,0,0,.45);">
+<div style="display: flex; align-items: flex-start; gap: 8px;">
+<span style="display: flex; flex-direction: column; flex: 1;"><span id="wb-import-title" style="font-size: 14px; font-weight: 600;">Open a shared workbook</span><span class="muted" style="font-size: 12px;">SOC weekly.kustodian-workbook</span></span>
+<button type="button" class="btn ghost">Cancel</button>
+<button type="button" class="btn">Open without saving</button>
+<button type="button" class="btn primary">Save to my workbooks</button>
+</div>
+<div style="display: flex; flex-direction: column; gap: 16px; font-size: 12.5px;">
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<b>What's in it</b>
+<span>5 widgets · 2 workbook parameters · <span class="src hunt">AH</span> <span class="src graph">GR</span></span>
+<span class="muted">Queries, layout, parameters and button settings only. A workbook file never holds results or tokens.</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<b>This workbook queries 2 workspaces</b>
+<div style="display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 8px;">
+<div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line);">
+<span class="src hunt">AH</span><span style="display: flex; flex-direction: column;"><span style="display: flex; gap: 8px; align-items: baseline;"><span>contoso-sentinel</span><span class="mono faint" style="font-size: 11px;">4f1a…9c2e</span></span><span class="faint" style="font-size: 11.5px;">rg-security · Contoso Production</span></span>
+<span class="faint" style="margin-left: auto; font-size: 12px;">2 widgets</span>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; ">
+<span class="src hunt">AH</span><span style="display: flex; flex-direction: column;"><span style="display: flex; gap: 8px; align-items: baseline;"><span>fabrikam-sentinel</span><span style="color: var(--bad);"> · not available to this account</span><span class="mono faint" style="font-size: 11px;">b7d3…01aa</span></span><span class="faint" style="font-size: 11.5px;">rg-old · unknown subscription</span></span>
+<span class="faint" style="margin-left: auto; font-size: 12px;">1 widget</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<div class="status"><span>Import review</span><div style="flex-grow: 1;"></div><span>Dark</span></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

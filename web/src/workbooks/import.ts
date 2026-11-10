@@ -1,5 +1,5 @@
 import { MAX_FOLDER_LENGTH, MAX_NAME_LENGTH } from '../library/saving';
-import type { ParameterDef, QueryOptions, Source, ToolList } from '../wire';
+import type { ParameterDef, QueryOptions, QueryWorkspace, Source, ToolList } from '../wire';
 import { parseWorkbook, type Widget, type WorkbookDoc } from './model';
 
 /** JSON.parse, parseWorkbook, then only the fields Kustodian knows: what the review shows is all that is opened or saved. */
@@ -55,6 +55,7 @@ function known(doc: WorkbookDoc): WorkbookDoc {
           options: options && {
             timespan: options.timespan,
             scope: options.scope && typeof options.scope === 'object' ? only(options.scope, ['kind', 'ids']) : options.scope,
+            ...(Array.isArray(options.workspaces) && { workspaces: options.workspaces.flatMap(knownWorkspace) }),
           },
           parameters: w.query.parameters.map((p) => only(p, PARAM_DEF)),
         };
@@ -68,6 +69,28 @@ function known(doc: WorkbookDoc): WorkbookDoc {
       return next;
     }),
   };
+}
+
+/** A workspace from a file: its three string fields and nothing else. `name` is display text only; the host checks the ids. */
+function knownWorkspace(w: unknown): QueryWorkspace[] {
+  const o = w && typeof w === 'object' ? (w as Record<string, unknown>) : {};
+  const { customerId, name, resourceId } = o;
+  return typeof customerId === 'string' && typeof name === 'string' && typeof resourceId === 'string'
+    ? [{ customerId, name, resourceId }]
+    : [];
+}
+
+/** The workspaces the workbook's widgets query, each with how many widgets use it (what the import reviews list). */
+export function workspacesIn(doc: WorkbookDoc): { workspace: QueryWorkspace; widgets: number }[] {
+  const found = new Map<string, { workspace: QueryWorkspace; widgets: number }>();
+  for (const w of doc.widgets) {
+    for (const workspace of new Map((w.query?.options?.workspaces ?? []).map((x) => [x.customerId, x])).values()) {
+      const entry = found.get(workspace.customerId) ?? { workspace, widgets: 0 };
+      entry.widgets++;
+      found.set(workspace.customerId, entry);
+    }
+  }
+  return [...found.values()];
 }
 
 export interface ImportSummary {
@@ -141,6 +164,8 @@ export interface ImportChoices {
   /** the file's tool name → one of my tool names, or null to leave the button off. */
   tools: Record<string, string | null>;
   id: string;
+  /** The account's workspaces, when the review read them: a file's workspace the list has is named as the list names it. */
+  accountWorkspaces?: { customerId: string; name: string }[] | null;
 }
 
 /** Own-property lookup: a file's tool name or saved id such as "constructor" must not find Object.prototype. */
@@ -151,6 +176,15 @@ export function applyImport(doc: WorkbookDoc, choices: ImportChoices): WorkbookD
     const next: Widget = { ...w };
     if (w.query?.saved) {
       next.query = { ...w.query, saved: (choices.added && pick(choices.added, w.query.saved.id)) || null };
+    }
+    const workspaces = w.query?.options?.workspaces;
+    if (w.query?.options && workspaces && choices.accountWorkspaces) {
+      const mine = choices.accountWorkspaces;
+      const named = workspaces.map((x) => ({
+        ...x,
+        name: mine.find((m) => m.customerId.toLowerCase() === x.customerId.toLowerCase())?.name ?? x.name,
+      }));
+      next.query = { ...(next.query ?? w.query), options: { ...w.query.options, workspaces: named } };
     }
     if (w.tools) {
       next.tools = w.tools.flatMap((b) => {

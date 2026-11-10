@@ -604,4 +604,66 @@ describe('RunStatus', () => {
       expect(screen.queryByText(/memberOf: Graph won't list/)).toBeNull();
     });
   });
+
+  it('workspace_unavailable_shows_the_message_and_a_pick_button', () => {
+    const onPick = vi.fn();
+    const message = "contoso-sentinel isn't available to this account. Pick a workspace.";
+    render(
+      <RunStatus
+        run={done(result({ outcome: 'workspaceUnavailable', message, rows: [], total: 0 }))}
+        onSignIn={() => undefined}
+        onPickWorkspace={onPick}
+      />,
+    );
+    expect(screen.getByText('Not run')).toBeTruthy();
+    expect(screen.getByText(message)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Pick a workspace' }));
+    expect(onPick).toHaveBeenCalledOnce();
+  });
+
+  it('the_run_line_names_the_workspace', () => {
+    const detail = 'Running the query in Microsoft Defender';
+    const running = (workspaces: { customerId: string; name: string; resourceId: string }[] | null) => ({
+      state: 'running' as const,
+      source: 'hunting' as const,
+      runId: 'r',
+      stage: 'requesting',
+      detail,
+      startedAt: 0,
+      origin: { line: 1, column: 1 },
+      options: { timespan: null, scope: null, workspaces },
+    });
+    const ws = [{ customerId: 'c', name: 'contoso-sentinel', resourceId: '/x' }];
+    const { rerender } = render(<RunStatus run={running(ws)} onSignIn={() => undefined} />);
+    expect(screen.getByText('Running the query in Microsoft Defender with contoso-sentinel')).toBeTruthy();
+    rerender(<RunStatus run={running(null)} onSignIn={() => undefined} />);
+    expect(screen.getByText(detail)).toBeTruthy();
+  });
+
+  it('workspace_unavailable_without_a_handler_has_no_pick_button', () => {
+    render(
+      <RunStatus run={done(result({ outcome: 'workspaceUnavailable', message: 'x', rows: [], total: 0 }))} onSignIn={() => undefined} />,
+    );
+    expect(screen.queryByRole('button', { name: 'Pick a workspace' })).toBeNull();
+  });
+
+  it('a_run_that_failed_has_no_fallback_chip', () => {
+    const r = {
+      ...done(result({ outcome: 'queryError', message: 'bad', rows: [], total: 0 })),
+      source: 'hunting' as const,
+      options: { timespan: null, scope: null, workspaces: [{ customerId: 'c', name: 'contoso-sentinel', resourceId: '/x' }] },
+    };
+    render(<RunStatus run={r} onSignIn={() => undefined} />);
+    expect(screen.queryByText(/If Defender can't reach/)).toBeNull();
+  });
+
+  it('a_workspace_run_shows_the_fallback_chip', () => {
+    const r = {
+      ...done(result({})),
+      source: 'hunting' as const,
+      options: { timespan: null, scope: null, workspaces: [{ customerId: 'c', name: 'contoso-sentinel', resourceId: '/x' }] },
+    };
+    render(<RunStatus run={r} onSignIn={() => undefined} />);
+    expect(screen.getByText("If Defender can't reach contoso-sentinel, it answers from your primary workspace.")).toBeTruthy();
+  });
 });

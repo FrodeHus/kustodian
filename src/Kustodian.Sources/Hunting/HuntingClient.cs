@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Kustodian.Graph.Engine;
 using Kustodian.Graph.Fetch;
@@ -49,16 +50,25 @@ public sealed partial class HuntingClient(HttpClient graph, TimeProvider? time =
     public const string NoPermission = "Advanced hunting needs the ThreatHunting.Read.All permission and a Defender role (for example "
         + "Security Reader). With the Azure CLI client this permission may not be available: use your own app registration.";
 
+    public const string NoPermissionWithWorkspace = " With a workspace you also need Microsoft Sentinel Reader on it.";
+
     private static readonly JsonSerializerOptions RequestJson = new() { PropertyNamingPolicy = null };
 
     /// <summary>The request body, with Graph's own property names.</summary>
-    private sealed record HuntingRequest(string Query, string Timespan);
+    private sealed record HuntingRequest(string Query, string Timespan)
+    {
+        // Written only when set: without it the body is what advanced hunting has always been sent.
+        [JsonPropertyName("workspaceId")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? WorkspaceId { get; init; }
+    }
 
     /// <summary>Runs <paramref name="kql"/> over <paramref name="timespan"/> (ISO 8601) for <paramref name="accountKey"/>, logging
     /// the request in <paramref name="d"/>.</summary>
-    public async Task<HuntingAnswer> RunAsync(string accountKey, string kql, string timespan, RunDiagnostics d, CancellationToken ct)
+    public async Task<HuntingAnswer> RunAsync(string accountKey, string kql, string timespan, string? workspaceId, RunDiagnostics d,
+        CancellationToken ct)
     {
-        var json = JsonSerializer.Serialize(new HuntingRequest(kql, timespan), RequestJson);
+        var json = JsonSerializer.Serialize(new HuntingRequest(kql, timespan) { WorkspaceId = workspaceId }, RequestJson);
         using var request = new HttpRequestMessage(HttpMethod.Post, Endpoint)
         {
             // Non-ANSI characters in a query need the charset stated (runHuntingQuery's docs).
@@ -77,7 +87,7 @@ public sealed partial class HuntingClient(HttpClient graph, TimeProvider? time =
             }
 
             request.RecordBytes(body.Length);
-            return response.IsSuccessStatusCode ? Parse(body) : Refused(response, body, d);
+            return response.IsSuccessStatusCode ? Parse(body) : Refused(response, body, d, workspaceId is not null);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -95,7 +105,7 @@ public sealed partial class HuntingClient(HttpClient graph, TimeProvider? time =
     }
 
     /// <summary>The outcome of a failed answer.</summary>
-    private HuntingAnswer Refused(HttpResponseMessage response, byte[] body, RunDiagnostics d)
+    private HuntingAnswer Refused(HttpResponseMessage response, byte[] body, RunDiagnostics d, bool withWorkspace)
     {
         if (GraphErrorText.IsTokenRejected(response, body))
         {
@@ -108,7 +118,7 @@ public sealed partial class HuntingClient(HttpClient graph, TimeProvider? time =
         {
             // A 401 that doesn't reject the token is a refused permission, as a 403 is.
             case HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized:
-                return HuntingAnswer.Failure(RunOutcome.NoPermission, NoPermission);
+                return HuntingAnswer.Failure(RunOutcome.NoPermission, withWorkspace ? NoPermission + NoPermissionWithWorkspace : NoPermission);
             case HttpStatusCode.TooManyRequests:
                 var wait = RetryAfter.Of(response.Headers.RetryAfter, _time) is { } after ? (long)after.TotalSeconds : (long?)null;
                 d.Add(new DiagnosticEntry(d.NowMs, DiagnosticKinds.Throttled, "Advanced hunting is throttling; "

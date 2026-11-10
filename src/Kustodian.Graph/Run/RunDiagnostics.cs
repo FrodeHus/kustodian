@@ -32,6 +32,12 @@ public static class DiagnosticKinds
 
     /// <summary>An engine worker's start, answer or kill.</summary>
     public const string Engine = "engine";
+
+    /// <summary>A fact about how the run was sent, worth knowing when reading its result.</summary>
+    public const string Note = "note";
+
+    /// <summary>Something in the answer that may mean it isn't what was asked for.</summary>
+    public const string Warning = "warning";
 }
 
 /// <summary>

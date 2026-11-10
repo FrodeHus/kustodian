@@ -322,7 +322,13 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
         {
             var (node, sha) = await FetchJsonAsync(entry, $"queries/{itemId}.json", ct);
             var input = LibraryService.ReadInput(node, JsonFileStore.Options) is { } read
-                ? read with { Id = Guid.NewGuid().ToString("D"), Folder = folder }
+                ? read with
+                {
+                    Id = Guid.NewGuid().ToString("D"),
+                    Folder = folder,
+                    // Solutions are tenant-agnostic: an author's workspace never installs (hashed on this stripped form).
+                    Options = read.Options is null ? null : read.Options with { Workspaces = null },
+                }
                 : throw Refused(QueryKind, itemId, "It isn't a saved query.");
             if (LibraryService.Problem(input) is { } problem)
             {
@@ -343,6 +349,12 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
             doc.Remove("origin");
             if (doc["widgets"] is JsonArray widgets)
             {
+                foreach (var options in widgets.OfType<JsonObject>().Select(w => w["query"]).OfType<JsonObject>()
+                             .Select(q => q["options"]).OfType<JsonObject>())
+                {
+                    options.Remove("workspaces");
+                }
+
                 foreach (var query in widgets.OfType<JsonObject>().Select(w => w["query"]).OfType<JsonObject>()
                              .Where(q => q["saved"] is not null))
                 {
