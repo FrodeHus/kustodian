@@ -101,7 +101,18 @@ describe('WorkspacePicker', () => {
     render(<Picker initial={[gone]} onChange={() => undefined} />);
     expect(screen.getByRole('button', { name: 'Workspace: contoso-sentinel' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /Workspace:/ }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Workspace: contoso-sentinel · not available' })).toBeTruthy());
+    const trigger = await screen.findByRole('button', { name: 'Workspace: contoso-sentinel · not available' });
+    expect(trigger.className).toContain('border-bad');
+    expect(trigger.className).toContain('text-bad');
+  });
+
+  it('a_saved_workspace_in_the_list_keeps_the_normal_tone', async () => {
+    render(<Picker initial={[sentinel]} onChange={() => undefined} />);
+    const trigger = screen.getByRole('button', { name: 'Workspace: contoso-sentinel' });
+    fireEvent.click(trigger);
+    await screen.findByRole('radio', { name: /contoso-logs/ });
+    expect(trigger.className).not.toContain('bad');
+    expect(trigger.textContent).not.toContain('not available');
   });
 
   it('consent_and_sign_in_states_match_the_scope_picker', async () => {
