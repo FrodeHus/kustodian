@@ -129,7 +129,7 @@ export function AddToWorkbookDialog({ tab, onClose, onNotice }: { tab: Tab; onCl
           setBusy(true);
           setError(null);
           closing.current = true;
-          applyAdd(target, widgetFromTab(tab, kind, title.trim(), view?.chart), tab.parameters).then(
+          applyAdd(target, widgetFromTab(tab, kind, title.trim() || tab.title, view?.chart), tab.parameters).then(
             ({ notice }) => {
               if (notice) {
                 onNotice?.(notice);
@@ -165,8 +165,8 @@ export function AddToWorkbookDialog({ tab, onClose, onNotice }: { tab: Tab; onCl
               g.folder === null ? (
                 g.workbooks.map(radio)
               ) : (
-                <div key={g.folder} role="group" aria-labelledby={`${id}-f-${g.folder}`}>
-                  <span id={`${id}-f-${g.folder}`} className="faint block px-1.5 pt-1.5 text-[11.5px]">
+                <div key={g.folder} role="group" aria-label={g.folder}>
+                  <span aria-hidden="true" className="faint block px-1.5 pt-1.5 text-[11.5px]">
                     {g.folder}
                   </span>
                   {g.workbooks.map(radio)}

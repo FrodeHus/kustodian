@@ -11,12 +11,35 @@ export type AddTarget = { kind: 'existing'; id: string; name: string } | { kind:
 const openTabOf = (id: string) =>
   useTabs.getState().tabs.find((t) => t.source === 'workbook' && (t.workbook?.id === id || t.savedId === id));
 
-/** Writes `doc` to its file and opens it in a tab; nothing opens when the save fails. */
-async function saveAndOpen(doc: WorkbookDoc, widgetId: string): Promise<{ notice?: string }> {
+/**
+ * Writes `doc` (which has `widget`) to its file and opens it in a tab; nothing opens when the save fails. A tab that opened the
+ * workbook while the save was out has the file as it was: it takes the saved doc, or, with unsaved edits, the widget in its draft.
+ */
+async function saveAndOpen(doc: WorkbookDoc, widget: Widget, tabParameters: ParameterDef[]): Promise<{ notice?: string }> {
   const { workbook } = await call<{ workbook: WorkbookDoc }>('workbook.save', { workbook: withFileVersion(doc) });
-  const tabId = useTabs.getState().openWorkbook(workbook, { savedId: workbook.id });
-  useWorkbooks.getState().reveal(tabId, widgetId);
-  return {};
+  const opened = openTabOf(workbook.id);
+  let notice: string | undefined;
+  if (opened) {
+    const store = useWorkbooks.getState();
+    const s = store.byTab[opened.id];
+    if (!s) {
+      useTabs.getState().setWorkbook(opened.id, workbook, false);
+    } else if (s.dirty) {
+      store.edit(opened.id, (d) => (d.widgets.some((w) => w.id === widget.id) ? d : addWidget(d, widget, tabParameters)));
+      notice = `Added to your unsaved changes in ${workbook.name}.`;
+    } else {
+      store.markSaved(opened.id, workbook);
+    }
+  }
+  let tabId: string;
+  if (opened) {
+    useTabs.getState().activate(opened.id);
+    tabId = opened.id;
+  } else {
+    tabId = useTabs.getState().openWorkbook(workbook, { savedId: workbook.id });
+  }
+  useWorkbooks.getState().reveal(tabId, widget.id);
+  return notice ? { notice } : {};
 }
 
 /**
@@ -26,7 +49,7 @@ async function saveAndOpen(doc: WorkbookDoc, widgetId: string): Promise<{ notice
  */
 export async function applyAdd(target: AddTarget, widget: Widget, tabParameters: ParameterDef[]): Promise<{ notice?: string }> {
   if (target.kind === 'new') {
-    return saveAndOpen(addWidget({ ...newWorkbook(target.name), folder: target.folder }, widget, tabParameters), widget.id);
+    return saveAndOpen(addWidget({ ...newWorkbook(target.name), folder: target.folder }, widget, tabParameters), widget, tabParameters);
   }
   let tab = openTabOf(target.id);
   if (!tab) {
@@ -43,7 +66,7 @@ export async function applyAdd(target: AddTarget, widget: Widget, tabParameters:
       if (isFull(doc)) {
         throw new Error(`${target.name} is full.`);
       }
-      return saveAndOpen(addWidget(doc, widget, tabParameters), widget.id);
+      return saveAndOpen(addWidget(doc, widget, tabParameters), widget, tabParameters);
     }
     // Opened while it was read: add to that tab instead, so its edits aren't written over.
   }

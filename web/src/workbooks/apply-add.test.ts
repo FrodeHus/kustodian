@@ -106,6 +106,26 @@ describe('applyAdd', () => {
     expect(useWorkbooks.getState().revealing).toBeNull();
   });
 
+  it.each([false, true])('gives the widget to a tab that opened the workbook during the save (dirty: %s)', async (dirty) => {
+    const doc = { ...newWorkbook('Ops'), id: 'wb' };
+    files.set('wb', doc);
+    let id = '';
+    const save = bridge.call.getMockImplementation()!;
+    bridge.call.mockImplementation(async (method: string, params?: unknown) => {
+      if (method === 'workbook.save') {
+        id = await openTab(doc, dirty);
+      }
+      return save(method, params);
+    });
+    const answer = await applyAdd({ kind: 'existing', id: 'wb', name: 'Ops' }, widget(), [who]);
+    expect(useTabs.getState().tabs.filter((t) => t.source === 'workbook')).toHaveLength(1);
+    expect(useWorkbooks.getState().byTab[id]!.doc.widgets.map((w) => w.id)).toEqual(['new-w']);
+    expect(useWorkbooks.getState().byTab[id]!.dirty).toBe(dirty);
+    expect(answer).toEqual(dirty ? { notice: 'Added to your unsaved changes in Ops.' } : {});
+    expect(useTabs.getState().activeId).toBe(id);
+    expect(useWorkbooks.getState().revealing).toEqual({ tabId: id, widgetId: 'new-w' });
+  });
+
   it('saves a new workbook with the name, folder and widget, and opens it', async () => {
     await applyAdd({ kind: 'new', name: 'Fresh', folder: 'Team' }, widget(), [who]);
     const [saved] = saves();

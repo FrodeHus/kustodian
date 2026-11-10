@@ -482,6 +482,21 @@ describe('WorkbookView', () => {
     expect(useWorkbooks.getState().revealing).toBeNull();
   });
 
+  it('uses a reveal set before the workbook has loaded once its frame appears', () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    useWorkbooks.setState({ byTab: {} });
+    const { unmount } = render(<WorkbookView tabId="t" />);
+    act(() => useWorkbooks.getState().reveal('t', 'tb'));
+    expect(screen.getByText('Opening the workbook…')).toBeTruthy();
+    expect(useWorkbooks.getState().revealing).toEqual({ tabId: 't', widgetId: 'tb' });
+    unmount();
+    show({});
+    expect(scrollIntoView.mock.contexts[0]).toBe(frame('Users'));
+    expect(document.activeElement).toBe(frame('Users'));
+    expect(useWorkbooks.getState().revealing).toBeNull();
+  });
+
   it('leaves a reveal for another tab alone', () => {
     Element.prototype.scrollIntoView = vi.fn();
     show({});

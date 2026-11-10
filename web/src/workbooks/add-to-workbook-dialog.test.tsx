@@ -53,12 +53,12 @@ beforeEach(() => {
     method === 'workbook.list'
       ? Promise.resolve({
           workbooks: [
-            summary('a', 'Ops', 'Team'),
-            summary('b', 'Audit', 'Team'),
+            summary('a', 'Ops', 'My Team'),
+            summary('b', 'Audit', 'My Team'),
             summary('c', 'Loose', null),
             summary('d', 'Big', null, MAX_WIDGETS),
           ],
-          folders: ['Team'],
+          folders: ['My Team'],
           skipped: 0,
         })
       : Promise.resolve(null),
@@ -76,7 +76,7 @@ describe('AddToWorkbookDialog', () => {
 
   it('lists the workbooks by folder, and searching narrows the list', async () => {
     open();
-    const team = await screen.findByRole('group', { name: 'Team' });
+    const team = await screen.findByRole('group', { name: 'My Team' });
     expect(
       within(team)
         .getAllByRole('radio')
@@ -125,6 +125,16 @@ describe('AddToWorkbookDialog', () => {
     open();
     expect((screen.getByRole('radio', { name: 'Table' }) as HTMLInputElement).checked).toBe(true);
     await screen.findByRole('radio', { name: 'Ops' });
+  });
+
+  it('falls back to the tab’s title when the title is left empty', async () => {
+    applyAdd.mockResolvedValue({});
+    open();
+    fireEvent.click(await screen.findByRole('radio', { name: 'Ops' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Title' }), { target: { value: '   ' } });
+    fireEvent.click(addButton());
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(applyAdd.mock.calls[0]![1]).toMatchObject({ title: 'Sign-ins' });
   });
 
   it('defaults the title to the tab’s', async () => {
