@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
+import { exceedsDays } from './timespan';
 import { TimespanPicker } from './timespan-picker';
 
 function Picker({ initial = null, onChange, maxDays = 30 }: { initial?: string | null; onChange: (timespan: string) => void; maxDays?: 30 | 730 }) {
@@ -112,5 +113,13 @@ describe('TimespanPicker', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Timespan: 30 days' }));
     fireEvent.click(screen.getByRole('menuitemradio', { name: '90 days' }));
     expect(onChange).toHaveBeenCalledWith('P90D');
+  });
+
+  it('exceeds_days_reads_presets_and_intervals', () => {
+    expect(exceedsDays('P90D', 30)).toBe(true);
+    expect(exceedsDays('P30D', 30)).toBe(false);
+    expect(exceedsDays('P7D', 30)).toBe(false);
+    expect(exceedsDays('2026-01-01T00:00:00Z/2026-03-01T00:00:00Z', 30)).toBe(true);
+    expect(exceedsDays('2026-01-01T00:00:00Z/2026-01-31T00:00:00Z', 30)).toBe(false);
   });
 });

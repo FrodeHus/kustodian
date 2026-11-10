@@ -40,11 +40,12 @@ import { SignIn } from './signin/sign-in';
 import { PANELS, type PanelName } from './side/panels';
 import { Rail, SidePanel } from './side/side-panel';
 import { Splitter } from './shell/splitter';
-import { runParameters, sentText, useTabs, type RunMode, type Tab, type TabCursor } from './tabs/tab-store';
+import { DEFAULT_TIMESPAN, runParameters, sentText, useTabs, type RunMode, type Tab, type TabCursor } from './tabs/tab-store';
 import { TabStrip } from './tabs/tab-strip';
 import { SaveButton } from './toolbar/save-button';
 import { ScopePicker } from './toolbar/scope-picker';
 import { WorkspacePicker } from './toolbar/workspace-picker';
+import { exceedsDays } from './toolbar/timespan';
 import { TimespanPicker } from './toolbar/timespan-picker';
 import type { AccountList, QueryOptions, SchemaView, SettingsAnswer, Source, TabSource, UpdateInfo } from './wire';
 
@@ -880,7 +881,10 @@ function Toolbar(props: ToolbarProps) {
       {tab.source === 'hunting' && (
         <WorkspacePicker
           workspaces={tab.options?.workspaces}
-          onChange={(workspaces) => setOptions({ workspaces })}
+          // Without a workspace the data reaches back 30 days only, so a longer timespan goes back to the default.
+          onChange={(workspaces) =>
+            setOptions({ workspaces, ...(!workspaces?.length && tab.options?.timespan && exceedsDays(tab.options.timespan, 30) ? { timespan: DEFAULT_TIMESPAN } : {}) })
+          }
           accountKey={accountKey ?? null}
           onSignIn={onSignIn}
           open={picker === 'workspace'}

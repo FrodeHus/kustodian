@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { DEFAULT_TIMESPAN } from '../tabs/tab-store';
+import { DAY_MS, interval } from './timespan';
 
 /** The timespans the menu offers (spec 8.1: 1, 7 or 30 days, or custom). */
 const PRESETS = [
@@ -11,7 +12,6 @@ const PRESETS = [
 
 /** A workspace keeps data longer than Defender's 30 days, so the 90 days preset shows only when the cap allows it. */
 const presetsFor = (maxDays: number) => PRESETS.filter((p) => maxDays > 30 || p.value !== 'P90D');
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** An instant as a `datetime-local` input shows it, in local time to the minute. */
 function toLocalInput(at: Date): string {
@@ -21,17 +21,6 @@ function toLocalInput(at: Date): string {
 
 /** An instant as the interval sends it: UTC to the second. */
 const toIso = (at: Date) => at.toISOString().replace(/\.\d{3}Z$/, 'Z');
-
-/** The start and end of an interval timespan `start/end`, or null for a duration. */
-function interval(timespan: string): [Date, Date] | null {
-  const [start, end, ...rest] = timespan.split('/');
-  if (start === undefined || end === undefined || rest.length > 0) {
-    return null;
-  }
-  const from = new Date(start);
-  const to = new Date(end);
-  return Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) ? null : [from, to];
-}
 
 const short = (at: Date) => at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
