@@ -20,6 +20,9 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Workbook editing**: while you drag or resize a widget the others move to where they'll end up, and the drop outline
+  shows over them. The column stripes behind the grid are gone. A ✎ button beside ⋯ edits a widget; Edit widget, Duplicate
+  and Remove are in ⋯, so small widgets no longer overflow, and a widget with no query yet shows **Set up widget**.
 - **Workbook parameters**: each parameter's label sits above its control in a grid. A list that takes several values picks
   them from a menu of checks, and a few short choices show as a row of buttons. A dot marks a value changed from its default,
   and Reset puts them back. The panel collapses to one line of values. Fields fill their column and labels stay on one line
