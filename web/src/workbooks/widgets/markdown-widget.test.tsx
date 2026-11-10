@@ -83,5 +83,4 @@ describe('withValues', () => {
     expect(withValues('{Nope}', {})).toBe('{Nope}');
     expect(withValues('{constructor} {__proto__} {toString}', {})).toBe('{constructor} {__proto__} {toString}');
   });
-
 });

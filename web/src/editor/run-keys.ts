@@ -20,7 +20,11 @@ export interface RunKeyCodes {
  * Spec 6.2: Ctrl/Cmd+Enter runs the block at the cursor, or only the selection when there is one; Shift+Enter runs the whole tab.
  * Both replace what the keys would do in the editor (insert a line). Returns the keybindings it took and what unbinds them.
  */
-export function bindRunKeys(editor: RunKeyEditor, keys: RunKeyCodes, onRun: (mode: RunMode) => void): { taken: number[]; dispose: () => void } {
+export function bindRunKeys(
+  editor: RunKeyEditor,
+  keys: RunKeyCodes,
+  onRun: (mode: RunMode) => void,
+): { taken: number[]; dispose: () => void } {
   const block = editor.addAction({
     id: 'kustodian.run.block',
     label: 'Run the block',
@@ -30,7 +34,12 @@ export function bindRunKeys(editor: RunKeyEditor, keys: RunKeyCodes, onRun: (mod
       onRun(selection && !selection.isEmpty() ? 'selection' : 'block');
     },
   });
-  const all = editor.addAction({ id: 'kustodian.run.all', label: 'Run all', keybindings: [keys.Shift | keys.Enter], run: () => onRun('all') });
+  const all = editor.addAction({
+    id: 'kustodian.run.all',
+    label: 'Run all',
+    keybindings: [keys.Shift | keys.Enter],
+    run: () => onRun('all'),
+  });
   return {
     taken: [keys.CtrlCmd | keys.Enter, keys.Shift | keys.Enter],
     dispose: () => {

@@ -194,7 +194,17 @@ describe('App', () => {
       generatedAt: '2026-10-21T00:00:00Z',
       complexTypes: {},
       functions: [],
-      tables: [{ name: source === 'arg' ? 'Resources' : 'DeviceInfo', path: null, area: null, description: '', docsUrl: null, permissions: null, columns: [] }],
+      tables: [
+        {
+          name: source === 'arg' ? 'Resources' : 'DeviceInfo',
+          path: null,
+          area: null,
+          description: '',
+          docsUrl: null,
+          permissions: null,
+          columns: [],
+        },
+      ],
     });
     answers['schema.get'] = (p) => {
       const { source } = p as { source: string };
@@ -243,7 +253,11 @@ describe('App', () => {
 
     await waitFor(() => expect(screen.getByRole('tab', { name: 'Rows · 1' })).toBeTruthy());
     expect(within(screen.getByRole('table')).getByText('Contoso Portal')).toBeTruthy();
-    expect(bridge.call).toHaveBeenCalledWith('query.run', expect.objectContaining({ kql: 'applications', source: 'graph' }), expect.any(AbortSignal));
+    expect(bridge.call).toHaveBeenCalledWith(
+      'query.run',
+      expect.objectContaining({ kql: 'applications', source: 'graph' }),
+      expect.any(AbortSignal),
+    );
   });
 
   it('app_export_command_saves_the_result_and_pin_adds_compare', async () => {
@@ -295,7 +309,10 @@ describe('App', () => {
   });
 
   it('app_sign_in_needed_opens_sign_in_and_keeps_the_query', async () => {
-    host({ accounts: [kari], cache: 'persistent' }, { ...rows, outcome: 'signInNeeded', message: 'Sign in again to run this query.', rows: [], columns: [], total: 0 });
+    host(
+      { accounts: [kari], cache: 'persistent' },
+      { ...rows, outcome: 'signInNeeded', message: 'Sign in again to run this query.', rows: [], columns: [], total: 0 },
+    );
     render(<App />);
 
     fireEvent.change(await screen.findByRole('textbox', { name: 'KQL query' }), { target: { value: 'users | count' } });
@@ -428,7 +445,10 @@ describe('App', () => {
     render(<App />);
     await screen.findByRole('tab', { name: /Query 1/ });
     const rail = screen.getByRole('navigation', { name: 'Side panels' });
-    const pressed = () => within(rail).queryAllByRole('button', { pressed: true }).map((b) => b.getAttribute('aria-label'));
+    const pressed = () =>
+      within(rail)
+        .queryAllByRole('button', { pressed: true })
+        .map((b) => b.getAttribute('aria-label'));
     expect(screen.getByRole('complementary', { name: 'Schema' })).toBeTruthy();
 
     act(() => void useTabs.getState().openWorkbook());
@@ -454,8 +474,15 @@ describe('App', () => {
     render(<App />);
     await screen.findByRole('tab', { name: /Query 1/ });
     const rail = screen.getByRole('navigation', { name: 'Side panels' });
-    const pressed = () => within(rail).getAllByRole('button', { pressed: true }).map((b) => b.getAttribute('aria-label'));
-    expect(within(rail).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual(['Schema', 'Saved queries', 'Recent runs', 'Snippets', 'Solutions']);
+    const pressed = () =>
+      within(rail)
+        .getAllByRole('button', { pressed: true })
+        .map((b) => b.getAttribute('aria-label'));
+    expect(
+      within(rail)
+        .getAllByRole('button')
+        .map((b) => b.getAttribute('aria-label')),
+    ).toEqual(['Schema', 'Saved queries', 'Recent runs', 'Snippets', 'Solutions']);
     expect(pressed()).toEqual(['Schema']);
     expect(screen.getByRole('complementary', { name: 'Schema' })).toBeTruthy();
 
@@ -496,7 +523,18 @@ describe('App', () => {
     host({ accounts: [kari], cache: 'persistent' }, rows, {
       version: 1,
       activeId: 'a',
-      tabs: [{ id: 'a', source: 'graph', title: 'Apps', text: 'applications | take 5', dirty: true, savedId: 'q1', parameters: [], filePath: null }],
+      tabs: [
+        {
+          id: 'a',
+          source: 'graph',
+          title: 'Apps',
+          text: 'applications | take 5',
+          dirty: true,
+          savedId: 'q1',
+          parameters: [],
+          filePath: null,
+        },
+      ],
     });
     render(<App />);
     const editor = await screen.findByRole('textbox', { name: 'KQL query' });
@@ -507,7 +545,15 @@ describe('App', () => {
 
     await waitFor(() =>
       expect(bridge.call).toHaveBeenCalledWith('library.save', {
-        query: { id: 'q1', name: 'Apps', folder: 'Inventory', source: 'graph', text: 'applications | take 5', parameters: [], options: null },
+        query: {
+          id: 'q1',
+          name: 'Apps',
+          folder: 'Inventory',
+          source: 'graph',
+          text: 'applications | take 5',
+          parameters: [],
+          options: null,
+        },
       }),
     );
     await waitFor(() => expect(useTabs.getState().tabs[0]?.dirty).toBe(false));
@@ -541,7 +587,18 @@ describe('App', () => {
     host({ accounts: [kari], cache: 'persistent' }, rows, {
       version: 1,
       activeId: 'a',
-      tabs: [{ id: 'a', source: 'graph', title: 'apps.kql', text: 'applications', dirty: false, savedId: null, parameters: [], filePath: '/q/apps.kql' }],
+      tabs: [
+        {
+          id: 'a',
+          source: 'graph',
+          title: 'apps.kql',
+          text: 'applications',
+          dirty: false,
+          savedId: null,
+          parameters: [],
+          filePath: '/q/apps.kql',
+        },
+      ],
     });
     render(<App />);
     await screen.findByRole('tab', { name: /apps\.kql/ });
@@ -559,7 +616,18 @@ describe('App', () => {
     host({ accounts: [kari], cache: 'persistent' }, rows, {
       version: 1,
       activeId: 'a',
-      tabs: [{ id: 'a', source: 'graph', title: 'apps.kql', text: 'applications', dirty: true, savedId: null, parameters: [], filePath: '/q/apps.kql' }],
+      tabs: [
+        {
+          id: 'a',
+          source: 'graph',
+          title: 'apps.kql',
+          text: 'applications',
+          dirty: true,
+          savedId: null,
+          parameters: [],
+          filePath: '/q/apps.kql',
+        },
+      ],
     });
     render(<App />);
     await screen.findByRole('tab', { name: /apps\.kql/ });
@@ -587,7 +655,11 @@ describe('App', () => {
 
     expect(await screen.findByRole('tab', { name: /guests\.kql/, selected: true })).toBeTruthy();
     expect(bridge.call).toHaveBeenCalledWith('file.open', { filters: [{ name: 'KQL', extensions: ['kql'] }] });
-    expect(useTabs.getState().tabs[1]).toMatchObject({ filePath: '/q/guests.kql', text: 'users | where userType == "Guest"', dirty: false });
+    expect(useTabs.getState().tabs[1]).toMatchObject({
+      filePath: '/q/guests.kql',
+      text: 'users | where userType == "Guest"',
+      dirty: false,
+    });
   });
 
   it('drop_kql_opens_tab', async () => {
@@ -722,7 +794,13 @@ describe('App', () => {
     // "Run with these values" still runs, with the editor out of sight.
     fireEvent.click(button);
     fireEvent.click(screen.getByRole('button', { name: 'Run with these values' }));
-    await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('query.run', expect.objectContaining({ kql: 'users | where displayName == {name}' }), expect.anything()));
+    await waitFor(() =>
+      expect(bridge.call).toHaveBeenCalledWith(
+        'query.run',
+        expect.objectContaining({ kql: 'users | where displayName == {name}' }),
+        expect.anything(),
+      ),
+    );
   });
 
   it('parameters_close_when_another_tab_comes_forward', async () => {
@@ -768,7 +846,13 @@ describe('App', () => {
           filteredLocally: false,
         },
       ],
-      limits: { objectsPerTable: 50000, fetchBudgetMb: 512, perObjectReadsPerTable: 2000, relationshipObjectsPerTable: 100, relationshipEntriesPerObject: 1000 },
+      limits: {
+        objectsPerTable: 50000,
+        fetchBudgetMb: 512,
+        perObjectReadsPerTable: 2000,
+        relationshipObjectsPerTable: 100,
+        relationshipEntriesPerObject: 1000,
+      },
     });
     render(<App />);
     fireEvent.change(await screen.findByRole('textbox', { name: 'KQL query' }), { target: { value: 'applications' } });
@@ -792,7 +876,18 @@ describe('App', () => {
 
   it('app_explain_closes_when_the_tab_leaves_graph', async () => {
     host({ accounts: [kari], cache: 'persistent' });
-    answers['query.explain'] = () => ({ error: null, refusal: null, tables: [], limits: { objectsPerTable: 50000, fetchBudgetMb: 512, perObjectReadsPerTable: 2000, relationshipObjectsPerTable: 100, relationshipEntriesPerObject: 1000 } });
+    answers['query.explain'] = () => ({
+      error: null,
+      refusal: null,
+      tables: [],
+      limits: {
+        objectsPerTable: 50000,
+        fetchBudgetMb: 512,
+        perObjectReadsPerTable: 2000,
+        relationshipObjectsPerTable: 100,
+        relationshipEntriesPerObject: 1000,
+      },
+    });
     render(<App />);
     fireEvent.change(await screen.findByRole('textbox', { name: 'KQL query' }), { target: { value: 'applications' } });
     act(() => void runCommand('explain'));
@@ -812,7 +907,9 @@ describe('App', () => {
 
   it('app_pick_timespan_and_pick_scope_follow_the_source', async () => {
     host({ accounts: [kari], cache: 'persistent' });
-    answers['arm.subscriptions'] = () => ({ subscriptions: [{ id: '00000000-0000-0000-0000-000000000011', name: 'Production', tenantId: 't1', state: 'Enabled' }] });
+    answers['arm.subscriptions'] = () => ({
+      subscriptions: [{ id: '00000000-0000-0000-0000-000000000011', name: 'Production', tenantId: 't1', state: 'Enabled' }],
+    });
     answers['arm.managementGroups'] = () => ({ groups: [] });
     answers['arm.resourceTypes'] = () => ({ types: [] });
     render(<App />);
@@ -835,11 +932,21 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Subscriptions' }));
     fireEvent.click(await screen.findByRole('checkbox', { name: 'Production' }));
     expect(screen.getByRole('button', { name: 'Scope: 1 subscription' })).toBeTruthy();
-    expect(useTabs.getState().tabs.at(-1)?.options).toEqual({ timespan: null, scope: { kind: 'subscriptions', ids: ['00000000-0000-0000-0000-000000000011'] } });
+    expect(useTabs.getState().tabs.at(-1)?.options).toEqual({
+      timespan: null,
+      scope: { kind: 'subscriptions', ids: ['00000000-0000-0000-0000-000000000011'] },
+    });
   });
 
   it('app_consent_needed_run_grants_access_for_the_active_account_and_runs_again', async () => {
-    const consent = { ...rows, outcome: 'consentNeeded' as const, message: 'Grant Azure access to run this query.', rows: [], columns: [], total: 0 };
+    const consent = {
+      ...rows,
+      outcome: 'consentNeeded' as const,
+      message: 'Grant Azure access to run this query.',
+      rows: [],
+      columns: [],
+      total: 0,
+    };
     let runs = 0;
     host({ accounts: [kari], cache: 'persistent' });
     answers['query.run'] = () => (++runs === 1 ? consent : rows);
@@ -860,7 +967,15 @@ describe('App', () => {
   it('app_grant_permission_reads_the_accounts_again_before_running_again', async () => {
     const ada: AccountInfo = { ...kari, clientId: '14d82eec-204b-4c2f-b7e8-296a70dab67e', clientKind: 'graphCli', scopes: ['User.Read'] };
     let list: AccountList = { accounts: [ada], cache: 'persistent' };
-    const refused: RunResult = { ...rows, outcome: 'noPermission', message: 'No permission.', rows: [], columns: [], total: 0, permissions: ['Reports.Read.All'] };
+    const refused: RunResult = {
+      ...rows,
+      outcome: 'noPermission',
+      message: 'No permission.',
+      rows: [],
+      columns: [],
+      total: 0,
+      permissions: ['Reports.Read.All'],
+    };
     let runs = 0;
     host(list);
     answers['account.list'] = () => list;
@@ -888,12 +1003,25 @@ describe('App', () => {
   it('app_grant_permission_reloads_a_built_in_hunting_schema', async () => {
     const ada: AccountInfo = { ...kari, clientId: '14d82eec-204b-4c2f-b7e8-296a70dab67e', clientKind: 'graphCli', scopes: ['User.Read'] };
     host({ accounts: [ada], cache: 'persistent' });
-    const refused: RunResult = { ...rows, outcome: 'noPermission', message: 'No permission.', rows: [], columns: [], total: 0, permissions: ['ThreatHunting.Read.All'] };
+    const refused: RunResult = {
+      ...rows,
+      outcome: 'noPermission',
+      message: 'No permission.',
+      rows: [],
+      columns: [],
+      total: 0,
+      permissions: ['ThreatHunting.Read.All'],
+    };
     answers['query.run'] = () => refused;
     answers['account.consent'] = () => ({});
     answers['schema.get'] = (p) =>
       (p as { source: string }).source === 'hunting'
-        ? { ...(schema as SchemaView), source: 'hunting', origin: 'builtIn', fallbackReason: 'The tenant’s schema couldn’t be read. The built-in schema is shown.' }
+        ? {
+            ...(schema as SchemaView),
+            source: 'hunting',
+            origin: 'builtIn',
+            fallbackReason: 'The tenant’s schema couldn’t be read. The built-in schema is shown.',
+          }
         : schema;
     render(<App />);
     await screen.findByRole('tab', { name: /Query 1/ });
@@ -915,7 +1043,13 @@ describe('App', () => {
     host(list);
     answers['account.list'] = () => list;
     answers['account.use'] = () => {
-      list = { ...list, accounts: [{ ...kari, active: false }, { ...ola, active: true }] };
+      list = {
+        ...list,
+        accounts: [
+          { ...kari, active: false },
+          { ...ola, active: true },
+        ],
+      };
       return null;
     };
     render(<App />);
@@ -923,7 +1057,8 @@ describe('App', () => {
     act(() => {
       runCommand('tab.newHunting');
     });
-    const schemaGets = (source: string) => bridge.call.mock.calls.filter(([m, p]) => m === 'schema.get' && (p as { source: string }).source === source).length;
+    const schemaGets = (source: string) =>
+      bridge.call.mock.calls.filter(([m, p]) => m === 'schema.get' && (p as { source: string }).source === source).length;
     await waitFor(() => expect(schemaGets('hunting')).toBe(1));
     expect(schemaGets('graph')).toBe(1);
 
@@ -940,7 +1075,12 @@ describe('App', () => {
     let origin: SchemaView['origin'] = 'builtIn';
     answers['schema.get'] = (p) =>
       (p as { source: string }).source === 'hunting'
-        ? { ...(schema as SchemaView), source: 'hunting', origin, fallbackReason: origin === 'builtIn' ? "Sign in again to read the tenant's schema. The built-in schema is shown." : null }
+        ? {
+            ...(schema as SchemaView),
+            source: 'hunting',
+            origin,
+            fallbackReason: origin === 'builtIn' ? "Sign in again to read the tenant's schema. The built-in schema is shown." : null,
+          }
         : schema;
     answers['account.signIn'] = () => kari;
     render(<App />);
@@ -963,7 +1103,9 @@ describe('App', () => {
     host({ accounts: [kari], cache: 'persistent' });
     let signedIn = false;
     answers['arm.resourceTypes'] = () =>
-      signedIn ? { types: ['microsoft.keyvault/vaults'] } : Promise.reject(new BridgeError('signInNeeded', 'Sign in again to list your Azure subscriptions and resources.'));
+      signedIn
+        ? { types: ['microsoft.keyvault/vaults'] }
+        : Promise.reject(new BridgeError('signInNeeded', 'Sign in again to list your Azure subscriptions and resources.'));
     answers['account.signIn'] = () => kari;
     render(<App />);
     await screen.findByRole('tab', { name: /Query 1/ });
@@ -986,7 +1128,9 @@ describe('App', () => {
     host({ accounts: [kari], cache: 'persistent' });
     let reason: string | null = 'Sign in again to refresh the tenant’s schema. The schema read earlier is shown.';
     answers['schema.get'] = (p) =>
-      (p as { source: string }).source === 'hunting' ? { ...(schema as SchemaView), source: 'hunting', origin: 'tenant', fallbackReason: reason } : schema;
+      (p as { source: string }).source === 'hunting'
+        ? { ...(schema as SchemaView), source: 'hunting', origin: 'tenant', fallbackReason: reason }
+        : schema;
     answers['account.signIn'] = () => kari;
     render(<App />);
     await screen.findByRole('tab', { name: /Query 1/ });
@@ -1069,15 +1213,18 @@ describe('App', () => {
   });
 
   it('app_failed_run_with_diagnostics_shows_them', async () => {
-    host({ accounts: [kari], cache: 'persistent' }, {
-      ...rows,
-      outcome: 'throttled',
-      message: 'Graph is throttling requests. Try again in a minute.',
-      rows: [],
-      columns: [],
-      total: 0,
-      diagnostics: [{ atMs: 5, kind: 'throttled', detail: 'GET applications?$top=999', status: 429, durationMs: 80, bytes: 120 }],
-    });
+    host(
+      { accounts: [kari], cache: 'persistent' },
+      {
+        ...rows,
+        outcome: 'throttled',
+        message: 'Graph is throttling requests. Try again in a minute.',
+        rows: [],
+        columns: [],
+        total: 0,
+        diagnostics: [{ atMs: 5, kind: 'throttled', detail: 'GET applications?$top=999', status: 429, durationMs: 80, bytes: 120 }],
+      },
+    );
     render(<App />);
 
     fireEvent.change(await screen.findByRole('textbox', { name: 'KQL query' }), { target: { value: 'applications' } });
@@ -1107,9 +1254,7 @@ describe('App', () => {
     const view = render(<App />);
     const dialog = await screen.findByRole('dialog', { name: 'Help improve Kustodian’s Graph support?' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Share findings' }));
-    await waitFor(() =>
-      expect(bridge.call).toHaveBeenCalledWith('settings.set', { settings: { ...settings.settings, telemetry: true } }),
-    );
+    await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('settings.set', { settings: { ...settings.settings, telemetry: true } }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: /Graph support/ })).toBeNull());
     view.unmount();
 

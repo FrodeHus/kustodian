@@ -174,7 +174,11 @@ describe('SavedPanel', () => {
     fireEvent.change(input, { target: { value: 'Every app' } });
     fireEvent.keyDown(input, { key: 'Enter' });
 
-    await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('library.save', { query: expect.objectContaining({ id: 'q2', name: 'Every app', text: 'applications' }) }));
+    await waitFor(() =>
+      expect(bridge.call).toHaveBeenCalledWith('library.save', {
+        query: expect.objectContaining({ id: 'q2', name: 'Every app', text: 'applications' }),
+      }),
+    );
     expect(await screen.findByRole('button', { name: 'Every app' })).toBeTruthy();
     expect(useTabs.getState().tabs.find((t) => t.id === tabId)?.title).toBe('Every app');
   });
@@ -232,7 +236,11 @@ describe('SavedPanel', () => {
 
   it('saved_lists_workbooks_opens_one_in_a_workbook_tab_and_deletes_after_asking', async () => {
     const doc = { ...newWorkbook('Hygiene'), modifiedAt: '2026-11-01T00:00:00Z' };
-    const workbooks: WorkbookList = { workbooks: [{ id: doc.id, name: 'Hygiene', folder: null, modifiedAt: doc.modifiedAt, widgets: 0 }], folders: [], skipped: 0 };
+    const workbooks: WorkbookList = {
+      workbooks: [{ id: doc.id, name: 'Hygiene', folder: null, modifiedAt: doc.modifiedAt, widgets: 0 }],
+      folders: [],
+      skipped: 0,
+    };
     const answer = bridge.call.getMockImplementation()!;
     bridge.call.mockImplementation((method: string, params?: { id?: string }) => {
       switch (method) {
@@ -253,7 +261,13 @@ describe('SavedPanel', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Hygiene' }));
     await waitFor(() => expect(useTabs.getState().tabs).toHaveLength(1));
     expect(bridge.call).toHaveBeenCalledWith('workbook.get', { id: doc.id });
-    expect(useTabs.getState().tabs[0]).toMatchObject({ source: 'workbook', title: 'Hygiene', savedId: doc.id, workbook: doc, dirty: false });
+    expect(useTabs.getState().tabs[0]).toMatchObject({
+      source: 'workbook',
+      title: 'Hygiene',
+      savedId: doc.id,
+      workbook: doc,
+      dirty: false,
+    });
 
     fireEvent.click(screen.getByRole('button', { name: 'More for Hygiene' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
@@ -267,11 +281,23 @@ describe('SavedPanel', () => {
 
   it('saved_groups_workbooks_by_their_folder_in_the_workbooks_tab', async () => {
     library = { queries: [], folders: [], skipped: 0 };
-    const summary = (id: string, name: string, folder: string | null) => ({ id, name, folder, modifiedAt: '2026-11-01T00:00:00Z', widgets: 0 });
+    const summary = (id: string, name: string, folder: string | null) => ({
+      id,
+      name,
+      folder,
+      modifiedAt: '2026-11-01T00:00:00Z',
+      widgets: 0,
+    });
     // "Identity" is also a query folder name elsewhere; the workbook folder folds on its own.
-    const workbooks: WorkbookList = { workbooks: [summary('w1', 'Hygiene', 'Identity'), summary('w2', 'Costs', null)], folders: ['Identity'], skipped: 0 };
+    const workbooks: WorkbookList = {
+      workbooks: [summary('w1', 'Hygiene', 'Identity'), summary('w2', 'Costs', null)],
+      folders: ['Identity'],
+      skipped: 0,
+    };
     const answer = bridge.call.getMockImplementation()!;
-    bridge.call.mockImplementation((method: string, params?: { id?: string }) => (method === 'workbook.list' ? Promise.resolve(workbooks) : answer(method, params)));
+    bridge.call.mockImplementation((method: string, params?: { id?: string }) =>
+      method === 'workbook.list' ? Promise.resolve(workbooks) : answer(method, params),
+    );
     render(<SavedPanel />);
     expect(await screen.findByText(/No saved queries yet/)).toBeTruthy();
     fireEvent.click(screen.getByRole('tab', { name: /Workbooks/ }));

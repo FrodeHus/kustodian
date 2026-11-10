@@ -22,7 +22,11 @@ interface Opened {
 
 /** Opens a button's run: reads tools.list, finds the tool by name, and shows RunToolDialog on the rows toolTarget chooses.
  * Problems go to onNotice. */
-export function useToolRun(tabId: string, widget: Widget, onNotice: (n: Notice) => void): { open(button: ToolButton): void; dialog: ReactNode } {
+export function useToolRun(
+  tabId: string,
+  widget: Widget,
+  onNotice: (n: Notice) => void,
+): { open(button: ToolButton): void; dialog: ReactNode } {
   const [opened, setOpened] = useState<Opened | null>(null);
   const editTools = {
     label: 'Edit tools…',

@@ -172,7 +172,13 @@ const FROMS: unknown[] = ['workbook', 'widget', 'fixed'] satisfies ParamFrom[];
 
 /** A query's own parameter definition; null when it isn't one. */
 function parseParamDef(v: unknown): ParameterDef | null {
-  if (!isObj(v) || typeof v.name !== 'string' || typeof v.type !== 'string' || typeof v.value !== 'string' || typeof v.required !== 'boolean') {
+  if (
+    !isObj(v) ||
+    typeof v.name !== 'string' ||
+    typeof v.type !== 'string' ||
+    typeof v.value !== 'string' ||
+    typeof v.required !== 'boolean'
+  ) {
     return null;
   }
   return { ...v, name: v.name, type: v.type, value: v.value, required: v.required, choices: choices(v.choices) };
@@ -217,8 +223,7 @@ function clampLayout(type: WidgetType, v: unknown): WidgetLayout {
   };
 }
 
-const oneOf = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T =>
-  allowed.includes(v as T) ? (v as T) : fallback;
+const oneOf = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T => (allowed.includes(v as T) ? (v as T) : fallback);
 
 /**
  * Unlike the rest of the model this builds a new object from the six known fields only: a workbook file is shared, and
@@ -255,7 +260,9 @@ function parseHistory(v: unknown): WidgetHistory | null {
 }
 
 const parseTabs = (v: unknown): Tab[] =>
-  (Array.isArray(v) ? v : []).flatMap((t) => (isObj(t) ? [{ id: typeof t.id === 'string' && t.id !== '' ? t.id : newTabId(), name: str(t.name, '') }] : []));
+  (Array.isArray(v) ? v : []).flatMap((t) =>
+    isObj(t) ? [{ id: typeof t.id === 'string' && t.id !== '' ? t.id : newTabId(), name: str(t.name, '') }] : [],
+  );
 
 const parsePlace = (v: unknown): Place | undefined =>
   isObj(v) && typeof v.tabs === 'string' && typeof v.tab === 'string' ? { tabs: v.tabs, tab: v.tab } : undefined;
@@ -297,8 +304,7 @@ function parseWidget(v: unknown): Widget | null {
   };
 }
 
-const overlaps = (a: WidgetLayout, b: WidgetLayout) =>
-  a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+const overlaps = (a: WidgetLayout, b: WidgetLayout) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
 /** Gives each widget whose id an earlier one has a new id. */
 function uniqueIds(widgets: Widget[]): Widget[] {

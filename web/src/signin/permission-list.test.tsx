@@ -5,7 +5,17 @@ import { PermissionList } from './permission-list';
 import { lostTables, permKey } from './permission-plan';
 
 function perm(name: string, tables: string[], extra: Partial<PlannedPermission> = {}): PlannedPermission {
-  return { resource: 'Microsoft Graph', resourceAppId: 'g', name, adminConsent: true, description: '', tables, unlocks: null, ticked: true, ...extra };
+  return {
+    resource: 'Microsoft Graph',
+    resourceAppId: 'g',
+    name,
+    adminConsent: true,
+    description: '',
+    tables,
+    unlocks: null,
+    ticked: true,
+    ...extra,
+  };
 }
 
 const all = perm('Directory.Read.All', ['users', 'groups', 'devices']);

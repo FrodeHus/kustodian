@@ -25,7 +25,9 @@ export function StatWidget({ widget, run, tabId }: { widget: Widget; run: Widget
   if (h?.mode === 'rows') {
     // This run's rows: stored history can be an earlier run's (one record per interval, or this one not kept).
     value = rows.length;
-    change = changes ? `${number(changes.newCount)} new · ${number(changes.goneCount)} no longer reported since ${sinceWords(h.since)}` : null;
+    change = changes
+      ? `${number(changes.newCount)} new · ${number(changes.goneCount)} no longer reported since ${sinceWords(h.since)}`
+      : null;
   } else if (valueAt < 0 || rows.length === 0 || !Number.isFinite(value)) {
     return <p className="faint m-0 p-4 text-[12px]">No number to show.</p>;
   } else if (h) {

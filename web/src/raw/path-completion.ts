@@ -63,5 +63,11 @@ export function completePath(schema: SchemaView | null, path: string, caret: num
   // The word being typed: after the last comma or space (`$select=a,b`, `$orderby=a desc,b`), or after any non-name character
   // in a filter expression.
   const word = /[A-Za-z0-9_]*$/.exec(before)![0];
-  return { from: caret - word.length, items: table.columns.map((c) => c.name).filter(startsWith(word)).slice(0, MAX_ITEMS) };
+  return {
+    from: caret - word.length,
+    items: table.columns
+      .map((c) => c.name)
+      .filter(startsWith(word))
+      .slice(0, MAX_ITEMS),
+  };
 }

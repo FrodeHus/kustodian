@@ -31,7 +31,12 @@ export function recordable(run: WidgetRun, dirty: boolean): SkipReason | null {
 }
 
 /** The setting as sent to the host; Values mode has no key columns (the host refuses keys the result lacks). */
-export const historySetting = (h: WidgetHistory) => ({ mode: h.mode, interval: h.interval, retentionDays: h.retentionDays, keys: h.mode === 'rows' ? h.keys : [] });
+export const historySetting = (h: WidgetHistory) => ({
+  mode: h.mode,
+  interval: h.interval,
+  retentionDays: h.retentionDays,
+  keys: h.mode === 'rows' ? h.keys : [],
+});
 
 /** What to send: the whole result (Values; the host refuses over 500 rows), or key columns then `keep` (Rows). */
 export function historyRows(result: RunResult, h: WidgetHistory): { columns: ResultColumn[]; rows: unknown[][] } | 'keysNotUnique' {
@@ -57,7 +62,10 @@ export function seriesLabel(params: ResolvedParam[]): string {
   const parts = params
     .filter((p) => p.from !== 'fixed')
     .flatMap((p) => {
-      const values = p.value.split('\n').map((v) => v.trim()).filter((v) => v !== '');
+      const values = p.value
+        .split('\n')
+        .map((v) => v.trim())
+        .filter((v) => v !== '');
       return values.length ? [`${p.name} = ${values.join(', ')}`] : [];
     });
   return parts.length ? parts.join(', ') : 'All values';
@@ -100,7 +108,10 @@ const localDay = (iso: string) => {
 
 /** The snapshots as one table, oldest first, with a leading `Snapshot` column. For `day`, a row of nulls on each missing day,
  * so the chart draws a gap there. Columns are the latest snapshot's; an older snapshot's are matched by name. */
-export function withGaps(snapshots: HistoryValues['snapshots'], interval: WidgetHistory['interval']): { columns: ResultColumn[]; rows: unknown[][] } {
+export function withGaps(
+  snapshots: HistoryValues['snapshots'],
+  interval: WidgetHistory['interval'],
+): { columns: ResultColumn[]; rows: unknown[][] } {
   const sorted = [...snapshots].sort((a, b) => Date.parse(a.takenAt) - Date.parse(b.takenAt));
   const columns = sorted.at(-1)?.columns ?? [];
   const rows: unknown[][] = [];
@@ -108,7 +119,11 @@ export function withGaps(snapshots: HistoryValues['snapshots'], interval: Widget
   for (const s of sorted) {
     const day = localDay(s.takenAt);
     if (interval === 'day' && last) {
-      for (let d = new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1); d < day; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+      for (
+        let d = new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1);
+        d < day;
+        d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)
+      ) {
         rows.push([d.toISOString(), ...columns.map(() => null)]);
       }
     }
@@ -128,12 +143,21 @@ export function withGaps(snapshots: HistoryValues['snapshots'], interval: Widget
 
 const numberText = (n: number) => n.toLocaleString('en-US');
 /** A cell as a number; NaN for null, '' and anything else that isn't one (Number would read null and '' as 0). */
-export const numberOf = (cell: unknown) => (cell === null || cell === undefined || (typeof cell === 'string' && cell.trim() === '') ? NaN : Number(cell));
+export const numberOf = (cell: unknown) =>
+  cell === null || cell === undefined || (typeof cell === 'string' && cell.trim() === '') ? NaN : Number(cell);
 
 /** The live run's `live.value` against the last snapshot from before that run (taken before `live.at`, ms) that is on or before
  * the since day, or (`'previous'`) the last one. Snapshots from `live.at` on are that run's own record. */
-export function statChange(h: HistoryValues, valueColumn: string, since: string, now: Date, live: { value: number; at: number }): { text: string; at: string } | null {
-  const snaps = [...h.snapshots].sort((a, b) => Date.parse(a.takenAt) - Date.parse(b.takenAt)).filter((s) => Date.parse(s.takenAt) < live.at);
+export function statChange(
+  h: HistoryValues,
+  valueColumn: string,
+  since: string,
+  now: Date,
+  live: { value: number; at: number },
+): { text: string; at: string } | null {
+  const snaps = [...h.snapshots]
+    .sort((a, b) => Date.parse(a.takenAt) - Date.parse(b.takenAt))
+    .filter((s) => Date.parse(s.takenAt) < live.at);
   const day = since === 'previous' ? null : new Date(sinceInstant(since, now));
   // Any time on the since day counts: the bound is the next local midnight.
   const end = day && new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1).getTime();
@@ -148,7 +172,10 @@ export function statChange(h: HistoryValues, valueColumn: string, since: string,
   }
   const diff = current - then;
   const vs = `vs ${sinceWords(since)}`;
-  return { text: diff === 0 ? `No change ${vs}` : `${diff < 0 ? '▼' : '▲'} ${numberText(Math.abs(diff))} ${vs} (${numberText(then)})`, at: old.takenAt };
+  return {
+    text: diff === 0 ? `No change ${vs}` : `${diff < 0 ? '▼' : '▲'} ${numberText(Math.abs(diff))} ${vs} (${numberText(then)})`,
+    at: old.takenAt,
+  };
 }
 
 /** Whole days from `from` to `now`. */
@@ -196,7 +223,10 @@ export function useHistory(tabId: string, widget: Widget, run: WidgetRun): Histo
     const read: Promise<HistoryView> =
       h.mode === 'values'
         ? call<HistoryValues>('history.values', params).then((values) => ({ values, readAt: Date.now() }))
-        : call<HistoryChanges>('history.changes', { ...params, since: sinceInstant(since, new Date()) }).then((changes) => ({ changes, readAt: Date.now() }));
+        : call<HistoryChanges>('history.changes', { ...params, since: sinceInstant(since, new Date()) }).then((changes) => ({
+            changes,
+            readAt: Date.now(),
+          }));
     read.then(
       (v) => n === latest.current && setView(v),
       (e: unknown) => n === latest.current && setView({ error: errorText(e) }),

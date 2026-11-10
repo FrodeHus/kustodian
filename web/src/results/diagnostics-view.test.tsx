@@ -80,15 +80,32 @@ describe('DiagnosticsView', () => {
   });
 
   it('diagnostics_wording_follows_source', () => {
-    const stat = (label: string) => within(screen.getByRole('region', { name: 'Run statistics' })).queryByText(label)?.nextElementSibling?.textContent;
-    const hunting: RunResult = { ...result, diagnostics: [{ atMs: 0, kind: 'request', detail: 'POST security/runHuntingQuery', status: 200, durationMs: 800, bytes: 900 }] };
+    const stat = (label: string) =>
+      within(screen.getByRole('region', { name: 'Run statistics' })).queryByText(label)?.nextElementSibling?.textContent;
+    const hunting: RunResult = {
+      ...result,
+      diagnostics: [{ atMs: 0, kind: 'request', detail: 'POST security/runHuntingQuery', status: 200, durationMs: 800, bytes: 900 }],
+    };
     const view = render(<DiagnosticsView result={hunting} source="hunting" />);
     expect(stat('Hunting queries')).toBe('1');
     expect(stat('Graph requests')).toBeUndefined();
     expect(stat('From cache')).toBeUndefined();
 
-    const page = { atMs: 0, kind: 'request' as const, detail: 'POST providers/Microsoft.ResourceGraph/resources', status: 200, durationMs: 800, bytes: 900 };
-    view.rerender(<DiagnosticsView result={{ ...result, diagnostics: [page, page, page] }} source="arg" scope={{ kind: 'subscriptions', ids: ['a', 'b'] }} />);
+    const page = {
+      atMs: 0,
+      kind: 'request' as const,
+      detail: 'POST providers/Microsoft.ResourceGraph/resources',
+      status: 200,
+      durationMs: 800,
+      bytes: 900,
+    };
+    view.rerender(
+      <DiagnosticsView
+        result={{ ...result, diagnostics: [page, page, page] }}
+        source="arg"
+        scope={{ kind: 'subscriptions', ids: ['a', 'b'] }}
+      />,
+    );
     expect(stat('Pages')).toBe('3');
     expect(stat('Scope')).toBe('2 subscriptions');
     expect(stat('Graph requests')).toBeUndefined();

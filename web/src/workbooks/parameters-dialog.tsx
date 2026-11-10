@@ -86,7 +86,8 @@ export function ParametersDialog({ tabId, onClose }: { tabId: string; onClose: (
 
   const change = (patch: Partial<WorkbookParameter>) => setRows(rows.map((r, i) => (i === sel ? { ...r, p: { ...r.p, ...patch } } : r)));
   // One workbook timespan sends the hunting timespan: marking this one clears the mark elsewhere.
-  const markHunting = (on: boolean) => setRows(rows.map((r, i) => ({ ...r, p: { ...r.p, huntingTimespan: i === sel ? on : on ? false : r.p.huntingTimespan } })));
+  const markHunting = (on: boolean) =>
+    setRows(rows.map((r, i) => ({ ...r, p: { ...r.p, huntingTimespan: i === sel ? on : on ? false : r.p.huntingTimespan } })));
   const add = () => {
     let n = 1;
     while (rows.some((r) => r.p.name === `Parameter${n}`)) {
@@ -143,7 +144,10 @@ export function ParametersDialog({ tabId, onClose }: { tabId: string; onClose: (
       widgets:
         renamed.size === 0
           ? d.widgets
-          : d.widgets.map((w) => ({ ...w, parameters: Object.fromEntries(Object.entries(w.parameters).map(([k, v]) => [renamed.get(k) ?? k, v])) })),
+          : d.widgets.map((w) => ({
+              ...w,
+              parameters: Object.fromEntries(Object.entries(w.parameters).map(([k, v]) => [renamed.get(k) ?? k, v])),
+            })),
     }));
     // Edits don't rerun widgets (the store's ruling): the parameters changed, so everything reruns.
     void store.runAll(tabId);
@@ -215,10 +219,17 @@ export function ParametersDialog({ tabId, onClose }: { tabId: string; onClose: (
             <div className="flex flex-col gap-3">
               <label className="field">
                 <span>Name</span>
-                <input className="textbox mono" value={p.name} aria-invalid={!!err} aria-describedby={`${id}-name`} onChange={(e) => change({ name: e.target.value })} />
+                <input
+                  className="textbox mono"
+                  value={p.name}
+                  aria-invalid={!!err}
+                  aria-describedby={`${id}-name`}
+                  onChange={(e) => change({ name: e.target.value })}
+                />
               </label>
               <span id={`${id}-name`} className="faint text-[11.5px]">
-                Renaming renames the widgets’ own entries only; it doesn’t edit query text, so change {'{' + (row?.orig ?? p.name) + '}'} in queries yourself.
+                Renaming renames the widgets’ own entries only; it doesn’t edit query text, so change {'{' + (row?.orig ?? p.name) + '}'} in
+                queries yourself.
               </span>
               {err && (
                 <span className="text-[12px] text-bad" role="alert">
@@ -227,7 +238,11 @@ export function ParametersDialog({ tabId, onClose }: { tabId: string; onClose: (
               )}
               <label className="field">
                 <span>Label</span>
-                <input className="textbox" value={p.label ?? ''} onChange={(e) => change({ label: e.target.value === '' ? null : e.target.value })} />
+                <input
+                  className="textbox"
+                  value={p.label ?? ''}
+                  onChange={(e) => change({ label: e.target.value === '' ? null : e.target.value })}
+                />
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <label className="field">
@@ -242,7 +257,11 @@ export function ParametersDialog({ tabId, onClose }: { tabId: string; onClose: (
                 </label>
                 <label className="field">
                   <span>Choices</span>
-                  <select className="textbox" value={p.choices ? 'fixed' : 'none'} onChange={(e) => change({ choices: e.target.value === 'fixed' ? [''] : null })}>
+                  <select
+                    className="textbox"
+                    value={p.choices ? 'fixed' : 'none'}
+                    onChange={(e) => change({ choices: e.target.value === 'fixed' ? [''] : null })}
+                  >
                     <option value="none">None, free entry</option>
                     <option value="fixed">Fixed list</option>
                   </select>
@@ -251,13 +270,25 @@ export function ParametersDialog({ tabId, onClose }: { tabId: string; onClose: (
               {p.choices && (
                 <label className="field">
                   <span>Fixed list</span>
-                  <textarea className="textbox mono h-auto py-1.5" rows={3} placeholder="One per line" value={p.choices.join('\n')} onChange={(e) => change({ choices: e.target.value.split('\n') })} />
+                  <textarea
+                    className="textbox mono h-auto py-1.5"
+                    rows={3}
+                    placeholder="One per line"
+                    value={p.choices.join('\n')}
+                    onChange={(e) => change({ choices: e.target.value.split('\n') })}
+                  />
                 </label>
               )}
               <label className="field">
                 <span>Default</span>
                 {p.type === 'list' && !p.choices ? (
-                  <textarea className="textbox mono h-auto py-1.5" rows={3} placeholder="One value per line" value={p.value} onChange={(e) => change({ value: e.target.value })} />
+                  <textarea
+                    className="textbox mono h-auto py-1.5"
+                    rows={3}
+                    placeholder="One value per line"
+                    value={p.value}
+                    onChange={(e) => change({ value: e.target.value })}
+                  />
                 ) : (
                   <input className="textbox mono" value={p.value} onChange={(e) => change({ value: e.target.value })} />
                 )}

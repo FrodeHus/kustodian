@@ -33,7 +33,20 @@ beforeEach(() => {
   const w = newWidget('table', { x: 0, y: 0, w: 3, h: 8 });
   doc = {
     ...newWorkbook('Hygiene'),
-    parameters: [{ name: 'Who', type: 'text', value: 'default', required: false, choices: null, label: null, multi: false, all: false, remember: true, huntingTimespan: false }],
+    parameters: [
+      {
+        name: 'Who',
+        type: 'text',
+        value: 'default',
+        required: false,
+        choices: null,
+        label: null,
+        multi: false,
+        all: false,
+        remember: true,
+        huntingTimespan: false,
+      },
+    ],
     widgets: [{ ...w, query: { ...w.query!, text: 'stale text', saved: { id: linked.id, name: 'Old' } } }],
   };
   answer = { path: '/x/h.json', name: 'h.json' };
@@ -109,7 +122,16 @@ describe('exportWorkbook', () => {
 
 describe('importWorkbook', () => {
   const file = (over: object = {}) =>
-    JSON.stringify({ kind: 'kustodian.workbook', version: 1, id: '5b0c9a6e-1f7d-4c2a-9e3b-8d4f6a2c1e07', name: 'VM hygiene', folder: null, parameters: [], widgets: [], ...over });
+    JSON.stringify({
+      kind: 'kustodian.workbook',
+      version: 1,
+      id: '5b0c9a6e-1f7d-4c2a-9e3b-8d4f6a2c1e07',
+      name: 'VM hygiene',
+      folder: null,
+      parameters: [],
+      widgets: [],
+      ...over,
+    });
   let text: string;
 
   beforeEach(() => {

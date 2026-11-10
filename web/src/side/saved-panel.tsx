@@ -126,7 +126,9 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
       return;
     }
     const { id, folder, text, parameters, options } = q;
-    call<SavedQuery>('library.save', { query: { id, name: trimmed, folder, source: q.source, text, parameters, options: options ?? null } }).then(
+    call<SavedQuery>('library.save', {
+      query: { id, name: trimmed, folder, source: q.source, text, parameters, options: options ?? null },
+    }).then(
       (saved) => {
         const { tabs, setTitle } = useTabs.getState();
         tabs.filter((t) => t.savedId === saved.id).forEach((t) => setTitle(t.id, saved.name));
@@ -281,8 +283,23 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
     const open = needle !== '' || !folded[key];
     return (
       <li key={`folder:${key}`}>
-        <button type="button" className="side-open folder" aria-label={name} aria-expanded={open} onClick={() => setFolded((s) => ({ ...s, [key]: open }))}>
-          <svg className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+        <button
+          type="button"
+          className="side-open folder"
+          aria-label={name}
+          aria-expanded={open}
+          onClick={() => setFolded((s) => ({ ...s, [key]: open }))}
+        >
+          <svg
+            className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`}
+            width="10"
+            height="10"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            aria-hidden="true"
+          >
             <path d="M9 6l6 6-6 6" />
           </svg>
           <span className="truncate">{name}</span>
@@ -298,12 +315,21 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
   const grouped = (key: string, qs: SavedQuery[]) => {
     const { groups, rest } = byPrefix(qs);
     return [
-      ...groups.map(([p, gs]) => folder(`${key}/${p}`, p, gs.length, gs.map((q) => row(q, q.name.slice(p.length + 3))))),
+      ...groups.map(([p, gs]) =>
+        folder(
+          `${key}/${p}`,
+          p,
+          gs.length,
+          gs.map((q) => row(q, q.name.slice(p.length + 3))),
+        ),
+      ),
       ...rest.map((q) => row(q)),
     ];
   };
   const { pinned: pinnedQueries, others: otherQueries } = pinnedOf(queries, pins.queries);
-  const folders = (list?.folders ?? []).map((f) => ({ name: f, queries: otherQueries.filter((q) => q.folder === f) })).filter((f) => f.queries.length > 0);
+  const folders = (list?.folders ?? [])
+    .map((f) => ({ name: f, queries: otherQueries.filter((q) => q.folder === f) }))
+    .filter((f) => f.queries.length > 0);
   const loose = otherQueries.filter((q) => !q.folder || !list?.folders.includes(q.folder));
   const tab = (k: typeof kind, label: string, count: number) => (
     <button type="button" role="tab" className="rtab h-8 flex-1" aria-selected={kind === k} onClick={() => setKind(k)}>
@@ -338,10 +364,18 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
           <>
             {list && list.skipped > 0 && <p className="m-0 px-[14px] pb-2 text-[12px] text-warn">{skippedText(list.skipped)}</p>}
             {list && queries.length === 0 && (
-              <p className="faint m-0 px-[14px] text-[12px]">{needle ? 'No saved query matches.' : `No saved queries yet. Save a query with ${MOD} S.`}</p>
+              <p className="faint m-0 px-[14px] text-[12px]">
+                {needle ? 'No saved query matches.' : `No saved queries yet. Save a query with ${MOD} S.`}
+              </p>
             )}
             <ul className="side-list">
-              {pinnedQueries.length > 0 && folder('\0pinned', 'Pinned', pinnedQueries.length, pinnedQueries.map((q) => row(q)))}
+              {pinnedQueries.length > 0 &&
+                folder(
+                  '\0pinned',
+                  'Pinned',
+                  pinnedQueries.length,
+                  pinnedQueries.map((q) => row(q)),
+                )}
               {folders.map((f) => folder(f.name, f.name, f.queries.length, grouped(f.name, f.queries)))}
               {grouped('', loose)}
             </ul>
@@ -350,14 +384,17 @@ export function SavedPanel({ source = 'graph' }: { source?: Source }) {
           <>
             {workbooks && workbooks.skipped > 0 && (
               <p className="m-0 px-[14px] pb-2 text-[12px] text-warn">
-                {workbooks.skipped === 1 ? '1 workbook couldn’t be read and was moved aside.' : `${workbooks.skipped} workbooks couldn’t be read and were moved aside.`}
+                {workbooks.skipped === 1
+                  ? '1 workbook couldn’t be read and was moved aside.'
+                  : `${workbooks.skipped} workbooks couldn’t be read and were moved aside.`}
               </p>
             )}
             {workbooks && shownWorkbooks.length === 0 && (
               <p className="faint m-0 px-[14px] text-[12px]">{needle ? 'No workbook matches.' : 'No workbooks yet.'}</p>
             )}
             <ul className="side-list">
-              {pinnedWorkbooks.length > 0 && folder('workbooks/\0pinned', 'Pinned', pinnedWorkbooks.length, pinnedWorkbooks.map(workbookRow))}
+              {pinnedWorkbooks.length > 0 &&
+                folder('workbooks/\0pinned', 'Pinned', pinnedWorkbooks.length, pinnedWorkbooks.map(workbookRow))}
               {workbookFolders.map((f) => folder(f.key, f.name, f.items.length, f.items.map(workbookRow)))}
               {looseWorkbooks.map(workbookRow)}
             </ul>

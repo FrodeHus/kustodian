@@ -8,7 +8,11 @@ const isReadOnly = (permission: string) => /\.read/i.test(permission) && !/write
  * permission (of any kind) the account already has, so granting wouldn't help; `null` is no offer (no account, the Azure CLI whose client
  * can't be granted anything, a Resource Graph or raw run, or no read-only permission listed).
  */
-export function grantOffer(account: AccountInfo | undefined, permissions: string[], source: string): { scope: string } | { held: string } | null {
+export function grantOffer(
+  account: AccountInfo | undefined,
+  permissions: string[],
+  source: string,
+): { scope: string } | { held: string } | null {
   if (!account || account.clientKind === 'azureCli' || (source !== 'graph' && source !== 'hunting')) {
     return null;
   }

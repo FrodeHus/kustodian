@@ -73,7 +73,11 @@ function show(runs: Record<string, WidgetRun>, editing = false) {
     undo: [],
     redo: [],
     dirty: false,
-    selections: {}, history: {}, since: {}, activeTabs: {}, stale: {},
+    selections: {},
+    history: {},
+    since: {},
+    activeTabs: {},
+    stale: {},
   };
   useWorkbooks.setState({ byTab: { t: state }, setWorkbookValue, setWidgetValue });
   return render(<WorkbookView tabId="t" />);
@@ -220,7 +224,10 @@ describe('WorkbookView', () => {
   });
 
   it('picks several values in a menu of checks, kept in the choices order', () => {
-    doc = { ...doc, parameters: [{ ...env, name: 'Sev', label: 'Severity', multi: true, all: true, choices: ['High', 'Medium', 'Low'], value: 'High' }] };
+    doc = {
+      ...doc,
+      parameters: [{ ...env, name: 'Sev', label: 'Severity', multi: true, all: true, choices: ['High', 'Medium', 'Low'], value: 'High' }],
+    };
     show({});
     act(() => useWorkbooks.setState((st) => ({ byTab: { t: { ...st.byTab.t!, values: { workbook: { Sev: 'Low' }, widgets: {} } } } })));
     const pick = screen.getByRole('button', { name: 'Severity' });
@@ -236,7 +243,9 @@ describe('WorkbookView', () => {
     const setParamsCollapsed = vi.fn();
     useWorkbooks.setState({ setParamsCollapsed });
     show({});
-    act(() => useWorkbooks.setState((st) => ({ byTab: { t: { ...st.byTab.t!, values: { workbook: { Env: 'test', Days: '7' }, widgets: {} } } } })));
+    act(() =>
+      useWorkbooks.setState((st) => ({ byTab: { t: { ...st.byTab.t!, values: { workbook: { Env: 'test', Days: '7' }, widgets: {} } } } })),
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
     expect(setWorkbookValue).toHaveBeenCalledTimes(1);
     expect(setWorkbookValue).toHaveBeenCalledWith('t', 'Env', 'prod', { now: true });
@@ -347,7 +356,11 @@ describe('WorkbookView', () => {
     const inner = document.querySelector('[data-wb-place="tw/t1"]')!;
     expect(inner.classList.contains('wb-grid')).toBe(true);
     expect(document.querySelector('[data-wb-place=""]')?.classList.contains('wb-grid')).toBe(true);
-    expect(within(inner as HTMLElement).getByRole('region', { name: 'Inside' }).classList.contains('wb-widget')).toBe(true);
+    expect(
+      within(inner as HTMLElement)
+        .getByRole('region', { name: 'Inside' })
+        .classList.contains('wb-widget'),
+    ).toBe(true);
     // The container rule is on .wb-widget wherever it sits, under the one .wb-canvas container.
     expect(styles).toMatch(/@container \(max-width: 899px\) \{ \.wb-widget \{ grid-column: 1 \/ -1;/);
   });

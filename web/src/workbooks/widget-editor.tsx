@@ -45,14 +45,20 @@ const SECTIONS: [Section, string][] = [
 /** Whether an edit changes what a stored series means: the query, its source or options, or what history tracks (or that it is on). */
 const changesSeries = (a: Widget, b: Widget): boolean =>
   JSON.stringify([a.query?.text, a.query?.saved?.id, a.query?.source, a.query?.options, a.history?.mode, a.history?.keys]) !==
-    JSON.stringify([b.query?.text, b.query?.saved?.id, b.query?.source, b.query?.options, b.history?.mode, b.history?.keys]) ||
-  !b.history;
+    JSON.stringify([b.query?.text, b.query?.saved?.id, b.query?.source, b.query?.options, b.history?.mode, b.history?.keys]) || !b.history;
 
 /** The query a saved one makes: its source, text, options and parameters, linked when `linked`. */
 const fromSaved = (query: WidgetQuery, q: SavedQuery, linked: boolean): WidgetQuery =>
   q.source === 'raw'
     ? query
-    : { ...query, source: q.source, text: q.text, options: q.options ?? null, parameters: q.parameters, saved: linked ? { id: q.id, name: q.name } : null };
+    : {
+        ...query,
+        source: q.source,
+        text: q.text,
+        options: q.options ?? null,
+        parameters: q.parameters,
+        saved: linked ? { id: q.id, name: q.name } : null,
+      };
 
 /**
  * Edit widget (spec 5.4 and 6.2, screen 3): the title, then for a data widget its Query (written here, or a linked saved
@@ -71,7 +77,9 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
   const refocusApply = useRef(false);
   const [applyError, setApplyError] = useState<string | null>(null);
   const [queries, setQueries] = useState<SavedQuery[] | null>(null);
-  const [preview, setPreview] = useState<{ state: 'running' } | { state: 'done'; result: RunResult } | { state: 'failed'; text: string } | null>(null);
+  const [preview, setPreview] = useState<
+    { state: 'running' } | { state: 'done'; result: RunResult } | { state: 'failed'; text: string } | null
+  >(null);
   const schemas = useSchemas((s) => s.byKey);
   const id = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -172,7 +180,10 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
       .then(() => store().runDraft(tabId, draft))
       .then(
         (result) => n === previews.current && setPreview({ state: 'done', result }),
-        (e: unknown) => n === previews.current && !(e instanceof DOMException && e.name === 'AbortError') && setPreview({ state: 'failed', text: errorText(e) }),
+        (e: unknown) =>
+          n === previews.current &&
+          !(e instanceof DOMException && e.name === 'AbortError') &&
+          setPreview({ state: 'failed', text: errorText(e) }),
       );
   };
 
@@ -234,7 +245,11 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
                   }
                 }}
               >
-                {!linked && <option value={query.saved.id}>{query.saved.id ? `${query.saved.name} (not in the library)` : 'Choose a saved query…'}</option>}
+                {!linked && (
+                  <option value={query.saved.id}>
+                    {query.saved.id ? `${query.saved.name} (not in the library)` : 'Choose a saved query…'}
+                  </option>
+                )}
                 {queries?.map((q) => (
                   <option key={q.id} value={q.id}>
                     {q.name}
@@ -250,9 +265,13 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
                 Copy into widget
               </button>
             </div>
-            {query.saved.id && <pre className="mono card m-0 max-h-48 overflow-auto p-2 text-[12px] whitespace-pre-wrap">{live.query?.text}</pre>}
+            {query.saved.id && (
+              <pre className="mono card m-0 max-h-48 overflow-auto p-2 text-[12px] whitespace-pre-wrap">{live.query?.text}</pre>
+            )}
             {linked && (
-              <span className="faint text-[12px]">Linked: changes to the saved query show up here. Saved {new Date(linked.modifiedAt).toLocaleString()}.</span>
+              <span className="faint text-[12px]">
+                Linked: changes to the saved query show up here. Saved {new Date(linked.modifiedAt).toLocaleString()}.
+              </span>
             )}
           </>
         ) : (
@@ -349,14 +368,17 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
               })}
             </tbody>
           </table>
-          <span className="faint text-[12px]">Workbook: follows the global value. Widget · shown: a control in the widget header. Fixed: a set value, no control.</span>
+          <span className="faint text-[12px]">
+            Workbook: follows the global value. Widget · shown: a control in the widget header. Fixed: a set value, no control.
+          </span>
         </div>
       );
 
     const picked = draft.chart ?? {};
     // The type and stacking the chart draws when the widget leaves them automatic, as the Chart tab works them out.
     const kql = live.query?.text ?? '';
-    const chartType = picked.type ?? (result ? chartShape(result.columns, result.rows, renderHint(kql), renderOptions(kql))?.type : undefined);
+    const chartType =
+      picked.type ?? (result ? chartShape(result.columns, result.rows, renderHint(kql), renderOptions(kql))?.type : undefined);
     const stack = picked.stack ?? renderOptions(kql).stack ?? 'none';
     const splits = (result?.columns ?? []).filter((c) => c.name !== picked.x && isCategory(c)).map((c) => c.name);
     // Keep a saved split listed before a preview has run, so the select shows it.
@@ -368,14 +390,25 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap gap-1" role="group" aria-label="Chart type">
             {CHART_TYPES.map((c) => (
-              <button key={c.type} type="button" className="btn" aria-pressed={picked.type === c.type} onClick={() => set({ chart: { ...picked, type: c.type } })}>
+              <button
+                key={c.type}
+                type="button"
+                className="btn"
+                aria-pressed={picked.type === c.type}
+                onClick={() => set({ chart: { ...picked, type: c.type } })}
+              >
                 {c.name}
               </button>
             ))}
           </div>
           {columns.length === 0 && <span className="faint text-[12px]">Run preview to choose columns.</span>}
           <div className="grid grid-cols-3 gap-3">
-            <ColumnSelect label="X" value={picked.x ?? ''} columns={columns} onChange={(x) => set({ chart: { ...picked, x: x || undefined } })} />
+            <ColumnSelect
+              label="X"
+              value={picked.x ?? ''}
+              columns={columns}
+              onChange={(x) => set({ chart: { ...picked, x: x || undefined } })}
+            />
             <ColumnSelect
               label="Y"
               value={picked.series?.[0] ?? ''}
@@ -404,7 +437,11 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
             {chartType && stackable(chartType) && (
               <label className="field">
                 <span>Stacking</span>
-                <select className="textbox" value={stack} onChange={(e) => set({ chart: { ...picked, stack: STACKS.find((t) => t.stack === e.target.value)?.stack } })}>
+                <select
+                  className="textbox"
+                  value={stack}
+                  onChange={(e) => set({ chart: { ...picked, stack: STACKS.find((t) => t.stack === e.target.value)?.stack } })}
+                >
                   {STACKS.map((t) => (
                     <option key={t.stack} value={t.stack}>
                       {t.name}
@@ -436,17 +473,25 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
       ) : null;
 
     const historyPanel = (
-      <HistorySection draft={draft} columns={result?.columns ?? []} result={result} set={(change) => setDraft(change(draft))} workbookId={doc.id} />
+      <HistorySection
+        draft={draft}
+        columns={result?.columns ?? []}
+        result={result}
+        set={(change) => setDraft(change(draft))}
+        workbookId={doc.id}
+      />
     );
     const shown = preview?.state === 'done' ? ({ state: 'done', result: preview.result } as const) : null;
     body = (
       <>
         <div role="tablist" aria-label="Widget settings" className="flex">
-          {SECTIONS.filter(([s]) => (s === 'visualization' ? visualizationPanel : s !== 'tools' || draft.type === 'table')).map(([s, name]) => (
-            <button key={s} type="button" role="tab" className="rtab" aria-selected={section === s} onClick={() => setSection(s)}>
-              {name}
-            </button>
-          ))}
+          {SECTIONS.filter(([s]) => (s === 'visualization' ? visualizationPanel : s !== 'tools' || draft.type === 'table')).map(
+            ([s, name]) => (
+              <button key={s} type="button" role="tab" className="rtab" aria-selected={section === s} onClick={() => setSection(s)}>
+                {name}
+              </button>
+            ),
+          )}
         </div>
         <div className="min-h-0 overflow-auto" role="tabpanel">
           {section === 'query' ? (
@@ -539,33 +584,33 @@ export function WidgetEditor({ tabId, widgetId, onClose }: { tabId: string; widg
             }}
           />
         ) : (
-        <div className="flex items-center justify-end gap-2">
-          {applyError && (
-            <span role="alert" className="text-[12px] text-bad">
-              {applyError}
-            </span>
-          )}
-          {needsKey && section !== 'history' && <span className="faint text-[12px]">Choose at least one key column.</span>}
-          {toolless && <span className="faint text-[12px]">Choose a tool for each button.</span>}
-          <button type="button" className="btn ghost" onClick={close}>
-            Cancel
-          </button>
-          <button
-            // The question replaced this row, Apply with it: Cancel gives focus back to the new Apply.
-            ref={(b) => {
-              if (b && refocusApply.current) {
-                refocusApply.current = false;
-                b.focus();
-              }
-            }}
-            type="button"
-            className="btn primary"
-            disabled={query?.saved?.id === '' || toolless || needsKey}
-            onClick={apply}
-          >
-            Apply
-          </button>
-        </div>
+          <div className="flex items-center justify-end gap-2">
+            {applyError && (
+              <span role="alert" className="text-[12px] text-bad">
+                {applyError}
+              </span>
+            )}
+            {needsKey && section !== 'history' && <span className="faint text-[12px]">Choose at least one key column.</span>}
+            {toolless && <span className="faint text-[12px]">Choose a tool for each button.</span>}
+            <button type="button" className="btn ghost" onClick={close}>
+              Cancel
+            </button>
+            <button
+              // The question replaced this row, Apply with it: Cancel gives focus back to the new Apply.
+              ref={(b) => {
+                if (b && refocusApply.current) {
+                  refocusApply.current = false;
+                  b.focus();
+                }
+              }}
+              type="button"
+              className="btn primary"
+              disabled={query?.saved?.id === '' || toolless || needsKey}
+              onClick={apply}
+            >
+              Apply
+            </button>
+          </div>
         )}
       </div>
     </div>

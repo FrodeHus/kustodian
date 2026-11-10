@@ -98,10 +98,24 @@ const INTERVAL_TEXT = { day: 'Daily', run: 'Every run', week: 'Weekly' } as cons
 
 /** A Widget · shown parameter's control: a select for one with choices, which reruns the widget at once, else a text box,
  * which reruns it when typing stops, or at once on Enter. */
-function ShownControl({ param, choices, onChange }: { param: ResolvedParam; choices: string[] | null; onChange: (value: string, now: boolean) => void }) {
+function ShownControl({
+  param,
+  choices,
+  onChange,
+}: {
+  param: ResolvedParam;
+  choices: string[] | null;
+  onChange: (value: string, now: boolean) => void;
+}) {
   if (choices) {
     return (
-      <select className="textbox mono" style={{ height: 24 }} aria-label={param.name} value={param.value} onChange={(e) => onChange(e.target.value, true)}>
+      <select
+        className="textbox mono"
+        style={{ height: 24 }}
+        aria-label={param.name}
+        value={param.value}
+        onChange={(e) => onChange(e.target.value, true)}
+      >
         {(choices.includes(param.value) ? choices : [param.value, ...choices]).map((c) => (
           <option key={c} value={c}>
             {c === '' ? '(none)' : c}
@@ -171,11 +185,25 @@ function ToolButtonItems({
 
 /** What a widget shows while it has no result: running, waiting, blocked, gone, or the error view. Null when it has one. */
 /** `onSetUp`, in edit mode, opens the widget editor from a widget with no query yet; focus goes back to `opener` after. */
-function runBody(tabId: string, widget: Widget, run: WidgetRun | undefined, onSignIn: () => void, onSetUp?: (opener: HTMLElement) => void): ReactNode {
+function runBody(
+  tabId: string,
+  widget: Widget,
+  run: WidgetRun | undefined,
+  onSignIn: () => void,
+  onSetUp?: (opener: HTMLElement) => void,
+): ReactNode {
   const source = widget.query?.source ?? 'graph';
   const errorView = (result: RunResult, at: number | undefined) => (
     <RunStatus
-      run={{ state: 'done', source, runId: result.runId, result, startedAt: at ?? Date.now(), origin: { line: 1, column: 1 }, kql: widget.query?.text }}
+      run={{
+        state: 'done',
+        source,
+        runId: result.runId,
+        result,
+        startedAt: at ?? Date.now(),
+        origin: { line: 1, column: 1 },
+        kql: widget.query?.text,
+      }}
       onSignIn={onSignIn}
       onConsented={() => void useWorkbooks.getState().runWidget(tabId, widget.id)}
       onGranted={() => void useWorkbooks.getState().runWidget(tabId, widget.id)}
@@ -189,7 +217,13 @@ function runBody(tabId: string, widget: Widget, run: WidgetRun | undefined, onSi
           <span className="faint">No query yet.</span>
           {onSetUp && (
             // The button is gone once the widget has a query: focus goes back to its grip.
-            <button type="button" className="btn" onClick={(e) => onSetUp(e.currentTarget.closest('.wb-widget')?.querySelector<HTMLElement>('[data-wb-grip]') ?? e.currentTarget)}>
+            <button
+              type="button"
+              className="btn"
+              onClick={(e) =>
+                onSetUp(e.currentTarget.closest('.wb-widget')?.querySelector<HTMLElement>('[data-wb-grip]') ?? e.currentTarget)
+              }
+            >
               Set up widget
             </button>
           )}
@@ -250,7 +284,10 @@ export function WidgetFrame({
   const [filter, setFilter] = useState<HistoryFilter>('open');
   const history = useHistory(tabId, widget, run ?? { state: 'idle' });
   const recording = useWorkbooks((s) => s.byTab[tabId]?.history[widget.id]);
-  const selection = effectiveSelection(widget.selection, useWorkbooks((s) => s.byTab[tabId]?.selections[widget.id]));
+  const selection = effectiveSelection(
+    widget.selection,
+    useWorkbooks((s) => s.byTab[tabId]?.selections[widget.id]),
+  );
   const tools = useToolRun(tabId, widget, setNotice);
   const ref = useRef<HTMLElement>(null);
   // The pointer gesture under way: what it does, where it started, the grid's measured column pitch, and `stop` removing its
@@ -293,7 +330,8 @@ export function WidgetFrame({
   const live = effectiveWidget(tabId, widget) ?? widget;
   const params = widgetParams(doc, live, values);
   const choicesOf = (w: Widget, p: ResolvedParam) =>
-    (p.from === 'workbook' ? doc.parameters.find((d) => d.name === p.name) : w.query?.parameters.find((d) => d.name === p.name))?.choices ?? null;
+    (p.from === 'workbook' ? doc.parameters.find((d) => d.name === p.name) : w.query?.parameters.find((d) => d.name === p.name))?.choices ??
+    null;
   const result = run?.state === 'done' ? run.result : null;
 
   const openInTab = () => {
@@ -367,7 +405,8 @@ export function WidgetFrame({
     const gridIn = (panel: Element | null | undefined) => panel?.querySelector<HTMLElement>(':scope > [data-wb-place]') ?? undefined;
     const grid = gridIn(under?.closest('[role=tabpanel]')) ?? under?.closest<HTMLElement>('[data-wb-place]') ?? undefined;
     const place = tab ? placeKey({ tabs: tab.dataset.wbTabs!, tab: tab.dataset.wbTab! }) : grid?.dataset.wbPlace;
-    const shownGrid = tab?.getAttribute('aria-selected') === 'true' ? gridIn(document.getElementById(tab.getAttribute('aria-controls') ?? '')) : undefined;
+    const shownGrid =
+      tab?.getAttribute('aria-selected') === 'true' ? gridIn(document.getElementById(tab.getAttribute('aria-controls') ?? '')) : undefined;
     const el = tab ? (shownGrid ?? tab) : grid;
     const over = el && place !== undefined && place !== placeKey(placeOf(widget)) ? { el, place, at: !tab } : undefined;
     if (g.over?.el !== over?.el) {
@@ -436,7 +475,12 @@ export function WidgetFrame({
           setAway(off);
           setTarget(at);
           // The others make way live, except around a tabs widget: pushed aside, it could never be dropped into.
-          const onTabs = at && doc.widgets.some((w) => w.type === 'tabs' && w.id !== widget.id && placeKey(placeOf(w)) === placeKey(placeOf(widget)) && overlaps(w.layout, at));
+          const onTabs =
+            at &&
+            doc.widgets.some(
+              (w) =>
+                w.type === 'tabs' && w.id !== widget.id && placeKey(placeOf(w)) === placeKey(placeOf(widget)) && overlaps(w.layout, at),
+            );
           editing?.onPreview(off || onTabs ? null : next);
         }
       };
@@ -457,7 +501,12 @@ export function WidgetFrame({
           const r = over.at ? over.el.getBoundingClientRect() : null;
           editing?.onMoveTo(
             to.to,
-            r ? { x: Math.floor((u.clientX - r.left) / ((r.width + GAP_PX) / COLUMNS)), y: Math.floor((u.clientY - r.top) / (ROW_PX + GAP_PX)) } : undefined,
+            r
+              ? {
+                  x: Math.floor((u.clientX - r.left) / ((r.width + GAP_PX) / COLUMNS)),
+                  y: Math.floor((u.clientY - r.top) / (ROW_PX + GAP_PX)),
+                }
+              : undefined,
           );
         } else if (s && ref.current) {
           // Not when a tab shown mid-drag hid this widget: back over its home grid, that drop does nothing.
@@ -530,7 +579,9 @@ export function WidgetFrame({
         style={cellVars(shown)}
         className={`card wb-widget flex min-h-0 min-w-0 flex-col ${selected ? 'border-accent' : ''} ${full ? 'wb-full fixed inset-0 z-20 rounded-none' : 'relative'}`}
         // Not for a widget inside this one (in a tabs widget): that one selects itself.
-        onPointerDown={editing && ((e) => e.target instanceof Element && e.target.closest('.wb-widget') === e.currentTarget && editing.onSelect())}
+        onPointerDown={
+          editing && ((e) => e.target instanceof Element && e.target.closest('.wb-widget') === e.currentTarget && editing.onSelect())
+        }
       >
         {/* One row that never wraps (the title truncates, so it fits at the narrowest widget), then a row that wraps for the
             widget's own controls, and, in edit mode, its size; the workbook parameters it uses are a link icon in the corner. Edit mode's actions are ✎ and ⋯. */}
@@ -555,11 +606,30 @@ export function WidgetFrame({
               {title}
             </b>
             {/* Opening ⋯ (its button's click) starts it with its own items, not Move to…'s. */}
-            <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.target instanceof Element && e.target.closest('[aria-haspopup]') && setMoving(false)}>
+            <div
+              className="flex shrink-0 items-center gap-2"
+              onClick={(e) => e.target instanceof Element && e.target.closest('[aria-haspopup]') && setMoving(false)}
+            >
               {!editing && result && <span className="mono faint text-[11.5px]">{duration(result.durationMs)}</span>}
               {editing && (
-                <button type="button" className="btn ghost" aria-label="Edit widget" title="Edit widget" onClick={(e) => editing.onEditWidget(e.currentTarget)}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <button
+                  type="button"
+                  className="btn ghost"
+                  aria-label="Edit widget"
+                  title="Edit widget"
+                  onClick={(e) => editing.onEditWidget(e.currentTarget)}
+                >
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
                     <path d="M12 20h9" />
                     <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
                   </svg>
@@ -573,7 +643,11 @@ export function WidgetFrame({
                       role="menuitem"
                       tabIndex={-1}
                       // Focus goes back to ⋯ when the editor closes: the item is gone by then.
-                      onClick={(e) => editing.onEditWidget(e.currentTarget.closest('.relative')?.querySelector<HTMLElement>('[aria-haspopup]') ?? e.currentTarget)}
+                      onClick={(e) =>
+                        editing.onEditWidget(
+                          e.currentTarget.closest('.relative')?.querySelector<HTMLElement>('[aria-haspopup]') ?? e.currentTarget,
+                        )
+                      }
                     >
                       Edit widget
                     </button>
@@ -592,11 +666,18 @@ export function WidgetFrame({
                     </button>
                   </>
                 )}
-                {moving && editing && <MoveToItems widgets={doc.widgets} here={placeKey(placeOf(widget))} onMove={(to) => editing.onMoveTo(to)} />}
+                {moving && editing && (
+                  <MoveToItems widgets={doc.widgets} here={placeKey(placeOf(widget))} onMove={(to) => editing.onMoveTo(to)} />
+                )}
                 {!moving && widget.type === 'tabs' && refreshTab}
                 {!moving && widget.query && (
                   <>
-                    <button type="button" role="menuitem" tabIndex={-1} onClick={() => void useWorkbooks.getState().runWidget(tabId, widget.id, { refresh: true })}>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      tabIndex={-1}
+                      onClick={() => void useWorkbooks.getState().runWidget(tabId, widget.id, { refresh: true })}
+                    >
                       Refresh
                     </button>
                     <button type="button" role="menuitem" tabIndex={-1} onClick={openInTab}>
@@ -639,7 +720,12 @@ export function WidgetFrame({
               {params
                 .filter((p) => p.from === 'widget')
                 .map((p) => (
-                  <ShownControl key={p.name} param={p} choices={choicesOf(live, p)} onChange={(v, now) => useWorkbooks.getState().setWidgetValue(tabId, widget.id, p.name, v, { now })} />
+                  <ShownControl
+                    key={p.name}
+                    param={p}
+                    choices={choicesOf(live, p)}
+                    onChange={(v, now) => useWorkbooks.getState().setWidgetValue(tabId, widget.id, p.name, v, { now })}
+                  />
                 ))}
               {/* In this wrapping row, not the first, so the title keeps room at the narrowest widget. */}
               {(picked > 0 || headerTools) && (
@@ -668,8 +754,7 @@ export function WidgetFrame({
           </div>
         )}
         <div className={`flex min-h-0 flex-1 flex-col overflow-hidden ${bare && widget.type !== 'tabs' ? 'pt-3' : ''}`}>
-          {(widget.query &&
-            runBody(tabId, widget, run, onSignIn, editing?.onEditWidget)) ?? (
+          {(widget.query && runBody(tabId, widget, run, onSignIn, editing?.onEditWidget)) ?? (
             <HistoryData.Provider value={{ ...history, filter, setFilter }}>
               {full ? <SheetHost.Provider value={null}>{children}</SheetHost.Provider> : children}
             </HistoryData.Provider>
@@ -683,7 +768,9 @@ export function WidgetFrame({
             </span>
             {recording?.skipped && <span className="text-warn">! {SKIP_TEXT[recording.skipped]}</span>}
             {recording?.error && <span className="text-warn">! Not recorded: {recording.error}</span>}
-            {(recording?.reset || history.values?.reset || history.changes?.reset) && <span className="text-warn">History was reset: its file was damaged.</span>}
+            {(recording?.reset || history.values?.reset || history.changes?.reset) && (
+              <span className="text-warn">History was reset: its file was damaged.</span>
+            )}
             {history.error && <span className="text-bad">Couldn’t read history: {history.error}</span>}
           </footer>
         )}
@@ -695,7 +782,16 @@ export function WidgetFrame({
             title={`Uses workbook parameters: ${used.join(', ')}`}
             className={`faint absolute bottom-1.5 ${selected ? 'right-5' : 'right-2'} flex`}
           >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+            <svg
+              width="11"
+              height="11"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
               <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" />
               <path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" />
             </svg>
@@ -718,7 +814,12 @@ export function WidgetFrame({
           <div className="fixed inset-0 z-20" onKeyDown={(e) => e.key === 'Escape' && setClearing(false)}>
             <div className="scrim" onClick={() => setClearing(false)} />
             <div className="card absolute inset-x-0 top-[20vh] mx-auto w-[360px] max-w-[calc(100vw-32px)] p-3">
-              <ClearConfirm title="Clear this widget's history?" confirm="Clear" onConfirm={clearHistory} onCancel={() => setClearing(false)} />
+              <ClearConfirm
+                title="Clear this widget's history?"
+                confirm="Clear"
+                onConfirm={clearHistory}
+                onCancel={() => setClearing(false)}
+              />
             </div>
           </div>,
           document.body,

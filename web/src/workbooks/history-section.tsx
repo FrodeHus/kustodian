@@ -15,14 +15,31 @@ const date = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', 
 
 /** Asks before clearing a widget's history: "Clear" style button named by `confirm`, Cancel keeps it. Same shape as `ConfirmDelete`.
  * A modal dialog; when it goes, focus returns to what had it when it opened, if that is still there. */
-export function ClearConfirm({ title, confirm, error, onConfirm, onCancel }: { title: string; confirm: string; error?: string | null; onConfirm: () => void; onCancel: () => void }) {
+export function ClearConfirm({
+  title,
+  confirm,
+  error,
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  confirm: string;
+  error?: string | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
   const id = useId();
   // Read while rendering, before autoFocus moves focus to Cancel.
   const [opener] = useState(() => document.activeElement);
   // A layout effect, so a caller's own refocus (a ref on the element that replaces this) comes after it.
   useLayoutEffect(() => () => void (opener instanceof HTMLElement && opener.isConnected && opener.focus()), [opener]);
   return (
-    <div role="dialog" aria-modal="true" aria-labelledby={id} className="flex flex-col gap-2 rounded-[7px] border border-line bg-panel2 p-2.5 text-[12px]">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={id}
+      className="flex flex-col gap-2 rounded-[7px] border border-line bg-panel2 p-2.5 text-[12px]"
+    >
       <span id={id}>{title}</span>
       <span className="faint">Its saved snapshots and tracked rows are deleted. This can't be undone.</span>
       {error && (
@@ -42,13 +59,28 @@ export function ClearConfirm({ title, confirm, error, onConfirm, onCancel }: { t
   );
 }
 
-function ColumnMulti({ label, value, columns, onChange }: { label: string; value: string[]; columns: string[]; onChange: (value: string[]) => void }) {
+function ColumnMulti({
+  label,
+  value,
+  columns,
+  onChange,
+}: {
+  label: string;
+  value: string[];
+  columns: string[];
+  onChange: (value: string[]) => void;
+}) {
   // Keep a saved column listed when the result lacks it (no preview yet), so the select shows it.
   const names = [...columns, ...value.filter((v) => !columns.includes(v))];
   return (
     <label className="field">
       <span>{label}</span>
-      <select multiple className="textbox mono h-auto py-1" value={value} onChange={(e) => onChange([...e.target.selectedOptions].map((o) => o.value))}>
+      <select
+        multiple
+        className="textbox mono h-auto py-1"
+        value={value}
+        onChange={(e) => onChange([...e.target.selectedOptions].map((o) => o.value))}
+      >
         {names.map((c) => (
           <option key={c} value={c}>
             {c}
@@ -168,7 +200,11 @@ export function HistorySection({
             )}
             <label className="field">
               <span>Save at most</span>
-              <select className="textbox" value={h.interval} onChange={(e) => change({ interval: e.target.value as WidgetHistory['interval'] })}>
+              <select
+                className="textbox"
+                value={h.interval}
+                onChange={(e) => change({ interval: e.target.value as WidgetHistory['interval'] })}
+              >
                 {INTERVALS.map(([v, name]) => (
                   <option key={v} value={v}>
                     {name}
@@ -178,7 +214,11 @@ export function HistorySection({
             </label>
             <label className="field">
               <span>{rows ? 'Forget gone rows after' : 'Keep snapshots for'}</span>
-              <select className="textbox" value={h.retentionDays} onChange={(e) => change({ retentionDays: Number(e.target.value) as WidgetHistory['retentionDays'] })}>
+              <select
+                className="textbox"
+                value={h.retentionDays}
+                onChange={(e) => change({ retentionDays: Number(e.target.value) as WidgetHistory['retentionDays'] })}
+              >
                 {RETENTION.map((d) => (
                   <option key={d} value={d}>
                     {d} days

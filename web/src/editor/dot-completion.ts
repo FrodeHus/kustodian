@@ -38,7 +38,11 @@ export type Complete = (kql: string, position: number, signal: AbortSignal) => P
  * can't do because its schema has them as `dynamic`. Asks the host (`query.complete`) after a pause in typing, one request at a
  * time; `accepts` says which models it answers for.
  */
-export function createDotProvider(complete: Complete, accepts: (uri: string) => boolean, debounceMs = 150): languages.CompletionItemProvider {
+export function createDotProvider(
+  complete: Complete,
+  accepts: (uri: string) => boolean,
+  debounceMs = 150,
+): languages.CompletionItemProvider {
   let pending: { timer: ReturnType<typeof setTimeout>; settle: (items: CompletionItem[]) => void; abort: AbortController } | null = null;
 
   const supersede = () => {

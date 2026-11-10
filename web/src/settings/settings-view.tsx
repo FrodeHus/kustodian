@@ -125,7 +125,8 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
     setTheme(next);
     chooseTheme(next).then(
       () => setStored((s) => s && { ...s, settings: { ...s.settings, theme: next } }),
-      (e: unknown) => setStatus({ tone: 'bad', text: `The theme couldn’t be kept for the next start: ${errorText(e)}`, reportId: reportIdOf(e) }),
+      (e: unknown) =>
+        setStatus({ tone: 'bad', text: `The theme couldn’t be kept for the next start: ${errorText(e)}`, reportId: reportIdOf(e) }),
     );
   };
 
@@ -265,7 +266,13 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
           <div className="flex max-w-[880px] flex-col gap-4">
             <Card title="Appearance">
               <SettingField id="setting-theme" label="Theme" error={errors.theme} hint="Applies at once.">
-                <select id="setting-theme" {...invalid('setting-theme', errors.theme)} className="textbox w-[220px]" value={theme} onChange={(e) => pickTheme(e.target.value as Theme)}>
+                <select
+                  id="setting-theme"
+                  {...invalid('setting-theme', errors.theme)}
+                  className="textbox w-[220px]"
+                  value={theme}
+                  onChange={(e) => pickTheme(e.target.value as Theme)}
+                >
                   {THEME_OPTIONS.map((t) => (
                     <option key={t.value} value={t.value}>
                       {t.name}
@@ -275,7 +282,12 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
               </SettingField>
             </Card>
             <Card title="Raw requests">
-              <SettingField id="setting-version" label="Raw request version" error={errors.rawDefaultVersion} hint="The Graph version a new raw request tab starts with. KQL tabs always use beta.">
+              <SettingField
+                id="setting-version"
+                label="Raw request version"
+                error={errors.rawDefaultVersion}
+                hint="The Graph version a new raw request tab starts with. KQL tabs always use beta."
+              >
                 <select
                   id="setting-version"
                   {...invalid('setting-version', errors.rawDefaultVersion)}
@@ -292,7 +304,9 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
               </SettingField>
             </Card>
             <Card title="Sign-in">
-              <span className="muted text-[12px]">When set, the sign-in screen starts with “My own app registration” filled in with these.</span>
+              <span className="muted text-[12px]">
+                When set, the sign-in screen starts with “My own app registration” filled in with these.
+              </span>
               <div className="grid grid-cols-2 gap-3">
                 <SettingField id="setting-client" label="Default client ID">
                   <input
@@ -374,7 +388,11 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
             <Card title="Error reports">
               <ErrorReportsExplainer />
               <label className="flex items-center gap-2 text-[12.5px]">
-                <input type="checkbox" checked={stored.settings.errorReports === true} onChange={(e) => sendErrorReports(e.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={stored.settings.errorReports === true}
+                  onChange={(e) => sendErrorReports(e.target.checked)}
+                />
                 Send error reports
               </label>
               <span className="faint text-[12px]">Applies at once.</span>
@@ -390,7 +408,13 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
               )}
               <div className="grid grid-cols-2 gap-3">
                 {LIMITS.map((l) => (
-                  <SettingField key={l.key} id={`setting-${l.key}`} label={l.name} error={errors[l.key]} hint={`${count(l.min)} to ${count(l.max)}`}>
+                  <SettingField
+                    key={l.key}
+                    id={`setting-${l.key}`}
+                    label={l.name}
+                    error={errors[l.key]}
+                    hint={`${count(l.min)} to ${count(l.max)}`}
+                  >
                     <input
                       id={`setting-${l.key}`}
                       {...invalid(`setting-${l.key}`, errors[l.key])}
@@ -414,7 +438,10 @@ export function SettingsView({ onClose, onChange, account, createAppOpen = false
                 Check for update
               </button>
               {status && (
-                <span className={`text-[12px] ${status.tone === 'bad' ? 'text-bad' : 'text-muted'}`} role={status.tone === 'bad' ? 'alert' : 'status'}>
+                <span
+                  className={`text-[12px] ${status.tone === 'bad' ? 'text-bad' : 'text-muted'}`}
+                  role={status.tone === 'bad' ? 'alert' : 'status'}
+                >
                   {status.text}
                   {status.tone === 'bad' && <ErrorReportActions reportId={status.reportId} uiSections={{ message: status.text }} />}
                 </span>

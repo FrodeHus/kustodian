@@ -25,7 +25,10 @@ describe('SchemaPanel', () => {
   it('schema_panel_shows_tables_in_the_query_with_column_tags_and_descriptions', () => {
     render(<SchemaPanel schema={view} text="applications | take 5" onInsert={() => undefined} />);
 
-    expect(screen.getByRole('searchbox', { name: 'Find a table or column' })).toHaveProperty('placeholder', `Find among ${view.tables.length} tables`);
+    expect(screen.getByRole('searchbox', { name: 'Find a table or column' })).toHaveProperty(
+      'placeholder',
+      `Find among ${view.tables.length} tables`,
+    );
     const appId = screen.getByRole('button', { name: /^appId/ });
     expect(within(appId).getByText('filter')).toBeTruthy();
     expect(within(appId).getByText('string')).toBeTruthy();
@@ -49,7 +52,15 @@ describe('SchemaPanel', () => {
     ]);
   });
 
-  const column = (name: string, type: string) => ({ name, type, description: '', filterable: null, listable: null, complexType: null, collection: false });
+  const column = (name: string, type: string) => ({
+    name,
+    type,
+    description: '',
+    filterable: null,
+    listable: null,
+    complexType: null,
+    collection: false,
+  });
 
   /** A Graph table as `SchemaView.From` writes it: the name is the path with `/` as `_`, and the host gives its area. */
   const graphTable = (path: string, area: string) => ({
@@ -135,7 +146,9 @@ describe('SchemaPanel', () => {
 
     expect(rows(screen.getByRole('list', { name: 'Matches' }))).toEqual(['▾Devices and Intune1']);
     expect(rows(screen.getByRole('list', { name: 'Devices and Intune' }))).toEqual(['▾deviceManagement1']);
-    expect(rows(screen.getByRole('list', { name: 'deviceManagement' }))).toEqual([expect.stringMatching(/^▸deviceManagement_managedDevices/)]);
+    expect(rows(screen.getByRole('list', { name: 'deviceManagement' }))).toEqual([
+      expect.stringMatching(/^▸deviceManagement_managedDevices/),
+    ]);
   });
 
   it('schema_panel_search_matches_graph_paths', () => {
@@ -157,7 +170,9 @@ describe('SchemaPanel', () => {
     fireEvent.change(search, { target: { value: 'deviceCompliance' } });
 
     expect(rows(screen.getByRole('list', { name: 'Matches' }))).toEqual(['▾Devices and Intune1']);
-    expect(rows(screen.getByRole('list', { name: 'deviceManagement' }))).toEqual([expect.stringMatching(/^▸deviceManagement_deviceCompliancePolicies/)]);
+    expect(rows(screen.getByRole('list', { name: 'deviceManagement' }))).toEqual([
+      expect.stringMatching(/^▸deviceManagement_deviceCompliancePolicies/),
+    ]);
   });
 
   it('schema_panel_in_this_query_stays_flat', () => {
@@ -178,8 +193,24 @@ describe('SchemaPanel', () => {
       complexTypes: {},
       functions: [],
       tables: [
-        { name: 'Resources', path: null, area: null, description: '', docsUrl: null, permissions: null, columns: [column('name', 'string')] },
-        { name: 'ResourceContainers', path: null, area: null, description: '', docsUrl: null, permissions: null, columns: [column('name', 'string')] },
+        {
+          name: 'Resources',
+          path: null,
+          area: null,
+          description: '',
+          docsUrl: null,
+          permissions: null,
+          columns: [column('name', 'string')],
+        },
+        {
+          name: 'ResourceContainers',
+          path: null,
+          area: null,
+          description: '',
+          docsUrl: null,
+          permissions: null,
+          columns: [column('name', 'string')],
+        },
       ],
     };
     render(<SchemaPanel source="arg" schema={arg} text="" resourceTypes={[]} onInsert={() => undefined} />);
@@ -195,8 +226,27 @@ describe('SchemaPanel', () => {
       fallbackReason: null,
       generatedAt: '2026-10-21T00:00:00Z',
       complexTypes: {},
-      tables: [{ name: 'DeviceInfo', path: null, area: null, description: 'Devices.', docsUrl: null, permissions: null, columns: [column('DeviceId', 'string')] }],
-      functions: [{ name: 'FileProfile', description: 'What Microsoft knows about a file.', parameters: [{ name: 'SHA1', type: 'string' }, { name: 'limit', type: 'long' }] }],
+      tables: [
+        {
+          name: 'DeviceInfo',
+          path: null,
+          area: null,
+          description: 'Devices.',
+          docsUrl: null,
+          permissions: null,
+          columns: [column('DeviceId', 'string')],
+        },
+      ],
+      functions: [
+        {
+          name: 'FileProfile',
+          description: 'What Microsoft knows about a file.',
+          parameters: [
+            { name: 'SHA1', type: 'string' },
+            { name: 'limit', type: 'long' },
+          ],
+        },
+      ],
     };
     render(<SchemaPanel source="hunting" schema={hunting} text="DeviceInfo" onInsert={onInsert} />);
 
@@ -222,24 +272,50 @@ describe('SchemaPanel', () => {
       generatedAt: '2026-10-21T00:00:00Z',
       complexTypes: {},
       functions: [],
-      tables: [{ name: 'Resources', path: null, area: null, description: '', docsUrl: null, permissions: null, columns: [column('name', 'string'), column('properties', 'dynamic')] }],
+      tables: [
+        {
+          name: 'Resources',
+          path: null,
+          area: null,
+          description: '',
+          docsUrl: null,
+          permissions: null,
+          columns: [column('name', 'string'), column('properties', 'dynamic')],
+        },
+      ],
     };
     const types = ['microsoft.compute/virtualmachines', 'microsoft.storage/storageaccounts'];
     const view = render(<SchemaPanel source="arg" schema={arg} text="" resourceTypes={types} onInsert={onInsert} />);
 
     expect(screen.getByRole('complementary', { name: 'Resource Graph tables' })).toBeTruthy();
     const list = screen.getByRole('list', { name: 'Resource types' });
-    expect(within(list).getAllByRole('button').map((b) => b.textContent)).toEqual(types);
+    expect(
+      within(list)
+        .getAllByRole('button')
+        .map((b) => b.textContent),
+    ).toEqual(types);
 
     // A search finds resource types too.
     fireEvent.change(screen.getByRole('searchbox', { name: 'Find a table or column' }), { target: { value: 'storage' } });
     const found = screen.getByRole('list', { name: 'Resource types' });
-    expect(within(found).getAllByRole('button').map((b) => b.textContent)).toEqual(['microsoft.storage/storageaccounts']);
+    expect(
+      within(found)
+        .getAllByRole('button')
+        .map((b) => b.textContent),
+    ).toEqual(['microsoft.storage/storageaccounts']);
     fireEvent.click(within(found).getByRole('button'));
     expect(onInsert).toHaveBeenCalledWith('"microsoft.storage/storageaccounts"');
 
     // When they can't be listed, it says why.
-    view.rerender(<SchemaPanel source="arg" schema={arg} text="" resourceTypesError="Grant Azure access to list your resource types." onInsert={onInsert} />);
+    view.rerender(
+      <SchemaPanel
+        source="arg"
+        schema={arg}
+        text=""
+        resourceTypesError="Grant Azure access to list your resource types."
+        onInsert={onInsert}
+      />,
+    );
     fireEvent.change(screen.getByRole('searchbox', { name: 'Find a table or column' }), { target: { value: '' } });
     expect(screen.getByText('Grant Azure access to list your resource types.')).toBeTruthy();
   });
@@ -298,18 +374,32 @@ describe('SchemaPanel', () => {
     // Not read yet: nothing is known, so no column is tagged.
     expect(within(screen.getByRole('button', { name: /^appId/ })).queryByText('default')).toBeNull();
 
-    rerender(<SchemaPanel schema={view} listedByDefault={{ applications: ['id', 'appId'] }} text="applications | take 5" onInsert={() => undefined} />);
+    rerender(
+      <SchemaPanel
+        schema={view}
+        listedByDefault={{ applications: ['id', 'appId'] }}
+        text="applications | take 5"
+        onInsert={() => undefined}
+      />,
+    );
     expect(within(screen.getByRole('button', { name: /^appId/ })).getByText('default')).toBeTruthy();
     expect(within(screen.getByRole('button', { name: /^identifierUris/ })).queryByText('default')).toBeNull();
   });
 
   it('schema_panel_tags_licensed_tables_and_columns_green_red_or_neutral', () => {
-    const p1 = { license: 'Microsoft Entra ID P1 or P2', plans: ['AAD_PREMIUM', 'AAD_PREMIUM_P2'], source: 'https://learn.microsoft.com/a' };
+    const p1 = {
+      license: 'Microsoft Entra ID P1 or P2',
+      plans: ['AAD_PREMIUM', 'AAD_PREMIUM_P2'],
+      source: 'https://learn.microsoft.com/a',
+    };
     const intune = { license: 'Microsoft Intune', plans: ['INTUNE_A'], source: 'https://learn.microsoft.com/b' };
     const licenses = (state: 'available' | 'missing' | 'unknown', reason: string | null = null) => ({
       known: state !== 'unknown',
       reason,
-      tables: { auditLogs_signIns: { ...p1, state }, deviceManagement_managedDevices: { ...intune, state: state === 'unknown' ? state : ('missing' as const) } },
+      tables: {
+        auditLogs_signIns: { ...p1, state },
+        deviceManagement_managedDevices: { ...intune, state: state === 'unknown' ? state : ('missing' as const) },
+      },
       columns: { users: { displayName: { ...p1, state } } },
     });
     const panel = (l: ReturnType<typeof licenses> | null) => (
@@ -342,8 +432,17 @@ describe('SchemaPanel', () => {
   });
 
   it('schema_panel_shows_no_license_tags_for_other_sources', () => {
-    const licenses = { known: true, reason: null, tables: { DeviceEvents: { license: 'L', plans: ['P'], source: 's', state: 'missing' as const } }, columns: {} };
-    const hunting: SchemaView = { ...view, source: 'hunting', tables: [{ ...view.tables[0]!, name: 'DeviceEvents', area: null, path: null }] };
+    const licenses = {
+      known: true,
+      reason: null,
+      tables: { DeviceEvents: { license: 'L', plans: ['P'], source: 's', state: 'missing' as const } },
+      columns: {},
+    };
+    const hunting: SchemaView = {
+      ...view,
+      source: 'hunting',
+      tables: [{ ...view.tables[0]!, name: 'DeviceEvents', area: null, path: null }],
+    };
     render(<SchemaPanel source="hunting" schema={hunting} licenses={licenses} text="DeviceEvents" onInsert={() => undefined} />);
     expect(screen.queryByText('L')).toBeNull();
   });

@@ -4,7 +4,15 @@ import { solution } from './fixtures';
 
 const risky = solution();
 const vms = solution(
-  { id: 'vm-power', name: 'VM power hygiene', description: 'VMs left running.', author: 'someone', support: 'community', categories: ['Azure'], sources: ['arg'] },
+  {
+    id: 'vm-power',
+    name: 'VM power hygiene',
+    description: 'VMs left running.',
+    author: 'someone',
+    support: 'community',
+    categories: ['Azure'],
+    sources: ['arg'],
+  },
   { installedVersion: '1.0.0' },
 );
 const guests = solution({

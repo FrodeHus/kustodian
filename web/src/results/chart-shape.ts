@@ -62,7 +62,10 @@ function withoutComment(line: string): string {
 
 /** A query's last `| render`, leaving out comments: its visualization, and the text after it. */
 function lastRender(kql: string): { word: string; rest: string } | undefined {
-  const text = kql.split(/\r\n|\r|\n/).map(withoutComment).join('\n');
+  const text = kql
+    .split(/\r\n|\r|\n/)
+    .map(withoutComment)
+    .join('\n');
   const match = [...text.matchAll(RENDER)].at(-1);
   return match?.[1] ? { word: match[1].toLowerCase(), rest: text.slice(match.index + match[0].length) } : undefined;
 }
@@ -201,7 +204,12 @@ export function chartShape(columns: ResultColumn[], rows: Row[], renderHint?: Ch
 }
 
 /** {@link chartShape} before a `render`'s options, but for an `xcolumn` the hint's x axis is that column. */
-function baseShape(columns: ResultColumn[], rows: Row[], renderHint: ChartType | undefined, xcolumn: ResultColumn | undefined): ChartSpec | null {
+function baseShape(
+  columns: ResultColumn[],
+  rows: Row[],
+  renderHint: ChartType | undefined,
+  xcolumn: ResultColumn | undefined,
+): ChartSpec | null {
   const numbers = columns.filter(isNumeric);
   const dates = columns.filter(isDate);
   const categories = columns.filter(isCategory).sort(byCategory);
@@ -317,7 +325,10 @@ export function chartData(columns: ResultColumn[], unsorted: Row[], spec: ChartS
     const at = spec.series.map(index);
     return {
       series: spec.series,
-      data: rows.map((row) => ({ x: cellText(row[xAt]), values: Object.fromEntries(spec.series.map((s, i) => [s, row[at[i] ?? -1] ?? null])) })),
+      data: rows.map((row) => ({
+        x: cellText(row[xAt]),
+        values: Object.fromEntries(spec.series.map((s, i) => [s, row[at[i] ?? -1] ?? null])),
+      })),
     };
   }
 

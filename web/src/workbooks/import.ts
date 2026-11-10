@@ -15,8 +15,7 @@ export function readWorkbookFile(text: string): WorkbookDoc | string {
 }
 
 /** The keys of o that are named and present. */
-const only = <T extends object>(o: T, keys: (keyof T)[]): T =>
-  Object.fromEntries(keys.filter((k) => k in o).map((k) => [k, o[k]])) as T;
+const only = <T extends object>(o: T, keys: (keyof T)[]): T => Object.fromEntries(keys.filter((k) => k in o).map((k) => [k, o[k]])) as T;
 
 const PARAM_DEF: (keyof ParameterDef)[] = ['name', 'type', 'value', 'required', 'choices'];
 
@@ -26,7 +25,20 @@ function known(doc: WorkbookDoc): WorkbookDoc {
     ...only(doc, ['kind', 'version', 'id', 'name', 'folder']),
     parameters: doc.parameters.map((p) => only(p, [...PARAM_DEF, 'label', 'multi', 'all', 'remember', 'huntingTimespan'])),
     widgets: doc.widgets.map((w) => {
-      const next = only(w, ['id', 'type', 'title', 'hideTitle', 'layout', 'markdown', 'query', 'parameters', 'chart', 'stat', 'selection', 'tools']);
+      const next = only(w, [
+        'id',
+        'type',
+        'title',
+        'hideTitle',
+        'layout',
+        'markdown',
+        'query',
+        'parameters',
+        'chart',
+        'stat',
+        'selection',
+        'tools',
+      ]);
       // parseWorkbook made tabs and in all strings and repaired them; only their known keys are copied.
       if (w.tabs) {
         next.tabs = w.tabs.map((t) => only(t, ['id', 'name']));

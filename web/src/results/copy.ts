@@ -21,7 +21,13 @@ export function formatRows(format: CopyFormat, columns: ResultColumn[], rows: Ro
     case 'markdown':
       return toMarkdown(columns, rows, { header });
     case 'json':
-      return header ? toJson(columns, rows) : JSON.stringify(rows.map((r) => columns.map((_, i) => r[i] ?? null)), null, 2);
+      return header
+        ? toJson(columns, rows)
+        : JSON.stringify(
+            rows.map((r) => columns.map((_, i) => r[i] ?? null)),
+            null,
+            2,
+          );
   }
 }
 

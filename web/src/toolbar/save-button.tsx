@@ -63,7 +63,13 @@ export function SaveButton({ saved, onSave, onSaveAs }: SaveButtonProps) {
         <span aria-hidden="true">▾</span>
       </button>
       {open && (
-        <div className="menu" role="menu" aria-label="Save" style={{ right: 0, top: 36, width: 200 }} onMouseDown={(e) => e.preventDefault()}>
+        <div
+          className="menu"
+          role="menu"
+          aria-label="Save"
+          style={{ right: 0, top: 36, width: 200 }}
+          onMouseDown={(e) => e.preventDefault()}
+        >
           <button
             ref={item}
             type="button"

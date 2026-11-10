@@ -3,7 +3,16 @@ import type { ReactNode } from 'react';
 export type PanelName = 'schema' | 'saved' | 'recent' | 'snippets' | 'solutions';
 
 const icon = (paths: ReactNode) => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    aria-hidden="true"
+  >
     {paths}
   </svg>
 );

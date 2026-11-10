@@ -83,7 +83,11 @@ export function RowMenu({ name, actions }: { name: string; actions: RowAction[] 
         ⋯
       </button>
       {open && (
-        <div className="menu" role="menu" aria-label={name} style={{ right: 0, top: 26, minWidth: 170 }}
+        <div
+          className="menu"
+          role="menu"
+          aria-label={name}
+          style={{ right: 0, top: 26, minWidth: 170 }}
           onKeyDown={onMenuKey}
           onMouseDown={(e) => e.preventDefault()}
         >
@@ -111,7 +115,11 @@ export function RowMenu({ name, actions }: { name: string; actions: RowAction[] 
 export function ConfirmDelete({ name, onDelete, onCancel }: { name: string; onDelete: () => void; onCancel: () => void }) {
   const question = `Delete “${name}”?`;
   return (
-    <div role="group" aria-label={question} className="mx-1.5 my-1 flex flex-col gap-2 rounded-[7px] border border-line bg-panel2 p-2.5 text-[12px]">
+    <div
+      role="group"
+      aria-label={question}
+      className="mx-1.5 my-1 flex flex-col gap-2 rounded-[7px] border border-line bg-panel2 p-2.5 text-[12px]"
+    >
       <span>{question}</span>
       <div className="flex justify-end gap-1.5">
         <button type="button" className="btn ghost" autoFocus onClick={onCancel}>

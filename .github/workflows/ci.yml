@@ -44,6 +44,10 @@ jobs:
         run: npm run lint
         working-directory: web
 
+      - name: Web format
+        run: npm run format:check
+        working-directory: web
+
       - name: Web typecheck
         run: npm run typecheck
         working-directory: web

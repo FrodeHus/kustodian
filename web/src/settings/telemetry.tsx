@@ -10,14 +10,14 @@ export function TelemetryExplainer() {
   return (
     <>
       <span className="text-[12.5px]">
-        Some Graph tables refuse parts of a query, such as <span className="mono">$top=999</span> or <span className="mono">$count</span>, and
-        Kustodian has to probe and try again. Shared findings can be built into Kustodian, so queries on those tables skip the probing and run
-        faster for everyone. Kustodian also shares where it falls short: refusals it can’t work around, filters it can’t send to Graph,
-        permissions Graph didn’t accept, and limits your queries hit.
+        Some Graph tables refuse parts of a query, such as <span className="mono">$top=999</span> or <span className="mono">$count</span>,
+        and Kustodian has to probe and try again. Shared findings can be built into Kustodian, so queries on those tables skip the probing
+        and run faster for everyone. Kustodian also shares where it falls short: refusals it can’t work around, filters it can’t send to
+        Graph, permissions Graph didn’t accept, and limits your queries hit.
       </span>
       <span className="muted text-[12px]">
-        Sent: the table’s path (such as <span className="mono">auditLogs/signIns</span>), what Graph refused or which limit was hit, and the app
-        version. Never your tenant, account, queries, filter values, error messages or results.{' '}
+        Sent: the table’s path (such as <span className="mono">auditLogs/signIns</span>), what Graph refused or which limit was hit, and the
+        app version. Never your tenant, account, queries, filter values, error messages or results.{' '}
         <button type="button" className="text-accent underline" onClick={openTelemetryDocs}>
           What is sent, in detail
         </button>

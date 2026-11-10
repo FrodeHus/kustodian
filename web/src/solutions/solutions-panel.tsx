@@ -11,7 +11,8 @@ import { filterCatalog, type CatalogFilter } from './filter';
 import { useSolutionDialog } from './solution-store';
 
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-const fetched = (at: string) => new Date(at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const fetched = (at: string) =>
+  new Date(at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 const isSource = (s: string): s is Source => Object.hasOwn(SOURCES, s);
 
 /** "Kustodian" for the solutions Kustodian maintains, "Community" for the rest. */
@@ -99,7 +100,10 @@ export function SolutionsPanel() {
     <aside className="side" aria-label="Community Solutions">
       <div className="flex items-center gap-2 pr-3">
         <h2 className="grow">Community Solutions</h2>
-        <button type="button" className="btn ghost h-[22px] px-2 text-[11px]" disabled={busy}
+        <button
+          type="button"
+          className="btn ghost h-[22px] px-2 text-[11px]"
+          disabled={busy}
           onClick={() => {
             setBusy(true);
             load(true);
@@ -117,7 +121,12 @@ export function SolutionsPanel() {
         onChange={(e) => setSearch(e.target.value)}
       />
       <div className="flex gap-1.5 px-3 pb-2.5">
-        <select className="textbox h-[26px] min-w-0 flex-1 px-1.5 text-[11.5px]" aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value)}>
+        <select
+          className="textbox h-[26px] min-w-0 flex-1 px-1.5 text-[11.5px]"
+          aria-label="Category"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+        >
           <option value="">All categories</option>
           {categories.map((c) => (
             <option key={c} value={c}>
@@ -125,7 +134,12 @@ export function SolutionsPanel() {
             </option>
           ))}
         </select>
-        <select className="textbox h-[26px] min-w-0 flex-1 px-1.5 text-[11.5px]" aria-label="Source" value={source} onChange={(e) => setSource(e.target.value)}>
+        <select
+          className="textbox h-[26px] min-w-0 flex-1 px-1.5 text-[11.5px]"
+          aria-label="Source"
+          value={source}
+          onChange={(e) => setSource(e.target.value)}
+        >
           <option value="">All sources</option>
           {(['graph', 'hunting', 'arg'] as const).map((s) => (
             <option key={s} value={s}>
@@ -133,7 +147,12 @@ export function SolutionsPanel() {
             </option>
           ))}
         </select>
-        <select className="textbox h-[26px] min-w-0 flex-1 px-1.5 text-[11.5px]" aria-label="Show" value={show} onChange={(e) => setShow(e.target.value as Show)}>
+        <select
+          className="textbox h-[26px] min-w-0 flex-1 px-1.5 text-[11.5px]"
+          aria-label="Show"
+          value={show}
+          onChange={(e) => setShow(e.target.value as Show)}
+        >
           <option value="">All</option>
           <option value="kustodian">Kustodian</option>
           <option value="community">Community</option>
@@ -148,7 +167,9 @@ export function SolutionsPanel() {
           </p>
         )}
         {catalog && shown.length === 0 && (
-          <p className="faint m-0 px-[14px] text-[12px]">{all.length === 0 ? 'The catalog has no solutions yet.' : 'No solution matches.'}</p>
+          <p className="faint m-0 px-[14px] text-[12px]">
+            {all.length === 0 ? 'The catalog has no solutions yet.' : 'No solution matches.'}
+          </p>
         )}
         <ul className="side-list">{shown.map(row)}</ul>
       </div>

@@ -68,9 +68,9 @@ describe('chartShape', () => {
     });
     // A text column still wins the split over a bool one.
     const withText = [col('day', 'datetime'), col('app', 'string'), col('enabled', 'bool'), col('n', 'long')];
-    expect(chartData(withText, [['2026-10-19T00:00:00Z', 'Teams', true, 5]], { type: 'timechart', x: 'day', series: ['n'] }).series).toEqual([
-      'Teams',
-    ]);
+    expect(
+      chartData(withText, [['2026-10-19T00:00:00Z', 'Teams', true, 5]], { type: 'timechart', x: 'day', series: ['n'] }).series,
+    ).toEqual(['Teams']);
   });
 
   it('chart_shape_null_explains', () => {
@@ -105,7 +105,12 @@ describe('chartShape', () => {
 
   it('chart_data_sorts_points_along_a_date_or_number_axis', () => {
     const columns = [col('day', 'datetime'), col('n', 'long')];
-    const rows = [['2026-10-20T00:00:00Z', 3], [null, 9], ['2026-10-18T00:00:00Z', 1], ['2026-10-19T00:00:00Z', 2]];
+    const rows = [
+      ['2026-10-20T00:00:00Z', 3],
+      [null, 9],
+      ['2026-10-18T00:00:00Z', 1],
+      ['2026-10-19T00:00:00Z', 2],
+    ];
     expect(chartData(columns, rows, { type: 'timechart', x: 'day', series: ['n'] }).data.map((p) => p.x)).toEqual([
       '2026-10-18T00:00:00Z',
       '2026-10-19T00:00:00Z',
@@ -114,19 +119,39 @@ describe('chartShape', () => {
     ]);
 
     const numbers = [col('bucket', 'long'), col('app', 'string'), col('n', 'long')];
-    const split = chartData(numbers, [[10, 'a', 1], [2, 'b', 2], [10, 'b', 3]], { type: 'line', x: 'bucket', series: ['n'] });
+    const split = chartData(
+      numbers,
+      [
+        [10, 'a', 1],
+        [2, 'b', 2],
+        [10, 'b', 3],
+      ],
+      { type: 'line', x: 'bucket', series: ['n'] },
+    );
     expect(split.data).toEqual([
       { x: '2', values: { b: 2 } },
       { x: '10', values: { a: 1, b: 3 } },
     ]);
 
     // A text axis keeps the result's order.
-    expect(chartData([col('app', 'string'), col('n', 'long')], [['b', 1], ['a', 2]], { type: 'column', x: 'app', series: ['n'] }).data.map((p) => p.x)).toEqual(['b', 'a']);
+    expect(
+      chartData(
+        [col('app', 'string'), col('n', 'long')],
+        [
+          ['b', 1],
+          ['a', 2],
+        ],
+        { type: 'column', x: 'app', series: ['n'] },
+      ).data.map((p) => p.x),
+    ).toEqual(['b', 'a']);
   });
 
   it('chart_data_keeps_series_columns_without_a_split', () => {
     const columns = [col('app', 'string'), col('n', 'long'), col('m', 'real')];
-    const rows = [['Teams', 1, 2.5], ['Exchange', null, 4]];
+    const rows = [
+      ['Teams', 1, 2.5],
+      ['Exchange', null, 4],
+    ];
     expect(chartData(columns, rows, { type: 'bar', x: 'app', series: ['n', 'm'] })).toEqual({
       series: ['n', 'm'],
       data: [
