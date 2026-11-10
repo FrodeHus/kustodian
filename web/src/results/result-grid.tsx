@@ -41,13 +41,14 @@ import type { ExternalTool, ResultColumn } from '../wire';
 import { COPY_FORMATS, copyFailed, copyText, formatRows, type CopyFormat } from './copy';
 import { cellText, type Row } from './export';
 import type { CellMatch } from './chart-shape';
+import { ColumnStatsPopover } from './column-stats-popover';
+import { NUMERIC } from './column-stats';
 import { RunToolDialog, ToolItems } from './run-tool';
 import { filterOps, shownValue, type FilterOp } from './smart-filter';
 
 const ROW_HEIGHT = 29;
 // One empty list, so a grid with no cell filters doesn't hand the table a new state each render.
 const NO_FILTERS: CellMatch[] = [];
-export const NUMERIC = new Set(['int', 'long', 'real', 'decimal', 'double']);
 // Approximate pixels per character of the cell font (12px JetBrains Mono) and of the header, plus a cell's side padding.
 const CHAR_PX = 7.3;
 const HEADER_CHAR_PX = 7.6;
@@ -364,6 +365,14 @@ interface GridProps {
   onShownChange?: (shown: number[]) => void;
   /** A smart filter item was chosen in a cell's context menu. Without it, a right-click is the browser's own. */
   onFilter?: OnFilter;
+  /** Each header gets a column menu with Column statistics (the query tab's Rows grid only). */
+  statistics?: boolean;
+}
+
+/** Where a header's column menu, or the statistics it opened, shows: the column, and the point in the grid under its header. */
+interface ColumnAt {
+  column: ResultColumn;
+  at: { x: number; y: number };
 }
 
 /** A cell's context menu: the cell, and the point in the grid it opens at. */
@@ -407,6 +416,7 @@ export function ResultGrid({
   selection,
   onShownChange,
   onFilter,
+  statistics = false,
 }: GridProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [filter, setFilter] = useState('');
@@ -420,13 +430,18 @@ export function ResultGrid({
   const [notice, setNotice] = useState<Notice | null>(null);
   const [tool, setTool] = useState<ExternalTool | null>(null);
   const [cellMenu, setCellMenu] = useState<CellMenu | null>(null);
+  const [columnMenu, setColumnMenu] = useState<ColumnAt | null>(null);
+  const [stats, setStats] = useState<(ColumnAt & { values: unknown[] }) | null>(null);
+  const columnMenuButton = useRef<HTMLButtonElement | null>(null);
   const root = useRef<HTMLDivElement>(null);
-  // A new result's rows start with nothing selected.
+  // A new result's rows start with nothing selected, and with no statistics of the old ones.
   const [rowsSeen, setRowsSeen] = useState(rows);
   if (rowsSeen !== rows) {
     setRowsSeen(rows);
     setOwnSelected(new Set());
     setAnchor(null);
+    setColumnMenu(null);
+    setStats(null);
   }
   const scroller = useRef<HTMLDivElement>(null);
   // By row index in `rows`, whichever side keeps it.
@@ -590,6 +605,17 @@ export function ResultGrid({
     }
     e.preventDefault();
     setCellMenu({ column, value, x: e.clientX - box.left, y: e.clientY - box.top });
+  };
+
+  /** Opens a header's column menu under the header. */
+  const openColumnMenu = (e: MouseEvent<HTMLButtonElement>, column: ResultColumn) => {
+    const box = root.current?.getBoundingClientRect();
+    const th = e.currentTarget.closest('th')?.getBoundingClientRect();
+    if (!box || !th) {
+      return;
+    }
+    columnMenuButton.current = e.currentTarget;
+    setColumnMenu({ column, at: { x: th.left - box.left, y: th.bottom - box.top } });
   };
 
   const reportShown = useEffectEvent(() => onShownChange?.(filteredLeaves.map((r) => r.index)));
@@ -756,10 +782,24 @@ export function ResultGrid({
                       aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : 'none'}
                       title={column?.type}
                     >
-                      <button type="button" onClick={header.column.getToggleSortingHandler()}>
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                        {sorted === 'asc' ? ' ↑' : sorted === 'desc' ? ' ↓' : ''}
-                      </button>
+                      <div className="flex">
+                        <button type="button" className="min-w-0 flex-1" onClick={header.column.getToggleSortingHandler()}>
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                          {sorted === 'asc' ? ' ↑' : sorted === 'desc' ? ' ↓' : ''}
+                        </button>
+                        {statistics && column && (
+                          <button
+                            type="button"
+                            className="col-menu"
+                            aria-label={`${column.name} column menu`}
+                            aria-haspopup="menu"
+                            aria-expanded={columnMenu?.column === column}
+                            onClick={(e) => openColumnMenu(e, column)}
+                          >
+                            ⌄
+                          </button>
+                        )}
+                      </div>
                     </th>
                   );
                 })}
@@ -896,6 +936,44 @@ export function ResultGrid({
         >
           <FilterItems column={cellMenu.column} value={cellMenu.value} onFilter={onFilter} />
         </Menu>
+      )}
+      {columnMenu && (
+        <Menu
+          label={`${columnMenu.column.name} column`}
+          at={columnMenu.at}
+          onClose={(refocus) => {
+            setColumnMenu(null);
+            if (refocus) {
+              columnMenuButton.current?.focus();
+            }
+          }}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            tabIndex={-1}
+            onClick={() => {
+              const i = columns.indexOf(columnMenu.column);
+              setStats({ ...columnMenu, values: filteredLeaves.map((r) => r.original[i]) });
+            }}
+          >
+            Column statistics
+          </button>
+        </Menu>
+      )}
+      {stats && (
+        <ColumnStatsPopover
+          column={stats.column}
+          values={stats.values}
+          at={stats.at}
+          onFilter={onFilter}
+          onClose={(refocus) => {
+            setStats(null);
+            if (refocus) {
+              columnMenuButton.current?.focus();
+            }
+          }}
+        />
       )}
     </div>
   );

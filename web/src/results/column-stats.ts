@@ -1,5 +1,4 @@
 import type { ResultColumn } from '../wire';
-import { NUMERIC } from './result-grid';
 
 export interface TopValue {
   value: unknown;
@@ -19,6 +18,7 @@ export interface ColumnStats {
   latest?: string;
 }
 
+export const NUMERIC = new Set(['int', 'long', 'real', 'decimal', 'double']);
 export const TOP_VALUES = 10;
 export const CHUNKED_ABOVE = 200_000;
 const CHUNK = 50_000;
