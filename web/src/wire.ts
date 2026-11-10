@@ -178,7 +178,7 @@ export interface RunResult {
 export interface DiagnosticEntry {
   /** Milliseconds since the run started. */
   atMs: number;
-  kind: 'request' | 'retry' | 'throttled' | 'probe' | 'per-object' | 'cache' | 'engine';
+  kind: 'request' | 'retry' | 'throttled' | 'probe' | 'per-object' | 'cache' | 'engine' | 'note' | 'warning';
   detail: string;
   status: number | null;
   durationMs: number | null;

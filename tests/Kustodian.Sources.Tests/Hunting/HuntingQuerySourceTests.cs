@@ -434,12 +434,12 @@ public class HuntingQuerySourceTests
     public async Task An_unreadable_list_blocks_the_run()
     {
         var graph = Answering(HttpStatusCode.OK, "hunting-run-200.json");
-        var arm = new StubGraph(_ => StubGraph.Json(HttpStatusCode.InternalServerError, "{}"));
+        var arm = new StubGraph(_ => throw new HttpRequestException("down"));
 
         var result = await Source(graph, arm).RunAsync(Request("T", OnWorkspace()), null, TestContext.Current.CancellationToken);
 
         Assert.Equal(RunOutcome.WorkspaceUnavailable, result.Outcome);
-        Assert.False(string.IsNullOrEmpty(result.Message));
+        Assert.Equal(ArgClient.Unreachable, result.Message);
         Assert.Empty(graph.Seen);
     }
 
