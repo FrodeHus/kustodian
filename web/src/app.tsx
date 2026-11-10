@@ -3,6 +3,7 @@ import { call } from './bridge';
 import { blockAt } from './editor/block-at';
 import type { KqlEditorHandle } from './editor/kql-editor';
 import { ExplainView, type ExplainRequest } from './explain/explain-view';
+import { AddToWorkbookDialog } from './workbooks/add-to-workbook-dialog';
 import { SaveDialog } from './library/save-dialog';
 import { SaveWorkbookDialog } from './workbooks/save-workbook-dialog';
 import { ImportReview } from './workbooks/import-review';
@@ -149,6 +150,11 @@ const activeTab = (): Tab | undefined => {
   const { tabs, activeId } = useTabs.getState();
   return tabs.find((t) => t.id === activeId);
 };
+
+/** A query tab whose last run went to its source, kept its text and was ok. */
+const addable = (tab: Tab | undefined): boolean =>
+  !!tab && filterable(tab) && tab.run?.state === 'done' && tab.run.result?.outcome === 'ok';
+const canAddToWorkbook = () => addable(activeTab());
 
 /**
  * The smart filter (spec: result workflow plan 1): puts `| where <condition>` for the cell into the query that ran, where the
@@ -298,6 +304,8 @@ export function App() {
   const [paramsOpen, setParamsOpen] = useState(false);
   /** The tab the save dialog is open for. */
   const [saving, setSaving] = useState<string | null>(null);
+  /** The tab the Add to workbook dialog is open for. */
+  const [addingToWorkbook, setAddingToWorkbook] = useState<string | null>(null);
   const [settings, setSettings] = useState<SettingsAnswer | null>(null);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -598,6 +606,13 @@ export function App() {
         enabled: () => runnable() || activeTab()?.source === 'workbook',
       },
       {
+        id: 'workbook.addQuery',
+        title: 'Add to workbook…',
+        group: 'Workbooks',
+        run: withTab((tab) => setAddingToWorkbook(tab.id)),
+        enabled: canAddToWorkbook,
+      },
+      {
         id: 'file.saveAs',
         title: 'Save as',
         group: 'File',
@@ -693,6 +708,7 @@ export function App() {
       !settingsOpen &&
       !paletteOpen &&
       saving === null &&
+      addingToWorkbook === null &&
       !confirming &&
       !askTelemetry &&
       !askErrorReports &&
@@ -774,6 +790,7 @@ export function App() {
   // Schema and snippet text goes into the editor, never into a raw tab's path.
   const insert = (text: string) => (raw || workbook ? false : (editor.current?.insert(text) ?? false));
   const savingTab = tabs.find((t) => t.id === saving);
+  const addingTab = tabs.find((t) => t.id === addingToWorkbook);
   const closeSettings = () => {
     setCreateAppOpen(false);
     setSettingsOpen(false);
@@ -1017,7 +1034,8 @@ export function App() {
                       ) : (
                         <Results
                           tab={active}
-                          dialogOpen={paletteOpen || saving !== null || confirming}
+                          dialogOpen={paletteOpen || saving !== null || addingToWorkbook !== null || confirming}
+                          onAddToWorkbook={addable(active) ? () => setAddingToWorkbook(active.id) : undefined}
                           onFilter={(column, value, op) => void addFilter(active, column, value, op, editor.current, setProblem)}
                         />
                       )}
@@ -1048,6 +1066,9 @@ export function App() {
           </footer>
         </div>
       </div>
+      {addingTab && addable(addingTab) && (
+        <AddToWorkbookDialog tab={addingTab} onClose={() => setAddingToWorkbook(null)} onNotice={setProblem} />
+      )}
       {savingTab?.source === 'workbook' && <SaveWorkbookDialog tab={savingTab} onClose={() => setSaving(null)} />}
       {savingTab && savingTab.source !== 'workbook' && (
         <SaveDialog
@@ -1226,7 +1247,17 @@ function Toolbar(props: ToolbarProps) {
   );
 }
 
-function Results({ tab, dialogOpen, onFilter }: { tab: Tab; dialogOpen: boolean; onFilter: OnFilter }) {
+function Results({
+  tab,
+  dialogOpen,
+  onFilter,
+  onAddToWorkbook,
+}: {
+  tab: Tab;
+  dialogOpen: boolean;
+  onFilter: OnFilter;
+  onAddToWorkbook?: () => void;
+}) {
   const result = tab.run?.state === 'done' ? tab.run.result : undefined;
   // A run that failed after reaching Graph or the engine: its log says what happened (the status line above says why it failed).
   if (result && result.outcome !== 'ok' && result.diagnostics.length > 0) {
@@ -1259,6 +1290,7 @@ function Results({ tab, dialogOpen, onFilter }: { tab: Tab; dialogOpen: boolean;
       onHighlightsChange={(rules) => useTabs.getState().setHighlights(tab.id, rules)}
       // Offered for the query sources, on a run that kept its text and went to the tab's source.
       onFilter={filterable(tab) ? onFilter : undefined}
+      onAddToWorkbook={onAddToWorkbook}
     />
   );
 }

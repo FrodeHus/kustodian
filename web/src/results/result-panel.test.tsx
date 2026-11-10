@@ -177,6 +177,21 @@ describe('ResultPanel', () => {
     expect(await screen.findByText('Exported 2 rows to Expired apps.md.')).toBeTruthy();
   });
 
+  it('result_panel_export_offers_add_to_workbook_only_with_the_prop', () => {
+    const onAddToWorkbook = vi.fn();
+    const first = render(<ResultPanel {...props} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }));
+    expect(screen.queryByRole('menuitem', { name: 'Add to workbook…' })).toBeNull();
+    first.unmount();
+
+    render(<ResultPanel {...props} onAddToWorkbook={onAddToWorkbook} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }));
+    const menu = screen.getByRole('menu', { name: 'Export' });
+    expect(within(menu).getByRole('separator')).toBeTruthy();
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Add to workbook…' }));
+    expect(onAddToWorkbook).toHaveBeenCalledTimes(1);
+  });
+
   it('result_panel_opens_row_details', () => {
     const { container } = render(<ResultPanel {...props} />);
 

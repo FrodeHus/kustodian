@@ -57,6 +57,8 @@ interface PanelProps {
   highlights?: HighlightRule[];
   /** The tab's highlight rules were changed; without it the grid offers none. */
   onHighlightsChange?: (rules: HighlightRule[]) => void;
+  /** Add the query to a workbook; without it the Export menu has no such item. */
+  onAddToWorkbook?: () => void;
 }
 
 const NO_GROUPING: string[] = [];
@@ -78,6 +80,7 @@ export function ResultPanel({
   onFilter,
   highlights,
   onHighlightsChange,
+  onAddToWorkbook,
 }: PanelProps) {
   const chosen = useTabs((s) => s.resultViews[tabId]?.view) ?? 'rows';
   const setChosen = (view: ResultView) => useTabs.getState().setResultView(tabId, { view });
@@ -188,6 +191,14 @@ export function ResultPanel({
                 {EXPORT_NAMES[format]}
               </button>
             ))}
+            {onAddToWorkbook && (
+              <>
+                <div role="separator" className="my-1 border-t border-line" />
+                <button type="button" role="menuitem" tabIndex={-1} onClick={onAddToWorkbook}>
+                  Add to workbook…
+                </button>
+              </>
+            )}
           </MenuButton>
         )}
         {pinned ? (
