@@ -252,12 +252,21 @@ export interface ArgScope {
   ids: string[];
 }
 
+/** A Log Analytics workspace advanced hunting can target. */
+export interface QueryWorkspace {
+  customerId: string;
+  name: string;
+  resourceId: string;
+}
+
 /** A run's options for the server-side sources: advanced hunting's `timespan` (an ISO 8601 duration such as `P7D`, or an
  * interval `start/end`, at most 30 days) and Resource Graph's `scope`. Null parts, and null options, take the source's defaults
  * (P30D; "all I can see"). Graph ignores both. */
 export interface QueryOptions {
   timespan: string | null;
   scope: ArgScope | null;
+  /** Advanced hunting's target: none for the primary workspace, else exactly one (lifts the timespan cap to 730 days). */
+  workspaces?: QueryWorkspace[] | null;
 }
 
 /** `query.run`'s params. The host refuses options that aren't valid with `bad_request`. */
