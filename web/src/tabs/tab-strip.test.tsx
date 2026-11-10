@@ -20,6 +20,7 @@ describe('TabStrip', () => {
       expect.stringContaining('Microsoft Graph query'),
       expect.stringContaining('Defender hunting query'),
       expect.stringContaining('Resource Graph query'),
+      expect.stringContaining('Log Analytics query'),
       expect.stringContaining('Raw Graph request'),
       expect.stringContaining('New workbook'),
     ]);

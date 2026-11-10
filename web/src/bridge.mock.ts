@@ -351,8 +351,13 @@ const argSchema = {
 };
 
 /** `query.run`'s answer for advanced hunting and Resource Graph: no Graph tables, one request in the log (per page). */
-function serverRunResult(source: 'hunting' | 'arg') {
-  const detail = source === 'hunting' ? 'POST security/runHuntingQuery' : 'POST providers/Microsoft.ResourceGraph/resources';
+function serverRunResult(source: 'hunting' | 'arg' | 'logs') {
+  const detail =
+    source === 'hunting'
+      ? 'POST security/runHuntingQuery'
+      : source === 'logs'
+        ? 'POST v1/workspaces/{customerId}/query'
+        : 'POST providers/Microsoft.ResourceGraph/resources';
   return {
     ...runResult,
     columns: [
@@ -360,8 +365,11 @@ function serverRunResult(source: 'hunting' | 'arg') {
       { name: 'Name', type: 'string' },
     ],
     rows: [
-      ['2026-10-21T09:38:12Z', source === 'hunting' ? 't.dahl@contoso.example' : 'stcontosoweb01'],
-      ['2026-10-21T08:57:31Z', source === 'hunting' ? 'svc-backup@contoso.example' : 'stsharedlogs'],
+      ['2026-10-21T09:38:12Z', source === 'hunting' ? 't.dahl@contoso.example' : source === 'logs' ? 'GET /api/orders' : 'stcontosoweb01'],
+      [
+        '2026-10-21T08:57:31Z',
+        source === 'hunting' ? 'svc-backup@contoso.example' : source === 'logs' ? 'POST /api/checkout' : 'stsharedlogs',
+      ],
     ],
     total: 2,
     tables: [],
@@ -1144,7 +1152,8 @@ export function createMockTransport(): Transport {
         break;
       case 'query.run': {
         // As `QueryOptions.Problem`: options that aren't valid are a bad_request, and nothing runs (ruling 1).
-        const problem = optionsProblem(params?.options);
+        // A Log Analytics timespan reaches back 730 days, so only its shape is checked here.
+        const problem = params?.source === 'logs' ? null : optionsProblem(params?.options);
         if (problem) {
           fail(id, 'bad_request', problem);
           break;
@@ -1158,7 +1167,21 @@ export function createMockTransport(): Transport {
         const timer = setTimeout(() => {
           runs.delete(tabId);
           const source = params?.source;
-          const base = source === 'hunting' || source === 'arg' ? serverRunResult(source) : runResult;
+          // As the host does: a Log Analytics run on no workspace is a query error, nothing is sent.
+          if (source === 'logs' && !params?.options?.workspaces?.length) {
+            reply(id, {
+              ...runResult,
+              outcome: 'queryError',
+              message: 'Pick a workspace before running.',
+              columns: [],
+              rows: [],
+              total: 0,
+              tables: [],
+              runId,
+            });
+            return;
+          }
+          const base = source === 'hunting' || source === 'arg' || source === 'logs' ? serverRunResult(source) : runResult;
           const kql = params?.kql ?? '';
           // `cutoff` in the query text: more rows exist than came back, so a history run is skipped as cut off.
           const answer = kql.includes('DeviceTvmSoftwareVulnerabilities')

@@ -134,6 +134,7 @@ const TITLES: Record<Source, string> = {
   raw: 'Schema',
   hunting: 'Advanced hunting schema',
   arg: 'Resource Graph tables',
+  logs: 'Log Analytics schema',
 };
 
 interface SchemaPanelProps {
@@ -382,7 +383,7 @@ export function SchemaPanel(props: SchemaPanelProps) {
               <div className="flex flex-wrap items-center gap-2 px-[14px] text-[12px]">
                 <p className="faint m-0 min-w-0">{resourceTypesError}</p>
                 <ErrorReportActions reportId={resourceTypesReportId} uiSections={{ message: resourceTypesError }} />
-                {resourceTypesFix === 'consent' && <ConsentButton accountKey={accountKey} />}
+                {resourceTypesFix === 'consent' && <ConsentButton audience="arm" accountKey={accountKey} />}
                 {resourceTypesFix === 'signIn' && onSignIn && (
                   <button type="button" className="btn primary shrink-0" onClick={onSignIn}>
                     Sign in

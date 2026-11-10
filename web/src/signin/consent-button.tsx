@@ -6,12 +6,21 @@ import { ErrorReportActions, type Shown } from '../shell/error-report';
 import { reportIdOf } from '../shell/report-id';
 
 /**
- * "Grant Azure access": asks the host to have the user grant Azure access to the account (`account.consent {key, audience:
- * "arm"}`). Once granted, the Resource Graph resource types are read again (the schema panel may have been refused them), and
+ * "Grant Azure access": asks the host to have the user grant Azure access to the account (`account.consent {key, audience}`, "arm"
+ * or "logs"). Once granted, the Resource Graph resource types are read again (the schema panel may have been refused them), and
  * `onGranted` runs the query again or reads the list again. The user cancelling says nothing; any other failure (granting as
  * another account, for one) is shown next to the button.
  */
-export function ConsentButton({ accountKey, onGranted }: { accountKey: string | undefined; onGranted?: () => void }) {
+export function ConsentButton({
+  accountKey,
+  audience,
+  onGranted,
+}: {
+  accountKey: string | undefined;
+  /** Whose token needs consent: Azure Resource Manager's, or Log Analytics'. */
+  audience: 'arm' | 'logs';
+  onGranted?: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<Shown | null>(null);
 
@@ -21,10 +30,12 @@ export function ConsentButton({ accountKey, onGranted }: { accountKey: string | 
     }
     setBusy(true);
     setProblem(null);
-    call('account.consent', { key: accountKey, audience: 'arm' }).then(
+    call('account.consent', { key: accountKey, audience }).then(
       () => {
         setBusy(false);
-        void useSchemas.getState().reloadResourceTypes();
+        if (audience === 'arm') {
+          void useSchemas.getState().reloadResourceTypes();
+        }
         onGranted?.();
       },
       (e: unknown) => {
@@ -39,7 +50,7 @@ export function ConsentButton({ accountKey, onGranted }: { accountKey: string | 
   return (
     <>
       <button type="button" className="btn primary shrink-0" disabled={busy || !accountKey} onClick={grant}>
-        Grant Azure access
+        {audience === 'logs' ? 'Grant Log Analytics access' : 'Grant Azure access'}
       </button>
       {problem && (
         <span role="alert" className="min-w-0 text-[12px] text-bad">

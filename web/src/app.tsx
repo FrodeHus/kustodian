@@ -40,10 +40,20 @@ import { SignIn } from './signin/sign-in';
 import { PANELS, type PanelName } from './side/panels';
 import { Rail, SidePanel } from './side/side-panel';
 import { Splitter } from './shell/splitter';
-import { DEFAULT_TIMESPAN, runParameters, sentText, useTabs, type RunMode, type Tab, type TabCursor } from './tabs/tab-store';
+import {
+  DEFAULT_TIMESPAN,
+  LOGS_TIMESPAN,
+  runParameters,
+  sentText,
+  useTabs,
+  type RunMode,
+  type Tab,
+  type TabCursor,
+} from './tabs/tab-store';
 import { TabStrip } from './tabs/tab-strip';
 import { SaveButton } from './toolbar/save-button';
 import { ScopePicker } from './toolbar/scope-picker';
+import { setMemoryAccount } from './toolbar/workspace-memory';
 import { WorkspacePicker } from './toolbar/workspace-picker';
 import { exceedsDays } from './toolbar/timespan';
 import { TimespanPicker } from './toolbar/timespan-picker';
@@ -113,6 +123,7 @@ const LANGUAGE: Record<TabSource, string> = {
   graph: 'KQL',
   hunting: 'KQL · advanced hunting',
   arg: 'KQL · Resource Graph',
+  logs: 'KQL · Log Analytics',
   raw: 'Raw request',
   workbook: 'Workbook',
 };
@@ -285,7 +296,7 @@ export function App() {
         } else if (state.tabs !== previous.tabs) {
           const source = state.tabs.find((t) => t.id === state.activeId)?.source;
           setPicker((open) =>
-            source === 'hunting'
+            source === 'hunting' || source === 'logs'
               ? open === 'timespan' || open === 'workspace'
                 ? open
                 : null
@@ -481,7 +492,7 @@ export function App() {
         title: 'Pick timespan',
         group: 'Run',
         run: () => setPicker('timespan'),
-        enabled: () => activeTab()?.source === 'hunting',
+        enabled: () => activeTab()?.source === 'hunting' || activeTab()?.source === 'logs',
       },
       {
         id: 'toolbar.scope',
@@ -558,6 +569,10 @@ export function App() {
 
   const account = accounts?.accounts.find((a) => a.active);
   const accountKey = account?.key;
+  // A new Log Analytics tab starts on the workspace this account last picked.
+  useEffect(() => {
+    setMemoryAccount(accountKey ?? null);
+  }, [accountKey]);
   useEffect(() => {
     createAppAllowed.current = canCreateApp(account);
   }, [account]);
@@ -1019,6 +1034,9 @@ function Toolbar(props: ToolbarProps) {
     onSignIn,
   } = props;
   const running = tab.run?.state === 'running';
+  // A Log Analytics query runs on a workspace the user picked, never a default.
+  const needsWorkspace = tab.source === 'logs' && !tab.options?.workspaces?.length;
+  const runTitle = needsWorkspace ? 'Pick a workspace before running.' : undefined;
   const setOptions = (change: Partial<QueryOptions>) =>
     useTabs.getState().setOptions(tab.id, {
       timespan: tab.options?.timespan ?? null,
@@ -1028,7 +1046,7 @@ function Toolbar(props: ToolbarProps) {
     });
   return (
     <div className="toolbar">
-      <button type="button" className="btn primary" onClick={() => onRun('block')}>
+      <button type="button" className="btn primary" disabled={needsWorkspace} title={runTitle} onClick={() => onRun('block')}>
         <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path d="M6 4v16l14-8z" />
         </svg>
@@ -1036,11 +1054,11 @@ function Toolbar(props: ToolbarProps) {
       </button>
       <span className="faint whitespace-nowrap text-[12px]">the block at the cursor</span>
       <span className="kbd">{MOD} Enter</span>
-      <button type="button" className="btn ghost" onClick={() => onRun('all')}>
+      <button type="button" className="btn ghost" disabled={needsWorkspace} title={runTitle} onClick={() => onRun('all')}>
         Run all <span className="kbd">{SHIFT} Enter</span>
       </button>
       <span className="sep" aria-hidden="true" />
-      {tab.source === 'hunting' && (
+      {(tab.source === 'hunting' || tab.source === 'logs') && (
         <WorkspacePicker
           workspaces={tab.options?.workspaces}
           // Without a workspace the data reaches back 30 days only, so a longer timespan goes back to the default.
@@ -1052,16 +1070,17 @@ function Toolbar(props: ToolbarProps) {
                 : {}),
             })
           }
+          {...(tab.source === 'logs' ? { primaryLabel: null } : {})}
           accountKey={accountKey ?? null}
           onSignIn={onSignIn}
           open={picker === 'workspace'}
           onOpenChange={(open) => onPicker(open ? 'workspace' : null)}
         />
       )}
-      {tab.source === 'hunting' && (
+      {(tab.source === 'hunting' || tab.source === 'logs') && (
         <TimespanPicker
-          timespan={tab.options?.timespan}
-          maxDays={tab.options?.workspaces?.length ? 730 : 30}
+          timespan={tab.options?.timespan ?? (tab.source === 'logs' ? LOGS_TIMESPAN : undefined)}
+          maxDays={tab.source === 'logs' || tab.options?.workspaces?.length ? 730 : 30}
           onChange={(timespan) => setOptions({ timespan })}
           open={picker === 'timespan'}
           onOpenChange={(open) => onPicker(open ? 'timespan' : null)}

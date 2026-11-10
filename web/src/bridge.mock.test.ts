@@ -145,4 +145,16 @@ describe('bridge mock', () => {
     });
     await expect(bridge.call('account.consent', { key: 'mock-account', audience: 'arm' })).resolves.toEqual({});
   });
+
+  it('mock_runs_a_logs_query_on_a_workspace_and_refuses_one_without', async () => {
+    const bridge = createBridge(createMockTransport());
+    const ws = { customerId: 'c41a7e90-6b2d-4f35-8e17-d09a3b6c5e22', name: 'contoso-logs', resourceId: '/r' };
+    const params = { tabId: 't', source: 'logs', kql: 'AppRequests | take 2', refresh: false, parameters: [] };
+
+    const ran = await bridge.call<RunResult>('query.run', { ...params, options: { timespan: 'P90D', scope: null, workspaces: [ws] } });
+    const blocked = await bridge.call<RunResult>('query.run', { ...params, options: { timespan: 'P1D', scope: null, workspaces: null } });
+
+    expect(ran).toMatchObject({ outcome: 'ok', total: 2 });
+    expect(blocked).toMatchObject({ outcome: 'queryError', message: 'Pick a workspace before running.' });
+  });
 });

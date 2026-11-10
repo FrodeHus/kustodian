@@ -62,7 +62,7 @@ const empty = (): Pick<
   | 'listedByDefault'
   | 'licenses'
 > => ({
-  byKey: { graph: undefined, hunting: undefined, arg: undefined, raw: undefined },
+  byKey: { graph: undefined, hunting: undefined, arg: undefined, logs: undefined, raw: undefined },
   errors: {},
   errorReportIds: {},
   loading: {},
@@ -89,6 +89,7 @@ const requests: Record<SchemaSource | 'types' | 'defaults' | 'licenses', number>
   graph: 0,
   hunting: 0,
   arg: 0,
+  logs: 0,
   types: 0,
   defaults: 0,
   licenses: 0,

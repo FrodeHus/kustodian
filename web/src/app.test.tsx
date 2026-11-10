@@ -933,6 +933,28 @@ describe('App', () => {
     expect(options()?.timespan).toBe('P7D');
   });
 
+  it('app_run_on_a_logs_tab_without_a_workspace_is_disabled_and_says_why', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    answers['arm.subscriptions'] = () => ({ subscriptions: [] });
+    answers['arm.workspaces'] = () => ({ workspaces: [] });
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+    act(() => void runCommand('tab.newLogs'));
+    const id = useTabs.getState().tabs.at(-1)!.id;
+    const run = () => screen.getByRole('button', { name: /^Run$/ }) as HTMLButtonElement;
+    expect(run().disabled).toBe(true);
+    expect(run().title).toBe('Pick a workspace before running.');
+    expect((screen.getByRole('button', { name: 'Run all Shift Enter' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: 'Timespan: 1 day' })).toBeTruthy();
+
+    act(() =>
+      useTabs
+        .getState()
+        .setOptions(id, { timespan: 'P1D', scope: null, workspaces: [{ customerId: 'c1', name: 'contoso-logs', resourceId: '/r/1' }] }),
+    );
+    expect(run().disabled).toBe(false);
+  });
+
   it('app_pick_timespan_and_pick_scope_follow_the_source', async () => {
     host({ accounts: [kari], cache: 'persistent' });
     answers['arm.subscriptions'] = () => ({

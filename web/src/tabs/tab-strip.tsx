@@ -9,7 +9,7 @@ import { SOURCES } from './sources';
 import { useTabs, type Tab } from './tab-store';
 
 /** The sources a query tab can have, in the order the menus list them. */
-const QUERY_SOURCES = ['graph', 'hunting', 'arg'] as const;
+const QUERY_SOURCES = ['graph', 'hunting', 'arg', 'logs'] as const;
 
 const activeTab = (): Tab | undefined => {
   const { tabs, activeId } = useTabs.getState();
@@ -31,6 +31,12 @@ const sourceCommands = (): Command[] => [
     group: 'Tabs',
     shortcut: 'Mod+Shift+A',
     run: () => useTabs.getState().open('arg'),
+  },
+  {
+    id: 'tab.newLogs',
+    title: 'New Log Analytics query',
+    group: 'Tabs',
+    run: () => useTabs.getState().open('logs'),
   },
   ...QUERY_SOURCES.map((source): Command => ({
     id: `tab.source.${source}`,
@@ -246,6 +252,10 @@ export function TabStrip({ onDialog }: { onDialog?: (open: boolean) => void } = 
               <span className="kbd">
                 {MOD} {SHIFT} A
               </span>
+            </button>
+            <button type="button" role="menuitem" onClick={() => openNew('logs')}>
+              <SourceBadge source="logs" />
+              Log Analytics query
             </button>
             <button type="button" role="menuitem" onClick={() => openNew('raw')}>
               <SourceBadge source="raw" />

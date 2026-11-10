@@ -213,6 +213,7 @@ function ScopeDialog({ scope, onChange, accountKey, onSignIn }: ScopeDialogProps
           )}
           {problem.fix === 'consent' && (
             <ConsentButton
+              audience="arm"
               accountKey={accountKey}
               onGranted={() => {
                 // Read again, now that Azure access is granted.
