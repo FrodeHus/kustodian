@@ -1,8 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { useState, type ComponentProps, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { NO_SHAPE, withType } from './chart-shape';
-import ChartView, { type Picked } from './chart-view';
+import { NO_SHAPE, withType, type Picked } from './chart-shape';
+import ChartView from './chart-view';
 import { HEATMAP_NO_SHAPE, HEATMAP_PICK } from './heatmap-shape';
 
 // jsdom has no layout for Recharts to measure: each chart stands in as an element naming its kind and series.
@@ -294,6 +294,9 @@ describe('ChartView', () => {
     const { container, unmount } = render(<Chart columns={week} rows={weekRows} kql="t" />);
     expect(screen.getByRole('combobox', { name: 'Chart type' })).toBeTruthy();
     expect(screen.getByText(HEATMAP_PICK)).toBeTruthy();
+    expect(screen.getByText('Chart', { selector: 'b' })).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: 'Chart type' })).toHaveProperty('value', '');
+    expect(screen.getByRole('option', { name: 'Choose a type' })).toHaveProperty('disabled', true);
     expect(screen.queryByRole('grid')).toBeNull();
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Chart type' }), { target: { value: 'heatmap' } });
@@ -324,6 +327,23 @@ describe('ChartView', () => {
     expect(screen.getByRole('combobox', { name: 'Columns' })).toHaveProperty('value', 'Hour');
     expect(screen.getByRole('combobox', { name: 'Rows' })).toHaveProperty('value', 'Day');
     expect(screen.getByRole('checkbox', { name: 'count_' })).toHaveProperty('checked', true);
+  });
+
+  it('chart_view_heatmap_wrong_role_picks_fall_back', () => {
+    // Day isn't a number, and count_ is the value, so neither can take that role.
+    render(<ChartView columns={week} rows={weekRows} kql="t" picked={{ type: 'heatmap', x: 'count_', series: ['Day'] }} />);
+    expect(screen.getByRole('combobox', { name: 'Columns' })).toHaveProperty('value', 'Hour');
+    expect(screen.getByRole('combobox', { name: 'Rows' })).toHaveProperty('value', 'Day');
+    expect(screen.getByRole('checkbox', { name: 'count_' })).toHaveProperty('checked', true);
+  });
+
+  it('chart_view_heatmap_axes_swap', () => {
+    render(<Chart columns={week} rows={weekRows} kql="t" />);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Chart type' }), { target: { value: 'heatmap' } });
+    expect(optionNames('Columns')).toEqual(['Day', 'Hour']);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Columns' }), { target: { value: 'Day' } });
+    expect(screen.getByRole('combobox', { name: 'Columns' })).toHaveProperty('value', 'Day');
+    expect(screen.getByRole('combobox', { name: 'Rows' })).toHaveProperty('value', 'Hour');
   });
 
   it('chart_view_heatmap_cell_pick', () => {

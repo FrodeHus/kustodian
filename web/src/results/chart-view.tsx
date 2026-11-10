@@ -35,9 +35,9 @@ import {
   STACKS,
   withType,
   type CellMatch,
+  type Picked,
   type ChartPoint,
   type ChartType,
-  type Stack,
 } from './chart-shape';
 import HeatmapView from './heatmap-view';
 import { HEATMAP_NO_SHAPE, HEATMAP_PICK, heatmapAxes, heatmapData, heatmapShape } from './heatmap-shape';
@@ -69,15 +69,6 @@ const ANIMATED_POINTS = 2000;
 // Many series wrap the legend; capped and scrolling, it can't grow over the options above the chart.
 const LEGEND = { wrapperStyle: { fontSize: 12, color: 'var(--muted)', maxHeight: 64, overflowY: 'auto' as const } };
 const valueOf = (series: string) => (p: ChartPoint) => p.values[series];
-
-/** What the Chart tab's pickers override: the type, the x axis (null for the series' names) and the series. */
-export interface Picked {
-  type?: ChartType;
-  x?: string | null;
-  series?: string[];
-  split?: string | null;
-  stack?: Stack;
-}
 
 /** The least height a category gets in a chart-only bar chart, which scrolls past that. */
 const BAR_ROW_PX = 22;
@@ -172,7 +163,7 @@ export default function ChartView({
         hint,
         options,
         type,
-        xs: axes.filter((a) => a !== split),
+        xs: axes,
         numbers: numeric.filter((n) => n !== x && n !== split),
         splits: axes.filter((a) => a !== x),
         spec,
@@ -207,6 +198,8 @@ export default function ChartView({
   const { x } = spec;
   const heat = 'heat' in view ? view.heat : undefined;
   const note = 'note' in view ? view.note : undefined;
+  // Only a heatmap fits, and it isn't picked: no type is shown as chosen.
+  const choose = note === HEATMAP_PICK;
   // The point at `index` (a mark's, or the chart's active one for lines and areas), and the series clicked when there is one.
   const pick = (index: unknown, name?: string) => {
     const point = data[Number(index)];
@@ -253,131 +246,134 @@ export default function ChartView({
   );
 
   let chart;
-  switch (type) {
-    case 'column':
-      chart = (
-        <BarChart data={data} stackOffset={stackOffset}>
-          {common}
-          {xAxis}
-          <YAxis {...AXIS} tickFormatter={valueTick} />
-          {series.map((s, i) => (
-            <Bar
-              key={s}
-              name={s}
-              dataKey={valueOf(s)}
-              fill={colour(i)}
-              stackId={stackId}
-              radius={radius([4, 4, 0, 0])}
-              maxBarSize={56}
-              {...motion}
-              style={pointer}
-              onClick={(_, i) => pick(i, s)}
-            />
-          ))}
-        </BarChart>
-      );
-      break;
-    case 'bar':
-      chart = (
-        <BarChart data={data} layout="vertical" stackOffset={stackOffset}>
-          {common}
-          <XAxis type="number" {...AXIS} tickFormatter={valueTick} />
-          <YAxis type="category" dataKey="x" width={140} {...AXIS} tickFormatter={time ? dateTick : undefined} />
-          {series.map((s, i) => (
-            <Bar
-              key={s}
-              name={s}
-              dataKey={valueOf(s)}
-              fill={colour(i)}
-              stackId={stackId}
-              radius={radius([0, 4, 4, 0])}
-              maxBarSize={40}
-              {...motion}
-              style={pointer}
-              onClick={(_, i) => pick(i, s)}
-            />
-          ))}
-        </BarChart>
-      );
-      break;
-    case 'area':
-      chart = (
-        <AreaChart data={data} stackOffset={stackOffset} style={pointer} onClick={(state) => pick(state.activeIndex)}>
-          <defs>
+  // A heatmap, or a note in its place, draws no Recharts chart.
+  if (!heat && !note) {
+    switch (type) {
+      case 'column':
+        chart = (
+          <BarChart data={data} stackOffset={stackOffset}>
+            {common}
+            {xAxis}
+            <YAxis {...AXIS} tickFormatter={valueTick} />
             {series.map((s, i) => (
-              <linearGradient key={s} id={`${gradient}-${i}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" style={{ stopColor: colour(i), stopOpacity: 0.55 }} />
-                <stop offset="100%" style={{ stopColor: colour(i), stopOpacity: 0.04 }} />
-              </linearGradient>
+              <Bar
+                key={s}
+                name={s}
+                dataKey={valueOf(s)}
+                fill={colour(i)}
+                stackId={stackId}
+                radius={radius([4, 4, 0, 0])}
+                maxBarSize={56}
+                {...motion}
+                style={pointer}
+                onClick={(_, i) => pick(i, s)}
+              />
             ))}
-          </defs>
-          {common}
-          {xAxis}
-          <YAxis {...AXIS} tickFormatter={valueTick} />
-          {series.map((s, i) => (
-            <Area
-              key={s}
-              name={s}
-              type="monotone"
-              dataKey={valueOf(s)}
-              stroke={colour(i)}
-              strokeWidth={2}
-              fill={`url(#${gradient}-${i})`}
-              stackId={stackId}
-              activeDot={{ r: 4, strokeWidth: 0 }}
-              style={glow(i)}
-              {...motion}
-            />
-          ))}
-        </AreaChart>
-      );
-      break;
-    case 'pie':
-      chart = (
-        <PieChart>
-          <Tooltip {...TOOLTIP} />
-          <Legend {...LEGEND} />
-          <Pie
-            data={data}
-            dataKey={valueOf(series[0] ?? '')}
-            nameKey="x"
-            innerRadius="58%"
-            paddingAngle={data.length > 1 ? 2 : 0}
-            cornerRadius={4}
-            stroke="none"
-            {...motion}
-            style={pointer}
-            onClick={(_, i) => pick(i)}
-          >
-            {data.map((_, i) => (
-              <Cell key={i} fill={colour(i)} />
+          </BarChart>
+        );
+        break;
+      case 'bar':
+        chart = (
+          <BarChart data={data} layout="vertical" stackOffset={stackOffset}>
+            {common}
+            <XAxis type="number" {...AXIS} tickFormatter={valueTick} />
+            <YAxis type="category" dataKey="x" width={140} {...AXIS} tickFormatter={time ? dateTick : undefined} />
+            {series.map((s, i) => (
+              <Bar
+                key={s}
+                name={s}
+                dataKey={valueOf(s)}
+                fill={colour(i)}
+                stackId={stackId}
+                radius={radius([0, 4, 4, 0])}
+                maxBarSize={40}
+                {...motion}
+                style={pointer}
+                onClick={(_, i) => pick(i, s)}
+              />
             ))}
-          </Pie>
-        </PieChart>
-      );
-      break;
-    default:
-      chart = (
-        <LineChart data={data} style={pointer} onClick={(state) => pick(state.activeIndex)}>
-          {common}
-          {xAxis}
-          <YAxis {...AXIS} />
-          {series.map((s, i) => (
-            <Line
-              key={s}
-              name={s}
-              type="monotone"
-              dataKey={valueOf(s)}
-              stroke={colour(i)}
-              dot={false}
-              activeDot={{ r: 4, strokeWidth: 0 }}
-              strokeWidth={2}
-              style={glow(i)}
+          </BarChart>
+        );
+        break;
+      case 'area':
+        chart = (
+          <AreaChart data={data} stackOffset={stackOffset} style={pointer} onClick={(state) => pick(state.activeIndex)}>
+            <defs>
+              {series.map((s, i) => (
+                <linearGradient key={s} id={`${gradient}-${i}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" style={{ stopColor: colour(i), stopOpacity: 0.55 }} />
+                  <stop offset="100%" style={{ stopColor: colour(i), stopOpacity: 0.04 }} />
+                </linearGradient>
+              ))}
+            </defs>
+            {common}
+            {xAxis}
+            <YAxis {...AXIS} tickFormatter={valueTick} />
+            {series.map((s, i) => (
+              <Area
+                key={s}
+                name={s}
+                type="monotone"
+                dataKey={valueOf(s)}
+                stroke={colour(i)}
+                strokeWidth={2}
+                fill={`url(#${gradient}-${i})`}
+                stackId={stackId}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+                style={glow(i)}
+                {...motion}
+              />
+            ))}
+          </AreaChart>
+        );
+        break;
+      case 'pie':
+        chart = (
+          <PieChart>
+            <Tooltip {...TOOLTIP} />
+            <Legend {...LEGEND} />
+            <Pie
+              data={data}
+              dataKey={valueOf(series[0] ?? '')}
+              nameKey="x"
+              innerRadius="58%"
+              paddingAngle={data.length > 1 ? 2 : 0}
+              cornerRadius={4}
+              stroke="none"
               {...motion}
-            />
-          ))}
-        </LineChart>
-      );
+              style={pointer}
+              onClick={(_, i) => pick(i)}
+            >
+              {data.map((_, i) => (
+                <Cell key={i} fill={colour(i)} />
+              ))}
+            </Pie>
+          </PieChart>
+        );
+        break;
+      default:
+        chart = (
+          <LineChart data={data} style={pointer} onClick={(state) => pick(state.activeIndex)}>
+            {common}
+            {xAxis}
+            <YAxis {...AXIS} />
+            {series.map((s, i) => (
+              <Line
+                key={s}
+                name={s}
+                type="monotone"
+                dataKey={valueOf(s)}
+                stroke={colour(i)}
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+                strokeWidth={2}
+                style={glow(i)}
+                {...motion}
+              />
+            ))}
+          </LineChart>
+        );
+    }
   }
 
   const plot = (
@@ -431,11 +427,13 @@ export default function ChartView({
       <div className="flex items-center gap-2.5">
         <b className="text-[14px]">
           {options.title ??
-            (type === 'timechart'
-              ? 'Time chart'
-              : type === 'heatmap'
-                ? 'Heatmap'
-                : `${CHART_TYPES.find((t) => t.type === type)?.name ?? ''} chart`)}
+            (choose
+              ? 'Chart'
+              : type === 'timechart'
+                ? 'Time chart'
+                : type === 'heatmap'
+                  ? 'Heatmap'
+                  : `${CHART_TYPES.find((t) => t.type === type)?.name ?? ''} chart`)}
         </b>
         {hint && type === hint && <span className="muted text-[12px]">From render {RENDER_WORDS[hint]}</span>}
         <div className="grow" />
@@ -443,9 +441,14 @@ export default function ChartView({
           className="textbox"
           style={{ height: 28 }}
           aria-label="Chart type"
-          value={type}
+          value={choose ? '' : type}
           onChange={(e) => setPicked(withType(picked, CHART_TYPES.find((t) => t.type === e.target.value)?.type))}
         >
+          {choose && (
+            <option value="" disabled>
+              Choose a type
+            </option>
+          )}
           {CHART_TYPES.map((t) => (
             <option key={t.type} value={t.type}>
               {t.name}

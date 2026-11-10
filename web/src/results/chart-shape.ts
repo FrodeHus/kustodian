@@ -1,5 +1,4 @@
 import type { ResultColumn } from '../wire';
-import type { Picked } from './chart-view';
 import { cellText, type Row } from './export';
 
 export type ChartType = 'column' | 'bar' | 'line' | 'area' | 'pie' | 'timechart' | 'heatmap';
@@ -88,6 +87,15 @@ export const STACKS: { stack: Stack; name: string }[] = [
   { stack: 'stacked', name: 'Stacked' },
   { stack: 'stacked100', name: 'Stacked 100%' },
 ];
+
+/** What the Chart tab's pickers override: the type, the x axis (null for the series' names) and the series. */
+export interface Picked {
+  type?: ChartType;
+  x?: string | null;
+  series?: string[];
+  split?: string | null;
+  stack?: Stack;
+}
 
 /** Only bars and areas stack. */
 export const stackable = (type: ChartType) => type === 'column' || type === 'bar' || type === 'area';

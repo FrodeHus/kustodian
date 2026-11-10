@@ -1,4 +1,4 @@
-import type { Picked } from '../results/chart-view';
+import type { Picked } from '../results/chart-shape';
 import type { ParameterDef, QueryOptions, Source } from '../wire';
 
 export const WORKBOOK_KIND = 'kustodian.workbook';

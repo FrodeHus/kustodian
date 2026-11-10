@@ -4,7 +4,7 @@ import { reportIdOf } from '../shell/report-id';
 import { useTabs } from '../tabs/tab-store';
 import type { RunResult, Source } from '../wire';
 import type { CellMatch } from './chart-shape';
-import type { Picked } from './chart-view';
+import type { Picked } from './chart-shape';
 import { CompareView } from './compare-view';
 import { DiagnosticsView } from './diagnostics-view';
 import { EXPORT_FORMATS, EXPORT_NAMES, exportResult, toJson, type ExportFormat } from './export';
