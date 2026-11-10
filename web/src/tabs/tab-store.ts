@@ -150,6 +150,8 @@ interface TabsState {
   tabs: Tab[];
   activeId: string | null;
   cursors: Record<string, TabCursor>;
+  /** The columns each tab's Rows grid is grouped by, outermost first. Runtime only: never saved in the session. */
+  groupings: Record<string, string[]>;
   /** Opens a new empty tab for `source`, titled after the tabs already open, makes it active and returns its id. */
   open(source: Source): string;
   /** Opens a new tab with this text and title, not dirty, makes it active and returns its id. */
@@ -185,6 +187,7 @@ interface TabsState {
   activate(id: string): void;
   setText(id: string, text: string): void;
   setCursor(id: string, cursor: TabCursor): void;
+  setGrouping(id: string, columns: string[]): void;
   /** Runs the tab's query with its parameters; resolves when the run has ended, however it ended. `refresh` skips the
    * host's cache. A raw request tab never runs. */
   run(id: string, mode: RunMode, opts?: { refresh?: boolean }): Promise<void>;
@@ -285,6 +288,7 @@ export const useTabs = create<TabsState>()((set, get) => {
     tabs: [],
     activeId: null,
     cursors: {},
+    groupings: {},
 
     open(source) {
       // Numbered after the tabs already open, so a fresh window starts at Query 1.
@@ -375,7 +379,7 @@ export const useTabs = create<TabsState>()((set, get) => {
         history: [],
       }));
       const activeId = tabs.some((t) => t.id === session.activeId) ? session.activeId : (tabs[0]?.id ?? null);
-      set({ tabs, activeId, cursors: {} });
+      set({ tabs, activeId, cursors: {}, groupings: {} });
     },
 
     setTitle(id, title) {
@@ -424,8 +428,10 @@ export const useTabs = create<TabsState>()((set, get) => {
         const tabs = s.tabs.filter((t) => t.id !== id);
         const cursors = { ...s.cursors };
         delete cursors[id];
+        const groupings = { ...s.groupings };
+        delete groupings[id];
         const activeId = s.activeId === id ? (tabs[Math.min(index, tabs.length - 1)]?.id ?? null) : s.activeId;
-        return { tabs, activeId, cursors };
+        return { tabs, activeId, cursors, groupings };
       });
     },
 
@@ -442,6 +448,10 @@ export const useTabs = create<TabsState>()((set, get) => {
 
     setCursor(id, cursor) {
       set((s) => ({ cursors: { ...s.cursors, [id]: cursor } }));
+    },
+
+    setGrouping(id, columns) {
+      set((s) => ({ groupings: { ...s.groupings, [id]: columns } }));
     },
 
     async run(id, mode, opts) {

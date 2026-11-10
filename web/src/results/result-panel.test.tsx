@@ -58,7 +58,7 @@ const props = { tabId: 't1', title: 'Expired apps', kql: 'applications', result 
 
 beforeEach(() => {
   call.mockReset();
-  useTabs.setState({ tabs: [], activeId: null, cursors: {} });
+  useTabs.setState({ tabs: [], activeId: null, cursors: {}, groupings: {} });
 });
 
 describe('ResultPanel', () => {
@@ -92,6 +92,17 @@ describe('ResultPanel', () => {
 
     fireEvent.click(tabs[2]!);
     expect(screen.getByText(/"displayName": "Contoso"/)).toBeTruthy();
+  });
+
+  it('result_panel_keeps_grouping_across_remounts', () => {
+    const first = render(<ResultPanel {...props} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Group by' }));
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Group by' })).getByRole('menuitemradio', { name: 'displayName' }));
+    expect(useTabs.getState().groupings.t1).toEqual(['displayName']);
+    first.unmount();
+
+    render(<ResultPanel {...props} />);
+    expect(screen.getByRole('button', { name: 'Group by: displayName' })).toBeTruthy();
   });
 
   it('result_panel_pin_adds_compare', () => {

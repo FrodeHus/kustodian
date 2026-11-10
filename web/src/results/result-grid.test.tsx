@@ -151,6 +151,30 @@ describe('ResultGrid', () => {
     expect(bodyRows(container)).toHaveLength(3);
   });
 
+  it('grid_controlled_grouping_renders_and_reports_changes', () => {
+    const rows = [
+      ['Contoso', 1, null],
+      ['Payroll', 2, null],
+      ['Contoso', 3, null],
+    ];
+    const onGroupingChange = vi.fn();
+    const { container, rerender } = render(
+      <ResultGrid columns={columns} rows={rows} grouping={['displayName']} onGroupingChange={onGroupingChange} />,
+    );
+    expect(bodyRows(container).map((tr) => tr.textContent)).toEqual(['▸ displayName: Contoso · 2', '▸ displayName: Payroll · 1']);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Group by: displayName' }));
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Group by' })).getByRole('menuitemradio', { name: 'No grouping' }));
+    expect(onGroupingChange).toHaveBeenLastCalledWith([]);
+
+    // A rerun without the grouped column drops it, once.
+    onGroupingChange.mockClear();
+    const cols = columns.filter((c) => c.name !== 'displayName');
+    rerender(<ResultGrid columns={cols} rows={[[1, null]]} grouping={['displayName']} onGroupingChange={onGroupingChange} />);
+    expect(onGroupingChange).toHaveBeenCalledTimes(1);
+    expect(onGroupingChange).toHaveBeenCalledWith([]);
+  });
+
   it('grid_shift_click_selects_range_and_copies_csv', async () => {
     const rows = [
       ['Contoso, Ltd', 1, null],

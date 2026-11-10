@@ -57,6 +57,8 @@ interface PanelProps {
   onFilter?: OnFilter;
 }
 
+const NO_GROUPING: string[] = [];
+
 /**
  * The results area (spec 6.5): tabs for Rows, Chart, JSON and Diagnostics, and Compare once a run is pinned. The tabs take the
  * arrow keys, Home and End. The Rows tab's tools and Export sit in the tab bar; a row opened in the grid shows in the row
@@ -64,6 +66,7 @@ interface PanelProps {
  */
 export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = false, source = 'graph', onFilter }: PanelProps) {
   const [chosen, setChosen] = useState<ResultTab>('rows');
+  const grouping = useTabs((s) => s.groupings[tabId]) ?? NO_GROUPING;
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
   const [details, setDetails] = useState<number | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -212,6 +215,8 @@ export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = fa
           cellFilters={chartFilter ?? undefined}
           onFilter={onFilter}
           statistics
+          grouping={grouping}
+          onGroupingChange={(columns) => useTabs.getState().setGrouping(tabId, columns)}
         />,
       )}
       {panel(

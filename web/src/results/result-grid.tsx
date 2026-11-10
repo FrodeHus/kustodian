@@ -159,6 +159,10 @@ interface GridProps {
   onFilter?: OnFilter;
   /** Each header gets a column menu with Column statistics (the query tab's Rows grid only). */
   statistics?: boolean;
+  /** The columns the grid is grouped by, outermost first, when the caller keeps them (the query tab's Rows grid). Without it the
+   * grid keeps its own. */
+  grouping?: string[];
+  onGroupingChange?: (columns: string[]) => void;
 }
 
 /** Where a header's column menu, or the statistics it opened, shows: the column, and the point in the grid under its header. */
@@ -209,13 +213,15 @@ export function ResultGrid({
   onShownChange,
   onFilter,
   statistics = false,
+  grouping: givenGrouping,
+  onGroupingChange,
 }: GridProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [filter, setFilter] = useState('');
   const [opened, setOpened] = useState<Opened | null>(null);
   const [visibility, setVisibility] = useState<ColumnVisibilityState>({});
   const [order, setOrder] = useState<string[]>([]);
-  const [grouping, setGrouping] = useState<string[]>([]);
+  const [ownGrouping, setOwnGrouping] = useState<string[]>([]);
   const [expanded, setExpanded] = useState<ExpandedState>({});
   const [ownSelected, setOwnSelected] = useState<ReadonlySet<number>>(new Set());
   const [anchor, setAnchor] = useState<number | null>(null);
@@ -230,12 +236,24 @@ export function ResultGrid({
   const [rowsSeen, setRowsSeen] = useState(rows);
   if (rowsSeen !== rows) {
     setRowsSeen(rows);
+    setExpanded({});
     setOwnSelected(new Set());
     setAnchor(null);
     setColumnMenu(null);
     setStats(null);
   }
   const scroller = useRef<HTMLDivElement>(null);
+  // Only the grouped columns this result still has.
+  const wanted = givenGrouping ?? ownGrouping;
+  const grouping = useMemo(() => wanted.filter((id) => columns.some((c) => c.name === id)), [wanted, columns]);
+  const dropped = grouping.length !== wanted.length;
+  const setGrouping = (next: string[]) => (givenGrouping && onGroupingChange ? onGroupingChange(next) : setOwnGrouping(next));
+  const reportDropped = useEffectEvent(() => onGroupingChange?.(grouping));
+  useEffect(() => {
+    if (dropped && givenGrouping) {
+      reportDropped();
+    }
+  }, [dropped, givenGrouping]);
   // By row index in `rows`, whichever side keeps it.
   const owned = typeof selection === 'object' ? selection : undefined;
   const mode = selection === 'none' ? 'none' : (owned?.mode ?? 'multi');
@@ -275,7 +293,7 @@ export function ResultGrid({
     onGlobalFilterChange: setFilter,
     onColumnVisibilityChange: setVisibility,
     onColumnOrderChange: setOrder,
-    onGroupingChange: setGrouping,
+    onGroupingChange: (updater) => setGrouping(typeof updater === 'function' ? updater(grouping) : updater),
     onExpandedChange: setExpanded,
     globalFilterFn: rowContains,
     // The grouped column keeps its place rather than moving first.

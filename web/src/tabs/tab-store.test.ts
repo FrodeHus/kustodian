@@ -174,6 +174,17 @@ describe('tab store', () => {
     expect(useTabs.getState().activeId).toBe('c');
   });
 
+  it('setGrouping_keeps_a_tabs_grouping_until_it_closes', () => {
+    const a = useTabs.getState().open('graph');
+    const b = useTabs.getState().open('graph');
+    useTabs.getState().setGrouping(a, ['x', 'y']);
+    useTabs.getState().setGrouping(b, ['z']);
+    expect(useTabs.getState().groupings).toEqual({ [a]: ['x', 'y'], [b]: ['z'] });
+
+    useTabs.getState().close(a);
+    expect(useTabs.getState().groupings).toEqual({ [b]: ['z'] });
+  });
+
   it('markSaved_clears_dirty_and_the_next_save_goes_where_it_last_saved', () => {
     const id = useTabs.getState().open('graph');
     useTabs.getState().setText(id, 'users');
