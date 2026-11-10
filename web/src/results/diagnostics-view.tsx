@@ -9,7 +9,7 @@ const ROW_HEIGHT = 28;
 const OVERSCAN = 12;
 const count = (n: number) => n.toLocaleString('en-US');
 
-const KIND_TONE: Partial<Record<DiagnosticEntry['kind'], string>> = { throttled: 'warn', retry: 'warn' };
+const KIND_TONE: Partial<Record<DiagnosticEntry['kind'], string>> = { throttled: 'warn', retry: 'warn', warning: 'warn' };
 
 function seconds(ms: number): string {
   return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;

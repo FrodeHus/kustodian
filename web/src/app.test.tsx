@@ -926,6 +926,34 @@ describe('App', () => {
     expect(bridge.call.mock.calls.filter(([m]) => m === 'query.explain')).toHaveLength(1);
   });
 
+  it('app_picking_primary_workspace_brings_a_long_timespan_back_to_30_days', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    answers['arm.subscriptions'] = () => ({ subscriptions: [] });
+    answers['arm.workspaces'] = () => ({ workspaces: [] });
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+    act(() => void runCommand('tab.newHunting'));
+    const id = useTabs.getState().tabs.at(-1)!.id;
+    const ws = { customerId: 'c1', name: 'contoso-sentinel', resourceId: '/r/1' };
+    const pickPrimary = () => {
+      fireEvent.click(screen.getByRole('button', { name: /^Workspace:/ }));
+      fireEvent.click(screen.getAllByRole('radio')[0]!);
+    };
+    const options = () => useTabs.getState().tabs.find((t) => t.id === id)?.options;
+
+    act(() => useTabs.getState().setOptions(id, { timespan: 'P90D', scope: null, workspaces: [ws] }));
+    pickPrimary();
+    expect(options()).toEqual({ timespan: 'P30D', scope: null, workspaces: null });
+
+    act(() => useTabs.getState().setOptions(id, { timespan: '2026-01-01T00:00:00Z/2026-03-01T00:00:00Z', scope: null, workspaces: [ws] }));
+    pickPrimary();
+    expect(options()?.timespan).toBe('P30D');
+
+    act(() => useTabs.getState().setOptions(id, { timespan: 'P7D', scope: null, workspaces: [ws] }));
+    pickPrimary();
+    expect(options()?.timespan).toBe('P7D');
+  });
+
   it('app_pick_timespan_and_pick_scope_follow_the_source', async () => {
     host({ accounts: [kari], cache: 'persistent' });
     answers['arm.subscriptions'] = () => ({

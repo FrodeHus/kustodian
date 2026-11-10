@@ -137,6 +137,24 @@ beforeEach(() => {
 });
 
 describe('WidgetEditor', () => {
+  it('offers a workspace for a hunting widget only', () => {
+    const w = widget('h', 'table');
+    w.query = {
+      ...w.query!,
+      source: 'hunting',
+      options: {
+        timespan: 'P7D',
+        scope: null,
+        workspaces: [{ customerId: '11111111-1111-1111-1111-111111111111', name: 'Sentinel', resourceId: '/r' }],
+      },
+    };
+    doc = { ...doc, widgets: [...doc.widgets, w] };
+    open('h');
+    expect(screen.getByRole('button', { name: /Workspace: Sentinel/ })).toBeTruthy();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Source' }), { target: { value: 'graph' } });
+    expect(screen.queryByRole('button', { name: /Workspace:/ })).toBeNull();
+  });
+
   it('choosing a saved query links it and offers Copy into widget', async () => {
     open('a');
     fireEvent.click(screen.getByRole('radio', { name: 'Use a saved query' }));

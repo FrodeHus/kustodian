@@ -108,6 +108,8 @@ export type RunOutcome =
   | 'consentNeeded'
   /** A table the query reads needs a license the tenant doesn't have: nothing was read. */
   | 'unlicensed'
+  /** The workspace the run targets isn't one the account can see: nothing was run. */
+  | 'workspaceUnavailable'
   | 'failed';
 
 /** What one relationship column's reads did. `truncated`: objects whose list hit `entryCap`; `refused`: objects Graph refused for
@@ -176,7 +178,7 @@ export interface RunResult {
 export interface DiagnosticEntry {
   /** Milliseconds since the run started. */
   atMs: number;
-  kind: 'request' | 'retry' | 'throttled' | 'probe' | 'per-object' | 'cache' | 'engine';
+  kind: 'request' | 'retry' | 'throttled' | 'probe' | 'per-object' | 'cache' | 'engine' | 'note' | 'warning';
   detail: string;
   status: number | null;
   durationMs: number | null;
@@ -252,12 +254,21 @@ export interface ArgScope {
   ids: string[];
 }
 
+/** A Log Analytics workspace advanced hunting can target. */
+export interface QueryWorkspace {
+  customerId: string;
+  name: string;
+  resourceId: string;
+}
+
 /** A run's options for the server-side sources: advanced hunting's `timespan` (an ISO 8601 duration such as `P7D`, or an
- * interval `start/end`, at most 30 days) and Resource Graph's `scope`. Null parts, and null options, take the source's defaults
- * (P30D; "all I can see"). Graph ignores both. */
+ * interval `start/end`, at most 30 days without a workspace, 730 with one), its `workspaces` and Resource Graph's `scope`. Null
+ * parts, and null options, take the source's defaults (P30D; no workspace; "all I can see"). Graph ignores all three. */
 export interface QueryOptions {
   timespan: string | null;
   scope: ArgScope | null;
+  /** Advanced hunting's target: none for the primary workspace, else exactly one (lifts the timespan cap to 730 days). */
+  workspaces?: QueryWorkspace[] | null;
 }
 
 /** `query.run`'s params. The host refuses options that aren't valid with `bad_request`. */
@@ -424,6 +435,21 @@ export interface ArmManagementGroupsAnswer {
 /** `arm.resourceTypes`' answer: the account's resource types (`Resources | distinct type`), cached by the host for 24 hours. */
 export interface ArmResourceTypesAnswer {
   types: string[];
+}
+
+/** A Log Analytics workspace the account can see, as `arm.workspaces` lists it: `customerId` is the workspace GUID a query names. */
+export interface ArmWorkspace {
+  customerId: string;
+  name: string;
+  resourceId: string;
+  resourceGroup: string;
+  subscriptionId: string;
+  location: string;
+}
+
+/** `arm.workspaces`' answer, cached by the host for 10 minutes. */
+export interface ArmWorkspacesAnswer {
+  workspaces: ArmWorkspace[];
 }
 
 /** The themes made from a popular editor theme's palette (`shell/palettes.ts`). */

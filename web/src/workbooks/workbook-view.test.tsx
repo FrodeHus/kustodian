@@ -176,6 +176,36 @@ describe('WorkbookView', () => {
     expect(styles).toContain('.theme-glass .wb-editor, .theme-glass .wb-editor .card { backdrop-filter: none;');
   });
 
+  describe('workspace widgets', () => {
+    const ws = { customerId: 'c', name: 'contoso-sentinel', resourceId: '/x' };
+    const hunting = () => {
+      const w = widget('h', 'table', 'Hunt');
+      doc.widgets = [{ ...w, query: { ...w.query!, source: 'hunting', options: { timespan: 'P7D', scope: null, workspaces: [ws] } } }];
+    };
+    const columns = [{ name: 'a', type: 'long' }];
+
+    it('a_successful_run_names_the_workspace_and_the_fallback', () => {
+      hunting();
+      show({ h: { state: 'done', result: result(columns, [[1]]) } });
+      expect(within(frame('Hunt')).getByText(/contoso-sentinel/)).toBeTruthy();
+      expect(
+        within(frame('Hunt')).getByText(/If Defender can't reach contoso-sentinel, it answers from your primary workspace\./),
+      ).toBeTruthy();
+    });
+
+    it('a_run_without_a_workspace_says_nothing_of_one', () => {
+      show({ tb: { state: 'done', result: result(columns, [[1]]) } });
+      expect(within(frame('Users')).queryByText(/If Defender can't reach/)).toBeNull();
+    });
+
+    it('an_unavailable_workspace_has_no_pick_button_outside_edit_mode', () => {
+      hunting();
+      show({ h: { state: 'done', result: { ...result(columns, []), outcome: 'workspaceUnavailable', message: 'gone' } } });
+      expect(within(frame('Hunt')).getByText('gone')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Pick a workspace' })).toBeNull();
+    });
+  });
+
   it('says on the parameter itself when the hunting timespan can’t be sent', () => {
     doc.parameters = [{ ...env, name: 'Range', type: 'timespan', value: '90d', choices: null, label: null, huntingTimespan: true }];
     doc.widgets = [];

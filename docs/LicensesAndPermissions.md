@@ -29,6 +29,11 @@ This is Graph-specific. Defender advanced hunting and Azure Resource Graph run t
 answers or refuses the whole query (for example, hunting needs `ThreatHunting.Read.All` and a Defender role). Kustodian
 reports those refusals as **No permission**.
 
+A hunting query that targets a workspace also needs at least **Microsoft Sentinel Reader** on that workspace, and listing the
+workspaces needs Resource Graph's permission (Azure Service Management `user_impersonation`). With **Primary workspace**, the
+default, no workspace is sent. If Defender can't reach the one you picked, it answers from the primary one, and Kustodian says
+so. See [Entra ID permissions](EntraPermissions.md#hunting-in-a-workspace).
+
 ## How Kustodian handles it
 
 ### It knows which tables and columns need a license

@@ -6,6 +6,7 @@ import { reportIdOf } from '../shell/report-id';
 import { errorText } from '../shell/errors';
 import { ConsentButton } from '../signin/consent-button';
 import type { ArgScope, ArmManagementGroupsAnswer, ArmSubscription, ArmSubscriptionsAnswer } from '../wire';
+import { shortId } from './short-id';
 
 /** The host takes at most this many subscriptions in a scope. */
 const MAX_SUBSCRIPTIONS = 100;
@@ -17,9 +18,6 @@ const KINDS: { kind: ArgScope['kind']; label: string }[] = [
   { kind: 'managementGroup', label: 'Management group' },
   { kind: 'all', label: 'All I can see' },
 ];
-
-/** A subscription id as the list shows it: its first and last four characters. */
-const shortId = (id: string) => (id.length > 12 ? `${id.slice(0, 4)}…${id.slice(-4)}` : id);
 
 /** Why a list couldn't be read, and what helps: granting Azure access, signing in again, or nothing the picker can offer. */
 interface Problem {

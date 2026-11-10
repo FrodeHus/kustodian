@@ -6,8 +6,9 @@ import { RefreshTokenButton } from '../signin/refresh-token-button';
 import { runCommand } from '../shell/commands';
 import { ErrorReportActions } from '../shell/error-report';
 import { editorPosition, type TabRun } from '../tabs/tab-store';
-import type { AccountInfo, ArgScope, RunResult, Source, TableFetch } from '../wire';
+import type { AccountInfo, ArgScope, QueryWorkspace, RunResult, Source, TableFetch } from '../wire';
 import { plural, scopeText, serverRequests } from './source-wording';
+import { fallbackText } from './workspace-fallback';
 
 const count = (n: number) => n.toLocaleString('en-US');
 
@@ -140,7 +141,15 @@ function sourceChips(result: RunResult, source: Source, scope: ArgScope | null |
   return tableChips(result.tables);
 }
 
-function resultChips(result: RunResult, source: Source, scope: ArgScope | null | undefined): Chip[] {
+/** Defender answers from the primary workspace when it can't reach the one the run named: said once it answered. */
+function fallbackChips(source: Source, workspace: QueryWorkspace | undefined): Chip[] {
+  return source === 'hunting' && workspace ? [{ text: fallbackText(workspace.name) }] : [];
+}
+
+function resultChips(result: RunResult, source: Source, scope: ArgScope | null | undefined, workspace?: QueryWorkspace): Chip[] {
+  if (result.outcome === 'workspaceUnavailable') {
+    return [];
+  }
   if (result.outcome !== 'ok') {
     return sourceChips(result, source, scope);
   }
@@ -155,7 +164,7 @@ function resultChips(result: RunResult, source: Source, scope: ArgScope | null |
   if (result.message) {
     chips.push({ tone: 'warn', text: result.message });
   }
-  return [...chips, ...sourceChips(result, source, scope)];
+  return [...chips, ...sourceChips(result, source, scope), ...fallbackChips(source, workspace)];
 }
 
 interface RunStatusProps {
@@ -174,6 +183,8 @@ interface RunStatusProps {
   createApp?: boolean;
   /** The active account: a refused run offers to grant the permission it needs unless the account already has it. */
   account?: AccountInfo;
+  /** A run on a workspace the account can't see didn't run: this opens the workspace picker. */
+  onPickWorkspace?: (opener: HTMLElement) => void;
 }
 
 /** The permissions to offer granting for relationship columns refused in full, each once. */
@@ -190,7 +201,17 @@ function relationshipGrants(result: RunResult, source: Source, account: AccountI
 
 /** The line between the editor and the results: the run's progress, then how it ended and what it sent, worded for the source
  * the run went to. A run that needs Azure access offers "Grant Azure access", which runs it again once granted. */
-export function RunStatus({ run, scope, onSignIn, accountKey, onConsented, onGranted, createApp = false, account }: RunStatusProps) {
+export function RunStatus({
+  run,
+  scope,
+  onSignIn,
+  accountKey,
+  onConsented,
+  onGranted,
+  createApp = false,
+  account,
+  onPickWorkspace,
+}: RunStatusProps) {
   let content: ReactNode;
   let meta: string | null = null;
 
@@ -201,6 +222,10 @@ export function RunStatus({ run, scope, onSignIn, accountKey, onConsented, onGra
       <span className="chip" role="status">
         <span className="size-2 animate-pulse rounded-full bg-accent" aria-hidden="true" />
         {stageLabel(run.stage, run.detail)}
+        {run.source === 'hunting' &&
+          run.stage === 'requesting' &&
+          run.options?.workspaces?.[0] &&
+          ` with ${run.options.workspaces[0].name}`}
       </span>
     );
   } else if (run.cancelled || !run.result) {
@@ -214,6 +239,7 @@ export function RunStatus({ run, scope, onSignIn, accountKey, onConsented, onGra
     meta = `${new Date(run.startedAt).toLocaleTimeString('en-GB')} · ${duration(result.durationMs)}`;
     content = (
       <>
+        {result.outcome === 'workspaceUnavailable' && <span className="chip bad shrink-0">Not run</span>}
         {result.outcome !== 'ok' && (
           <span className="flex min-w-0 items-center gap-2 text-bad" role="alert">
             <span className="min-w-0 wrap-anywhere">{result.message ?? 'The query failed.'}</span>
@@ -227,6 +253,11 @@ export function RunStatus({ run, scope, onSignIn, accountKey, onConsented, onGra
               </span>
             )}
           </span>
+        )}
+        {result.outcome === 'workspaceUnavailable' && onPickWorkspace && (
+          <button type="button" className="btn primary shrink-0" onClick={(e) => onPickWorkspace(e.currentTarget)}>
+            Pick a workspace
+          </button>
         )}
         {result.outcome === 'signInNeeded' && (
           <button type="button" className="btn primary shrink-0" onClick={onSignIn}>
@@ -249,7 +280,7 @@ export function RunStatus({ run, scope, onSignIn, accountKey, onConsented, onGra
         {grants.map((s) => (
           <GrantPermissionButton key={s} accountKey={accountKey} scope={s} onGranted={() => onGranted?.()} />
         ))}
-        {resultChips(result, source, scope).map((chip, i) => (
+        {resultChips(result, source, scope, run.options?.workspaces?.[0]).map((chip, i) => (
           <span key={i} className={`chip${chip.tone ? ` ${chip.tone}` : ''}`} title={chip.title}>
             {chip.text}
           </span>

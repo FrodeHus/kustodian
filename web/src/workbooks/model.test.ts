@@ -433,3 +433,12 @@ describe('tabs', () => {
     expect(w.query).toBeUndefined();
   });
 });
+
+describe('isoTimespan cap', () => {
+  it('takes the cap as days', () => {
+    expect(isoTimespan('90d', 730)).toBe('P90D');
+    expect(isoTimespan('90d')).toBeNull();
+    expect(isoTimespan('800h', 730)).toBe('PT800H');
+    expect(isoTimespan('800h')).toBeNull();
+  });
+});

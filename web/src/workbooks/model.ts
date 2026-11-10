@@ -422,17 +422,16 @@ export function parseWorkbook(json: unknown): WorkbookDoc | string {
 }
 
 const UNIT_SECONDS = { d: 86400, h: 3600, m: 60, s: 1, ms: 0.001 };
-const MAX_SECONDS = 30 * 86400;
 
-/** A KQL timespan literal (`7d`) as ISO 8601 for `options.timespan`; null when it isn't one or exceeds 30 days. */
-export function isoTimespan(kql: string): string | null {
+/** A KQL timespan literal (`7d`) as ISO 8601 for `options.timespan`; null when it isn't one or exceeds `maxDays`. */
+export function isoTimespan(kql: string, maxDays = 30): string | null {
   const m = /^([0-9]+(?:\.[0-9]+)?)(d|h|m|s|ms)$/.exec(kql);
   if (!m) {
     return null;
   }
   const raw = Number(m[1]) * UNIT_SECONDS[m[2] as keyof typeof UNIT_SECONDS];
   const s = m[2] === 'ms' ? Math.ceil(raw) : Math.round(raw);
-  if (s <= 0 || s > MAX_SECONDS) {
+  if (s <= 0 || s > maxDays * 86400) {
     return null;
   }
   if (s % 86400 === 0) {

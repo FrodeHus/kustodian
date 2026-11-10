@@ -17,6 +17,11 @@ you edit the workbook.
 - **Stat**: one number from the first row, with an optional value to compare it with and an optional unit shown after it
   (`%`, `ms`, `days`; at most 12 characters).
 
+A hunting widget can query a Log Analytics workspace, picked in the widget editor. The default is **Primary
+workspace**: no workspace is sent, and Graph uses your primary Sentinel workspace if one is connected. If Defender can't reach
+the workspace, it answers from the primary one, and the widget says so. Querying a workspace needs Microsoft Sentinel Reader
+on it; see [Entra ID permissions](EntraPermissions.md#hunting-in-a-workspace).
+
 Markdown links open in your own browser, but only for the sites Kustodian already opens: Microsoft sign-in and Entra
 pages (`login.microsoftonline.com`, `entra.microsoft.com`), Kustodian's own site (`frodehus.github.io`) and its GitHub release
 pages. Only `https` links are links; any other address shows as plain text, and a link to another site says in the widget
@@ -179,7 +184,8 @@ the other widgets still run.
 choices, default and required. The dialog shows which widgets use each parameter and flags unused ones. A list without
 choices takes several values, one per line. A list with choices can allow several values, and can offer **All**, which
 sends every choice. **Remember my last value** keeps your pick on this computer, outside the workbook. A timespan can be marked as the Defender hunting timespan: hunting widgets then use it
-(converted to the form the API takes, at most 30 days) unless they set it themselves.
+(converted to the form the API takes, at most 30 days) unless they set it themselves. A hunting widget with a workspace can go
+up to 730 days, so the timespan keeps each widget's workspace and its cap follows each widget.
 
 Change a workbook parameter in the bar under the toolbar and only the widgets that use it rerun. A text parameter reruns when
 you stop typing or press Enter. These changes aren't saved: the file holds the defaults you set in the dialog.
@@ -219,6 +225,9 @@ remembered values.
 a review first. Nothing runs, and nothing is saved, until you choose. The review shows:
 
 - **What's in it**: the widgets, parameters and buttons.
+- **Workspaces**: the workspaces the file queries, with how many widgets use each. Names come from your own workspace list,
+  matched by ID. A name only the file claims shows as "not available to this account", or "not checked" when your list can't be
+  read. Saving the import, or opening it without saving, is the confirmation.
 - **Saved queries**: they are added to your library with new ids, in a folder named after the workbook, or copied into the
   widgets. **Open without saving** always copies them and saves nothing.
 - **Tool buttons**: each is matched by name to a tool in your own `tools.json`. Import never changes `tools.json`. A button

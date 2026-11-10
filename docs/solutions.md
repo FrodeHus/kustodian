@@ -39,7 +39,8 @@ A solution that needs a newer app shows **Needs Kustodian x.y.z** and can't be i
 
 Tick or untick the items you want, then click **Install**. They go in a library folder named after the solution, each with
 a new id, so they never overwrite something of yours. Nothing runs on install: queries and the workbook run when you open
-them.
+them. A solution never installs a workspace: Kustodian removes any workspace from its queries and workbooks, so they use
+**Primary workspace** until you pick one after installing.
 
 ## Uninstall
 

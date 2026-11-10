@@ -16,13 +16,21 @@ public sealed record ArgScope(string Kind, IReadOnlyList<string> Ids)
     public static ArgScope Default { get; } = new(All, []);
 }
 
+/// <summary>A Log Analytics workspace an advanced hunting query can target: its <see cref="CustomerId"/> (the workspace GUID),
+/// display <see cref="Name"/> and ARM <see cref="ResourceId"/>.</summary>
+public sealed record QueryWorkspace(string CustomerId, string Name, string ResourceId);
+
 /// <summary>A run's options beyond its text, for the server-side sources. <see cref="Timespan"/> is advanced hunting's: an
 /// ISO 8601 duration (<c>P1D</c>, <c>P7D</c>, <c>P30D</c>) or an interval <c>start/end</c>. <see cref="Scope"/> is Azure Resource
-/// Graph's. Null parts take the source's defaults (P30D; "all I can see"); Graph ignores both.</summary>
-public sealed partial record QueryOptions(string? Timespan, ArgScope? Scope)
+/// Graph's. <see cref="Workspaces"/> is advanced hunting's target: none for the primary workspace, else exactly one. Null parts take
+/// the source's defaults (P30D; "all I can see"; primary workspace); Graph ignores all three.</summary>
+public sealed partial record QueryOptions(string? Timespan, ArgScope? Scope, IReadOnlyList<QueryWorkspace>? Workspaces = null)
 {
     /// <summary>Advanced hunting keeps 30 days of data.</summary>
     public static readonly TimeSpan MaxTimespan = TimeSpan.FromDays(30);
+
+    /// <summary>A Log Analytics workspace keeps up to two years.</summary>
+    public static readonly TimeSpan MaxTimespanWithWorkspace = TimeSpan.FromDays(730);
 
     public const int MaxSubscriptions = 100;
 
@@ -30,7 +38,8 @@ public sealed partial record QueryOptions(string? Timespan, ArgScope? Scope)
     public static QueryOptions Default { get; } = new(null, null);
 
     /// <summary>What is wrong with <paramref name="options"/>, as the user is told it, or null when nothing is (null options
-    /// included). A timespan must parse and cover more than nothing and at most <see cref="MaxTimespan"/>; a scope must be one of
+    /// included). A timespan must parse and cover more than nothing and at most <see cref="MaxTimespan"/> (<see cref="MaxTimespanWithWorkspace"/> with a workspace); at most one workspace, with a GUID
+    /// customer id; a scope must be one of
     /// the three kinds with its ids: 1 to <see cref="MaxSubscriptions"/> subscription GUIDs, one management group name, or none
     /// for <c>all</c>. Parts missing from the JSON arrive as null, whatever the types say.</summary>
     public static string? Problem(QueryOptions? options)
@@ -47,9 +56,28 @@ public sealed partial record QueryOptions(string? Timespan, ArgScope? Scope)
                 return "The timespan must be an ISO 8601 duration such as P7D, or an interval start/end.";
             }
 
-            if (length > MaxTimespan)
+            var cap = options.Workspaces is { Count: > 0 } ? MaxTimespanWithWorkspace : MaxTimespan;
+            if (length > cap)
             {
-                return "The timespan can cover at most 30 days.";
+                return $"The timespan can cover at most {cap.Days} days.";
+            }
+        }
+
+        if (options.Workspaces is { Count: > 0 } workspaces)
+        {
+            if (workspaces.Count > 1)
+            {
+                return "Pick one workspace.";
+            }
+
+            if (workspaces[0] is not { } workspace || workspace.CustomerId is null)
+            {
+                return "The workspace is missing.";
+            }
+
+            if (!Guid.TryParseExact(workspace.CustomerId, "D", out _))
+            {
+                return $"{workspace.CustomerId} is not a workspace id.";
             }
         }
 

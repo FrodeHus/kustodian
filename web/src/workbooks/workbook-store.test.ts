@@ -151,7 +151,7 @@ describe('workbook store', () => {
       source: 'hunting',
       kql: 'Ta',
       parameters: [],
-      options: { timespan: 'P30D', scope: null },
+      options: { timespan: 'P30D', scope: null, workspaces: null },
       refresh: false,
       addToRecent: false,
     });

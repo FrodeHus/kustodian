@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Log Analytics tab</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="studio.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#4CC2FF}a:hover{color:#8FD8FF}</style>
+</helmet>
+<div class="studio" style="width: 1440px; height: 900px; display: flex; flex-direction: column;">
+<div class="titlebar"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><span class="brand">Kustodian</span><div style="flex-grow: 1;"></div><span class="pill"><span class="dot-ok" aria-hidden="true"></span><b>Contoso Ltd</b> · kari@contoso.com</span></div>
+<div class="tabs" role="tablist" aria-label="Open queries">
+<button type="button" role="tab" class="tab" aria-selected="false"><span class="src hunt">AH</span>Risky sign-ins, 90 days <span class="x" aria-hidden="true">×</span></button>
+<button type="button" role="tab" class="tab" aria-selected="false"><span class="src arg">ARG</span>Public storage accounts <span class="x" aria-hidden="true">×</span></button>
+<button type="button" role="tab" class="tab" aria-selected="true"><span class="src logs">LA</span>Failing requests, web prod <span class="x" aria-hidden="true">×</span></button>
+<button type="button" class="tab-add" aria-label="New tab">+</button>
+</div>
+<div class="body">
+<aside class="side" aria-label="Workspace tables">
+<h2>appi-web-prod-ws · tables</h2>
+<input class="search" type="search" aria-label="Find a table or column" placeholder="Find among 38 tables">
+<ul class="tree">
+<li><button type="button" aria-expanded="true">▾ <span class="mono" style="color: var(--tbl);">AppRequests</span></button></li>
+<li><button type="button" class="col mono">TimeGenerated<span class="ty">datetime</span></button></li>
+<li><button type="button" class="col mono">Name<span class="ty">string</span></button></li>
+<li><button type="button" class="col mono">Url<span class="ty">string</span></button></li>
+<li><button type="button" class="col mono">ResultCode<span class="ty">string</span></button></li>
+<li><button type="button" class="col mono">Success<span class="ty">bool</span></button></li>
+<li><button type="button" class="col mono">DurationMs<span class="ty">real</span></button></li>
+<li><button type="button" class="col mono">AppRoleName<span class="ty">string</span></button></li>
+<li><button type="button">▸ <span class="mono">AppDependencies</span></button></li>
+<li><button type="button">▸ <span class="mono">AppExceptions</span></button></li>
+<li><button type="button">▸ <span class="mono">AppTraces</span></button></li>
+<li><button type="button">▸ <span class="mono">AppPageViews</span></button></li>
+<li><button type="button">▸ <span class="mono">AzureDiagnostics</span></button></li>
+<li><button type="button">▸ <span class="mono">AzureActivity</span></button></li>
+</ul>
+<span class="faint" style="font-size: 12px; padding: 12px 14px; margin-top: auto;">Workspace schema · read 10:02 · functions: 3</span>
+</aside>
+<main class="main" style="position: relative;">
+<div class="toolbar">
+<button type="button" class="btn primary">Run</button>
+<span class="sep" aria-hidden="true"></span>
+<button type="button" class="btn">Workspace: appi-web-prod-ws ▾</button>
+<button type="button" class="btn">Timespan: 1 day ▾</button>
+<button type="button" class="btn">Parameters</button>
+<button type="button" class="btn ghost">Format</button>
+<div style="flex-grow: 1;"></div>
+<span class="src logs" style="height: 22px; padding: 0 8px; font-size: 11px;">LOG ANALYTICS</span>
+<span class="muted" style="font-size: 12px;">Runs in Azure Monitor · appi-web-prod-ws</span>
+</div>
+<div class="editor" role="textbox" aria-multiline="true" aria-label="KQL query" tabindex="0" style="height: 168px;">
+<div class="ln"><span class="g">1</span><span class="cm">// Failing requests per operation, from workspace-based Application Insights</span></div>
+<div class="ln"><span class="g">2</span><span class="t">AppRequests</span></div>
+<div class="ln"><span class="g">3</span>| <span class="k">where</span> <span class="c">Success</span> == <span class="n">false</span></div>
+<div class="ln cur"><span class="g">4</span>| <span class="k">summarize</span> failures = <span class="f">count</span>(), p95 = <span class="f">percentile</span>(<span class="c">DurationMs</span>, <span class="n">95</span>) <span class="k">by</span> <span class="c">Name</span>, <span class="c">ResultCode</span></div>
+<div class="ln"><span class="g">5</span>| <span class="k">top</span> <span class="n">20</span> <span class="k">by</span> failures</div>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line);">
+<span class="chip ok">● 20 rows</span><span class="chip">appi-web-prod-ws · 1 day</span>
+<div style="flex-grow: 1;"></div><span class="mono faint" style="font-size: 11.5px;">10:24:47 · 1.1 s · api.loganalytics.azure.com/v1/…/query</span>
+</div>
+<div class="rbar"><div role="tablist" aria-label="Result" style="display: flex;"><button type="button" role="tab" class="rtab" aria-selected="true">Rows · 20</button><button type="button" role="tab" class="rtab" aria-selected="false">Chart</button><button type="button" role="tab" class="rtab" aria-selected="false">JSON</button><button type="button" role="tab" class="rtab" aria-selected="false">Diagnostics</button></div><div style="flex-grow: 1;"></div><button type="button" class="btn">Export ▾</button></div>
+<div style="flex: 1; min-height: 0; overflow: hidden;">
+<table class="grid">
+<thead><tr><th scope="col">Name</th><th scope="col">ResultCode</th><th scope="col" class="num">failures</th><th scope="col" class="num">p95</th></tr></thead>
+<tbody>
+<tr><td>POST /api/orders</td><td>500</td><td class="num">1,284</td><td class="num">2,410.6</td></tr>
+<tr><td>GET /api/catalog/search</td><td>503</td><td class="num">402</td><td class="num">8,002.1</td></tr>
+<tr><td>GET /account/profile</td><td>401</td><td class="num">219</td><td class="num">96.4</td></tr>
+<tr><td>POST /api/payments/confirm</td><td>502</td><td class="num">73</td><td class="num">12,550.0</td></tr>
+</tbody>
+</table>
+</div>
+</main>
+</div>
+<div class="status"><span>Ln 4, Col 98</span><span>KQL · Log Analytics</span><div style="flex-grow: 1;"></div><span>Log Analytics token · same account</span><span>Dark</span></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

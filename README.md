@@ -20,6 +20,8 @@ it sends them. Hunting and Resource Graph queries go straight to their services,
 ## Features
 
 - **Three sources, one editor**: Graph (beta), Defender hunting via `security/runHuntingQuery`, and Azure Resource Graph.
+- **Hunting in a workspace**: a Workspace picker beside the timespan sends an advanced hunting query to a Log Analytics workspace, for
+  up to 730 days. The default, **Primary workspace**, sends none. See [docs/EntraPermissions.md](docs/EntraPermissions.md#hunting-in-a-workspace).
 - **Schema-aware KQL**: completion and errors from each source's schema, including nested and `mv-expand`ed fields.
 - **Explain**: see the Graph requests, `$filter` and permissions a query needs, without sending anything.
 - **Results**: virtualized grid, charts, JSON and diagnostics; smart filter from a cell or row details; compare two runs; export to CSV, JSON or Markdown.

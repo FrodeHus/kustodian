@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { call } from '../bridge';
 import { MenuButton, NoticeLine, type Notice } from '../results/result-grid';
 import { RunStatus } from '../results/run-status';
+import { fallbackText } from '../results/workspace-fallback';
 import { errorText } from '../shell/errors';
 import { reportIdOf } from '../shell/report-id';
 import { failed, useTabs } from '../tabs/tab-store';
@@ -185,13 +186,14 @@ function ToolButtonItems({
 }
 
 /** What a widget shows while it has no result: running, waiting, blocked, gone, or the error view. Null when it has one. */
-/** `onSetUp`, in edit mode, opens the widget editor from a widget with no query yet; focus goes back to `opener` after. */
+/** `onEdit`, in edit mode, opens the widget editor (from a widget with no query yet, or to pick a workspace); focus goes back to
+ * `opener` after. */
 function runBody(
   tabId: string,
   widget: Widget,
   run: WidgetRun | undefined,
   onSignIn: () => void,
-  onSetUp?: (opener: HTMLElement) => void,
+  onEdit?: (opener: HTMLElement) => void,
 ): ReactNode {
   const source = widget.query?.source ?? 'graph';
   const errorView = (result: RunResult, at: number | undefined) => (
@@ -206,6 +208,7 @@ function runBody(
         kql: widget.query?.text,
       }}
       onSignIn={onSignIn}
+      onPickWorkspace={onEdit}
       onConsented={() => void useWorkbooks.getState().runWidget(tabId, widget.id)}
       onGranted={() => void useWorkbooks.getState().runWidget(tabId, widget.id)}
     />
@@ -216,13 +219,13 @@ function runBody(
       return (
         <div className="flex flex-col items-start gap-2 p-4 text-[12px]">
           <span className="faint">No query yet.</span>
-          {onSetUp && (
+          {onEdit && (
             // The button is gone once the widget has a query: focus goes back to its grip.
             <button
               type="button"
               className="btn"
               onClick={(e) =>
-                onSetUp(e.currentTarget.closest('.wb-widget')?.querySelector<HTMLElement>('[data-wb-grip]') ?? e.currentTarget)
+                onEdit(e.currentTarget.closest('.wb-widget')?.querySelector<HTMLElement>('[data-wb-grip]') ?? e.currentTarget)
               }
             >
               Set up widget
@@ -760,6 +763,11 @@ export function WidgetFrame({
             </HistoryData.Provider>
           )}
         </div>
+        {result?.outcome === 'ok' && widget.query?.source === 'hunting' && live.query?.options?.workspaces?.[0] && (
+          <p className="faint m-0 px-3 pb-2 text-[11.5px]">
+            {`Workspace ${live.query.options.workspaces[0].name}. ${fallbackText(live.query.options.workspaces[0].name)}`}
+          </p>
+        )}
         {widget.history && (
           <footer className="faint flex flex-col gap-0.5 px-3 pb-2 text-[11.5px]">
             <span>

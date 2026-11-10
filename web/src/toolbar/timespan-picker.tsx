@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { DEFAULT_TIMESPAN } from '../tabs/tab-store';
+import { DAY_MS, interval } from './timespan';
 
 /** The timespans the menu offers (spec 8.1: 1, 7 or 30 days, or custom). */
 const PRESETS = [
   { value: 'P1D', label: '1 day' },
   { value: 'P7D', label: '7 days' },
   { value: 'P30D', label: '30 days' },
+  { value: 'P90D', label: '90 days' },
 ] as const;
 
-/** Advanced hunting keeps 30 days of data; the host refuses a longer timespan. */
-const MAX_DAYS = 30;
-const DAY_MS = 24 * 60 * 60 * 1000;
+/** A workspace keeps data longer than Defender's 30 days, so the 90 days preset shows only when the cap allows it. */
+const presetsFor = (maxDays: number) => PRESETS.filter((p) => maxDays > 30 || p.value !== 'P90D');
 
 /** An instant as a `datetime-local` input shows it, in local time to the minute. */
 function toLocalInput(at: Date): string {
@@ -20,17 +21,6 @@ function toLocalInput(at: Date): string {
 
 /** An instant as the interval sends it: UTC to the second. */
 const toIso = (at: Date) => at.toISOString().replace(/\.\d{3}Z$/, 'Z');
-
-/** The start and end of an interval timespan `start/end`, or null for a duration. */
-function interval(timespan: string): [Date, Date] | null {
-  const [start, end, ...rest] = timespan.split('/');
-  if (start === undefined || end === undefined || rest.length > 0) {
-    return null;
-  }
-  const from = new Date(start);
-  const to = new Date(end);
-  return Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) ? null : [from, to];
-}
 
 const short = (at: Date) => at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
@@ -46,8 +36,8 @@ function timespanText(timespan: string): string {
   return range ? `${short(range[0])} – ${short(range[1])}` : timespan;
 }
 
-/** Why a custom range can't be used, or null when it can: the start before the end, and 30 days at most (the host's rule). */
-function rangeProblem(start: string, end: string): string | null {
+/** Why a custom range can't be used, or null when it can: the start before the end, and `maxDays` at most (the host's rule). */
+function rangeProblem(start: string, end: string, maxDays: number): string | null {
   const from = new Date(start).getTime();
   const to = new Date(end).getTime();
   if (Number.isNaN(from) || Number.isNaN(to)) {
@@ -56,7 +46,7 @@ function rangeProblem(start: string, end: string): string | null {
   if (to <= from) {
     return 'The end must come after the start.';
   }
-  return to - from > MAX_DAYS * DAY_MS ? 'The timespan can cover at most 30 days.' : null;
+  return to - from > maxDays * DAY_MS ? `The timespan can cover at most ${maxDays} days.` : null;
 }
 
 /** A mousedown doesn't move focus, so a click lands even where WebKit wouldn't focus the button; the range's fields still take
@@ -71,6 +61,8 @@ interface TimespanPickerProps {
   /** The tab's timespan; none is the default, 30 days. */
   timespan: string | null | undefined;
   onChange: (timespan: string) => void;
+  /** The longest timespan: 30 days for Defender's data, 730 with a workspace. */
+  maxDays: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -80,7 +72,7 @@ interface TimespanPickerProps {
  * as an interval `start/end`. The menu closes on a click outside it or Esc, never on blur (macOS WebKit doesn't focus a clicked
  * button), and a mousedown in it doesn't move focus, except into the range's fields.
  */
-export function TimespanPicker({ timespan, onChange, open, onOpenChange }: TimespanPickerProps) {
+export function TimespanPicker({ timespan, onChange, maxDays, open, onOpenChange }: TimespanPickerProps) {
   const current = timespan ?? DEFAULT_TIMESPAN;
   const ref = useRef<HTMLDivElement>(null);
 
@@ -121,6 +113,7 @@ export function TimespanPicker({ timespan, onChange, open, onOpenChange }: Times
       {open && (
         <TimespanMenu
           current={current}
+          maxDays={maxDays}
           onChoose={(value) => {
             onChange(value);
             onOpenChange(false);
@@ -132,7 +125,7 @@ export function TimespanPicker({ timespan, onChange, open, onOpenChange }: Times
 }
 
 /** The open menu: mounted each time it opens, so it starts on the presets. */
-function TimespanMenu({ current, onChoose }: { current: string; onChoose: (timespan: string) => void }) {
+function TimespanMenu({ current, maxDays, onChoose }: { current: string; maxDays: number; onChoose: (timespan: string) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const [custom, setCustom] = useState(false);
   const [start, setStart] = useState('');
@@ -169,7 +162,7 @@ function TimespanMenu({ current, onChoose }: { current: string; onChoose: (times
   };
 
   const applyRange = () => {
-    const why = rangeProblem(start, end);
+    const why = rangeProblem(start, end, maxDays);
     setProblem(why);
     if (!why) {
       onChoose(`${toIso(new Date(start))}/${toIso(new Date(end))}`);
@@ -211,7 +204,10 @@ function TimespanMenu({ current, onChoose }: { current: string; onChoose: (times
             {problem}
           </span>
         )}
-        <span className="faint text-[12px]">Advanced hunting keeps 30 days of data. The timespan is saved with the query.</span>
+        <span className="faint text-[12px]">
+          {maxDays > 30 ? `A workspace keeps data for up to ${maxDays} days.` : 'Advanced hunting keeps 30 days of data.'} The timespan is
+          saved with the query.
+        </span>
         <div className="flex justify-end gap-2">
           <button type="button" className="btn ghost" onClick={() => setCustom(false)}>
             Back
@@ -242,7 +238,7 @@ function TimespanMenu({ current, onChoose }: { current: string; onChoose: (times
         items[(at + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
       }}
     >
-      {PRESETS.map((p) => (
+      {presetsFor(maxDays).map((p) => (
         <button
           key={p.value}
           type="button"
