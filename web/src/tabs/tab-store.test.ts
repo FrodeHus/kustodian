@@ -416,6 +416,16 @@ describe('tab store', () => {
     );
   });
 
+  it('setHighlights_stores_the_rules_and_marks_the_tab_changed', () => {
+    const rule = { id: 'h1', column: 'Count', op: '>' as const, value: '2', colour: 'danger' as const, target: 'row' as const };
+    const id = useTabs.getState().openWith({ source: 'graph', title: 'Q', text: 'users', savedId: 's1' });
+    useTabs.getState().setHighlights(id, [rule]);
+    expect(useTabs.getState().tabs[0]).toMatchObject({ dirty: true, highlights: [rule] });
+
+    const seeded = useTabs.getState().openWith({ source: 'graph', title: 'R', text: 'x', highlights: [rule] });
+    expect(useTabs.getState().tabs.find((t) => t.id === seeded)?.highlights).toEqual([rule]);
+  });
+
   it('setOptions_marks_a_saved_tab_changed_and_rerun_sends_the_last_text_again', async () => {
     bridge.call.mockResolvedValue(ok);
     const saved = useTabs.getState().openWith({ source: 'arg', title: 'Saved', text: 'Resources\n\nResourceContainers', savedId: 's1' });

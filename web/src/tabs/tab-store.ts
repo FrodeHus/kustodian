@@ -7,6 +7,7 @@ import { newId } from '../shell/ids';
 import type {
   ParameterDef,
   ParameterValue,
+  HighlightRule,
   QueryOptions,
   QueryRunParams,
   RawTabRequest,
@@ -110,6 +111,8 @@ export interface Tab {
   /** The tab's timespan and scope, kept with the session, the saved query and each run (none: the source's defaults). Both
    * parts stay when the source changes; a run sends its source's part ({@link runOptions}). */
   options?: QueryOptions;
+  /** The query's highlight rules, kept with the session and the saved query. None: no rules. */
+  highlights?: HighlightRule[];
   run?: TabRun;
   /** A result kept to compare later runs with. */
   pinned?: RunResult;
@@ -131,6 +134,7 @@ export interface TabSeed {
   parameters?: ParameterDef[];
   raw?: RawTabRequest;
   options?: QueryOptions;
+  highlights?: HighlightRule[];
 }
 
 /** Where the editor's cursor is in a tab, and the selected text (empty when nothing is selected) with where it starts. Lines and
@@ -180,6 +184,8 @@ interface TabsState {
   /** Sets the tab's timespan and scope (the toolbar's pickers). A tab saved to the library then has a change to save, since the
    * library keeps them. */
   setOptions(id: string, options: QueryOptions): void;
+  /** Sets the tab's highlight rules; the tab has unsaved changes, as after a text edit. */
+  setHighlights(id: string, rules: HighlightRule[]): void;
   /** Keeps the tab's current result to compare with. */
   pin(id: string): void;
   unpin(id: string): void;
@@ -305,7 +311,7 @@ export const useTabs = create<TabsState>()((set, get) => {
       return get().openWith({ source, title: `Query ${n}`, text: '', options });
     },
 
-    openWith({ source, title, text, savedId, filePath, parameters, raw, options }) {
+    openWith({ source, title, text, savedId, filePath, parameters, raw, options, highlights }) {
       const id = newId();
       const tab: Tab = {
         id,
@@ -318,6 +324,7 @@ export const useTabs = create<TabsState>()((set, get) => {
         parameters: parameters ?? [],
         raw,
         options,
+        highlights,
         history: [],
       };
       set((s) => ({ tabs: [...s.tabs, tab], activeId: id }));
@@ -375,6 +382,7 @@ export const useTabs = create<TabsState>()((set, get) => {
         parameters: t.parameters,
         raw: t.raw ?? undefined,
         options: t.options ?? undefined,
+        highlights: t.highlights?.length ? t.highlights : undefined,
         workbook: t.workbook ?? undefined,
         history: [],
       }));
@@ -411,6 +419,10 @@ export const useTabs = create<TabsState>()((set, get) => {
 
     setOptions(id, options) {
       update(id, (t) => ({ options, dirty: t.dirty || t.savedId !== undefined }));
+    },
+
+    setHighlights(id, highlights) {
+      update(id, (t) => (t.source === 'raw' ? {} : { highlights: highlights.length ? highlights : undefined, dirty: true }));
     },
 
     pin(id) {

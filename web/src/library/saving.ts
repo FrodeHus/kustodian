@@ -46,6 +46,7 @@ export async function saveToLibrary(tabId: string, name: string, folder: string 
       text,
       parameters: tab.parameters,
       options: tab.options ?? null,
+      highlights: tab.highlights?.length ? tab.highlights : null,
     },
   });
   // The next Save goes to the library, not to a file the tab came from.

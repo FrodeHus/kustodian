@@ -35,6 +35,7 @@ function snapshot(): Session {
       filePath: t.filePath ?? null,
       ...(t.raw ? { raw: { version: t.raw.version, headers: sendableHeaders(t.raw.headers) } } : {}),
       ...(t.options ? { options: t.options } : {}),
+      ...(t.highlights?.length ? { highlights: t.highlights } : {}),
       ...(t.workbook ? { workbook: t.workbook } : {}),
     })),
   };

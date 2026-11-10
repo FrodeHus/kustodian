@@ -354,6 +354,22 @@ describe('session sync', () => {
     expect(written?.[1]?.options).toEqual({ timespan: 'P1D', scope: null });
   });
 
+  it('highlight_rules_are_written_only_when_there_are_some_and_restored', async () => {
+    vi.useFakeTimers();
+    const rule = { id: 'h1', column: 'Count', op: '>' as const, value: '2', colour: 'danger' as const, target: 'row' as const };
+    host({ session: { ...saved, tabs: [{ ...saved.tabs[0]!, highlights: [rule] }, saved.tabs[1]!] }, corrupt: false });
+    stop = startSessionSync();
+    await vi.waitFor(() => expect(useTabs.getState().tabs).toHaveLength(2));
+    expect(useTabs.getState().tabs[0]?.highlights).toEqual([rule]);
+    expect(useTabs.getState().tabs[1]?.highlights).toBeUndefined();
+
+    useTabs.getState().setHighlights('b', []);
+    await vi.advanceTimersByTimeAsync(1000);
+    const written = saves().at(-1)?.tabs;
+    expect(written?.[0]?.highlights).toEqual([rule]);
+    expect(written?.[1]).not.toHaveProperty('highlights');
+  });
+
   it('a_workbook_tab_survives_a_restart_with_its_document_and_unsaved_changes', async () => {
     vi.useFakeTimers();
     host({ session: { ...saved, tabs: [] }, corrupt: false });

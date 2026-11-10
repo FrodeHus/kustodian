@@ -115,6 +115,27 @@ describe('saving', () => {
     ]);
   });
 
+  it('saved_queries_keep_highlight_rules', async () => {
+    const rule = { id: 'h1', column: 'Count', op: '>' as const, value: '2', colour: 'danger' as const, target: 'row' as const };
+    bridge.call.mockImplementation((_method: string, params: { query: SavedQuery }) =>
+      Promise.resolve({ ...params.query, id: 'q1', version: 1, createdAt: '', modifiedAt: '' }),
+    );
+    const id = useTabs.getState().openWith({ source: 'graph', title: 'H', text: 'users', savedId: 'q1', highlights: [rule] });
+    useTabs.getState().setHighlights(id, [rule]);
+    const saved = await saveToLibrary(id, 'H', null);
+    expect(bridge.call).toHaveBeenCalledWith('library.save', { query: expect.objectContaining({ highlights: [rule] }) });
+    expect(useTabs.getState().tabs[0]?.dirty).toBe(false);
+
+    useTabs.setState({ tabs: [], activeId: null, cursors: {} });
+    openSaved(saved);
+    expect(useTabs.getState().tabs[0]?.highlights).toEqual([rule]);
+
+    // No rules: null, never [].
+    const plain = useTabs.getState().openWith({ source: 'graph', title: 'P', text: 'users' });
+    await saveToLibrary(plain, 'P', null);
+    expect(bridge.call).toHaveBeenLastCalledWith('library.save', { query: expect.objectContaining({ highlights: null }) });
+  });
+
   it('dropped_file_over_the_size_limit_is_refused', async () => {
     const big = new File(['x'], 'big.kql');
     Object.defineProperty(big, 'size', { value: MAX_OPEN_BYTES + 1 });

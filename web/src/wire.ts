@@ -327,6 +327,8 @@ export interface SessionTab {
   filePath: string | null;
   raw?: RawTabRequest | null;
   options?: QueryOptions | null;
+  /** The tab's highlight rules; null (or left out) for none. */
+  highlights?: HighlightRule[] | null;
   workbook?: WorkbookDoc | null;
 }
 
@@ -354,6 +356,8 @@ export interface SavedQuery {
   modifiedAt: string;
   /** The timespan or scope saved with the query; null (or left out) for none. */
   options?: QueryOptions | null;
+  /** The highlight rules saved with the query; null (or left out) for none. */
+  highlights?: HighlightRule[] | null;
 }
 
 /** `library.list`'s answer. `skipped`: files that couldn't be read and were moved aside. */
