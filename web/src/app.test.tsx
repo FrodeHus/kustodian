@@ -954,6 +954,61 @@ describe('App', () => {
     expect(options()?.timespan).toBe('P7D');
   });
 
+  it('app_run_on_a_logs_tab_without_a_workspace_is_disabled_and_says_why', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    answers['arm.subscriptions'] = () => ({ subscriptions: [] });
+    answers['arm.workspaces'] = () => ({ workspaces: [] });
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+    act(() => void runCommand('tab.newLogs'));
+    const id = useTabs.getState().tabs.at(-1)!.id;
+    const run = () => screen.getByRole('button', { name: /^Run$/ }) as HTMLButtonElement;
+    expect(run().disabled).toBe(true);
+    expect(run().title).toBe('Pick a workspace before running.');
+    expect((screen.getByRole('button', { name: 'Run all Shift Enter' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: 'Timespan: 1 day' })).toBeTruthy();
+
+    act(() =>
+      useTabs
+        .getState()
+        .setOptions(id, { timespan: 'P1D', scope: null, workspaces: [{ customerId: 'c1', name: 'contoso-logs', resourceId: '/r/1' }] }),
+    );
+    expect(run().disabled).toBe(false);
+  });
+
+  it('app_picking_a_workspace_on_a_logs_tab_remembers_it_for_the_account_only_on_a_pick', async () => {
+    localStorage.clear();
+    host({ accounts: [kari], cache: 'persistent' });
+    answers['arm.subscriptions'] = () => ({ subscriptions: [] });
+    answers['arm.workspaces'] = () => ({
+      workspaces: [
+        { customerId: 'c1', name: 'contoso-logs', resourceId: '/r/1', resourceGroup: 'rg', subscriptionId: 's1', location: 'westeurope' },
+      ],
+    });
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+    act(() => void runCommand('tab.newLogs'));
+    fireEvent.click(screen.getByRole('button', { name: /^Workspace:/ }));
+    fireEvent.click(await screen.findByRole('radio', { name: /contoso-logs/ }));
+    expect(localStorage.getItem('kustodian.logsWorkspace.k1')).toContain('"c1"');
+    expect(localStorage.getItem('kustodian.logsWorkspace.k2')).toBeNull();
+  });
+
+  it('app_toolbar_run_with_a_selection_runs_the_selection', async () => {
+    host({ accounts: [kari], cache: 'persistent' });
+    render(<App />);
+    await screen.findByRole('tab', { name: /Query 1/ });
+    const id = useTabs.getState().activeId!;
+    act(() => {
+      useTabs.getState().setText(id, 'applications\n\nusers');
+      useTabs.getState().setCursor(id, { line: 1, column: 1, selection: 'users', selectionLine: 3, selectionColumn: 1 });
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^Run$/ }));
+    await waitFor(() =>
+      expect(bridge.call).toHaveBeenCalledWith('query.run', expect.objectContaining({ kql: 'users' }), expect.anything()),
+    );
+  });
+
   it('app_pick_timespan_and_pick_scope_follow_the_source', async () => {
     host({ accounts: [kari], cache: 'persistent' });
     answers['arm.subscriptions'] = () => ({

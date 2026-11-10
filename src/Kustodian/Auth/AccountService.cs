@@ -10,7 +10,7 @@ public interface ITokenSource
 {
     /// <summary>A token for the account <paramref name="accountKey"/>, whether or not it is the active one.</summary>
     /// <exception cref="SignInRequiredException">That account is not signed in (or was signed out), or has to sign in again.</exception>
-    /// <exception cref="ConsentRequiredException">An ARM token needs the user (consent or a policy); the sign-in itself is
+    /// <exception cref="ConsentRequiredException">An ARM or Log Analytics token needs the user (consent or a policy); the sign-in itself is
     /// still good.</exception>
     Task<string> GetTokenAsync(string accountKey, Audience audience, CancellationToken ct);
 }
@@ -178,13 +178,13 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
                 }
             }
             catch (MsalUiRequiredException ex)
-                when (audience == Audience.Arm && (IsConsent(ex) || stored.Info.ClientKind == ClientKind.GraphCli))
+                when (audience != Audience.Graph && (IsConsent(ex) || stored.Info.ClientKind == ClientKind.GraphCli))
             {
-                // The Graph sign-in is untouched: ARM needs consent or a Conditional Access step-up, granted with ConsentAsync.
-                // Behind a Graph CLT account, any ARM ui-required (no Azure CLI sign-in yet included) is cleared the same way.
-                throw new ConsentRequiredException("arm", ex);
+                // The Graph sign-in is untouched: ARM or Log Analytics needs consent or a Conditional Access step-up, granted with ConsentAsync.
+                // Behind a Graph CLT account, any ARM or Logs ui-required (no Azure CLI sign-in yet included) is cleared the same way.
+                throw new ConsentRequiredException(audience == Audience.Arm ? "arm" : "logs", ex);
             }
-            catch (MsalUiRequiredException ex) when (audience == Audience.Arm)
+            catch (MsalUiRequiredException ex) when (audience != Audience.Graph)
             {
                 // Ruling 7: the account is gone from MSAL's cache (ListAccountsAsync already shows it expired), or its refresh
                 // token expired or was revoked: a sign-in to renew. The Graph sign-in's state is left as it is; only a Graph
@@ -199,7 +199,7 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
 
             if (audience == Audience.Graph)
             {
-                // Only a Graph token says the sign-in works again; an ARM token says nothing about Graph.
+                // Only a Graph token says the sign-in works again; an ARM or Logs token says nothing about Graph.
                 _expired.Remove(stored.Info.Key);
                 await StoreScopesAsync(state, stored, token, ct);
             }
@@ -429,10 +429,10 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
         }
     }
 
-    /// <summary>The client that gets <paramref name="audience"/> tokens for <paramref name="stored"/>: the account's own, except ARM
+    /// <summary>The client that gets <paramref name="audience"/> tokens for <paramref name="stored"/>: the account's own, except ARM and Log Analytics
     /// behind a Graph CLT account, which comes from the Azure CLI client in the account's tenant (the same home account).</summary>
     private static ClientConfig ConfigFor(StoredAccount stored, Audience audience) =>
-        audience == Audience.Arm && stored.Info.ClientKind == ClientKind.GraphCli
+        audience != Audience.Graph && stored.Info.ClientKind == ClientKind.GraphCli
             ? new ClientConfig(ClientConfig.AzureCliClientId, stored.Tenant)
             : new ClientConfig(stored.Info.ClientId, stored.Tenant);
 

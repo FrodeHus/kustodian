@@ -42,15 +42,17 @@ export function DiagnosticsView({ result, source = 'graph', scope }: { result: R
   const sent: [string, string][] =
     source === 'hunting'
       ? [['Hunting queries', count(serverRequests(result))]]
-      : source === 'arg'
-        ? [
-            ['Pages', count(serverRequests(result))],
-            ['Scope', scopeText(scope)],
-          ]
-        : [
-            ['Graph requests', count(result.tables.reduce((n, t) => n + t.requests.length, 0))],
-            ['From cache', count(result.tables.reduce((n, t) => n + t.perObjectCached, 0))],
-          ];
+      : source === 'logs'
+        ? [['Log Analytics queries', count(serverRequests(result))]]
+        : source === 'arg'
+          ? [
+              ['Pages', count(serverRequests(result))],
+              ['Scope', scopeText(scope)],
+            ]
+          : [
+              ['Graph requests', count(result.tables.reduce((n, t) => n + t.requests.length, 0))],
+              ['From cache', count(result.tables.reduce((n, t) => n + t.perObjectCached, 0))],
+            ];
   const stats: [string, string][] = [
     ['Duration', seconds(result.durationMs)],
     ['Rows', count(result.total)],

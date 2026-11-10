@@ -198,6 +198,22 @@ describe('WorkbookView', () => {
       expect(within(frame('Users')).queryByText(/If Defender can't reach/)).toBeNull();
     });
 
+    it('a logs widget with no workspace shows Pick a workspace in edit mode', () => {
+      const w = widget('l', 'table', 'Logs');
+      doc.widgets = [{ ...w, query: { ...w.query!, source: 'logs', options: { timespan: null, scope: null, workspaces: null } } }];
+      show(
+        {
+          l: {
+            state: 'done',
+            result: { ...result(columns, []), outcome: 'workspaceUnavailable', message: 'Pick a workspace before running.' },
+          },
+        },
+        true,
+      );
+      expect(within(frame('Logs')).getByText('Pick a workspace before running.')).toBeTruthy();
+      expect(within(frame('Logs')).getByRole('button', { name: 'Pick a workspace' })).toBeTruthy();
+    });
+
     it('an_unavailable_workspace_has_no_pick_button_outside_edit_mode', () => {
       hunting();
       show({ h: { state: 'done', result: { ...result(columns, []), outcome: 'workspaceUnavailable', message: 'gone' } } });

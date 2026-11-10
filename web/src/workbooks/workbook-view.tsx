@@ -55,8 +55,10 @@ const SEGMENT_TEXT_MAX = 8;
  * reruns as typing stops, or at once on Enter. */
 function ParamControl({ tabId, param, value }: { tabId: string; param: WorkbookParameter; value: string }) {
   const set = (v: string, now = true) => useWorkbooks.getState().setWorkbookValue(tabId, param.name, v, { now });
-  // A hunting widget with a workspace takes up to 730 days, so the parameter only complains past that.
-  const workspaceCap = useWorkbooks((st) => (st.byTab[tabId]?.doc.widgets.some((w) => w.query?.options?.workspaces?.length) ? 730 : 30));
+  // A hunting widget with a workspace, or a Log Analytics widget, takes up to 730 days, so the parameter only complains past that.
+  const workspaceCap = useWorkbooks((st) =>
+    st.byTab[tabId]?.doc.widgets.some((w) => w.query?.source === 'logs' || w.query?.options?.workspaces?.length) ? 730 : 30,
+  );
   const label = param.label ?? param.name;
   // Choices make a picker for any type, as in a query tab; several values and All are a list's only.
   const choices = (param.choices ?? []).filter((c) => c.trim() !== '');

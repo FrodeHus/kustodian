@@ -54,6 +54,15 @@ public sealed class SolutionRulesTests
         };
     }
 
+    [Fact]
+    public void Solutions_accept_logs() =>
+        Assert.Null(SolutionRules.ManifestProblem(Valid() with { Sources = ["graph", "logs"] }, "entra-risky-users"));
+
+    [Fact]
+    public void An_unknown_source_names_the_four() =>
+        Assert.Equal("Source 'sql' must be graph, hunting, arg or logs.",
+            SolutionRules.ManifestProblem(Valid() with { Sources = ["sql"] }, "entra-risky-users"));
+
     [Theory]
     [MemberData(nameof(Invalid))]
     public void Invalid_manifest_has_a_problem(SolutionManifest m) =>

@@ -96,7 +96,7 @@ export interface WorkbookDoc {
 
 const COLUMNS = 12;
 const WIDGET_TYPES: WidgetType[] = ['markdown', 'chart', 'table', 'stat', 'tabs'];
-const SOURCES = ['graph', 'hunting', 'arg'];
+const SOURCES = ['graph', 'hunting', 'arg', 'logs'];
 
 export const MIN_SIZE: Record<WidgetType, { w: number; h: number }> = {
   markdown: { w: 2, h: 3 },

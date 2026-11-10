@@ -5,5 +5,6 @@ export const SOURCES: Record<Source, { badge: string; className: string; name: s
   graph: { badge: 'GR', className: 'graph', name: 'Microsoft Graph' },
   hunting: { badge: 'AH', className: 'hunt', name: 'Defender advanced hunting' },
   arg: { badge: 'ARG', className: 'arg', name: 'Azure Resource Graph' },
+  logs: { badge: 'LA', className: 'logs', name: 'Log Analytics' },
   raw: { badge: 'GR', className: 'graph', name: 'Raw Graph request' },
 };

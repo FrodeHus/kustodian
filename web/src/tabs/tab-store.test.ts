@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BridgeError } from '../bridge';
 import type { RunResult } from '../wire';
 import { newWorkbook } from '../workbooks/model';
+import { rememberLogsWorkspace, rememberedLogsWorkspace, setMemoryAccount } from '../toolbar/workspace-memory';
 import { useTabs } from './tab-store';
 
 const bridge = vi.hoisted(() => ({
@@ -489,5 +490,56 @@ describe('tab store', () => {
     const changed = { ...doc, widgets: [] };
     useTabs.getState().setWorkbook(first, changed, true);
     expect(useTabs.getState().tabs[0]).toMatchObject({ workbook: changed, dirty: true });
+  });
+
+  it('a_new_logs_tab_starts_at_p1d_with_the_remembered_workspace', () => {
+    localStorage.clear();
+    const ws = { customerId: 'c1', name: 'contoso-logs', resourceId: '/r/1' };
+    setMemoryAccount('k1');
+    const none = useTabs.getState().open('logs');
+    expect(useTabs.getState().tabs.find((t) => t.id === none)?.options).toEqual({ timespan: 'P1D', scope: null, workspaces: null });
+
+    rememberLogsWorkspace('k1', [ws]);
+    const some = useTabs.getState().open('logs');
+    expect(useTabs.getState().tabs.find((t) => t.id === some)?.options).toEqual({ timespan: 'P1D', scope: null, workspaces: [ws] });
+
+    // Another account has its own; a hunting tab still starts on the primary workspace.
+    setMemoryAccount('k2');
+    const other = useTabs.getState().open('logs');
+    expect(useTabs.getState().tabs.find((t) => t.id === other)?.options?.workspaces).toBeNull();
+    const hunting = useTabs.getState().open('hunting');
+    expect(useTabs.getState().tabs.find((t) => t.id === hunting)?.options?.workspaces ?? null).toBeNull();
+  });
+
+  it('changing_options_never_writes_the_remembered_workspace_of_another_account', () => {
+    localStorage.clear();
+    const wsA = { customerId: 'c1', name: 'contoso-logs', resourceId: '/r/1' };
+    setMemoryAccount('A');
+    rememberLogsWorkspace('A', [wsA]);
+    const id = useTabs.getState().open('logs');
+    // Switch to B, then change the timespan: the tab still holds A's workspace.
+    setMemoryAccount('B');
+    useTabs.getState().setOptions(id, { timespan: 'P7D', scope: null, workspaces: [wsA] });
+    expect(rememberedLogsWorkspace('B')).toBeNull();
+    expect(useTabs.getState().open('logs')).toBeTruthy();
+    expect(useTabs.getState().tabs.at(-1)?.options?.workspaces).toBeNull();
+    // A bad stored value reads as none.
+    localStorage.setItem('kustodian.logsWorkspace.A', '{not json');
+    expect(rememberedLogsWorkspace('A')).toBeNull();
+  });
+
+  it('a_logs_run_sends_its_timespan_and_workspace', async () => {
+    bridge.call.mockResolvedValue(ok);
+    const ws = { customerId: 'c1', name: 'contoso-logs', resourceId: '/r/1' };
+    setMemoryAccount(null);
+    const id = useTabs.getState().open('logs');
+    useTabs.getState().setText(id, 'AppRequests | take 5');
+    useTabs.getState().setOptions(id, { timespan: 'P90D', scope: null, workspaces: [ws] });
+    await useTabs.getState().run(id, 'all');
+    expect(bridge.call).toHaveBeenLastCalledWith(
+      'query.run',
+      expect.objectContaining({ source: 'logs', options: { timespan: 'P90D', scope: null, workspaces: [ws] } }),
+      expect.any(AbortSignal),
+    );
   });
 });

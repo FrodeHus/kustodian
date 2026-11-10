@@ -14,7 +14,7 @@ export function RefreshTokenButton({
   onRefreshed,
 }: {
   accountKey: string | undefined;
-  audience: 'graph' | 'arm';
+  audience: 'graph' | 'arm' | 'logs';
   onRefreshed?: () => void;
 }) {
   const [busy, setBusy] = useState(false);
