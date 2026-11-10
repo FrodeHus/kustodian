@@ -15,10 +15,22 @@ function kindOf(type: string): Kind {
   return type === 'datetime' || type === 'timespan' || type === 'bool' ? type : 'text';
 }
 
+const DECIMAL = /^-?\d+(\.\d+)?$/;
+const ISO_DATETIME = /^\d{4}-\d\d-\d\d(T\d\d:\d\d(:\d\d(\.\d+)?)?)?(Z|[+-]\d\d:?\d\d)?$/;
+
+/** An ISO 8601 date or datetime as an instant; no zone means UTC, as Kusto's datetimes are. Null when unreadable. */
+function parseDatetime(text: string): number | null {
+  const t = text.trim();
+  const m = ISO_DATETIME.exec(t);
+  if (!m) return null;
+  const ms = Date.parse(m[1] && !m[4] ? `${t}Z` : t);
+  return Number.isNaN(ms) ? null : ms;
+}
+
 /** `[-][d.]hh:mm:ss[.fffffff]`, or a bare number of seconds; null when unreadable. */
 function parseTimespan(text: string): number | null {
   const t = text.trim();
-  if (t !== '' && Number.isFinite(Number(t))) return Number(t);
+  if (DECIMAL.test(t)) return Number(t);
   const m = /^(-)?(?:(\d+)\.)?(\d+):(\d+):(\d+)(?:\.(\d+))?$/.exec(t);
   if (!m) return null;
   const secs = Number(m[2] ?? 0) * 86400 + Number(m[3]) * 3600 + Number(m[4]) * 60 + Number(m[5]) + Number(`0.${m[6] ?? '0'}`);
@@ -38,13 +50,10 @@ function parse(kind: Kind, type: string, raw: unknown): Scalar | null {
   const text = cellText(raw);
   switch (kind) {
     case 'number': {
-      const n = typeof raw === 'number' ? raw : text.trim() === '' ? NaN : Number(text);
-      return Number.isNaN(n) ? null : n;
+      return typeof raw === 'number' ? raw : DECIMAL.test(text.trim()) ? Number(text) : null;
     }
-    case 'datetime': {
-      const t = Date.parse(text);
-      return Number.isNaN(t) ? null : t;
-    }
+    case 'datetime':
+      return parseDatetime(text);
     case 'timespan':
       return parseTimespan(text);
     case 'bool': {
@@ -83,6 +92,8 @@ interface Compiled {
   kind: Kind;
   type: string;
   value: Scalar | null;
+  /** The lowercased rule value, for contains and !contains. */
+  needle: string;
 }
 
 export interface CompiledRules {
@@ -101,7 +112,7 @@ export function compileRules(rules: HighlightRule[], columns: ResultColumn[]): C
     const kind = kindOf(type);
     const value = NO_VALUE.includes(rule.op) ? null : parse(kind, type, rule.value);
     if (value === null && !NO_VALUE.includes(rule.op)) continue;
-    out.push({ rule, index, kind, type, value });
+    out.push({ rule, index, kind, type, value, needle: rule.value.toLowerCase() });
   }
   return { rules: out };
 }
@@ -114,11 +125,13 @@ function matches(c: Compiled, row: unknown[]): boolean {
     case 'isnotempty':
       return !isEmpty(cell);
     case 'contains':
-      return cellText(cell).toLowerCase().includes(c.rule.value.toLowerCase());
+      return !isEmpty(cell) && cellText(cell).toLowerCase().includes(c.needle);
     case '!contains':
-      return !cellText(cell).toLowerCase().includes(c.rule.value.toLowerCase());
+      return isEmpty(cell) || !cellText(cell).toLowerCase().includes(c.needle);
     default: {
-      const v = isEmpty(cell) ? null : parse(c.kind, c.type, cell);
+      // An empty cell is not X: it matches != and nothing else.
+      if (isEmpty(cell)) return c.rule.op === '!=';
+      const v = parse(c.kind, c.type, cell);
       return v !== null && compare(c.rule.op, v, c.value!);
     }
   }

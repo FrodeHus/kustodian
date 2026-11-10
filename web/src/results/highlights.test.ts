@@ -41,6 +41,12 @@ describe('number', () => {
     expect(ruleProblem(r, c)).toBe('unreadable');
     expect(hit(r, c, [97])).toBe(false);
   });
+  it('only decimals are readable', () => {
+    expect(ruleProblem(rule('n', '>', '0x10'), c)).toBe('unreadable');
+    expect(ruleProblem(rule('n', '>', '1e3'), c)).toBe('unreadable');
+    expect(ruleProblem(rule('n', '>', '-1.5'), c)).toBe(null);
+    expect(ruleProblem(rule('x', '>', '0x10'), [col('x', 'timespan')])).toBe('unreadable');
+  });
   it('contains reads the cell text', () => {
     expect(hit(rule('n', 'contains', '9'), c, [97])).toBe(true);
   });
@@ -53,6 +59,12 @@ describe('datetime', () => {
     expect(hit(r, c, ['2025-01-01T00:00:00.0000000Z'])).toBe(true);
     expect(hit(r, c, ['2024-12-31T23:59:59Z'])).toBe(false);
     expect(ruleProblem(rule('t', '>=', 'nope'), c)).toBe('unreadable');
+    expect(ruleProblem(rule('t', '>=', '1'), c)).toBe('unreadable');
+  });
+  it('reads a zoneless value as UTC', () => {
+    const c = [col('t', 'datetime')];
+    expect(hit(rule('t', '==', '2025-01-01T00:00:00'), c, ['2025-01-01T00:00:00Z'])).toBe(true);
+    expect(hit(rule('t', '==', '2025-01-01'), c, ['2025-01-01T00:00:00Z'])).toBe(true);
   });
 });
 
@@ -98,6 +110,17 @@ describe('isempty', () => {
     expect(hit(e, c, [])).toBe(true);
     expect(hit(ne, c, [0])).toBe(true);
     expect(hit(ne, c, [null])).toBe(false);
+  });
+});
+
+describe('empty cells', () => {
+  const c = [col('n', 'long'), col('s', 'string')];
+  it('match != and !contains only', () => {
+    expect(hit(rule('n', '!=', '5'), c, [null, ''])).toBe(true);
+    expect(hit(rule('s', '!contains', 'x'), c, [null, ''])).toBe(true);
+    expect(hit(rule('n', '>', '5'), c, [null, ''])).toBe(false);
+    expect(hit(rule('n', '==', '5'), c, [null, ''])).toBe(false);
+    expect(hit(rule('s', 'contains', ''), c, [null, ''])).toBe(false);
   });
 });
 
