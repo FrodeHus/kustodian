@@ -6,8 +6,24 @@ import type { ResultColumn } from '../wire';
 export type FilterOp = 'eq' | 'ne' | 'ge' | 'lt';
 
 const KEYWORDS = new Set([
-  'and', 'or', 'not', 'in', 'has', 'type', 'by', 'on', 'with', 'where', 'project', 'let', 'true', 'false', 'null',
-  'datetime', 'timespan', 'dynamic',
+  'and',
+  'or',
+  'not',
+  'in',
+  'has',
+  'type',
+  'by',
+  'on',
+  'with',
+  'where',
+  'project',
+  'let',
+  'true',
+  'false',
+  'null',
+  'datetime',
+  'timespan',
+  'dynamic',
 ]);
 
 const MAX_STRING = 1000;
@@ -37,11 +53,7 @@ const isEmpty = (value: unknown) => value === null || value === undefined || val
 /** A double-quoted KQL string literal, or null when it is too long to offer. */
 function quote(text: string): string | null {
   if (text.length > MAX_STRING) return null;
-  const escaped = text
-    .replace(/[\\"]/g, '\\$&')
-    .replace(/\n/g, '\\n')
-    .replace(/\r/g, '\\r')
-    .replace(/\t/g, '\\t');
+  const escaped = text.replace(/[\\"]/g, '\\$&').replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
   return `"${escaped}"`;
 }
 
@@ -174,7 +186,10 @@ export function filterTarget(editorText: string, run: FilterTarget, cursorLine: 
  * after the inserted text.
  */
 export function withLine(target: FilterTarget, offset: number, condition: string): { text: string; endLine: number; endColumn: number } {
-  const pipe = target.kql.split('\n').filter((l) => /^\s*\|/.test(l)).pop();
+  const pipe = target.kql
+    .split('\n')
+    .filter((l) => /^\s*\|/.test(l))
+    .pop();
   const indent = /^\s*/.exec(pipe ?? '')?.[0] ?? '';
   const line = `${indent}| where ${condition}`;
   const before = target.kql.slice(0, offset);

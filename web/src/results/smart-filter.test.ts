@@ -34,7 +34,9 @@ describe('filterCondition', () => {
     expect(filterCondition(c('t', 'datetime'), '2026-11-10T10:00:00.25+02:00', 'eq')).toBe('t == datetime(2026-11-10T08:00:00.2500000Z)');
   });
   it('formats a Date value', () => {
-    expect(filterCondition(c('t', 'datetime'), new Date('2026-11-10T08:00:00.123Z'), 'eq')).toBe('t == datetime(2026-11-10T08:00:00.1230000Z)');
+    expect(filterCondition(c('t', 'datetime'), new Date('2026-11-10T08:00:00.123Z'), 'eq')).toBe(
+      't == datetime(2026-11-10T08:00:00.1230000Z)',
+    );
   });
   it('returns null for an invalid datetime', () => {
     expect(filterCondition(c('t', 'datetime'), 'nope', 'eq')).toBeNull();
