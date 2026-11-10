@@ -22,13 +22,19 @@ async function saveAndOpen(doc: WorkbookDoc, widget: Widget, tabParameters: Para
   if (opened) {
     const store = useWorkbooks.getState();
     const s = store.byTab[opened.id];
-    if (!s) {
-      useTabs.getState().setWorkbook(opened.id, workbook, false);
-    } else if (s.dirty) {
-      store.edit(opened.id, (d) => (d.widgets.some((w) => w.id === widget.id) ? d : addWidget(d, widget, tabParameters)));
+    const withIt = (d: WorkbookDoc) => (d.widgets.some((w) => w.id === widget.id) ? d : addWidget(d, widget, tabParameters));
+    if (s ? s.dirty : opened.dirty && opened.workbook) {
+      // Its unsaved edits stay: the widget goes into the draft, the store's or (still loading) the tab's.
+      if (s) {
+        store.edit(opened.id, withIt);
+      } else {
+        useTabs.getState().setWorkbook(opened.id, withIt(opened.workbook!), true);
+      }
       notice = `Added to your unsaved changes in ${workbook.name}.`;
-    } else {
+    } else if (s) {
       store.markSaved(opened.id, workbook);
+    } else {
+      useTabs.getState().setWorkbook(opened.id, workbook, false);
     }
   }
   let tabId: string;

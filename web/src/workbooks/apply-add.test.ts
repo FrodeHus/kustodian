@@ -126,6 +126,28 @@ describe('applyAdd', () => {
     expect(useWorkbooks.getState().revealing).toEqual({ tabId: id, widgetId: 'new-w' });
   });
 
+  it('adds to the draft of a dirty workbook tab still loading when the save answers, keeping it dirty', async () => {
+    const doc = { ...newWorkbook('Ops'), id: 'wb' };
+    files.set('wb', doc);
+    const draft = { ...doc, name: 'Ops (edited)' };
+    let id = '';
+    const save = bridge.call.getMockImplementation()!;
+    bridge.call.mockImplementation((method: string, params?: unknown) => {
+      if (method === 'workbook.save') {
+        // As a session restore does: the tab is there with its draft, not yet in the workbook store.
+        id = useTabs.getState().openWorkbook(draft, { savedId: 'wb', dirty: true });
+      }
+      return save(method, params);
+    });
+    const answer = await applyAdd({ kind: 'existing', id: 'wb', name: 'Ops' }, widget(), [who]);
+    const tab = useTabs.getState().tabs.find((t) => t.id === id)!;
+    expect(tab.dirty).toBe(true);
+    expect(tab.workbook!.name).toBe('Ops (edited)');
+    expect(tab.workbook!.widgets.map((w) => w.id)).toEqual(['new-w']);
+    expect(answer).toEqual({ notice: 'Added to your unsaved changes in Ops.' });
+    expect(useTabs.getState().activeId).toBe(id);
+  });
+
   it('saves a new workbook with the name, folder and widget, and opens it', async () => {
     await applyAdd({ kind: 'new', name: 'Fresh', folder: 'Team' }, widget(), [who]);
     const [saved] = saves();
