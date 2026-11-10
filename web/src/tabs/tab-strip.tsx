@@ -171,7 +171,7 @@ export function TabStrip({ onDialog }: { onDialog?: (open: boolean) => void } = 
     <div className="tabs">
       <div ref={listRef} role="tablist" aria-label="Open queries" className="flex items-end gap-0.5 overflow-x-auto">
         {tabs.map((tab) => (
-          <div key={tab.id} className={`tab${tab.id === activeId ? ' on' : ''}`}>
+          <div key={tab.id} className={`tab${tab.id === activeId ? ' on' : ''}`} data-source={tab.source}>
             {tab.source !== 'raw' && tab.source !== 'workbook' && (
               <button
                 type="button"

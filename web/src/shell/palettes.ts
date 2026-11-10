@@ -3,6 +3,8 @@ import type { PaletteTheme } from '../wire';
 /** A theme's colours, one per design token of styles.css (`--bg`, `--panel` ...); the soft tints are mixed from them. */
 export type Palette = {
   name: string;
+  /** A light palette: the window, editor and charts switch to their light base under it. */
+  light?: true;
   bg: string;
   panel: string;
   panel2: string;
@@ -28,7 +30,8 @@ export type Palette = {
 
 /** Aurora, Kustodian's own: the logo's and banner's cyan, blue, violet and mint on navy ink (`.theme-aurora` in styles.css adds its
  * glow and tinted cards). Then the ten most used editor themes (VS Code Marketplace installs and GitHub stars, November 2026), each in its flagship dark
- * variant. The editor colours are the themes' own; the window's panels and lines are picked from each theme's UI colours. */
+ * variant. Then the light variants of the most used ones that have an official light theme, and Solarized Light. The editor colours
+ * are the themes' own; the window's panels and lines are picked from each theme's UI colours. */
 export const PALETTES: Record<PaletteTheme, Palette> = {
   aurora: {
     name: 'Aurora',
@@ -282,6 +285,102 @@ export const PALETTES: Record<PaletteTheme, Palette> = {
     num: '#d3869b',
     fn: '#8ec07c',
     cm: '#a89984',
+  },
+  'github-light': {
+    name: 'GitHub Light',
+    light: true,
+    bg: '#f6f8fa',
+    panel: '#ffffff',
+    panel2: '#f6f8fa',
+    raise: '#eaeef2',
+    line: '#d0d7de',
+    text: '#1f2328',
+    muted: '#59636e',
+    faint: '#6e7781',
+    accent: '#0969da',
+    accentInk: '#ffffff',
+    warn: '#9a6700',
+    bad: '#d1242f',
+    ok: '#1a7f37',
+    kw: '#cf222e',
+    tbl: '#0550ae',
+    col: '#953800',
+    str: '#0a3069',
+    num: '#0550ae',
+    fn: '#8250df',
+    cm: '#6e7781',
+  },
+  'one-light': {
+    name: 'One Light',
+    light: true,
+    bg: '#fafafa',
+    panel: '#f0f0f1',
+    panel2: '#f5f5f6',
+    raise: '#e5e5e6',
+    line: '#dbdbdc',
+    text: '#383a42',
+    muted: '#696c77',
+    faint: '#7f8189',
+    accent: '#4078f2',
+    accentInk: '#ffffff',
+    warn: '#986801',
+    bad: '#ca1243',
+    ok: '#50a14f',
+    kw: '#a626a4',
+    tbl: '#c18401',
+    col: '#e45649',
+    str: '#50a14f',
+    num: '#986801',
+    fn: '#4078f2',
+    cm: '#a0a1a7',
+  },
+  'catppuccin-latte': {
+    name: 'Catppuccin Latte',
+    light: true,
+    bg: '#eff1f5',
+    panel: '#e6e9ef',
+    panel2: '#eaedf2',
+    raise: '#dce0e8',
+    line: '#ccd0da',
+    text: '#4c4f69',
+    muted: '#5c5f77',
+    faint: '#6c6f85',
+    accent: '#1e66f5',
+    accentInk: '#eff1f5',
+    warn: '#df8e1d',
+    bad: '#d20f39',
+    ok: '#40a02b',
+    kw: '#8839ef',
+    tbl: '#df8e1d',
+    col: '#179299',
+    str: '#40a02b',
+    num: '#fe640b',
+    fn: '#1e66f5',
+    cm: '#7c7f93',
+  },
+  'solarized-light': {
+    name: 'Solarized Light',
+    light: true,
+    bg: '#fdf6e3',
+    panel: '#eee8d5',
+    panel2: '#f5efdc',
+    raise: '#e4ddc8',
+    line: '#d9d2bd',
+    text: '#586e75',
+    muted: '#657b83',
+    faint: '#839496',
+    accent: '#268bd2',
+    accentInk: '#fdf6e3',
+    warn: '#b58900',
+    bad: '#dc322f',
+    ok: '#859900',
+    kw: '#859900',
+    tbl: '#6c71c4',
+    col: '#b58900',
+    str: '#2aa198',
+    num: '#d33682',
+    fn: '#268bd2',
+    cm: '#93a1a1',
   },
 };
 

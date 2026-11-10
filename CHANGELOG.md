@@ -11,6 +11,8 @@ follow [Semantic Versioning](https://semver.org/).
   in the widget editor.
 - **Aurora theme**: Kustodian's own dark theme, from the logo and banner: navy ink with cyan, blue, violet and mint, a soft
   glow behind the workspace, and cards and workbook widgets tinted blue to violet. Pick it in Settings.
+- **Light themes**: GitHub Light, One Light, Catppuccin Latte and Solarized Light, with the editor in each theme's own light
+  colours. Pick one in Settings.
 - **Defender for Cloud solution**: secure score, recommendations, compliance, Defender for Servers Plan 2 coverage, attack
   paths and alerts from Azure Resource Graph and advanced hunting, with a posture workbook. See
   [docs/solutions.md](docs/solutions.md#solutions-that-ship-now).
@@ -22,6 +24,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **A little colour**: each side panel's icon on the rail has its own colour from the theme, and each query tab has a stripe
+  along its top in its source's colour: blue for Graph, amber for advanced hunting, green for Resource Graph.
 - **Workbook widget headers** have more room for the title: the source badge is gone (the widget editor still shows the
   source), and a run's time shows only when it took 5 seconds or more, in the corner beside the parameters icon.
 - **Workbook editing**: while you drag or resize a widget the others move to where they'll end up, and the drop outline

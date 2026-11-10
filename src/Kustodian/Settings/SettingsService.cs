@@ -35,6 +35,7 @@ public sealed record AppSettings(int Version, string Theme, string RawDefaultVer
     [
         "dark", "light", "system", "glass", "liquid-glass", "aurora", "github-dark", "one-dark", "dracula", "material",
         "monokai", "ayu-dark", "night-owl", "tokyo-night", "catppuccin-mocha", "gruvbox-dark",
+        "github-light", "one-light", "catppuccin-latte", "solarized-light",
     ];
 
     public static AppSettings Default { get; } = new(CurrentVersion, "dark", "beta", new SignInDefaults(null, null), LimitSettings.Default);
