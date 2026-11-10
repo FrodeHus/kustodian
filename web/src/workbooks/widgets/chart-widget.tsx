@@ -3,6 +3,7 @@ import { ChartFailed } from '../../results/result-panel';
 import { HistoryData, withGaps } from '../history';
 import type { Widget } from '../model';
 import type { WidgetRun } from '../workbook-store';
+import { Printing } from './printing';
 
 // The same chunk the result panel's Chart tab loads.
 const ChartView = lazy(() => import('../../results/chart-view'));
@@ -12,6 +13,8 @@ const ChartView = lazy(() => import('../../results/chart-view'));
  * history it plots every retained snapshot against a `Snapshot` axis, with a gap on each day that has none. */
 export function ChartWidget({ widget, run }: { widget: Widget; run: WidgetRun }) {
   const { values } = useContext(HistoryData);
+  // Paper gets the finished chart: printing starts before an entry animation would end.
+  const printing = useContext(Printing);
   const history = widget.history;
   // Stable inputs, so the chart's own memo holds across the workbook's re-renders.
   const gapped = useMemo(
@@ -27,7 +30,14 @@ export function ChartWidget({ widget, run }: { widget: Widget; run: WidgetRun })
   return (
     <ChartFailed>
       <Suspense fallback={<p className="faint m-0 p-4 text-[12px]">Loading the chart…</p>}>
-        <ChartView columns={table.columns} rows={table.rows} kql={widget.query?.text ?? ''} picked={picked} controls={false} />
+        <ChartView
+          columns={table.columns}
+          rows={table.rows}
+          kql={widget.query?.text ?? ''}
+          picked={picked}
+          controls={false}
+          animate={!printing}
+        />
       </Suspense>
     </ChartFailed>
   );

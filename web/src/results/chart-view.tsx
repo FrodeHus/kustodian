@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -52,7 +52,16 @@ const COLOURS = [
 ];
 const colour = (i: number) => COLOURS[i % COLOURS.length];
 
-const AXIS = { stroke: 'var(--line)', tick: { fill: 'var(--muted)', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' } };
+const AXIS = {
+  stroke: 'var(--line)',
+  axisLine: false,
+  tickLine: false,
+  tick: { fill: 'var(--muted)', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' },
+};
+/** A soft glow around a line in its own colour. */
+const glow = (i: number) => ({ filter: `drop-shadow(0 0 5px color-mix(in srgb, ${colour(i)} 55%, transparent))` });
+// shortcut: Recharts animates every point, so a big chart draws at once; raise this if large charts animate smoothly.
+const ANIMATED_POINTS = 2000;
 // Many series wrap the legend; capped and scrolling, it can't grow over the options above the chart.
 const LEGEND = { wrapperStyle: { fontSize: 12, color: 'var(--muted)', maxHeight: 64, overflowY: 'auto' as const } };
 // The glass themes' --panel is near see-through, so over the chart the tooltip takes their menu background, as menus do.
@@ -111,6 +120,7 @@ export default function ChartView({
   picked,
   setPicked = () => undefined,
   controls = true,
+  animate = true,
 }: {
   columns: ResultColumn[];
   rows: Row[];
@@ -121,8 +131,12 @@ export default function ChartView({
   setPicked?: (picked: Picked) => void;
   /** False draws the chart alone, without the title, pickers and Full screen (a workbook widget, set in its editor). */
   controls?: boolean;
+  /** False draws the chart at once, without its entry animation (a workbook being printed). */
+  animate?: boolean;
 }) {
   const [full, setFull] = useState(false);
+  // Gradient ids are per chart: a workbook shows several.
+  const gradient = `fill${useId().replace(/[^\w-]/g, '')}`;
   // Esc leaves full screen first, before anything else that listens for it.
   useEffect(() => {
     if (!full) {
@@ -192,10 +206,18 @@ export default function ChartView({
     });
   // Dates along the axis read as dates, whatever the chart type.
   const time = type === 'timechart' || columns.find((c) => c.name === spec.x)?.type === 'datetime';
+  const motion = {
+    isAnimationActive:
+      animate && data.length * series.length <= ANIMATED_POINTS && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
+    animationDuration: 700,
+    animationEasing: 'ease-out' as const,
+  };
+  // Bars in a stack keep square corners, so the stack reads as one bar.
+  const radius = (corners: [number, number, number, number]) => (stackId ? 0 : corners);
   const xAxis = <XAxis dataKey="x" {...AXIS} tickFormatter={time ? dateTick : undefined} />;
   const common = (
     <>
-      <CartesianGrid stroke="var(--line)" vertical={false} />
+      <CartesianGrid stroke="var(--line)" strokeDasharray="3 4" strokeOpacity={0.6} vertical={false} />
       <Tooltip {...TOOLTIP} labelFormatter={time ? (label) => dateTick(String(label)) : undefined} />
       {series.length > 1 && <Legend {...LEGEND} />}
     </>
@@ -216,7 +238,9 @@ export default function ChartView({
               dataKey={valueOf(s)}
               fill={colour(i)}
               stackId={stackId}
-              isAnimationActive={false}
+              radius={radius([4, 4, 0, 0])}
+              maxBarSize={56}
+              {...motion}
               style={pointer}
               onClick={(_, i) => pick(i, s)}
             />
@@ -237,7 +261,9 @@ export default function ChartView({
               dataKey={valueOf(s)}
               fill={colour(i)}
               stackId={stackId}
-              isAnimationActive={false}
+              radius={radius([0, 4, 4, 0])}
+              maxBarSize={40}
+              {...motion}
               style={pointer}
               onClick={(_, i) => pick(i, s)}
             />
@@ -248,6 +274,14 @@ export default function ChartView({
     case 'area':
       chart = (
         <AreaChart data={data} stackOffset={stackOffset} style={pointer} onClick={(state) => pick(state.activeIndex)}>
+          <defs>
+            {series.map((s, i) => (
+              <linearGradient key={s} id={`${gradient}-${i}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" style={{ stopColor: colour(i), stopOpacity: 0.55 }} />
+                <stop offset="100%" style={{ stopColor: colour(i), stopOpacity: 0.04 }} />
+              </linearGradient>
+            ))}
+          </defs>
           {common}
           {xAxis}
           <YAxis {...AXIS} tickFormatter={valueTick} />
@@ -255,12 +289,15 @@ export default function ChartView({
             <Area
               key={s}
               name={s}
+              type="monotone"
               dataKey={valueOf(s)}
               stroke={colour(i)}
-              fill={colour(i)}
-              fillOpacity={0.2}
+              strokeWidth={2}
+              fill={`url(#${gradient}-${i})`}
               stackId={stackId}
-              isAnimationActive={false}
+              activeDot={{ r: 4, strokeWidth: 0 }}
+              style={glow(i)}
+              {...motion}
             />
           ))}
         </AreaChart>
@@ -275,8 +312,11 @@ export default function ChartView({
             data={data}
             dataKey={valueOf(series[0] ?? '')}
             nameKey="x"
-            stroke="var(--panel)"
-            isAnimationActive={false}
+            innerRadius="58%"
+            paddingAngle={data.length > 1 ? 2 : 0}
+            cornerRadius={4}
+            stroke="none"
+            {...motion}
             style={pointer}
             onClick={(_, i) => pick(i)}
           >
@@ -294,7 +334,18 @@ export default function ChartView({
           {xAxis}
           <YAxis {...AXIS} />
           {series.map((s, i) => (
-            <Line key={s} name={s} dataKey={valueOf(s)} stroke={colour(i)} dot={false} strokeWidth={2} isAnimationActive={false} />
+            <Line
+              key={s}
+              name={s}
+              type="monotone"
+              dataKey={valueOf(s)}
+              stroke={colour(i)}
+              dot={false}
+              activeDot={{ r: 4, strokeWidth: 0 }}
+              strokeWidth={2}
+              style={glow(i)}
+              {...motion}
+            />
           ))}
         </LineChart>
       );
