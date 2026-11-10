@@ -27,12 +27,14 @@ export function WidgetGrid({
   editing,
   body,
   onSignIn,
+  accountKey,
 }: {
   tabId: string;
   place: Place | null;
   editing: GridEditing | undefined;
   body: (w: Widget) => ReactNode;
   onSignIn?: () => void;
+  accountKey?: string | null;
 }) {
   const widgets = useWorkbooks((s) => s.byTab[tabId]?.doc.widgets);
   const key = placeKey(place);
@@ -52,6 +54,7 @@ export function WidgetGrid({
           tabId={tabId}
           widget={w}
           onSignIn={onSignIn}
+          accountKey={accountKey}
           editing={
             editing && {
               selected: editing.selected === w.id,

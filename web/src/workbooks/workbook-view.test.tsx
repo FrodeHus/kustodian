@@ -64,7 +64,7 @@ let doc: WorkbookDoc;
 const setWorkbookValue = vi.fn();
 const setWidgetValue = vi.fn();
 
-function show(runs: Record<string, WidgetRun>, editing = false) {
+function show(runs: Record<string, WidgetRun>, editing = false, accountKey?: string) {
   const state: WorkbookState = {
     doc,
     values: { workbook: { Env: 'prod', Days: '7' }, widgets: {} },
@@ -80,7 +80,7 @@ function show(runs: Record<string, WidgetRun>, editing = false) {
     stale: {},
   };
   useWorkbooks.setState({ byTab: { t: state }, setWorkbookValue, setWidgetValue });
-  return render(<WorkbookView tabId="t" />);
+  return render(<WorkbookView tabId="t" accountKey={accountKey} />);
 }
 
 const frame = (title: string) => screen.getByRole('region', { name: title });
@@ -104,6 +104,38 @@ beforeEach(() => {
 });
 
 describe('WorkbookView', () => {
+  it('a widget refused for want of access gets working access buttons, and the toolbar refreshes access for all of them', async () => {
+    const refused = (outcome: RunResult['outcome'], extra: Partial<RunResult> = {}): WidgetRun => ({
+      state: 'done',
+      result: { ...result([], []), outcome, message: 'Refused.', ...extra },
+    });
+    const runAll = vi.fn(() => Promise.resolve());
+    call.mockResolvedValue(undefined);
+    show(
+      { c: refused('noPermission'), tb: refused('consentNeeded', { consentAudience: 'logs' }), s: refused('noPermission') },
+      false,
+      'acc',
+    );
+    useWorkbooks.setState({ runAll });
+    const widgetRefresh = within(frame('Sign-ins by day')).getByRole('button', { name: 'Refresh access' });
+    expect((widgetRefresh as HTMLButtonElement).disabled).toBe(false);
+    expect((within(frame('Users')).getByRole('button', { name: 'Grant Log Analytics access' }) as HTMLButtonElement).disabled).toBe(false);
+
+    const toolbar = screen.getAllByRole('button', { name: 'Refresh access' }).find((b) => b.closest('.toolbar'));
+    fireEvent.click(toolbar!);
+    await vi.waitFor(() => expect(runAll).toHaveBeenCalledWith('t', { refresh: true }));
+    // Each step once: both noPermission widgets share the Graph token.
+    expect(call.mock.calls.filter(([m]) => m.startsWith('account.'))).toEqual([
+      ['account.refresh', { key: 'acc', audience: 'graph' }],
+      ['account.consent', { key: 'acc', audience: 'logs' }],
+    ]);
+  });
+
+  it('shows no toolbar Refresh access while no widget lacks access', () => {
+    show({ c: { state: 'done', result: result([], []) } }, false, 'acc');
+    expect(screen.queryByRole('button', { name: 'Refresh access' })).toBeNull();
+  });
+
   it('shows each widget by its title, and the parameter bar', () => {
     show({});
     expect(screen.getByRole('heading', { name: 'Sign-in review' })).toBeTruthy();

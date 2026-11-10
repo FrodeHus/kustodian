@@ -9,6 +9,7 @@ import { editorPosition, type TabRun } from '../tabs/tab-store';
 import type { AccountInfo, ArgScope, QueryWorkspace, RunResult, Source, TableFetch } from '../wire';
 import { plural, scopeText, serverRequests } from './source-wording';
 import { fallbackText } from './workspace-fallback';
+import { refreshAudience } from './refresh-audience';
 
 const count = (n: number) => n.toLocaleString('en-US');
 
@@ -190,15 +191,6 @@ interface RunStatusProps {
   /** A run on a workspace the account can't see didn't run: this opens the workspace picker. */
   onPickWorkspace?: (opener: HTMLElement) => void;
 }
-
-/** Whose token a refused run of the source refreshes. */
-const refreshAudience: Record<Source, 'graph' | 'arm' | 'logs'> = {
-  graph: 'graph',
-  raw: 'graph',
-  hunting: 'graph',
-  arg: 'arm',
-  logs: 'logs',
-};
 
 /** The permissions to offer granting for relationship columns refused in full, each once. */
 function relationshipGrants(result: RunResult, source: Source, account: AccountInfo | undefined): string[] {
