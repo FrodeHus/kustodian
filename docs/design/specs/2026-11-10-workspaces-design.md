@@ -214,10 +214,11 @@ Part 1 ships on its own (with the shared list and picker) before part 2 starts. 
 
 1. **A workspace that arrives in a file is confirmed before it runs.** Imported or shared workbooks and saved queries, and
    solutions, keep the workspace they carry (`workbooks/import.ts` and sharing copy `workspaces` along with `timespan` and
-   `scope`), but nothing with a workspace runs until the user confirms it. A workbook opened from a file shows one prompt
-   listing its workspaces ("This workbook queries contoso-sentinel. Run it?") with Run and Change workspace; its widgets wait
-   until then. A saved query opened in a tab shows the workspace in the toolbar and runs only when the user runs it, as today.
-   Confirming is remembered for that file in this session, not across restarts.
+   `scope`), but nothing with a workspace runs until the user confirms it. The confirmation is the review a file already gets
+   before anything is saved or run (`ImportReview`, and the solution dialog): it gains a **Workspaces** section listing each
+   workspace with its widget count, and Save / Install confirms (planner's call: the review already exists for this, and a
+   prompt on first open would be lost after a restart). A saved query opened in a tab shows the workspace in the toolbar and
+   runs only when the user runs it, as today.
 2. **A saved workspace the account can't see blocks the run until a workspace is picked.** Before a hunting or `logs` run with
    a workspace, the source checks it against the cached ARG workspace list. Not in the list: the run doesn't start, the
    toolbar picker shows "contoso-sentinel isn't available to this account. Pick a workspace.", and a widget shows the same in
