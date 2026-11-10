@@ -64,6 +64,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Failed run messages are readable**: when a query or a workbook widget failed (no permission, say), the message
+  was squeezed to one letter per line and its report ID ran over the buttons beside it. The status line now wraps.
 - **Vulnerability management tables in advanced hunting**: `DeviceTvmSoftwareVulnerabilities` and the other `DeviceTvm*`
   tables were missing from the schema panel and completion, because Graph's hunting schema doesn't list them. They now come
   from the bundled schema when the tenant's leaves them out.
