@@ -395,6 +395,36 @@ describe('ResultGrid', () => {
     ]);
   });
 
+  it('a cell menu opens at the pointer, moved by its measured size to stay inside the grid', () => {
+    const size = (el: HTMLElement, own: number, parent: number) => (el.getAttribute('role') === 'menu' ? own : parent);
+    const spies = [
+      vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+        return size(this, 300, 0);
+      }),
+      vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+        return size(this, 100, 0);
+      }),
+      vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (this: HTMLElement) {
+        return size(this, 0, 500);
+      }),
+      vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (this: HTMLElement) {
+        return size(this, 0, 400);
+      }),
+    ];
+    try {
+      render(<ResultGrid columns={[{ name: 'state', type: 'string' }]} rows={[['Enabled']]} onFilter={vi.fn()} />);
+      fireEvent.contextMenu(screen.getByText('Enabled'), { clientX: 450, clientY: 380 });
+      const menu = screen.getByRole('menu');
+      expect([menu.style.left, menu.style.top]).toEqual(['200px', '300px']);
+
+      fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+      fireEvent.contextMenu(screen.getByText('Enabled'), { clientX: 40, clientY: 50 });
+      expect([screen.getByRole('menu').style.left, screen.getByRole('menu').style.top]).toEqual(['40px', '50px']);
+    } finally {
+      spies.forEach((s) => s.mockRestore());
+    }
+  });
+
   it('without onFilter, right-clicking a cell shows no menu', () => {
     render(<ResultGrid columns={[{ name: 'state', type: 'string' }]} rows={[['Enabled']]} />);
     const event = fireEvent.contextMenu(screen.getByText('Enabled'));

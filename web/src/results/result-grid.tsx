@@ -25,6 +25,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   useEffect,
   useEffectEvent,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -162,12 +163,15 @@ export function NoticeLine({ notice, onDismiss }: { notice: Notice; onDismiss: (
 export function Menu({
   label,
   style,
+  at,
   within,
   onClose,
   children,
 }: {
   label: string;
-  style: CSSProperties;
+  style?: CSSProperties;
+  /** A point in the menu's parent to open at, moved left and up by the menu's measured size to stay inside the parent. */
+  at?: { x: number; y: number };
   within?: RefObject<HTMLElement | null>;
   onClose: (refocus: boolean) => void;
   /** The menu's items: buttons with a `menuitem…` role and `tabIndex={-1}`. */
@@ -177,6 +181,17 @@ export function Menu({
   const items = () => [...(menu.current?.querySelectorAll<HTMLButtonElement>('[role^="menuitem"]:not(:disabled)') ?? [])];
   const dismiss = useEffectEvent(() => onClose(false));
   const area = within ?? menu;
+
+  // Before paint, on every render: the items (and so the size) can change while it is open.
+  useLayoutEffect(() => {
+    const el = menu.current;
+    const parent = el?.parentElement;
+    if (!at || !el || !parent) {
+      return;
+    }
+    el.style.left = `${Math.max(0, Math.min(at.x, parent.clientWidth - el.offsetWidth))}px`;
+    el.style.top = `${Math.max(0, Math.min(at.y, parent.clientHeight - el.offsetHeight))}px`;
+  });
 
   useEffect(() => {
     items()[0]?.focus();
@@ -310,7 +325,7 @@ export function FilterItems({ column, value, onFilter }: { column: ResultColumn;
   const quoted = (column.type === 'string' || column.type === 'dynamic') && value !== null && value !== undefined && value !== '';
   const shown = quoted ? `"${shownValue(value)}"` : shownValue(value);
   return filterOps(column, value).map((op) => (
-    <button key={op} type="button" role="menuitem" tabIndex={-1} onClick={() => onFilter(column, value, op)}>
+    <button key={op} type="button" role="menuitem" tabIndex={-1} className="whitespace-nowrap" onClick={() => onFilter(column, value, op)}>
       {FILTER_VERB[op]} {shown}
     </button>
   ));
@@ -351,12 +366,12 @@ interface GridProps {
   onFilter?: OnFilter;
 }
 
-/** A cell's context menu: the cell, and where it opens in the grid. */
+/** A cell's context menu: the cell, and the point in the grid it opens at. */
 interface CellMenu {
   column: ResultColumn;
   value: unknown;
-  left: number;
-  top: number;
+  x: number;
+  y: number;
 }
 
 /** A magnifier: the inspect button's icon. */
@@ -574,13 +589,7 @@ export function ResultGrid({
       return;
     }
     e.preventDefault();
-    setCellMenu({
-      column,
-      value,
-      // About a menu's size: 220 wide, at most four items high.
-      left: Math.max(0, Math.min(e.clientX - box.left, box.width - 220)),
-      top: Math.max(0, Math.min(e.clientY - box.top, box.height - 160)),
-    });
+    setCellMenu({ column, value, x: e.clientX - box.left, y: e.clientY - box.top });
   };
 
   const reportShown = useEffectEvent(() => onShownChange?.(filteredLeaves.map((r) => r.index)));
@@ -877,7 +886,7 @@ export function ResultGrid({
       {cellMenu && onFilter && (
         <Menu
           label={`Filter on ${cellMenu.column.name}`}
-          style={{ left: cellMenu.left, top: cellMenu.top }}
+          at={{ x: cellMenu.x, y: cellMenu.y }}
           onClose={(refocus) => {
             setCellMenu(null);
             if (refocus) {
