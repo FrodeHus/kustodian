@@ -35,8 +35,11 @@ describe('HeatmapView', () => {
     for (const c of all.filter((c) => c.classList.contains('heat-empty'))) {
       expect(c.style.getPropertyValue('--heat')).toBe('');
     }
+    // Nothing hovered: the empty readout box is hidden but keeps its space.
+    expect(screen.getByTestId('heat-tip').style.visibility).toBe('hidden');
     fireEvent.mouseOver(all[0]!);
     const tip = screen.getByTestId('heat-tip');
+    expect(tip.style.visibility).toBe('visible');
     expect(tip.textContent).toContain('Teams');
     expect(tip.textContent).toContain('Teams / a —');
     expect(tip.textContent).toContain('412 count_');
@@ -53,7 +56,8 @@ describe('HeatmapView', () => {
     fireEvent.focus(grid);
     fireEvent.click(cells(container)[4]!);
     const ring = screen.getByTestId('heat-ring');
-    expect([ring.style.gridRow, ring.style.gridColumn]).toEqual(['3', '3']);
+    // One cell: an absolutely placed grid item with only a start line runs to the grid's edge.
+    expect([ring.style.gridRow, ring.style.gridColumn]).toEqual(['3 / span 1', '3 / span 1']);
   });
 
   it.each([
@@ -126,6 +130,23 @@ describe('HeatmapView', () => {
     fireEvent.click(all[3]!); // Other row
     fireEvent.click(all[4]!);
     expect(onPick).not.toHaveBeenCalled();
+  });
+
+  it('heatmap_view_fills_its_box_and_scrolls_inside_it', () => {
+    // A box shorter than the grid (a small Chart tab or widget) scrolls the grid, keeping the readout and legend in view.
+    render(<HeatmapView data={data()} value="count_" />);
+    const scroller = screen.getByRole('grid').parentElement!;
+    expect(scroller.parentElement!.className).toContain('h-full');
+    expect([scroller.style.overflow, scroller.style.minHeight, scroller.style.maxHeight]).toEqual(['auto', '0px', '']);
+  });
+
+  it('heatmap_view_fit_takes_the_width_it_is_given', () => {
+    // Printing: the grid is the page's width (labels clip), never as wide as its labels, and grows to its own height.
+    const { container } = render(<HeatmapView data={data()} value="count_" fit />);
+    const grid = screen.getByRole('grid');
+    expect(grid.style.width).toBe('100%');
+    expect(grid.parentElement!.getAttribute('style')).toBeNull();
+    expect(container.firstElementChild!.className).toContain('heatmap');
   });
 
   it('heatmap_view_legend_and_notes', () => {

@@ -57,7 +57,8 @@ export default function HeatmapView({
   const grid: CSSProperties = {
     display: 'grid',
     position: 'relative',
-    width: 'max-content',
+    // Fit (print): the page's width, labels clipping; otherwise as wide as the columns need, scrolling sideways.
+    width: fit ? '100%' : 'max-content',
     minWidth: '100%',
     gridTemplateColumns: `${LABEL_PX}px repeat(${columns.labels.length}, minmax(${fit ? 0 : MIN_COLUMN_PX}px, 1fr))`,
     gridAutoRows: ROW_PX,
@@ -132,11 +133,12 @@ export default function HeatmapView({
   const ring = focused ? active : null;
 
   return (
-    <div className="flex flex-col gap-2 text-xs text-muted">
+    <div className={`heatmap flex flex-col gap-2 text-xs text-muted ${fit ? '' : 'h-full'}`}>
       {data.notes.map((n) => (
         <p key={n}>{n}</p>
       ))}
-      <div style={fit ? undefined : { maxHeight: 360, overflow: 'auto' }}>
+      {/* Shrinks to its box (min-height 0) and scrolls, so the readout and legend below stay in view. */}
+      <div style={fit ? undefined : { minHeight: 0, overflow: 'auto' }}>
         <div
           role="grid"
           tabIndex={0}
@@ -167,8 +169,9 @@ export default function HeatmapView({
               data-testid="heat-ring"
               style={{
                 position: 'absolute',
-                gridRow: ring[0] + 2,
-                gridColumn: ring[1] + 2,
+                // span 1: absolutely placed, an item's auto end line is the grid's far edge, not the next line.
+                gridRow: `${ring[0] + 2} / span 1`,
+                gridColumn: `${ring[1] + 2} / span 1`,
                 inset: 0,
                 outline: '2px solid var(--text)',
                 outlineOffset: -1,
@@ -179,7 +182,16 @@ export default function HeatmapView({
           )}
         </div>
       </div>
-      <div data-testid="heat-tip" style={{ ...TOOLTIP.contentStyle, padding: '4px 8px', minHeight: 26, alignSelf: 'flex-start' }}>
+      <div
+        data-testid="heat-tip"
+        style={{
+          ...TOOLTIP.contentStyle,
+          padding: '4px 8px',
+          minHeight: 26,
+          alignSelf: 'flex-start',
+          visibility: shown ? 'visible' : 'hidden',
+        }}
+      >
         {shown && (
           <>
             {label(rows, shown[0])} / {label(columns, shown[1])}

@@ -477,8 +477,8 @@ body {
   .wb-printing :is(button:not(table button), [role='menu'], input, textarea, select, .param-bar, .col-menu, .inspect-col button),
   .screen-only { display: none !important; }
   .wb-printing :is(.select-col, .inspect-col) { background: none !important; }
-  /* Widgets in one column at their own height; a Markdown widget, or a tabs widget (each tab under its name), as tall as its
-   * content, so nothing is cut off at the widget's edge. */
+  /* Widgets in one column at their own height; a Markdown widget, a tabs widget (each tab under its name), or a heatmap, as tall
+   * as its content, so nothing is cut off at the widget's edge. */
   .wb-printing .wb-grid { display: flex; flex-direction: column; gap: 12px; }
   /* No card around a widget on paper: its title and content print as plain sections. */
   .wb-printing .wb-widget {
@@ -489,9 +489,9 @@ body {
     box-shadow: none !important;
     background: none !important;
   }
-  .wb-printing .wb-widget:has(.md, .wb-print-tabs, .datagrid) { height: auto; }
-  .wb-printing .wb-widget:has(.wb-print-tabs, .datagrid) { break-inside: auto; }
-  .wb-printing .wb-widget:has(.md, .wb-print-tabs) > div, .wb-printing :is(.md, .wb-tabs, div:has(.datagrid)) {
+  .wb-printing .wb-widget:has(.md, .wb-print-tabs, .datagrid, .heatmap) { height: auto; }
+  .wb-printing .wb-widget:has(.wb-print-tabs, .datagrid, .heatmap) { break-inside: auto; }
+  .wb-printing .wb-widget:has(.md, .wb-print-tabs, .heatmap) > div, .wb-printing :is(.md, .wb-tabs, div:has(.datagrid)) {
     flex: none;
     min-height: auto;
     overflow: visible !important;
