@@ -179,6 +179,23 @@ describe('history in the widgets', () => {
     expect(screen.queryByRole('combobox', { name: 'Since' })).toBeNull();
   });
 
+  it('history_widget_heatmap_values', async () => {
+    const twoDays = { snapshots: [snap(daysAgo(2), 1), snap(daysAgo(0), 3)], reset: false };
+    call.mockImplementation((method: string) => Promise.resolve(method === 'history.values' ? twoDays : null));
+    show(widget('chart', {}, { chart: { type: 'heatmap', split: 'Id', series: ['n'] } }), {
+      state: 'done',
+      result: result(n, [[3]]),
+      finishedAt: 5,
+    });
+    await act(async () => undefined);
+    expect(chart).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        picked: { type: 'heatmap', x: 'Snapshot', split: 'Id', series: ['n'] },
+        columns: [{ name: 'Snapshot', type: 'datetime' }, ...n],
+      }),
+    );
+  });
+
   it('a_tracked_table_filters_by_change', async () => {
     const big = changes({ new: Array.from({ length: 5000 }, (_, i) => tracked(`n${i}`, daysAgo(1))), newCount: 6000 });
     call.mockImplementation((method: string) => Promise.resolve(method === 'history.changes' ? big : null));

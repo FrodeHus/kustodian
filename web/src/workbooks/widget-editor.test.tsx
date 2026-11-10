@@ -344,6 +344,30 @@ describe('WidgetEditor', () => {
       expect(applied().chart).toMatchObject({ split: 'state' });
     });
 
+    it('widget_editor_heatmap_fields', () => {
+      const wide = {
+        ...result,
+        columns: [...result.columns, { name: 'blob', type: 'dynamic' }, { name: 'day2', type: 'datetime' }],
+      } as unknown as RunResult;
+      doc.widgets[0] = {
+        ...doc.widgets[0]!,
+        type: 'chart',
+        chart: { type: 'column', x: 'day', split: 'state', series: ['n'] },
+      };
+      open('a', wide);
+      tab('Visualization');
+      fireEvent.click(screen.getByRole('button', { name: 'Heatmap' }));
+      expect(screen.queryByRole('combobox', { name: 'X' })).toBeNull();
+      expect([...select('Columns').options].map((o) => o.text)).toContain('day');
+      expect([...select('Value').options].map((o) => o.text)).toContain('n');
+      expect([...select('Rows').options].map((o) => o.text)).toEqual(['Automatic', 'day', 'state', 'n', 'day2']);
+      fireEvent.change(select('Columns'), { target: { value: 'day' } });
+      fireEvent.change(select('Value'), { target: { value: 'n' } });
+      expect([...select('Rows').options].map((o) => o.text)).toEqual(['Automatic', 'state', 'day2']);
+      apply();
+      expect(applied().chart).toEqual({ type: 'heatmap', x: 'day', series: ['n'] });
+    });
+
     it('Split by None writes null, so the chart doesn’t split', () => {
       doc.widgets[0] = { ...doc.widgets[0]!, type: 'chart', chart: { type: 'column' } };
       open('a', result);
