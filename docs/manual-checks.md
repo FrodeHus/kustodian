@@ -353,6 +353,25 @@ Needs an official-style build with an Application Insights connection string and
 | A deliberately thrown UI error's reported frame (bundle, line, column) decodes to the right source line with that build's source map, following [releasing.md](releasing.md#decoding-a-ui-error-report) | owner | owner | owner |
 | Cancel in the **Send details** window sends nothing; a build without a connection string shows no **Send details** | owner | owner | owner |
 
+## Log Analytics source (2026-11-10)
+
+Spec: `docs/design/specs/2026-11-10-workspaces-design.md`, part 2. These checks need a live tenant with a Log Analytics
+workspace, so they are the owner's to run.
+
+| Check | macOS | Windows | Linux |
+| --- | --- | --- | --- |
+| The Log Analytics API's app ID: `az ad sp show --id ca7f3f0b-7d91-482c-8e09-c5d840d0eac5 --query displayName` says "Log Analytics API" | ok (owner, 2026-11-10) | n/a | n/a |
+| **New Log Analytics query**: an "LA" tab at 1 day, Run disabled until a workspace is picked | owner | owner | owner |
+| A query runs on a picked workspace | ok (owner, 2026-11-10) | owner | owner |
+| Completion lists the picked workspace's tables; switching the workspace switches them | owner | owner | owner |
+| Azure CLI account, first query: runs silently, or **Grant Log Analytics access** is offered and the query runs after it | owner | owner | owner |
+| Microsoft Graph Command Line Tools account: the query uses the Azure CLI sign-in for the same account, with no extra account in the list | owner | owner | owner |
+| Your own app without `Data.Read`: **Grant Log Analytics access** is offered, from the run and from the schema panel | owner | owner | owner |
+| Without Reader or Log Analytics Reader on the workspace: "Log Analytics refused the query…" | owner | owner | owner |
+| A tab saved under one account, run under another that can't see the workspace: blocked, and nothing is sent | owner | owner | owner |
+| A workbook widget on a workspace runs; without one it asks for a workspace and doesn't run | owner | owner | owner |
+| Run log (Diagnostics) shows the Log Analytics requests and statuses; no tokens | owner | owner | owner |
+
 ## Notes
 
 - macOS launch check: the window title was "Kustodian". It showed a signed-in account because of an earlier owner sign-in cached

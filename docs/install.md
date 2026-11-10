@@ -1,8 +1,8 @@
 # Installing Kustodian
 
 Kustodian is a desktop KQL workbench for your Microsoft tenant: one query language, with completion and results side by
-side, against **Microsoft Graph**, **Defender advanced hunting** and **Azure Resource Graph**. It runs on Windows, macOS and
-Linux.
+side, against **Microsoft Graph**, **Defender advanced hunting**, **Azure Resource Graph** and **Log Analytics**. It runs on
+Windows, macOS and Linux.
 
 ## Download
 
@@ -100,10 +100,10 @@ Kustodian still works, but you sign in again each time you start it.
 
 Sign in with your work account. You pick the client under **Signing in as**:
 
-- **Azure CLI** (the default): Microsoft's public Azure CLI client, with delegated permissions. It covers common Graph and Azure
-  Resource Graph queries.
+- **Azure CLI** (the default): Microsoft's public Azure CLI client, with delegated permissions. It covers common Graph, Azure
+  Resource Graph and Log Analytics queries.
 - **Microsoft Graph Command Line Tools**: Microsoft's public client used by Graph PowerShell. It reaches what your tenant has
-  granted Graph PowerShell. Azure queries use your Azure CLI sign-in.
+  granted Graph PowerShell. Azure Resource Graph and Log Analytics queries use your Azure CLI sign-in.
 - **Your own app**: your own Entra ID app registration, or one Kustodian creates with **Create Entra ID application**.
 
 Security data, audit logs and advanced hunting often need more than the Azure CLI client has.

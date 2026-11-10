@@ -26,7 +26,7 @@ Solutions/
 | `solutionVersion` | `x.y.z`. Raise it with every change to the solution, or installed copies are never offered the update. |
 | `support` | `kustodian` or `community`. |
 | `categories` | Free-form labels. |
-| `sources` | The sources its queries use: `graph`, `hunting` or `arg`. |
+| `sources` | The sources its queries use: `graph`, `hunting`, `arg` or `logs`. A `logs` query never carries a workspace: whoever installs it picks one. |
 | `minAppVersion` | `x.y.z`, the oldest app that can install it. It cannot be above the next release. |
 | `requires` | Optional: `graph` permissions, `roles`, `licenses` and `azure` access it needs. |
 | `content` | The `queries`, `workbooks` and `tools` it ships, by id. Each query and workbook id is a valid id and has a file. |

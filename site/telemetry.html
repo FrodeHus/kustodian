@@ -186,8 +186,8 @@ td{color:var(--muted)}
 <tr><td><code>kind</code></td><td>The kind of failure again, as a property.</td></tr>
 <tr><td><code>os</code>, <code>arch</code>, <code>runtime</code></td><td>The OS name and version, the processor architecture and the .NET version.</td></tr>
 <tr><td><code>exitCode</code>, <code>peakMemoryMb</code>, <code>workerUptimeS</code></td><td>Only for an engine failure: the exit code of the engine process, its peak memory, and how long it had run.</td></tr>
-<tr><td><code>source</code></td><td>Where the error happened: <code>graph</code>, <code>hunting</code> or <code>arg</code> for a run, or <code>host</code> or <code>ui</code>.</td></tr>
-<tr><td><code>trail</code></td><td>The last 20 steps before the error, as codes with the seconds between them, such as <code>run.start(graph) +0s; account.consent(graph) +31s</code>. The codes come from a fixed list: a run started or ended (with its source and outcome), an error code Kustodian explained to you, sign-in, consent, a token fetched (Graph or Azure), the engine process started, killed or exited (with its exit code), a setting changed (its name only), and an error in the web interface. Never a value. It is kept in memory and never written to disk.</td></tr>
+<tr><td><code>source</code></td><td>Where the error happened: <code>graph</code>, <code>hunting</code>, <code>arg</code> or <code>logs</code> for a run, or <code>host</code> or <code>ui</code>.</td></tr>
+<tr><td><code>trail</code></td><td>The last 20 steps before the error, as codes with the seconds between them, such as <code>run.start(graph) +0s; account.consent(graph) +31s</code>. The codes come from a fixed list: a run started or ended (with its source and outcome), an error code Kustodian explained to you, sign-in, consent, a token fetched (Graph, Azure or Log Analytics), the engine process started, killed or exited (with its exit code), a setting changed (its name only), and an error in the web interface. Never a value. It is kept in memory and never written to disk.</td></tr>
 </tbody>
 </table>
 
