@@ -19,18 +19,42 @@ const WB_ID = '5b0c9a6e-1f7d-4c2a-9e3b-8d4f6a2c1e07';
 const SAVED_ID = '7c1e4b2a-3d5f-4e6a-8b9c-0d1e2f3a4b5c';
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const button = (label: string, extra: object = {}) => ({
-  label, tool: label, mapping: { id: 'id' }, runsOn: 'selectedOrAll', after: 'refreshWidget', placement: 'header', ...extra,
+  label,
+  tool: label,
+  mapping: { id: 'id' },
+  runsOn: 'selectedOrAll',
+  after: 'refreshWidget',
+  placement: 'header',
+  ...extra,
 });
 // Spec §9.2's example, with a markdown widget, a second button and a command a crafted file might carry.
 const FILE = JSON.stringify(
   {
-    kind: 'kustodian.workbook', version: 1, id: WB_ID, name: 'VM hygiene', folder: 'Azure', command: '/bin/sh -c top',
+    kind: 'kustodian.workbook',
+    version: 1,
+    id: WB_ID,
+    name: 'VM hygiene',
+    folder: 'Azure',
+    command: '/bin/sh -c top',
     parameters: [{ name: 'Subscriptions', type: 'list', value: '', required: false, multi: true, all: true }],
     widgets: [
-      { id: 'vms', type: 'table', title: 'Virtual machines', layout: { x: 0, y: 0, w: 12, h: 20 },
-        query: { saved: { id: SAVED_ID, name: 'Azure / VMs by power state' }, source: 'arg', text: 'resources | take 10', options: null, command: '/bin/sh -c query' },
-        parameters: { PowerState: { from: 'widget', value: 'any' } }, selection: 'multi', command: '/bin/sh -c widget',
-        tools: [button('Start VM'), button('Stop VM', { command: '/bin/sh -c evil' }), { ...button('Refresh'), tool: 'Delete VM' }] },
+      {
+        id: 'vms',
+        type: 'table',
+        title: 'Virtual machines',
+        layout: { x: 0, y: 0, w: 12, h: 20 },
+        query: {
+          saved: { id: SAVED_ID, name: 'Azure / VMs by power state' },
+          source: 'arg',
+          text: 'resources | take 10',
+          options: null,
+          command: '/bin/sh -c query',
+        },
+        parameters: { PowerState: { from: 'widget', value: 'any' } },
+        selection: 'multi',
+        command: '/bin/sh -c widget',
+        tools: [button('Start VM'), button('Stop VM', { command: '/bin/sh -c evil' }), { ...button('Refresh'), tool: 'Delete VM' }],
+      },
       { id: 'notes', type: 'markdown', title: 'Notes', layout: { x: 0, y: 20, w: 12, h: 4 }, markdown: 'Check weekly.', parameters: {} },
     ],
   },
@@ -39,7 +63,16 @@ const FILE = JSON.stringify(
 );
 
 const mine: SavedQuery = {
-  version: 1, id: SAVED_ID, name: 'My own query', folder: null, source: 'graph', text: 'users', parameters: [], createdAt: '', modifiedAt: '', options: null,
+  version: 1,
+  id: SAVED_ID,
+  name: 'My own query',
+  folder: null,
+  source: 'graph',
+  text: 'users',
+  parameters: [],
+  createdAt: '',
+  modifiedAt: '',
+  options: null,
 };
 let library: Map<string, SavedQuery>;
 let workbooks: Map<string, WorkbookDoc>;
@@ -62,7 +95,11 @@ beforeEach(() => {
   bridge.call.mockImplementation((method: string, params?: Record<string, unknown>) => {
     switch (method) {
       case 'file.open':
-        return Promise.resolve({ path: '/x/VM hygiene.kustodian-workbook.json', name: 'VM hygiene.kustodian-workbook.json', text: fileText });
+        return Promise.resolve({
+          path: '/x/VM hygiene.kustodian-workbook.json',
+          name: 'VM hygiene.kustodian-workbook.json',
+          text: fileText,
+        });
       case 'workbook.check':
         return Promise.resolve(null);
       case 'arm.workspaces':
@@ -70,12 +107,21 @@ beforeEach(() => {
       case 'tools.list':
         return Promise.resolve({
           tools: ['Start VM', 'Deallocate VM'].map((name) => ({ name, command: '/usr/bin/az', args: [], mode: 'each' })),
-          problem: null, path: '/x/tools.json', missing: [],
+          problem: null,
+          path: '/x/tools.json',
+          missing: [],
         });
       case 'workbook.list':
         return Promise.resolve({
-          workbooks: [...workbooks.values()].map((w) => ({ id: w.id, name: w.name, folder: w.folder, modifiedAt: '', widgets: w.widgets.length })),
-          folders: [], skipped: 0,
+          workbooks: [...workbooks.values()].map((w) => ({
+            id: w.id,
+            name: w.name,
+            folder: w.folder,
+            modifiedAt: '',
+            widgets: w.widgets.length,
+          })),
+          folders: [],
+          skipped: 0,
         });
       case 'library.save': {
         const q = params!.query as SavedQuery;
@@ -147,7 +193,11 @@ describe('ImportReview', () => {
   });
 
   it('says what is in a markdown-only file without a dangling separator', async () => {
-    fileText = JSON.stringify({ ...(JSON.parse(FILE) as { widgets: unknown[] }), parameters: [], widgets: [(JSON.parse(FILE) as { widgets: unknown[] }).widgets[1]] });
+    fileText = JSON.stringify({
+      ...(JSON.parse(FILE) as { widgets: unknown[] }),
+      parameters: [],
+      widgets: [(JSON.parse(FILE) as { widgets: unknown[] }).widgets[1]],
+    });
     const dialog = await review();
     const line = within(dialog).getByText(/1 widget/);
     expect(line.textContent?.trim()).toBe('1 widget · 0 workbook parameters');
@@ -208,7 +258,13 @@ describe('ImportReview', () => {
 
     const added = sent('library.save');
     expect(added).toHaveLength(1);
-    expect(added[0]!.query).toMatchObject({ id: null, folder: 'VM hygiene', name: 'Azure / VMs by power state', source: 'arg', text: 'resources | take 10' });
+    expect(added[0]!.query).toMatchObject({
+      id: null,
+      folder: 'VM hygiene',
+      name: 'Azure / VMs by power state',
+      source: 'arg',
+      text: 'resources | take 10',
+    });
     const newId = [...library.keys()].find((k) => k !== SAVED_ID)!;
     const wb = savedWorkbook();
     expect(wb.id).toBe(WB_ID);
@@ -305,8 +361,18 @@ describe('ImportReview', () => {
   it('lists_the_workbooks_workspaces', async () => {
     const ws = (customerId: string, name: string) => ({ customerId, name, resourceId: `/subscriptions/s/workspaces/${name}` });
     const hunt = (id: string, w: object) => ({
-      id, type: 'table', title: id, layout: { x: 0, y: 30, w: 6, h: 8 },
-      query: { source: 'hunting', text: 'DeviceInfo', options: { timespan: 'P7D', scope: null, workspaces: [w] }, parameters: [], saved: null }, parameters: {},
+      id,
+      type: 'table',
+      title: id,
+      layout: { x: 0, y: 30, w: 6, h: 8 },
+      query: {
+        source: 'hunting',
+        text: 'DeviceInfo',
+        options: { timespan: 'P7D', scope: null, workspaces: [w] },
+        parameters: [],
+        saved: null,
+      },
+      parameters: {},
     });
     const one = ws('11111111-1111-1111-1111-111111111111', 'Sentinel prod');
     const two = ws('22222222-2222-2222-2222-222222222222', 'Sentinel dev');
@@ -315,7 +381,14 @@ describe('ImportReview', () => {
     armWorkspaces = () =>
       Promise.resolve({
         workspaces: [
-          { ...one, customerId: one.customerId.toUpperCase(), name: 'Account prod', resourceGroup: 'rg', subscriptionId: 's', location: 'x' },
+          {
+            ...one,
+            customerId: one.customerId.toUpperCase(),
+            name: 'Account prod',
+            resourceGroup: 'rg',
+            subscriptionId: 's',
+            location: 'x',
+          },
           { ...two, name: 'Account dev', resourceGroup: 'rg', subscriptionId: 's', location: 'x' },
         ],
       });
@@ -331,12 +404,29 @@ describe('ImportReview', () => {
     const w = { customerId, name, resourceId: '/r' };
     fileText = JSON.stringify({
       ...base,
-      widgets: [...base.widgets, { id: 'h', type: 'table', title: 'h', layout: { x: 0, y: 30, w: 6, h: 8 },
-        query: { source: 'hunting', text: 'DeviceInfo', options: { timespan: 'P7D', scope: null, workspaces: [w] }, parameters: [], saved: null }, parameters: {} }],
+      widgets: [
+        ...base.widgets,
+        {
+          id: 'h',
+          type: 'table',
+          title: 'h',
+          layout: { x: 0, y: 30, w: 6, h: 8 },
+          query: {
+            source: 'hunting',
+            text: 'DeviceInfo',
+            options: { timespan: 'P7D', scope: null, workspaces: [w] },
+            parameters: [],
+            saved: null,
+          },
+          parameters: {},
+        },
+      ],
     });
   };
   const GUID1 = '11111111-1111-1111-1111-111111111111';
-  const listed = (name: string, customerId = GUID1) => ({ workspaces: [{ customerId, name, resourceId: '/r', resourceGroup: 'g', subscriptionId: 's', location: 'x' }] });
+  const listed = (name: string, customerId = GUID1) => ({
+    workspaces: [{ customerId, name, resourceId: '/r', resourceGroup: 'g', subscriptionId: 's', location: 'x' }],
+  });
 
   it('shows the account name and short id for a workspace it can see, not the file name', async () => {
     hunting('Looks like the safe one', GUID1);

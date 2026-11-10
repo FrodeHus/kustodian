@@ -17,7 +17,10 @@ export function ChildrenConfirm({
 }: {
   question: string;
   count: number;
-  move: string; onChoose: (children: 'move' | 'delete') => void; onCancel: () => void }) {
+  move: string;
+  onChoose: (children: 'move' | 'delete') => void;
+  onCancel: () => void;
+}) {
   const id = useId();
   // Read while rendering, before autoFocus moves focus to the move button.
   const [opener] = useState(() => document.activeElement);
@@ -170,7 +173,8 @@ export function TabsWidget({
     }
     edit(tabId, (d) => ({ ...d, widgets: change(d.widgets) }));
   };
-  const askDelete = (tab: Tab) => (childrenOf(state.doc.widgets, widget.id, tab.id).length > 0 ? setDeleting(tab) : removeTab(tab, 'delete'));
+  const askDelete = (tab: Tab) =>
+    childrenOf(state.doc.widgets, widget.id, tab.id).length > 0 ? setDeleting(tab) : removeTab(tab, 'delete');
   const endPress = () => {
     press.current?.stop();
     press.current = null;
@@ -233,7 +237,8 @@ export function TabsWidget({
       return;
     }
     const at = tabs.findIndex((t) => t.id === tab);
-    const to = e.key === 'ArrowRight' ? at + 1 : e.key === 'ArrowLeft' ? at - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : null;
+    const to =
+      e.key === 'ArrowRight' ? at + 1 : e.key === 'ArrowLeft' ? at - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : null;
     const next = to === null ? undefined : tabs[(to + tabs.length) % tabs.length];
     if (next) {
       e.preventDefault();
@@ -332,7 +337,13 @@ export function TabsWidget({
                   <button type="button" role="menuitem" tabIndex={-1} onClick={() => startRename(t.id)}>
                     Rename
                   </button>
-                  <button type="button" role="menuitem" tabIndex={-1} disabled={i === 0} onClick={() => reorder((w) => moveTab(w, widget.id, t.id, -1))}>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    tabIndex={-1}
+                    disabled={i === 0}
+                    onClick={() => reorder((w) => moveTab(w, widget.id, t.id, -1))}
+                  >
                     Move left
                   </button>
                   <button
@@ -356,9 +367,17 @@ export function TabsWidget({
           </button>
         )}
       </div>
-      <div id={`${id}-panel`} role="tabpanel" aria-labelledby={shown && `${id}-${shown}`} tabIndex={0} className="min-h-0 flex-1 overflow-auto p-3">
+      <div
+        id={`${id}-panel`}
+        role="tabpanel"
+        aria-labelledby={shown && `${id}-${shown}`}
+        tabIndex={0}
+        className="min-h-0 flex-1 overflow-auto p-3"
+      >
         {empty && <p className="faint m-0 pb-2 text-[12px]">{editing ? 'Drag a widget here or use Move to…' : 'No widgets on this tab'}</p>}
-        {shown !== undefined && (!empty || editing) && <WidgetGrid tabId={tabId} place={{ tabs: widget.id, tab: shown }} editing={editing} body={body} onSignIn={onSignIn} />}
+        {shown !== undefined && (!empty || editing) && (
+          <WidgetGrid tabId={tabId} place={{ tabs: widget.id, tab: shown }} editing={editing} body={body} onSignIn={onSignIn} />
+        )}
       </div>
       {deleting && (
         <ChildrenConfirm

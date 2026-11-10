@@ -117,10 +117,22 @@ describe('tab store', () => {
 
   it('openWith_sets_text_title_and_not_dirty', () => {
     const params = [{ name: 'days', type: 'number', value: '30', required: true, choices: null }];
-    const id = useTabs.getState().openWith({ source: 'graph', title: 'Stale guests', text: 'users', savedId: 's1', filePath: '/q.kql', parameters: params });
+    const id = useTabs
+      .getState()
+      .openWith({ source: 'graph', title: 'Stale guests', text: 'users', savedId: 's1', filePath: '/q.kql', parameters: params });
 
     const tab = useTabs.getState().tabs[0];
-    expect(tab).toMatchObject({ id, source: 'graph', title: 'Stale guests', text: 'users', dirty: false, savedId: 's1', filePath: '/q.kql', parameters: params, history: [] });
+    expect(tab).toMatchObject({
+      id,
+      source: 'graph',
+      title: 'Stale guests',
+      text: 'users',
+      dirty: false,
+      savedId: 's1',
+      filePath: '/q.kql',
+      parameters: params,
+      history: [],
+    });
     expect(useTabs.getState().activeId).toBe(id);
     expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
   });
@@ -132,7 +144,16 @@ describe('tab store', () => {
       activeId: 'b',
       tabs: [
         { id: 'a', source: 'graph', title: 'Apps', text: 'applications', dirty: false, savedId: 's1', parameters: [], filePath: null },
-        { id: 'b', source: 'graph', title: 'Draft', text: 'users | take 3', dirty: true, savedId: null, parameters: [], filePath: '/d.kql' },
+        {
+          id: 'b',
+          source: 'graph',
+          title: 'Draft',
+          text: 'users | take 3',
+          dirty: true,
+          savedId: null,
+          parameters: [],
+          filePath: '/d.kql',
+        },
       ],
     });
 
@@ -144,7 +165,11 @@ describe('tab store', () => {
     expect(activeId).toBe('b');
 
     // An active id the session doesn't have falls back to the first tab.
-    useTabs.getState().restore({ version: 1, activeId: 'gone', tabs: [{ id: 'c', source: 'graph', title: 'C', text: '', dirty: false, savedId: null, parameters: [], filePath: null }] });
+    useTabs.getState().restore({
+      version: 1,
+      activeId: 'gone',
+      tabs: [{ id: 'c', source: 'graph', title: 'C', text: '', dirty: false, savedId: null, parameters: [], filePath: null }],
+    });
     expect(useTabs.getState().activeId).toBe('c');
   });
 
@@ -320,7 +345,11 @@ describe('tab store', () => {
     // A picked timespan goes instead, and the run keeps what it had.
     useTabs.getState().setOptions(id, { timespan: 'P7D', scope: null });
     await useTabs.getState().run(id, 'all');
-    expect(bridge.call).toHaveBeenLastCalledWith('query.run', expect.objectContaining({ options: { timespan: 'P7D', scope: null, workspaces: null } }), expect.anything());
+    expect(bridge.call).toHaveBeenLastCalledWith(
+      'query.run',
+      expect.objectContaining({ options: { timespan: 'P7D', scope: null, workspaces: null } }),
+      expect.anything(),
+    );
     expect(useTabs.getState().tabs[0]?.run?.options).toEqual({ timespan: 'P7D', scope: null, workspaces: null });
   });
 
@@ -345,7 +374,11 @@ describe('tab store', () => {
     useTabs.getState().setText(id, 'DeviceInfo | take 5');
 
     await useTabs.getState().run(id, 'all');
-    expect(bridge.call).toHaveBeenLastCalledWith('query.run', expect.objectContaining({ options: expect.objectContaining({ workspaces: null }) }), expect.anything());
+    expect(bridge.call).toHaveBeenLastCalledWith(
+      'query.run',
+      expect.objectContaining({ options: expect.objectContaining({ workspaces: null }) }),
+      expect.anything(),
+    );
   });
 
   it('arg_run_sends_scope', async () => {
@@ -364,14 +397,21 @@ describe('tab store', () => {
     // The timespan a tab had as a hunting tab isn't sent to Resource Graph.
     useTabs.getState().setOptions(id, { timespan: 'P1D', scope });
     await useTabs.getState().run(id, 'all');
-    expect(bridge.call).toHaveBeenLastCalledWith('query.run', expect.objectContaining({ options: { timespan: null, scope } }), expect.anything());
+    expect(bridge.call).toHaveBeenLastCalledWith(
+      'query.run',
+      expect.objectContaining({ options: { timespan: null, scope } }),
+      expect.anything(),
+    );
   });
 
   it('setOptions_marks_a_saved_tab_changed_and_rerun_sends_the_last_text_again', async () => {
     bridge.call.mockResolvedValue(ok);
     const saved = useTabs.getState().openWith({ source: 'arg', title: 'Saved', text: 'Resources\n\nResourceContainers', savedId: 's1' });
     useTabs.getState().setOptions(saved, { timespan: null, scope: { kind: 'managementGroup', ids: ['contoso-platform'] } });
-    expect(useTabs.getState().tabs[0]).toMatchObject({ dirty: true, options: { scope: { kind: 'managementGroup', ids: ['contoso-platform'] } } });
+    expect(useTabs.getState().tabs[0]).toMatchObject({
+      dirty: true,
+      options: { scope: { kind: 'managementGroup', ids: ['contoso-platform'] } },
+    });
 
     useTabs.getState().setCursor(saved, { line: 3, column: 1, selection: '', selectionLine: 3, selectionColumn: 1 });
     await useTabs.getState().run(saved, 'block');
@@ -380,7 +420,11 @@ describe('tab store', () => {
     await useTabs.getState().rerun(saved);
 
     expect(bridge.call).toHaveBeenCalledTimes(2);
-    expect(bridge.call).toHaveBeenLastCalledWith('query.run', expect.objectContaining({ kql: 'ResourceContainers', refresh: false }), expect.anything());
+    expect(bridge.call).toHaveBeenLastCalledWith(
+      'query.run',
+      expect.objectContaining({ kql: 'ResourceContainers', refresh: false }),
+      expect.anything(),
+    );
     expect(useTabs.getState().tabs[0]?.run?.origin).toEqual({ line: 3, column: 1 });
   });
 
@@ -389,7 +433,19 @@ describe('tab store', () => {
     useTabs.getState().restore({
       version: 1,
       activeId: 'a',
-      tabs: [{ id: 'a', source: 'hunting', title: 'A', text: 'DeviceInfo', dirty: false, savedId: null, parameters: [], filePath: null, options }],
+      tabs: [
+        {
+          id: 'a',
+          source: 'hunting',
+          title: 'A',
+          text: 'DeviceInfo',
+          dirty: false,
+          savedId: null,
+          parameters: [],
+          filePath: null,
+          options,
+        },
+      ],
     });
     const opened = useTabs.getState().openWith({ source: 'hunting', title: 'B', text: '', options });
     expect(useTabs.getState().tabs.map((t) => t.options)).toEqual([options, options]);
@@ -405,7 +461,13 @@ describe('tab store', () => {
     expect(useTabs.getState().openWorkbook({ ...doc, name: 'Again' })).toBe(first);
     expect(useTabs.getState().activeId).toBe(first);
     expect(useTabs.getState().tabs).toHaveLength(2);
-    expect(useTabs.getState().tabs[0]).toMatchObject({ source: 'workbook', title: 'Hygiene', workbook: doc, savedId: doc.id, dirty: false });
+    expect(useTabs.getState().tabs[0]).toMatchObject({
+      source: 'workbook',
+      title: 'Hygiene',
+      workbook: doc,
+      savedId: doc.id,
+      dirty: false,
+    });
 
     const changed = { ...doc, widgets: [] };
     useTabs.getState().setWorkbook(first, changed, true);

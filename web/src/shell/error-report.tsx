@@ -170,8 +170,8 @@ function DetailsDialog({
         ) : (
           <>
             <span className="text-[12px]">
-              This report may contain data from your tenant. It goes privately to the Kustodian maintainer’s Application Insights and is kept
-              for 90 days. Untick what you don’t want to send; the text shown is exactly what is sent.
+              This report may contain data from your tenant. It goes privately to the Kustodian maintainer’s Application Insights and is
+              kept for 90 days. Untick what you don’t want to send; the text shown is exactly what is sent.
             </span>
             {gone && (
               <span className="text-[12px] text-warn" role="status">

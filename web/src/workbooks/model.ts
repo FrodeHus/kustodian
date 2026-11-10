@@ -59,7 +59,8 @@ export interface Widget {
   query?: WidgetQuery;
   parameters: Record<string, WidgetParam>;
   chart?: Picked;
-  stat?: { value: string | null; compare: string | null };
+  /** `unit`, shown after the number (%, ms, days), when set. */
+  stat?: { value: string | null; compare: string | null; unit?: string };
   selection?: RowSelectionMode; // table widgets only
   tools?: ToolButton[]; // table widgets only
   history?: WidgetHistory; // stat, chart and table widgets only
@@ -166,13 +167,25 @@ type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
 const str = (v: unknown, fallback: string) => (typeof v === 'string' ? v : fallback);
 const strOrNull = (v: unknown) => (typeof v === 'string' ? v : null);
+export const MAX_UNIT_LENGTH = 12;
+/** A stat's unit: trimmed and capped; none when empty or not a string. */
+const unitOf = (v: unknown) => {
+  const u = typeof v === 'string' ? v.trim().slice(0, MAX_UNIT_LENGTH) : '';
+  return u ? { unit: u } : {};
+};
 const bool = (v: unknown) => v === true;
 const choices = (v: unknown) => (Array.isArray(v) && v.every((c) => typeof c === 'string') ? v : null);
 const FROMS: unknown[] = ['workbook', 'widget', 'fixed'] satisfies ParamFrom[];
 
 /** A query's own parameter definition; null when it isn't one. */
 function parseParamDef(v: unknown): ParameterDef | null {
-  if (!isObj(v) || typeof v.name !== 'string' || typeof v.type !== 'string' || typeof v.value !== 'string' || typeof v.required !== 'boolean') {
+  if (
+    !isObj(v) ||
+    typeof v.name !== 'string' ||
+    typeof v.type !== 'string' ||
+    typeof v.value !== 'string' ||
+    typeof v.required !== 'boolean'
+  ) {
     return null;
   }
   return { ...v, name: v.name, type: v.type, value: v.value, required: v.required, choices: choices(v.choices) };
@@ -217,8 +230,7 @@ function clampLayout(type: WidgetType, v: unknown): WidgetLayout {
   };
 }
 
-const oneOf = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T =>
-  allowed.includes(v as T) ? (v as T) : fallback;
+const oneOf = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T => (allowed.includes(v as T) ? (v as T) : fallback);
 
 /**
  * Unlike the rest of the model this builds a new object from the six known fields only: a workbook file is shared, and
@@ -255,7 +267,9 @@ function parseHistory(v: unknown): WidgetHistory | null {
 }
 
 const parseTabs = (v: unknown): Tab[] =>
-  (Array.isArray(v) ? v : []).flatMap((t) => (isObj(t) ? [{ id: typeof t.id === 'string' && t.id !== '' ? t.id : newTabId(), name: str(t.name, '') }] : []));
+  (Array.isArray(v) ? v : []).flatMap((t) =>
+    isObj(t) ? [{ id: typeof t.id === 'string' && t.id !== '' ? t.id : newTabId(), name: str(t.name, '') }] : [],
+  );
 
 const parsePlace = (v: unknown): Place | undefined =>
   isObj(v) && typeof v.tabs === 'string' && typeof v.tab === 'string' ? { tabs: v.tabs, tab: v.tab } : undefined;
@@ -293,12 +307,13 @@ function parseWidget(v: unknown): Widget | null {
         }
       : {}),
     ...(parsedHistory ? { history: parsedHistory } : {}),
-    ...(isObj(stat) ? { stat: { ...stat, value: strOrNull(stat.value), compare: strOrNull(stat.compare) } } : {}),
+    ...(isObj(stat)
+      ? { stat: { ...stat, value: strOrNull(stat.value), compare: strOrNull(stat.compare), unit: undefined, ...unitOf(stat.unit) } }
+      : {}),
   };
 }
 
-const overlaps = (a: WidgetLayout, b: WidgetLayout) =>
-  a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+const overlaps = (a: WidgetLayout, b: WidgetLayout) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
 /** Gives each widget whose id an earlier one has a new id. */
 function uniqueIds(widgets: Widget[]): Widget[] {

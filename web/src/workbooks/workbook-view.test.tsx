@@ -73,7 +73,11 @@ function show(runs: Record<string, WidgetRun>, editing = false) {
     undo: [],
     redo: [],
     dirty: false,
-    selections: {}, history: {}, since: {}, activeTabs: {}, stale: {},
+    selections: {},
+    history: {},
+    since: {},
+    activeTabs: {},
+    stale: {},
   };
   useWorkbooks.setState({ byTab: { t: state }, setWorkbookValue, setWidgetValue });
   return render(<WorkbookView tabId="t" />);
@@ -107,8 +111,8 @@ describe('WorkbookView', () => {
       expect(frame(title)).toBeTruthy();
     }
     expect(screen.getByRole('radiogroup', { name: 'Environment' })).toBeTruthy();
-    // The chart widget names the workbook parameter it uses.
-    expect(within(frame('Sign-ins by day')).getByText('Env')).toBeTruthy();
+    // The chart widget names the workbook parameter it uses, on its corner link icon.
+    expect(within(frame('Sign-ins by day')).getByRole('img', { name: 'Uses workbook parameters Env' })).toBeTruthy();
   });
 
   it('Print marks this workbook for the print styles, and prints in the page unless the host printed it', async () => {
@@ -184,7 +188,9 @@ describe('WorkbookView', () => {
       hunting();
       show({ h: { state: 'done', result: result(columns, [[1]]) } });
       expect(within(frame('Hunt')).getByText(/contoso-sentinel/)).toBeTruthy();
-      expect(within(frame('Hunt')).getByText(/If Defender can't reach contoso-sentinel, it answers from your primary workspace\./)).toBeTruthy();
+      expect(
+        within(frame('Hunt')).getByText(/If Defender can't reach contoso-sentinel, it answers from your primary workspace\./),
+      ).toBeTruthy();
     });
 
     it('a_run_without_a_workspace_says_nothing_of_one', () => {
@@ -248,7 +254,10 @@ describe('WorkbookView', () => {
   });
 
   it('picks several values in a menu of checks, kept in the choices order', () => {
-    doc = { ...doc, parameters: [{ ...env, name: 'Sev', label: 'Severity', multi: true, all: true, choices: ['High', 'Medium', 'Low'], value: 'High' }] };
+    doc = {
+      ...doc,
+      parameters: [{ ...env, name: 'Sev', label: 'Severity', multi: true, all: true, choices: ['High', 'Medium', 'Low'], value: 'High' }],
+    };
     show({});
     act(() => useWorkbooks.setState((st) => ({ byTab: { t: { ...st.byTab.t!, values: { workbook: { Sev: 'Low' }, widgets: {} } } } })));
     const pick = screen.getByRole('button', { name: 'Severity' });
@@ -264,7 +273,9 @@ describe('WorkbookView', () => {
     const setParamsCollapsed = vi.fn();
     useWorkbooks.setState({ setParamsCollapsed });
     show({});
-    act(() => useWorkbooks.setState((st) => ({ byTab: { t: { ...st.byTab.t!, values: { workbook: { Env: 'test', Days: '7' }, widgets: {} } } } })));
+    act(() =>
+      useWorkbooks.setState((st) => ({ byTab: { t: { ...st.byTab.t!, values: { workbook: { Env: 'test', Days: '7' }, widgets: {} } } } })),
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
     expect(setWorkbookValue).toHaveBeenCalledTimes(1);
     expect(setWorkbookValue).toHaveBeenCalledWith('t', 'Env', 'prod', { now: true });
@@ -316,6 +327,21 @@ describe('WorkbookView', () => {
     expect(copySavedIntoWidget).toHaveBeenCalledWith('t', 'tb');
   });
 
+  it('shows a run’s time in the corner only when it took 5 s or more, and no source badge', () => {
+    const columns = [
+      { name: 'value', type: 'long' },
+      { name: 'previous', type: 'long' },
+    ];
+    show({ s: { state: 'done', result: result(columns, [[1, 2]]) } });
+    expect(within(frame('Total')).queryByText('120 ms')).toBeNull();
+    expect(frame('Total').querySelector('.src')).toBeNull();
+  });
+
+  it('a run of 5 s or more shows its time in the corner', () => {
+    show({ s: { state: 'done', result: { ...result([{ name: 'value', type: 'long' }], [[1]]), durationMs: 6200 } } });
+    expect(within(frame('Total')).getByText('6.2 s')).toBeTruthy();
+  });
+
   it('shows a stat with its change against the comparison', () => {
     const columns = [
       { name: 'value', type: 'long' },
@@ -325,6 +351,12 @@ describe('WorkbookView', () => {
     const total = frame('Total');
     expect(within(total).getByText('1,284')).toBeTruthy();
     expect(within(total).getByText('▲ 196 (18%)')).toBeTruthy();
+  });
+
+  it('shows a stat’s unit after its number', () => {
+    doc = { ...doc, widgets: doc.widgets.map((w) => (w.id === 's' ? { ...w, stat: { value: 'value', compare: null, unit: '%' } } : w)) };
+    show({ s: { state: 'done', result: result([{ name: 'value', type: 'real' }], [[56.1]]) } });
+    expect(within(frame('Total')).getByText('56.1').textContent).toBe('56.1%');
   });
 
   it('a stat with a null or empty cell has no number, and a null comparison no change line', () => {
@@ -375,7 +407,11 @@ describe('WorkbookView', () => {
     const inner = document.querySelector('[data-wb-place="tw/t1"]')!;
     expect(inner.classList.contains('wb-grid')).toBe(true);
     expect(document.querySelector('[data-wb-place=""]')?.classList.contains('wb-grid')).toBe(true);
-    expect(within(inner as HTMLElement).getByRole('region', { name: 'Inside' }).classList.contains('wb-widget')).toBe(true);
+    expect(
+      within(inner as HTMLElement)
+        .getByRole('region', { name: 'Inside' })
+        .classList.contains('wb-widget'),
+    ).toBe(true);
     // The container rule is on .wb-widget wherever it sits, under the one .wb-canvas container.
     expect(styles).toMatch(/@container \(max-width: 899px\) \{ \.wb-widget \{ grid-column: 1 \/ -1;/);
   });

@@ -19,7 +19,8 @@ afterEach(() => {
   Reflect.deleteProperty(navigator, 'clipboard');
 });
 
-const headers = (container: HTMLElement) => [...container.querySelectorAll('thead th:not(.inspect-col)')].map((th) => th.textContent?.replace(/ [↑↓]$/, ''));
+const headers = (container: HTMLElement) =>
+  [...container.querySelectorAll('thead th:not(.inspect-col)')].map((th) => th.textContent?.replace(/ [↑↓]$/, ''));
 const bodyRows = (container: HTMLElement) => [...container.querySelectorAll<HTMLTableRowElement>('tbody tr[data-index]')];
 
 describe('ResultGrid', () => {
@@ -93,7 +94,10 @@ describe('ResultGrid', () => {
 
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Move tags earlier' }));
     expect(headers(container)).toEqual(['tags', 'displayName']);
-    expect([...container.querySelectorAll('tbody tr[data-index] td:not(.inspect-col)')].map((td) => td.textContent)).toEqual(['null', 'Contoso']);
+    expect([...container.querySelectorAll('tbody tr[data-index] td:not(.inspect-col)')].map((td) => td.textContent)).toEqual([
+      'null',
+      'Contoso',
+    ]);
 
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Show all columns' }));
     expect(headers(container)).toEqual(['tags', 'displayName', 'n']);
@@ -259,7 +263,9 @@ describe('ResultGrid', () => {
     expect(onOpenRow).toHaveBeenLastCalledWith(2);
     expect(onChange).toHaveBeenCalledTimes(1);
 
-    rerender(<ResultGrid columns={columns} rows={rows} onOpenRow={onOpenRow} selection={{ mode: 'multi', selected: new Set([1]), onChange }} />);
+    rerender(
+      <ResultGrid columns={columns} rows={rows} onOpenRow={onOpenRow} selection={{ mode: 'multi', selected: new Set([1]), onChange }} />,
+    );
     expect(bodyRows(container).map((tr) => tr.getAttribute('aria-selected'))).toEqual(['false', 'true', 'false']);
     expect(screen.getByRole('checkbox', { name: 'Select row 2' })).toHaveProperty('checked', true);
     const all = screen.getByRole('checkbox', { name: 'Select all rows' });
@@ -299,7 +305,9 @@ describe('ResultGrid', () => {
       ['Legacy', 3, null],
     ];
     const onChange = vi.fn();
-    const { container } = render(<ResultGrid columns={columns} rows={rows} selection={{ mode: 'single', selected: new Set([0]), onChange }} />);
+    const { container } = render(
+      <ResultGrid columns={columns} rows={rows} selection={{ mode: 'single', selected: new Set([0]), onChange }} />,
+    );
     fireEvent.click(bodyRows(container)[2]!, { ctrlKey: true });
     expect(onChange).toHaveBeenLastCalledWith(new Set([2]));
     fireEvent.click(bodyRows(container)[1]!, { shiftKey: true });

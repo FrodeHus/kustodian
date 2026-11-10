@@ -4,7 +4,18 @@ import { blockAt } from '../editor/block-at';
 import { findParams, mergeParameters } from '../params/find-params';
 import { reportIdOf } from '../shell/report-id';
 import { newId } from '../shell/ids';
-import type { ParameterDef, ParameterValue, QueryOptions, QueryRunParams, RawTabRequest, RunProgress, RunResult, Session, Source, TabSource } from '../wire';
+import type {
+  ParameterDef,
+  ParameterValue,
+  QueryOptions,
+  QueryRunParams,
+  RawTabRequest,
+  RunProgress,
+  RunResult,
+  Session,
+  Source,
+  TabSource,
+} from '../wire';
 import { newWorkbook, type WorkbookDoc } from '../workbooks/model';
 
 export type { Source, TabSource } from '../wire';
@@ -183,7 +194,21 @@ let unsubscribeProgress: (() => void) | undefined;
 
 /** A run that couldn't be sent or answered, as a result. */
 export function failed(message: string, runId: string, reportId?: string): RunResult {
-  return { outcome: 'failed', message, reportId, error: null, columns: [], rows: [], total: 0, tables: [], durationMs: 0, droppedValues: 0, runId, diagnostics: [], permissions: [] };
+  return {
+    outcome: 'failed',
+    message,
+    reportId,
+    error: null,
+    columns: [],
+    rows: [],
+    total: 0,
+    tables: [],
+    durationMs: 0,
+    droppedValues: 0,
+    runId,
+    diagnostics: [],
+    permissions: [],
+  };
 }
 
 export const useTabs = create<TabsState>()((set, get) => {
@@ -228,7 +253,16 @@ export const useTabs = create<TabsState>()((set, get) => {
       run =
         error instanceof BridgeError && error.code === 'cancelled'
           ? { state: 'done', source, runId, cancelled: true, startedAt, origin, kql, options }
-          : { state: 'done', source, runId, result: failed(error instanceof Error ? error.message : String(error), runId, reportIdOf(error)), startedAt, origin, kql, options };
+          : {
+              state: 'done',
+              source,
+              runId,
+              result: failed(error instanceof Error ? error.message : String(error), runId, reportIdOf(error)),
+              startedAt,
+              origin,
+              kql,
+              options,
+            };
     }
 
     // A newer run on the tab owns it now; this one's answer is stale.
@@ -256,7 +290,19 @@ export const useTabs = create<TabsState>()((set, get) => {
 
     openWith({ source, title, text, savedId, filePath, parameters, raw, options }) {
       const id = newId();
-      const tab: Tab = { id, source, title, text, dirty: false, savedId, filePath, parameters: parameters ?? [], raw, options, history: [] };
+      const tab: Tab = {
+        id,
+        source,
+        title,
+        text,
+        dirty: false,
+        savedId,
+        filePath,
+        parameters: parameters ?? [],
+        raw,
+        options,
+        history: [],
+      };
       set((s) => ({ tabs: [...s.tabs, tab], activeId: id }));
       return id;
     },
@@ -274,7 +320,17 @@ export const useTabs = create<TabsState>()((set, get) => {
         return open.id;
       }
       const id = newId();
-      const tab: Tab = { id, source: 'workbook', title: doc.name, text: '', dirty: opts?.dirty ?? false, savedId: opts?.savedId, parameters: [], workbook: doc, history: [] };
+      const tab: Tab = {
+        id,
+        source: 'workbook',
+        title: doc.name,
+        text: '',
+        dirty: opts?.dirty ?? false,
+        savedId: opts?.savedId,
+        parameters: [],
+        workbook: doc,
+        history: [],
+      };
       set((s) => ({ tabs: [...s.tabs, tab], activeId: id }));
       return id;
     },
@@ -327,7 +383,9 @@ export const useTabs = create<TabsState>()((set, get) => {
     },
 
     setSource(id, source) {
-      update(id, (t) => (t.source === 'raw' || t.source === 'workbook' || t.source === source ? {} : { source, dirty: t.dirty || t.savedId !== undefined }));
+      update(id, (t) =>
+        t.source === 'raw' || t.source === 'workbook' || t.source === source ? {} : { source, dirty: t.dirty || t.savedId !== undefined },
+      );
     },
 
     setRaw(id, raw) {

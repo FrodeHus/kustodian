@@ -175,7 +175,7 @@
         "version": 1,
         "id": "defender-vulnerability-sla",
         "name": "Defender vulnerability patch SLAs",
-        "solutionVersion": "1.0.0",
+        "solutionVersion": "1.1.0",
         "description": "Patch SLA KPIs per severity from Defender Vulnerability Management, overdue exposures, and the trend of legacy vulnerabilities older than 90 days.",
         "author": "Kustodian",
         "support": "community",
@@ -230,13 +230,13 @@
         },
         {
           "path": "solution.json",
-          "sha256": "b60a3898facb9e585b0636dc9dfb87bd2ba7e280c987372231e1ddc83166c579",
+          "sha256": "2d541227b53c55ea2e99acfe3740c43e6a05074440c276809a65daef2324445d",
           "size": 675
         },
         {
           "path": "workbooks/patch-sla.json",
-          "sha256": "f610966a2f70d2e751cc61e5e1068bc0d16bef9f370110569d6bddfeefed836e",
-          "size": 16184
+          "sha256": "d42fd87d0021468de1f1d4e170a072f70738ea97eda6be6e8dbd7e0656d0d57b",
+          "size": 16268
         }
       ]
     },

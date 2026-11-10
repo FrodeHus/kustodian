@@ -24,4 +24,3 @@ export function exceedsDays(timespan: string, days: number): boolean {
   const covered = range ? (range[1].getTime() - range[0].getTime()) / DAY_MS : durationDays(timespan);
   return covered > days;
 }
-

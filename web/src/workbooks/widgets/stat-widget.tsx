@@ -7,7 +7,7 @@ import { SinceSelect } from './history-table';
 
 const number = (n: number) => n.toLocaleString('en-US');
 
-/** A stat widget: the first row's value column (the first number column unless set), and its change against `stat.compare`.
+/** A stat widget: the first row's value column (the first number column unless set) with `stat.unit` after it, and its change against `stat.compare`.
  * With Values history the change is against the snapshot at Since instead; with Row tracking the number is this run's rows, and
  * the line counts the new and gone ones. Since is chosen under it (a `tabId` only: the editor's preview has no history). */
 export function StatWidget({ widget, run, tabId }: { widget: Widget; run: WidgetRun; tabId?: string }) {
@@ -18,6 +18,7 @@ export function StatWidget({ widget, run, tabId }: { widget: Widget; run: Widget
   }
   const h = tabId !== undefined && widget.history ? { mode: widget.history.mode, since: chosen ?? widget.history.since } : null;
   const { columns, rows } = run.result;
+  const unit = widget.stat?.unit?.trim();
   const at = (name: string | null | undefined) => (name ? columns.findIndex((c) => c.name === name) : -1);
   const valueAt = widget.stat?.value ? at(widget.stat.value) : columns.findIndex(isNumeric);
   let value = numberOf(rows[0]?.[valueAt]);
@@ -25,7 +26,9 @@ export function StatWidget({ widget, run, tabId }: { widget: Widget; run: Widget
   if (h?.mode === 'rows') {
     // This run's rows: stored history can be an earlier run's (one record per interval, or this one not kept).
     value = rows.length;
-    change = changes ? `${number(changes.newCount)} new · ${number(changes.goneCount)} no longer reported since ${sinceWords(h.since)}` : null;
+    change = changes
+      ? `${number(changes.newCount)} new · ${number(changes.goneCount)} no longer reported since ${sinceWords(h.since)}`
+      : null;
   } else if (valueAt < 0 || rows.length === 0 || !Number.isFinite(value)) {
     return <p className="faint m-0 p-4 text-[12px]">No number to show.</p>;
   } else if (h) {
@@ -43,7 +46,10 @@ export function StatWidget({ widget, run, tabId }: { widget: Widget; run: Widget
   }
   return (
     <div className="flex flex-1 flex-col justify-center gap-1 px-4 pb-3">
-      <span className="text-[28px] font-semibold tabular-nums">{number(value)}</span>
+      <span className="text-[28px] font-semibold tabular-nums">
+        {number(value)}
+        {unit && <span className="muted ml-1 text-[16px] font-medium">{unit}</span>}
+      </span>
       {change && <span className="muted text-[12px] tabular-nums">{change}</span>}
       {h && tabId !== undefined && (
         <div className="mt-1">

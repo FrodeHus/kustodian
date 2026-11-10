@@ -238,7 +238,9 @@ export function SchemaPanel(props: SchemaPanelProps) {
               <li key={c.name}>
                 <button type="button" className="col mono" title={describe(c.name, c.description)} onClick={() => onInsert(c.name)}>
                   <span className="truncate">{c.name}</span>
-                  {columnLicenses?.[c.name] && <LicenseTag info={columnLicenses[c.name]!} reason={licensed?.reason ?? null} table={false} />}
+                  {columnLicenses?.[c.name] && (
+                    <LicenseTag info={columnLicenses[c.name]!} reason={licensed?.reason ?? null} table={false} />
+                  )}
                   {byDefault?.has(c.name) && (
                     <span className="tag" title="Graph returns this in a list without asking: selecting it needs no probing">
                       default
@@ -405,7 +407,9 @@ export function SchemaPanel(props: SchemaPanelProps) {
           </>
         )}
       </div>
-      {source === 'arg' && <div className="side-foot faint text-[11.5px]">properties and tags are dynamic; the types come from your resources.</div>}
+      {source === 'arg' && (
+        <div className="side-foot faint text-[11.5px]">properties and tags are dynamic; the types come from your resources.</div>
+      )}
     </aside>
   );
 }

@@ -6,7 +6,13 @@ import type { ArmWorkspacesAnswer, QueryWorkspace } from '../wire';
  * its author's text, so each row is matched by id against the account's own list and shows the account's name; one the account
  * can't see shows the file's name with that said, and while the list loads or can't be read, that it wasn't checked.
  */
-export function WorkspaceRows({ found, mine }: { found: { workspace: QueryWorkspace; widgets: number }[]; mine: ArmWorkspacesAnswer['workspaces'] | null | undefined }) {
+export function WorkspaceRows({
+  found,
+  mine,
+}: {
+  found: { workspace: QueryWorkspace; widgets: number }[];
+  mine: ArmWorkspacesAnswer['workspaces'] | null | undefined;
+}) {
   const any = found.length > 0;
 
   return (

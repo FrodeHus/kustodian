@@ -8,7 +8,17 @@ import type { ExternalTool, ResultColumn, ToolList } from '../wire';
 import { newToolButton, type ToolButton, type Widget } from './model';
 
 /** A select over the result's columns; '' is "Automatic": the widget's (or the tool run's) own pick. */
-export function ColumnSelect({ label, value, columns, onChange }: { label: string; value: string; columns: string[]; onChange: (value: string) => void }) {
+export function ColumnSelect({
+  label,
+  value,
+  columns,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  columns: string[];
+  onChange: (value: string) => void;
+}) {
   return (
     <label className="field">
       <span>{label}</span>
@@ -31,7 +41,15 @@ const MODE_NAMES = { each: 'once per row', batch: 'once, rows on stdin' } as con
  * chosen button its label, placement, tool, column mapping, which rows it runs on and what refreshes after. Edits `draft`
  * through `set`; the editor's Apply writes it.
  */
-export function ToolButtonsSection({ draft, columns, set }: { draft: Widget; columns: ResultColumn[]; set: (change: Partial<Widget>) => void }) {
+export function ToolButtonsSection({
+  draft,
+  columns,
+  set,
+}: {
+  draft: Widget;
+  columns: ResultColumn[];
+  set: (change: Partial<Widget>) => void;
+}) {
   const id = useId();
   const [list, setList] = useState<ToolList | null>(null);
   const [error, setError] = useState<Shown | null>(null);
@@ -92,7 +110,11 @@ export function ToolButtonsSection({ draft, columns, set }: { draft: Widget; col
             type="checkbox"
             checked={selection !== 'none'}
             onChange={(e) =>
-              set(e.target.checked ? { selection: 'multi' } : { selection: 'none', tools: tools.map((b) => ({ ...b, runsOn: 'selectedOrAll' as const })) })
+              set(
+                e.target.checked
+                  ? { selection: 'multi' }
+                  : { selection: 'none', tools: tools.map((b) => ({ ...b, runsOn: 'selectedOrAll' as const })) },
+              )
             }
           />
           Rows can be selected
@@ -116,7 +138,11 @@ export function ToolButtonsSection({ draft, columns, set }: { draft: Widget; col
             </label>
             <label className="field">
               <span>Placement</span>
-              <select className="textbox" value={button.placement} onChange={(e) => setButton({ placement: e.target.value as ToolButton['placement'] })}>
+              <select
+                className="textbox"
+                value={button.placement}
+                onChange={(e) => setButton({ placement: e.target.value as ToolButton['placement'] })}
+              >
                 <option value="header">In the widget header</option>
                 <option value="menu">In the ⋯ menu</option>
               </select>
@@ -126,7 +152,9 @@ export function ToolButtonsSection({ draft, columns, set }: { draft: Widget; col
             <span>Tool</span>
             <select className="textbox" value={button.tool} aria-invalid={!button.tool} onChange={(e) => chooseTool(e.target.value)}>
               {!tool && (
-                <option value={button.tool}>{!button.tool ? 'Choose a tool…' : list ? `${button.tool} (not in your tools.json)` : button.tool}</option>
+                <option value={button.tool}>
+                  {!button.tool ? 'Choose a tool…' : list ? `${button.tool} (not in your tools.json)` : button.tool}
+                </option>
               )}
               {list?.tools.map((t) => (
                 <option key={t.name} value={t.name}>
@@ -173,7 +201,12 @@ export function ToolButtonsSection({ draft, columns, set }: { draft: Widget; col
           <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
             <legend className="mb-1.5 p-0 font-semibold">Runs on</legend>
             <label className="flex items-center gap-1.5">
-              <input type="radio" name={`${id}-runs`} checked={button.runsOn === 'selectedOrAll'} onChange={() => setButton({ runsOn: 'selectedOrAll' })} />
+              <input
+                type="radio"
+                name={`${id}-runs`}
+                checked={button.runsOn === 'selectedOrAll'}
+                onChange={() => setButton({ runsOn: 'selectedOrAll' })}
+              />
               The selected rows; all rows the filter shows when none are selected
             </label>
             <label className="flex items-center gap-1.5">

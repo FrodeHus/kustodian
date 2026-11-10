@@ -15,8 +15,7 @@ export function readWorkbookFile(text: string): WorkbookDoc | string {
 }
 
 /** The keys of o that are named and present. */
-const only = <T extends object>(o: T, keys: (keyof T)[]): T =>
-  Object.fromEntries(keys.filter((k) => k in o).map((k) => [k, o[k]])) as T;
+const only = <T extends object>(o: T, keys: (keyof T)[]): T => Object.fromEntries(keys.filter((k) => k in o).map((k) => [k, o[k]])) as T;
 
 const PARAM_DEF: (keyof ParameterDef)[] = ['name', 'type', 'value', 'required', 'choices'];
 
@@ -26,7 +25,20 @@ function known(doc: WorkbookDoc): WorkbookDoc {
     ...only(doc, ['kind', 'version', 'id', 'name', 'folder']),
     parameters: doc.parameters.map((p) => only(p, [...PARAM_DEF, 'label', 'multi', 'all', 'remember', 'huntingTimespan'])),
     widgets: doc.widgets.map((w) => {
-      const next = only(w, ['id', 'type', 'title', 'hideTitle', 'layout', 'markdown', 'query', 'parameters', 'chart', 'stat', 'selection', 'tools']);
+      const next = only(w, [
+        'id',
+        'type',
+        'title',
+        'hideTitle',
+        'layout',
+        'markdown',
+        'query',
+        'parameters',
+        'chart',
+        'stat',
+        'selection',
+        'tools',
+      ]);
       // parseWorkbook made tabs and in all strings and repaired them; only their known keys are copied.
       if (w.tabs) {
         next.tabs = w.tabs.map((t) => only(t, ['id', 'name']));
@@ -63,7 +75,9 @@ function known(doc: WorkbookDoc): WorkbookDoc {
 function knownWorkspace(w: unknown): QueryWorkspace[] {
   const o = w && typeof w === 'object' ? (w as Record<string, unknown>) : {};
   const { customerId, name, resourceId } = o;
-  return typeof customerId === 'string' && typeof name === 'string' && typeof resourceId === 'string' ? [{ customerId, name, resourceId }] : [];
+  return typeof customerId === 'string' && typeof name === 'string' && typeof resourceId === 'string'
+    ? [{ customerId, name, resourceId }]
+    : [];
 }
 
 /** The workspaces the workbook's widgets query, each with how many widgets use it (what the import reviews list). */
@@ -166,7 +180,10 @@ export function applyImport(doc: WorkbookDoc, choices: ImportChoices): WorkbookD
     const workspaces = w.query?.options?.workspaces;
     if (w.query?.options && workspaces && choices.accountWorkspaces) {
       const mine = choices.accountWorkspaces;
-      const named = workspaces.map((x) => ({ ...x, name: mine.find((m) => m.customerId.toLowerCase() === x.customerId.toLowerCase())?.name ?? x.name }));
+      const named = workspaces.map((x) => ({
+        ...x,
+        name: mine.find((m) => m.customerId.toLowerCase() === x.customerId.toLowerCase())?.name ?? x.name,
+      }));
       next.query = { ...(next.query ?? w.query), options: { ...w.query.options, workspaces: named } };
     }
     if (w.tools) {

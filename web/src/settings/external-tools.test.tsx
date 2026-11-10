@@ -6,7 +6,12 @@ import { ExternalTools } from './external-tools';
 const bridge = vi.hoisted(() => ({ call: vi.fn() }));
 vi.mock('../bridge', async (importOriginal) => ({ ...(await importOriginal<typeof import('../bridge')>()), call: bridge.call }));
 
-const revoke: ExternalTool = { name: 'Revoke sessions', command: '/opt/homebrew/bin/az', args: ['rest', '--url', 'users/{id}'], mode: 'each' };
+const revoke: ExternalTool = {
+  name: 'Revoke sessions',
+  command: '/opt/homebrew/bin/az',
+  args: ['rest', '--url', 'users/{id}'],
+  mode: 'each',
+};
 const jq: ExternalTool = { name: 'JSON lines', command: 'jq', args: ['-c', '.[]'], mode: 'batch' };
 
 let list: ToolList;

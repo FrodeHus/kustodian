@@ -127,7 +127,11 @@ const damaged = () => ({
       query: {
         source: 'graph',
         text: 'T {Q} {R}',
-        parameters: [{ name: 'Q', type: 'text', value: 7, required: true }, 'x', { name: 'R', type: 'text', value: 'r', required: false, choices: 'y' }],
+        parameters: [
+          { name: 'Q', type: 'text', value: 7, required: true },
+          'x',
+          { name: 'R', type: 'text', value: 'r', required: false, choices: 'y' },
+        ],
       },
       chart: 'pie',
       stat: [1],
@@ -147,6 +151,20 @@ describe('parseWorkbook on a damaged file', () => {
     const [m, t] = d().widgets;
     expect(m?.markdown).toBe('');
     expect(t && ('chart' in t || 'stat' in t)).toBe(false);
+  });
+
+  it('keeps a stat unit trimmed and at most 12 characters, and drops an empty or non-string one', () => {
+    const stat = (unit: unknown) => {
+      const w = doc({
+        ...example(),
+        widgets: [{ id: 's', type: 'stat', title: '', layout: { x: 0, y: 0, w: 2, h: 6 }, stat: { value: 'v', compare: null, unit } }],
+      }).widgets[0];
+      return w?.stat;
+    };
+    expect(stat(' % ')).toMatchObject({ value: 'v', unit: '%' });
+    expect(stat('a very long unit name')?.unit).toBe('a very long ');
+    expect(stat('  ')?.unit).toBeUndefined();
+    expect(stat(5)?.unit).toBeUndefined();
   });
 
   it('keeps only widget parameter entries with a known from and a string value', () => {
@@ -211,7 +229,14 @@ describe('tool buttons and selection', () => {
       const w = newWidget(t, l);
       expect('selection' in w || 'tools' in w).toBe(false);
     }
-    expect(newToolButton()).toEqual({ label: '', tool: '', mapping: {}, runsOn: 'selectedOrAll', after: 'refreshWidget', placement: 'header' });
+    expect(newToolButton()).toEqual({
+      label: '',
+      tool: '',
+      mapping: {},
+      runsOn: 'selectedOrAll',
+      after: 'refreshWidget',
+      placement: 'header',
+    });
   });
 
   it('keeps only the six known fields of a button (spec section 4)', () => {
@@ -243,7 +268,14 @@ describe('tool buttons and selection', () => {
       { label: 'A', tool: 'A', mapping: { a: 'x' }, runsOn: 'selectedOrAll', after: 'refreshWidget', placement: 'header' },
       { label: 'Bee', tool: 'B', mapping: {}, runsOn: 'selected', after: 'none', placement: 'menu' },
     ]);
-    expect(withWidget({ tools: [{ tool: 'A', label: '  ' }, { tool: 'B', label: ' Bee ' }] })?.tools?.map((b) => b.label)).toEqual(['A', 'Bee']);
+    expect(
+      withWidget({
+        tools: [
+          { tool: 'A', label: '  ' },
+          { tool: 'B', label: ' Bee ' },
+        ],
+      })?.tools?.map((b) => b.label),
+    ).toEqual(['A', 'Bee']);
     expect(withWidget({ tools: 'nope' })?.tools).toEqual([]);
   });
 
@@ -303,12 +335,18 @@ describe('tabs', () => {
   it('parseWorkbook reads a version 2 file with a tabs widget', () => {
     const d = doc(
       file([
-        tabsW('t', [{ id: 'a', name: 'One' }, { id: 'b', name: 'Two' }]),
+        tabsW('t', [
+          { id: 'a', name: 'One' },
+          { id: 'b', name: 'Two' },
+        ]),
         md('m', { in: { tabs: 't', tab: 'b' } }),
       ]),
     );
     expect(d.version).toBe(2);
-    expect(byId(d, 't')?.tabs).toEqual([{ id: 'a', name: 'One' }, { id: 'b', name: 'Two' }]);
+    expect(byId(d, 't')?.tabs).toEqual([
+      { id: 'a', name: 'One' },
+      { id: 'b', name: 'Two' },
+    ]);
     expect(byId(d, 'm')?.in).toEqual({ tabs: 't', tab: 'b' });
   });
 
@@ -341,7 +379,10 @@ describe('tabs', () => {
   it('repairs: repeated tab ids in one tabs widget are made unique', () => {
     const d = doc(
       file([
-        tabsW('t', [{ id: 'a', name: 'One' }, { id: 'a', name: 'Two' }]),
+        tabsW('t', [
+          { id: 'a', name: 'One' },
+          { id: 'a', name: 'Two' },
+        ]),
         md('m', { in: { tabs: 't', tab: 'a' } }),
       ]),
     );
@@ -357,12 +398,24 @@ describe('tabs', () => {
   });
 
   it('repairs: tab names are trimmed to 40 characters, and an empty name becomes "Tab N"', () => {
-    const d = doc(file([tabsW('t', [{ id: 'a', name: 'x'.repeat(50) }, { id: 'b', name: '  ' }])]));
+    const d = doc(
+      file([
+        tabsW('t', [
+          { id: 'a', name: 'x'.repeat(50) },
+          { id: 'b', name: '  ' },
+        ]),
+      ]),
+    );
     expect(byId(d, 't')?.tabs?.map((t) => t.name)).toEqual(['x'.repeat(40), 'Tab 2']);
   });
 
   it('overlaps are repaired per place', () => {
-    const d = doc(file([tabsW('t', [{ id: 'a', name: 'One' }], {}, { x: 0, y: 0, w: 12, h: 12 }), md('c', { in: { tabs: 't', tab: 'a' } }, { x: 0, y: 0, w: 12, h: 12 })]));
+    const d = doc(
+      file([
+        tabsW('t', [{ id: 'a', name: 'One' }], {}, { x: 0, y: 0, w: 12, h: 12 }),
+        md('c', { in: { tabs: 't', tab: 'a' } }, { x: 0, y: 0, w: 12, h: 12 }),
+      ]),
+    );
     expect(byId(d, 't')?.layout).toEqual({ x: 0, y: 0, w: 12, h: 12 });
     expect(byId(d, 'c')?.layout).toEqual({ x: 0, y: 0, w: 12, h: 12 });
   });
@@ -373,7 +426,7 @@ describe('tabs', () => {
     expect(withFileVersion({ ...d, widgets: [] }).version).toBe(1);
   });
 
-  it("newWidget('tabs') has one tab \"Tab 1\", hideTitle, and no query", () => {
+  it('newWidget(\'tabs\') has one tab "Tab 1", hideTitle, and no query', () => {
     const w = newWidget('tabs', { x: 0, y: 0, w: 12, h: 12 });
     expect(w).toMatchObject({ type: 'tabs', title: '', hideTitle: true, tabs: [{ name: 'Tab 1' }] });
     expect(w.tabs?.[0]?.id).toBeTruthy();

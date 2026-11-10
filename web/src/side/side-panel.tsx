@@ -13,7 +13,15 @@ export function Rail({ panel, onChoose }: { panel: PanelName | null; onChoose: (
   return (
     <nav className="rail" aria-label="Side panels">
       {PANELS.map((p) => (
-        <button key={p.name} type="button" aria-pressed={p.name === panel} aria-label={p.label} title={p.label} onClick={() => onChoose(p.name)}>
+        <button
+          key={p.name}
+          type="button"
+          data-panel={p.name}
+          aria-pressed={p.name === panel}
+          aria-label={p.label}
+          title={p.label}
+          onClick={() => onChoose(p.name)}
+        >
           {p.icon}
         </button>
       ))}

@@ -226,6 +226,10 @@ Part 1 ships on its own (with the shared list and picker) before part 2 starts. 
 3. **Part 1 ships with the visible fallback note** and the best-effort `TenantId` mismatch warning. No "onboarded to Defender"
    check in v1.
 
+4. **Solutions never carry a workspace** (owner, 2026-11-10): solutions are generic and workspaces are tenant-specific, so the
+   host removes any workspace from a solution's queries and workbook widgets at install, and the user picks one afterwards.
+   This replaces decision 1's solution-dialog confirmation for solutions.
+
 Still open, not v1: a workbook parameter that picks the workspace, and several workspaces per query (stored as a list
 already, limited to one). An empty-table filter for the schema panel is dropped for now.
 

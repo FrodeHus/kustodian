@@ -18,7 +18,12 @@ interface Problem {
 const problemOf = (e: unknown): Problem => ({
   text: errorText(e),
   reportId: reportIdOf(e),
-  fix: e instanceof BridgeError && e.code === 'consentNeeded' ? 'consent' : e instanceof BridgeError && e.code === 'signInNeeded' ? 'signIn' : null,
+  fix:
+    e instanceof BridgeError && e.code === 'consentNeeded'
+      ? 'consent'
+      : e instanceof BridgeError && e.code === 'signInNeeded'
+        ? 'signIn'
+        : null,
 });
 
 /** What the picker read: the workspaces (or why not) and the subscription names that label them. */
@@ -48,7 +53,15 @@ interface WorkspacePickerProps {
  * The list is read from ARM each time the picker opens (never before: spec 6.7), with the same consent and sign-in help as the
  * scope picker. It closes on a click outside it, Esc or a pick, never on blur (macOS WebKit doesn't focus a clicked button).
  */
-export function WorkspacePicker({ workspaces, onChange, accountKey, onSignIn, open, onOpenChange, primaryLabel = PRIMARY }: WorkspacePickerProps) {
+export function WorkspacePicker({
+  workspaces,
+  onChange,
+  accountKey,
+  onSignIn,
+  open,
+  onOpenChange,
+  primaryLabel = PRIMARY,
+}: WorkspacePickerProps) {
   const ref = useRef<HTMLDivElement>(null);
   const chosen = workspaces?.[0];
   /** The workspaces last read, kept after the picker closes so the trigger can tell a saved one is gone. */
@@ -131,16 +144,18 @@ function WorkspaceDialog({ chosen, primaryLabel, accountKey, onSignIn, onRead, o
 
   const load = useCallback(() => {
     const n = ++reads.current;
-    void Promise.allSettled([call<ArmWorkspacesAnswer>('arm.workspaces'), call<ArmSubscriptionsAnswer>('arm.subscriptions')]).then(([ws, subs]) => {
-      if (n !== reads.current) {
-        return;
-      }
-      // Without the subscriptions list a workspace's subscription shows by its id.
-      const names = new Map(subs.status === 'fulfilled' ? subs.value.subscriptions.map((s) => [s.id, s.name]) : []);
-      const list = ws.status === 'fulfilled' ? ws.value.workspaces : undefined;
-      setRead({ workspaces: list, problem: ws.status === 'rejected' ? problemOf(ws.reason) : undefined, names });
-      onRead(list ?? null);
-    });
+    void Promise.allSettled([call<ArmWorkspacesAnswer>('arm.workspaces'), call<ArmSubscriptionsAnswer>('arm.subscriptions')]).then(
+      ([ws, subs]) => {
+        if (n !== reads.current) {
+          return;
+        }
+        // Without the subscriptions list a workspace's subscription shows by its id.
+        const names = new Map(subs.status === 'fulfilled' ? subs.value.subscriptions.map((s) => [s.id, s.name]) : []);
+        const list = ws.status === 'fulfilled' ? ws.value.workspaces : undefined;
+        setRead({ workspaces: list, problem: ws.status === 'rejected' ? problemOf(ws.reason) : undefined, names });
+        onRead(list ?? null);
+      },
+    );
   }, [onRead]);
 
   useEffect(() => {
@@ -168,7 +183,14 @@ function WorkspaceDialog({ chosen, primaryLabel, accountKey, onSignIn, onRead, o
   const problem = read?.problem;
 
   return (
-    <div ref={ref} className="menu" role="dialog" aria-label="Workspace" style={{ left: 0, top: 36, width: 460, padding: 12, gap: 8 }} onMouseDown={keepFocus}>
+    <div
+      ref={ref}
+      className="menu"
+      role="dialog"
+      aria-label="Workspace"
+      style={{ left: 0, top: 36, width: 460, padding: 12, gap: 8 }}
+      onMouseDown={keepFocus}
+    >
       <input
         className="search !m-0 !w-full"
         type="search"
@@ -182,13 +204,20 @@ function WorkspaceDialog({ chosen, primaryLabel, accountKey, onSignIn, onRead, o
           <input type="radio" name="workspace" checked={!chosen} onChange={() => onPick(null)} />
           <span className="flex flex-col">
             <span>{primaryLabel}</span>
-            <span className="faint text-[11.5px]">Default. Defender&apos;s tables, plus your primary Sentinel workspace if one is connected.</span>
+            <span className="faint text-[11.5px]">
+              Default. Defender&apos;s tables, plus your primary Sentinel workspace if one is connected.
+            </span>
           </span>
         </label>
         <div className="my-1 h-px bg-line" />
         {shown.map((w) => (
           <label key={w.customerId} className="flex min-h-[44px] items-center gap-2.5 px-1.5">
-            <input type="radio" name="workspace" checked={chosen?.customerId.toLowerCase() === w.customerId.toLowerCase()} onChange={() => onPick(w)} />
+            <input
+              type="radio"
+              name="workspace"
+              checked={chosen?.customerId.toLowerCase() === w.customerId.toLowerCase()}
+              onChange={() => onPick(w)}
+            />
             <span className="flex min-w-0 flex-col">
               <span className="truncate">{w.name}</span>
               <span className="faint truncate text-[11.5px]">
@@ -198,7 +227,9 @@ function WorkspaceDialog({ chosen, primaryLabel, accountKey, onSignIn, onRead, o
           </label>
         ))}
         {!read && <span className="faint text-[12px]">Reading the list from Azure…</span>}
-        {read?.workspaces && shown.length === 0 && <span className="faint text-[12px]">{needle ? 'No workspace matches.' : 'No workspaces to pick.'}</span>}
+        {read?.workspaces && shown.length === 0 && (
+          <span className="faint text-[12px]">{needle ? 'No workspace matches.' : 'No workspaces to pick.'}</span>
+        )}
       </div>
       {problem && (
         <div className="flex flex-wrap items-center gap-2 text-[12px]">
@@ -224,8 +255,8 @@ function WorkspaceDialog({ chosen, primaryLabel, accountKey, onSignIn, onRead, o
         </div>
       )}
       <span className="faint text-[12px]">
-        Defender reaches a workspace&apos;s tables when it&apos;s onboarded to the Defender portal and you have Microsoft Sentinel Reader on it. The workspace is
-        saved with the query.
+        Defender reaches a workspace&apos;s tables when it&apos;s onboarded to the Defender portal and you have Microsoft Sentinel Reader on
+        it. The workspace is saved with the query.
       </span>
     </div>
   );

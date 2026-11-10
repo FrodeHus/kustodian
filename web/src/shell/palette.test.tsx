@@ -45,7 +45,9 @@ beforeEach(() => {
   bridge.call.mockReset();
   bridge.call.mockImplementation((method: string) =>
     Promise.resolve(
-      method === 'library.list' ? ({ queries: [staleGuests], folders: [], skipped: 0 } satisfies LibraryList) : { snippets: [expiredCreds] },
+      method === 'library.list'
+        ? ({ queries: [staleGuests], folders: [], skipped: 0 } satisfies LibraryList)
+        : { snippets: [expiredCreds] },
     ),
   );
   useTabs.setState({ tabs: [], activeId: null, cursors: {} });
@@ -91,9 +93,17 @@ describe('Palette', () => {
     await screen.findByText('Saved: Stale guests');
 
     const explainRow = rows().find((r) => r.textContent?.includes('Explain the query'))!;
-    expect(within(explainRow).getAllByText(/Ctrl/).map((k) => k.textContent)).toEqual(['Ctrl E']);
+    expect(
+      within(explainRow)
+        .getAllByText(/Ctrl/)
+        .map((k) => k.textContent),
+    ).toEqual(['Ctrl E']);
     const paletteRow = rows().find((r) => r.textContent?.includes('Command palette'))!;
-    expect(within(paletteRow).getAllByText(/Ctrl/).map((k) => k.textContent)).toEqual(['Ctrl K', 'Ctrl Shift P']);
+    expect(
+      within(paletteRow)
+        .getAllByText(/Ctrl/)
+        .map((k) => k.textContent),
+    ).toEqual(['Ctrl K', 'Ctrl Shift P']);
     // Each row names its group.
     expect(within(explainRow).getByText('Query')).toBeTruthy();
     expect(within(rows().find((r) => r.textContent?.includes('Stale guests'))!).getByText('Saved')).toBeTruthy();
@@ -123,7 +133,14 @@ describe('Palette', () => {
 
     const { tabs, activeId } = useTabs.getState();
     expect(tabs).toHaveLength(2);
-    expect(tabs[1]).toMatchObject({ id: activeId, title: 'Stale guests', text: staleGuests.text, savedId: 's1', dirty: false, parameters: staleGuests.parameters });
+    expect(tabs[1]).toMatchObject({
+      id: activeId,
+      title: 'Stale guests',
+      text: staleGuests.text,
+      savedId: 's1',
+      dirty: false,
+      parameters: staleGuests.parameters,
+    });
   });
 
   it('a_snippet_inserts_at_the_cursor_or_opens_with_shift_enter', async () => {

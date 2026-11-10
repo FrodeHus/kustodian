@@ -90,7 +90,9 @@ export function widgetRunOptions(doc: WorkbookDoc, widget: Widget, values: ViewV
     const workspaces = widget.query.options?.workspaces;
     const maxDays = workspaces?.length ? 730 : 30;
     const timespan = isoTimespan(value.trim(), maxDays);
-    return timespan ? { timespan, scope: null, ...(workspaces && { workspaces }) } : { problem: huntingTimespanProblem(hunting.name, value, maxDays) ?? '' };
+    return timespan
+      ? { timespan, scope: null, ...(workspaces && { workspaces }) }
+      : { problem: huntingTimespanProblem(hunting.name, value, maxDays) ?? '' };
   }
   return runOptions({ source: widget.query.source, options: widget.query.options ?? undefined }) ?? null;
 }

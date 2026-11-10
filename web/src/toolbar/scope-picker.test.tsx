@@ -37,7 +37,15 @@ beforeEach(() => {
   call.mockImplementation((method: string) => answers[method]?.() ?? Promise.resolve(null));
 });
 
-function Picker({ initial = null, onChange, onSignIn = () => undefined }: { initial?: ArgScope | null; onChange: (scope: ArgScope) => void; onSignIn?: () => void }) {
+function Picker({
+  initial = null,
+  onChange,
+  onSignIn = () => undefined,
+}: {
+  initial?: ArgScope | null;
+  onChange: (scope: ArgScope) => void;
+  onSignIn?: () => void;
+}) {
   const [scope, setScope] = useState<ArgScope | null>(initial);
   const [open, setOpen] = useState(false);
   return (
@@ -71,10 +79,18 @@ describe('ScopePicker', () => {
 
     fireEvent.click(within(dialog).getByRole('radio', { name: 'Subscriptions' }));
     await within(dialog).findByRole('checkbox', { name: /Contoso Production/ });
-    expect(within(dialog).getAllByRole('checkbox').map((c) => c.getAttribute('aria-label'))).toEqual(['Contoso Production', 'Contoso Dev/Test']);
+    expect(
+      within(dialog)
+        .getAllByRole('checkbox')
+        .map((c) => c.getAttribute('aria-label')),
+    ).toEqual(['Contoso Production', 'Contoso Dev/Test']);
     // The search finds by name.
     fireEvent.change(within(dialog).getByRole('searchbox', { name: 'Find a subscription' }), { target: { value: 'dev' } });
-    expect(within(dialog).getAllByRole('checkbox').map((c) => c.getAttribute('aria-label'))).toEqual(['Contoso Dev/Test']);
+    expect(
+      within(dialog)
+        .getAllByRole('checkbox')
+        .map((c) => c.getAttribute('aria-label')),
+    ).toEqual(['Contoso Dev/Test']);
     fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Contoso Dev/Test' }));
     expect(onChange).toHaveBeenLastCalledWith({ kind: 'subscriptions', ids: [DEV] });
     expect(screen.getByRole('button', { name: 'Scope: 1 subscription' })).toBeTruthy();

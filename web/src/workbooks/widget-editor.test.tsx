@@ -90,7 +90,22 @@ const vms: RunResult = {
 function open(widgetId: string, lastResult?: RunResult) {
   const runs = lastResult ? { [widgetId]: { state: 'done' as const, result: lastResult, finishedAt: 1 } } : {};
   useWorkbooks.setState({
-    byTab: { t: { doc, values: { workbook: { TimeRange: '1d' }, widgets: {} }, runs, editing: true, undo: [], redo: [], dirty: false, selections: {}, history: {}, since: {}, activeTabs: {}, stale: {} } },
+    byTab: {
+      t: {
+        doc,
+        values: { workbook: { TimeRange: '1d' }, widgets: {} },
+        runs,
+        editing: true,
+        undo: [],
+        redo: [],
+        dirty: false,
+        selections: {},
+        history: {},
+        since: {},
+        activeTabs: {},
+        stale: {},
+      },
+    },
     runWidget,
   });
   render(<WidgetEditor tabId="t" widgetId={widgetId} onClose={onClose} />);
@@ -114,13 +129,25 @@ beforeEach(() => {
   onClose.mockReset();
   const a = widget('a', 'table');
   a.query = { ...a.query!, text: 'signIns | where createdDateTime > ago({TimeRange})' };
-  doc = { ...newWorkbook('Review'), parameters: [timeRange], widgets: [a, widget('m', 'markdown', { title: 'Notes', markdown: '# Hello' })] };
+  doc = {
+    ...newWorkbook('Review'),
+    parameters: [timeRange],
+    widgets: [a, widget('m', 'markdown', { title: 'Notes', markdown: '# Hello' })],
+  };
 });
 
 describe('WidgetEditor', () => {
   it('offers a workspace for a hunting widget only', () => {
     const w = widget('h', 'table');
-    w.query = { ...w.query!, source: 'hunting', options: { timespan: 'P7D', scope: null, workspaces: [{ customerId: '11111111-1111-1111-1111-111111111111', name: 'Sentinel', resourceId: '/r' }] } };
+    w.query = {
+      ...w.query!,
+      source: 'hunting',
+      options: {
+        timespan: 'P7D',
+        scope: null,
+        workspaces: [{ customerId: '11111111-1111-1111-1111-111111111111', name: 'Sentinel', resourceId: '/r' }],
+      },
+    };
     doc = { ...doc, widgets: [...doc.widgets, w] };
     open('h');
     expect(screen.getByRole('button', { name: /Workspace: Sentinel/ })).toBeTruthy();
@@ -170,7 +197,11 @@ describe('WidgetEditor', () => {
     expect(within(top).getByRole('option', { name: 'Widget · shown' })).toBeTruthy();
     const range = screen.getByRole('combobox', { name: 'TimeRange: value comes from' }) as HTMLSelectElement;
     expect(range.value).toBe('workbook');
-    expect(screen.getByText('Workbook: follows the global value. Widget · shown: a control in the widget header. Fixed: a set value, no control.')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Workbook: follows the global value. Widget · shown: a control in the widget header. Fixed: a set value, no control.',
+      ),
+    ).toBeTruthy();
   });
 
   it('Fixed and a value store {from: fixed, value}', () => {
@@ -211,7 +242,11 @@ describe('WidgetEditor', () => {
     await vi.waitFor(() =>
       expect(call).toHaveBeenCalledWith(
         'query.run',
-        expect.objectContaining({ tabId: 't/preview', kql: 'users | take {TimeRange}', parameters: [expect.objectContaining({ name: 'TimeRange', value: '1d' })] }),
+        expect.objectContaining({
+          tabId: 't/preview',
+          kql: 'users | take {TimeRange}',
+          parameters: [expect.objectContaining({ name: 'TimeRange', value: '1d' })],
+        }),
         expect.anything(),
       ),
     );
@@ -226,10 +261,36 @@ describe('WidgetEditor', () => {
     expect(applied().chart).toMatchObject({ type: 'line' });
   });
 
+  it('a stat widget’s Unit writes widget.stat.unit and keeps its columns', () => {
+    doc.widgets[0] = { ...doc.widgets[0]!, type: 'stat', stat: { value: 'n', compare: 'm' } };
+    open('a');
+    tab('Visualization');
+    fireEvent.change(screen.getByRole('textbox', { name: 'Unit' }), { target: { value: '%' } });
+    apply();
+    expect(applied().stat).toEqual({ value: 'n', compare: 'm', unit: '%' });
+  });
+
   it('the preview draws the chart alone, as the Visualization tab sets it', async () => {
-    const result = { outcome: 'ok', message: null, error: null, columns: [{ name: 'n', type: 'long' }], rows: [[1]], total: 1, tables: [], durationMs: 1, droppedValues: 0, runId: 'r', diagnostics: [], permissions: [] };
+    const result = {
+      outcome: 'ok',
+      message: null,
+      error: null,
+      columns: [{ name: 'n', type: 'long' }],
+      rows: [[1]],
+      total: 1,
+      tables: [],
+      durationMs: 1,
+      droppedValues: 0,
+      runId: 'r',
+      diagnostics: [],
+      permissions: [],
+    };
     call.mockImplementation((method: string) =>
-      method === 'library.list' ? Promise.resolve({ queries: [], folders: [], skipped: 0 }) : method === 'query.run' ? Promise.resolve(result) : new Promise(() => undefined),
+      method === 'library.list'
+        ? Promise.resolve({ queries: [], folders: [], skipped: 0 })
+        : method === 'query.run'
+          ? Promise.resolve(result)
+          : new Promise(() => undefined),
     );
     doc.widgets[0] = { ...doc.widgets[0]!, type: 'chart' };
     open('a');
@@ -282,7 +343,11 @@ describe('WidgetEditor', () => {
 
     it('Stacking writes widget.chart.stack, and the preview chart gets the split and the stacking', async () => {
       call.mockImplementation((method: string) =>
-        method === 'library.list' ? Promise.resolve({ queries: [], folders: [], skipped: 0 }) : method === 'query.run' ? Promise.resolve(result) : new Promise(() => undefined),
+        method === 'library.list'
+          ? Promise.resolve({ queries: [], folders: [], skipped: 0 })
+          : method === 'query.run'
+            ? Promise.resolve(result)
+            : new Promise(() => undefined),
       );
       doc.widgets[0] = { ...doc.widgets[0]!, type: 'chart', chart: { type: 'bar' } };
       open('a', result);
@@ -408,10 +473,20 @@ describe('WidgetEditor', () => {
   describe('History tab', () => {
     const seriesOf = (list: HistorySeries[]) => {
       const base = call.getMockImplementation()!;
-      call.mockImplementation((method: string, params: unknown) => (method === 'history.series' ? Promise.resolve(list) : method === 'history.clear' ? Promise.resolve(null) : base(method, params)));
+      call.mockImplementation((method: string, params: unknown) =>
+        method === 'history.series' ? Promise.resolve(list) : method === 'history.clear' ? Promise.resolve(null) : base(method, params),
+      );
     };
     const one: HistorySeries = { label: 'All values', since: '2026-11-02T12:00:00Z', snapshots: 31, gaps: 3, stored: 120 };
-    const grid = (rows: unknown[][]): RunResult => ({ ...vms, columns: [{ name: 'name', type: 'string' }, { name: 'id', type: 'string' }], rows, total: rows.length });
+    const grid = (rows: unknown[][]): RunResult => ({
+      ...vms,
+      columns: [
+        { name: 'name', type: 'string' },
+        { name: 'id', type: 'string' },
+      ],
+      rows,
+      total: rows.length,
+    });
     const pick = (label: string, ...values: string[]) => {
       const select = screen.getByRole('listbox', { name: label }) as HTMLSelectElement;
       for (const o of select.options) {
@@ -435,7 +510,10 @@ describe('WidgetEditor', () => {
     });
 
     it('each_type_offers_only_the_modes_it_can_show', () => {
-      doc.widgets.push(widget('c', 'chart', { history: defaultHistory('chart') }), widget('s', 'stat', { history: defaultHistory('stat') }));
+      doc.widgets.push(
+        widget('c', 'chart', { history: defaultHistory('chart') }),
+        widget('s', 'stat', { history: defaultHistory('stat') }),
+      );
       doc.widgets[0] = { ...doc.widgets[0]!, history: defaultHistory('table') };
       open('c');
       tab('History');
@@ -465,11 +543,24 @@ describe('WidgetEditor', () => {
 
     it('key_uniqueness_is_shown_from_the_preview', () => {
       doc.widgets[0] = { ...doc.widgets[0]!, history: { ...defaultHistory('table'), keys: ['name'] } };
-      open('a', grid([['vm1', 'a'], ['vm1', 'b']]));
+      open(
+        'a',
+        grid([
+          ['vm1', 'a'],
+          ['vm1', 'b'],
+        ]),
+      );
       tab('History');
       expect(screen.getByText('Not unique in the last result')).toBeTruthy();
       cleanup();
-      open('a', grid([['vm1', 'a'], ['vm2', 'b'], ['vm3', 'c']]));
+      open(
+        'a',
+        grid([
+          ['vm1', 'a'],
+          ['vm2', 'b'],
+          ['vm3', 'c'],
+        ]),
+      );
       tab('History');
       expect(screen.getByText('✓ Unique in the last result (3 rows)')).toBeTruthy();
     });
@@ -489,7 +580,9 @@ describe('WidgetEditor', () => {
 
     it('shows the error when the series cannot be read', async () => {
       const base = call.getMockImplementation()!;
-      call.mockImplementation((method: string, params: unknown) => (method === 'history.series' ? Promise.reject(new Error('disk gone')) : base(method, params)));
+      call.mockImplementation((method: string, params: unknown) =>
+        method === 'history.series' ? Promise.reject(new Error('disk gone')) : base(method, params),
+      );
       open('a');
       tab('History');
       expect((await screen.findByRole('alert')).textContent).toContain('disk gone');
@@ -520,7 +613,9 @@ describe('WidgetEditor', () => {
         open('a');
         editQuery();
         apply();
-        fireEvent.click(within(await screen.findByRole('dialog', { name: "Clear this widget's history?" })).getByRole('button', { name: 'Cancel' }));
+        fireEvent.click(
+          within(await screen.findByRole('dialog', { name: "Clear this widget's history?" })).getByRole('button', { name: 'Cancel' }),
+        );
         expect(screen.queryByRole('dialog', { name: "Clear this widget's history?" })).toBeNull();
         expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Apply' }));
         expect((screen.getByRole('textbox', { name: 'KQL query' }) as HTMLTextAreaElement).value).toBe('other');
@@ -532,7 +627,9 @@ describe('WidgetEditor', () => {
       it('a failed clear shows the error and does not apply', async () => {
         seriesOf([one]);
         const base = call.getMockImplementation()!;
-        call.mockImplementation((method: string, params: unknown) => (method === 'history.clear' ? Promise.reject(new Error('locked')) : base(method, params)));
+        call.mockImplementation((method: string, params: unknown) =>
+          method === 'history.clear' ? Promise.reject(new Error('locked')) : base(method, params),
+        );
         open('a');
         editQuery();
         apply();

@@ -4,7 +4,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { exceedsDays } from './timespan';
 import { TimespanPicker } from './timespan-picker';
 
-function Picker({ initial = null, onChange, maxDays = 30 }: { initial?: string | null; onChange: (timespan: string) => void; maxDays?: 30 | 730 }) {
+function Picker({
+  initial = null,
+  onChange,
+  maxDays = 30,
+}: {
+  initial?: string | null;
+  onChange: (timespan: string) => void;
+  maxDays?: 30 | 730;
+}) {
   const [timespan, setTimespan] = useState<string | null>(initial);
   const [open, setOpen] = useState(false);
   return (

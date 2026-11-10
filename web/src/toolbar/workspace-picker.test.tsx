@@ -14,11 +14,27 @@ vi.mock('../bridge', async (importOriginal) => ({
 
 const PROD = '00000000-0000-0000-0000-000000000011';
 const OTHER = '00000000-0000-0000-0000-000000000012';
-const subscriptions: ArmSubscriptionsAnswer = { subscriptions: [{ id: PROD, name: 'Contoso Production', tenantId: 't1', state: 'Enabled' }] };
+const subscriptions: ArmSubscriptionsAnswer = {
+  subscriptions: [{ id: PROD, name: 'Contoso Production', tenantId: 't1', state: 'Enabled' }],
+};
 const workspaces: ArmWorkspacesAnswer = {
   workspaces: [
-    { customerId: 'c-sentinel', name: 'contoso-sentinel', resourceId: '/r/sentinel', resourceGroup: 'rg-security', subscriptionId: PROD, location: 'westeurope' },
-    { customerId: 'c-logs', name: 'contoso-logs', resourceId: '/r/logs', resourceGroup: 'rg-logging', subscriptionId: OTHER, location: 'northeurope' },
+    {
+      customerId: 'c-sentinel',
+      name: 'contoso-sentinel',
+      resourceId: '/r/sentinel',
+      resourceGroup: 'rg-security',
+      subscriptionId: PROD,
+      location: 'westeurope',
+    },
+    {
+      customerId: 'c-logs',
+      name: 'contoso-logs',
+      resourceId: '/r/logs',
+      resourceGroup: 'rg-logging',
+      subscriptionId: OTHER,
+      location: 'northeurope',
+    },
   ],
 };
 const sentinel: QueryWorkspace = { customerId: 'c-sentinel', name: 'contoso-sentinel', resourceId: '/r/sentinel' };
@@ -35,7 +51,15 @@ beforeEach(() => {
   call.mockImplementation((method: string) => answers[method]?.() ?? Promise.resolve(null));
 });
 
-function Picker({ initial = null, onChange, onSignIn = () => undefined }: { initial?: QueryWorkspace[] | null; onChange: (w: QueryWorkspace[] | null) => void; onSignIn?: () => void }) {
+function Picker({
+  initial = null,
+  onChange,
+  onSignIn = () => undefined,
+}: {
+  initial?: QueryWorkspace[] | null;
+  onChange: (w: QueryWorkspace[] | null) => void;
+  onSignIn?: () => void;
+}) {
   const [value, setValue] = useState<QueryWorkspace[] | null>(initial);
   const [open, setOpen] = useState(false);
   return (

@@ -18,8 +18,24 @@ const view: SchemaView = {
       docsUrl: '',
       permissions: ['Application.Read.All'],
       columns: [
-        { name: 'appId', type: 'string', description: 'The app ID.', filterable: true, listable: true, complexType: null, collection: false },
-        { name: 'createdDateTime', type: 'datetime', description: '', filterable: true, listable: true, complexType: null, collection: false },
+        {
+          name: 'appId',
+          type: 'string',
+          description: 'The app ID.',
+          filterable: true,
+          listable: true,
+          complexType: null,
+          collection: false,
+        },
+        {
+          name: 'createdDateTime',
+          type: 'datetime',
+          description: '',
+          filterable: true,
+          listable: true,
+          complexType: null,
+          collection: false,
+        },
         {
           name: 'passwordCredentials',
           type: 'dynamic',
@@ -82,7 +98,9 @@ describe('toKustoSchema', () => {
           description: '',
           docsUrl: null,
           permissions: null,
-          columns: [{ name: 'DeviceId', type: 'string', description: '', filterable: null, listable: null, complexType: null, collection: false }],
+          columns: [
+            { name: 'DeviceId', type: 'string', description: '', filterable: null, listable: null, complexType: null, collection: false },
+          ],
         },
       ],
       functions: [
@@ -116,7 +134,11 @@ describe('toKustoSchema', () => {
   });
 
   it('invoke_style_hunting_functions_take_the_piped_table_and_return_their_columns', () => {
-    const fn = (name: string, parameters: [string, string][]) => ({ name, description: '', parameters: parameters.map(([n, type]) => ({ name: n, type })) });
+    const fn = (name: string, parameters: [string, string][]) => ({
+      name,
+      description: '',
+      parameters: parameters.map(([n, type]) => ({ name: n, type })),
+    });
     const hunting: SchemaView = {
       source: 'hunting',
       origin: 'builtIn',
@@ -148,7 +170,9 @@ describe('toKustoSchema', () => {
       { name: 'DeviceId', type: 'string', cslType: 'string' },
       { name: 'Timestamp', type: 'datetime', cslType: 'datetime' },
     ]);
-    expect(assigned?.body).toBe('{ datatable(Timestamp:datetime, IPAddress:string, IPType:string, NetworkAdapterType:int, ConnectedNetworks:int)[] }');
+    expect(assigned?.body).toBe(
+      '{ datatable(Timestamp:datetime, IPAddress:string, IPType:string, NetworkAdapterType:int, ConnectedNetworks:int)[] }',
+    );
 
     // `| invoke F()`: the piped table first, then the documented arguments, each optional.
     expect(profile?.inputParameters).toEqual([
@@ -157,7 +181,9 @@ describe('toKustoSchema', () => {
       { name: 'limit', type: 'long', cslType: 'long', cslDefaultValue: '100' },
     ]);
     // FileProfile adds its columns to the rows.
-    expect(profile?.body).toMatch(/^\{ T \| extend SHA1="", SHA256="", .*GlobalPrevalence=int\(null\), .*IsCertificateValid=bool\(null\), .*ProfileAvailability="" \}$/);
+    expect(profile?.body).toMatch(
+      /^\{ T \| extend SHA1="", SHA256="", .*GlobalPrevalence=int\(null\), .*IsCertificateValid=bool\(null\), .*ProfileAvailability="" \}$/,
+    );
     expect(seenBy?.inputParameters).toEqual([
       { name: 'T', columns: [] },
       { name: 'DeviceId', type: 'string', cslType: 'string', cslDefaultValue: '"DeviceId"' },
@@ -172,7 +198,15 @@ describe('toKustoSchema', () => {
   });
 
   it('arg_properties_and_tags_are_dynamic', () => {
-    const column = (name: string, type: string) => ({ name, type, description: '', filterable: null, listable: null, complexType: null, collection: false });
+    const column = (name: string, type: string) => ({
+      name,
+      type,
+      description: '',
+      filterable: null,
+      listable: null,
+      complexType: null,
+      collection: false,
+    });
     const arg: SchemaView = {
       source: 'arg',
       origin: 'builtIn',

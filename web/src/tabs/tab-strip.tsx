@@ -18,25 +18,35 @@ const activeTab = (): Tab | undefined => {
 
 /** "New Defender hunting query" and "New Resource Graph query", and "Change the source to …" for the active query tab. */
 const sourceCommands = (): Command[] => [
-  { id: 'tab.newHunting', title: 'New Defender hunting query', group: 'Tabs', shortcut: 'Mod+Shift+H', run: () => useTabs.getState().open('hunting') },
-  { id: 'tab.newArg', title: 'New Resource Graph query', group: 'Tabs', shortcut: 'Mod+Shift+A', run: () => useTabs.getState().open('arg') },
-  ...QUERY_SOURCES.map(
-    (source): Command => ({
-      id: `tab.source.${source}`,
-      title: `Change the source to ${SOURCES[source].name}`,
-      group: 'Tabs',
-      run: () => {
-        const tab = activeTab();
-        if (tab) {
-          useTabs.getState().setSource(tab.id, source);
-        }
-      },
-      enabled: () => {
-        const tab = activeTab();
-        return !!tab && tab.source !== 'raw' && tab.source !== 'workbook' && tab.source !== source;
-      },
-    }),
-  ),
+  {
+    id: 'tab.newHunting',
+    title: 'New Defender hunting query',
+    group: 'Tabs',
+    shortcut: 'Mod+Shift+H',
+    run: () => useTabs.getState().open('hunting'),
+  },
+  {
+    id: 'tab.newArg',
+    title: 'New Resource Graph query',
+    group: 'Tabs',
+    shortcut: 'Mod+Shift+A',
+    run: () => useTabs.getState().open('arg'),
+  },
+  ...QUERY_SOURCES.map((source): Command => ({
+    id: `tab.source.${source}`,
+    title: `Change the source to ${SOURCES[source].name}`,
+    group: 'Tabs',
+    run: () => {
+      const tab = activeTab();
+      if (tab) {
+        useTabs.getState().setSource(tab.id, source);
+      }
+    },
+    enabled: () => {
+      const tab = activeTab();
+      return !!tab && tab.source !== 'raw' && tab.source !== 'workbook' && tab.source !== source;
+    },
+  })),
 ];
 
 /** The open queries (spec 6.1): a tab each with its source badge and a dot while it has unsaved changes, and `+` for a new one.
@@ -161,7 +171,7 @@ export function TabStrip({ onDialog }: { onDialog?: (open: boolean) => void } = 
     <div className="tabs">
       <div ref={listRef} role="tablist" aria-label="Open queries" className="flex items-end gap-0.5 overflow-x-auto">
         {tabs.map((tab) => (
-          <div key={tab.id} className={`tab${tab.id === activeId ? ' on' : ''}`}>
+          <div key={tab.id} className={`tab${tab.id === activeId ? ' on' : ''}`} data-source={tab.source}>
             {tab.source !== 'raw' && tab.source !== 'workbook' && (
               <button
                 type="button"
@@ -197,11 +207,24 @@ export function TabStrip({ onDialog }: { onDialog?: (open: boolean) => void } = 
         ))}
       </div>
       <div className="relative" ref={menuRef}>
-        <button type="button" className="tab-add" aria-label="New tab" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
+        <button
+          type="button"
+          className="tab-add"
+          aria-label="New tab"
+          aria-haspopup="menu"
+          aria-expanded={menu}
+          onClick={() => setMenu((m) => !m)}
+        >
           +
         </button>
         {menu && (
-          <div className="menu" role="menu" aria-label="New tab" style={{ left: 0, top: 34, width: 340 }} onMouseDown={(e) => e.preventDefault()}>
+          <div
+            className="menu"
+            role="menu"
+            aria-label="New tab"
+            style={{ left: 0, top: 34, width: 340 }}
+            onMouseDown={(e) => e.preventDefault()}
+          >
             <button type="button" role="menuitem" onClick={() => openNew('graph')}>
               <SourceBadge source="graph" />
               Microsoft Graph query
@@ -212,13 +235,17 @@ export function TabStrip({ onDialog }: { onDialog?: (open: boolean) => void } = 
               <SourceBadge source="hunting" />
               Defender hunting query
               <span className="grow" />
-              <span className="kbd">{MOD} {SHIFT} H</span>
+              <span className="kbd">
+                {MOD} {SHIFT} H
+              </span>
             </button>
             <button type="button" role="menuitem" onClick={() => openNew('arg')}>
               <SourceBadge source="arg" />
               Resource Graph query
               <span className="grow" />
-              <span className="kbd">{MOD} {SHIFT} A</span>
+              <span className="kbd">
+                {MOD} {SHIFT} A
+              </span>
             </button>
             <button type="button" role="menuitem" onClick={() => openNew('raw')}>
               <SourceBadge source="raw" />

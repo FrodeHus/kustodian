@@ -32,7 +32,14 @@ function Review({ p }: { p: PendingImport }) {
   const matches = matchTools(p.doc, p.tools);
   const myTools = p.tools?.tools.map((t) => t.name) ?? [];
   // A label can say something its tool doesn't do, so each one that differs is shown with its tool.
-  const relabelled = [...new Set(p.doc.widgets.flatMap((w) => w.tools ?? []).filter((b) => b.label !== b.tool).map((b) => `${b.label} → ${b.tool}`))];
+  const relabelled = [
+    ...new Set(
+      p.doc.widgets
+        .flatMap((w) => w.tools ?? [])
+        .filter((b) => b.label !== b.tool)
+        .map((b) => `${b.label} → ${b.tool}`),
+    ),
+  ];
   // Kept across a failed Save, so a retry doesn't add the queries again.
   const added = useRef(noQueriesAdded());
   const [choices, setChoices] = useState<ReviewChoices>(() => ({
@@ -96,15 +103,17 @@ function Review({ p }: { p: PendingImport }) {
       >
         <div className="flex items-start gap-2">
           <div className="flex min-w-0 flex-1 flex-col">
-            <b className="text-[14px]">
-              Open a shared workbook
-            </b>
+            <b className="text-[14px]">Open a shared workbook</b>
             <span className="truncate text-[12px] text-muted">{p.fileName}</span>
           </div>
           <button ref={cancelRef} type="button" className="btn ghost" disabled={busy} onClick={close}>
             Cancel
           </button>
-          <button type="button" className="btn" disabled={busy} onClick={() => {
+          <button
+            type="button"
+            className="btn"
+            disabled={busy}
+            onClick={() => {
               openImported(p, withMine);
               close();
             }}
@@ -131,7 +140,9 @@ function Review({ p }: { p: PendingImport }) {
                   <SourceBadge key={s} source={s} titled />
                 ))}
               </span>
-              <span className="text-muted">Queries, layout, parameters and button settings only. A workbook file never holds results or tokens.</span>
+              <span className="text-muted">
+                Queries, layout, parameters and button settings only. A workbook file never holds results or tokens.
+              </span>
             </Section>
             <WorkspaceRows found={found} mine={mine} />
             {summary.linked > 0 && (
@@ -141,16 +152,26 @@ function Review({ p }: { p: PendingImport }) {
                   file carries their text.
                 </span>
                 <label className="flex items-center gap-1.5">
-                  <input type="checkbox" checked={choices.addQueries} onChange={(e) => setChoices((c) => ({ ...c, addQueries: e.target.checked }))} />
+                  <input
+                    type="checkbox"
+                    checked={choices.addQueries}
+                    onChange={(e) => setChoices((c) => ({ ...c, addQueries: e.target.checked }))}
+                  />
                   Add them to my saved queries, under {importFolder(p.doc.name)}, and keep the widgets linked
                 </label>
-                <span className="text-muted">Turned off, the queries are copied into the widgets instead. Open without saving always copies them.</span>
+                <span className="text-muted">
+                  Turned off, the queries are copied into the widgets instead. Open without saving always copies them.
+                </span>
               </Section>
             )}
             {matches.length > 0 && (
               <Section title="Tool buttons">
-                <span className="text-muted">A shared workbook never carries commands. Each button runs one of the tools in your own tools.json, matched by name.</span>
-                {(p.tools === null || p.tools.problem) && <span className="text-bad">{p.tools?.problem ?? 'Your tools couldn’t be read.'}</span>}
+                <span className="text-muted">
+                  A shared workbook never carries commands. Each button runs one of the tools in your own tools.json, matched by name.
+                </span>
+                {(p.tools === null || p.tools.problem) && (
+                  <span className="text-bad">{p.tools?.problem ?? 'Your tools couldn’t be read.'}</span>
+                )}
                 {matches.map((m) =>
                   m.mine ? (
                     <span key={m.tool}>
@@ -185,7 +206,13 @@ function Review({ p }: { p: PendingImport }) {
             {p.doc.parameters.length > 0 && (
               <Section title="Parameter values">
                 {p.doc.parameters.map((q) => {
-                  const value = q.type === 'list' ? q.value.split(/\r?\n/).filter((l) => l.trim() !== '').join(', ') : q.value;
+                  const value =
+                    q.type === 'list'
+                      ? q.value
+                          .split(/\r?\n/)
+                          .filter((l) => l.trim() !== '')
+                          .join(', ')
+                      : q.value;
                   return <span key={q.name}>{`${q.label ?? q.name}: ${value || 'no default'}`}</span>;
                 })}
               </Section>
@@ -194,7 +221,12 @@ function Review({ p }: { p: PendingImport }) {
               <Section title="Already in my workbooks">
                 <span>{p.existing ? `You already have “${p.existing.name}” with this id.` : 'It’s already open in a tab.'}</span>
                 <label className="flex items-center gap-1.5">
-                  <input type="radio" name={`${id}-replace`} checked={!choices.replace} onChange={() => setChoices((c) => ({ ...c, replace: false }))} />
+                  <input
+                    type="radio"
+                    name={`${id}-replace`}
+                    checked={!choices.replace}
+                    onChange={() => setChoices((c) => ({ ...c, replace: false }))}
+                  />
                   Keep both: the import gets a new id
                 </label>
                 <label className="flex items-center gap-1.5">

@@ -24,7 +24,13 @@ beforeEach(() => {
     solutions: [
       solution(),
       solution(
-        { id: 'vm-power', name: 'VM power hygiene', support: 'community', sources: ['arg'], content: { queries: ['a'], workbooks: [], tools: [] } },
+        {
+          id: 'vm-power',
+          name: 'VM power hygiene',
+          support: 'community',
+          sources: ['arg'],
+          content: { queries: ['a'], workbooks: [], tools: [] },
+        },
         { installedVersion: '1.0.0' },
       ),
       solution({ id: 'ca-gaps', name: 'Conditional Access gaps', support: 'community', minAppVersion: '1.1.0' }, { compatible: false }),

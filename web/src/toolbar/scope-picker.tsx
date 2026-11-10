@@ -29,7 +29,12 @@ interface Problem {
 const problemOf = (e: unknown): Problem => ({
   text: errorText(e),
   reportId: reportIdOf(e),
-  fix: e instanceof BridgeError && e.code === 'consentNeeded' ? 'consent' : e instanceof BridgeError && e.code === 'signInNeeded' ? 'signIn' : null,
+  fix:
+    e instanceof BridgeError && e.code === 'consentNeeded'
+      ? 'consent'
+      : e instanceof BridgeError && e.code === 'signInNeeded'
+        ? 'signIn'
+        : null,
 });
 
 /** Each list and why it couldn't be read; a list's problem shows in its own view only. */
@@ -121,19 +126,20 @@ function ScopeDialog({ scope, onChange, accountKey, onSignIn }: ScopeDialogProps
 
   const load = useCallback(() => {
     const read = ++reads.current;
-    void Promise.allSettled([call<ArmSubscriptionsAnswer>('arm.subscriptions'), call<ArmManagementGroupsAnswer>('arm.managementGroups')]).then(
-      ([subscriptions, groups]) => {
-        if (read !== reads.current) {
-          return;
-        }
-        setLists({
-          subscriptions: subscriptions.status === 'fulfilled' ? subscriptions.value.subscriptions : undefined,
-          subscriptionsProblem: subscriptions.status === 'rejected' ? problemOf(subscriptions.reason) : undefined,
-          groups: groups.status === 'fulfilled' ? groups.value : undefined,
-          groupsProblem: groups.status === 'rejected' ? problemOf(groups.reason) : undefined,
-        });
-      },
-    );
+    void Promise.allSettled([
+      call<ArmSubscriptionsAnswer>('arm.subscriptions'),
+      call<ArmManagementGroupsAnswer>('arm.managementGroups'),
+    ]).then(([subscriptions, groups]) => {
+      if (read !== reads.current) {
+        return;
+      }
+      setLists({
+        subscriptions: subscriptions.status === 'fulfilled' ? subscriptions.value.subscriptions : undefined,
+        subscriptionsProblem: subscriptions.status === 'rejected' ? problemOf(subscriptions.reason) : undefined,
+        groups: groups.status === 'fulfilled' ? groups.value : undefined,
+        groupsProblem: groups.status === 'rejected' ? problemOf(groups.reason) : undefined,
+      });
+    });
   }, []);
 
   useEffect(() => {
@@ -172,7 +178,14 @@ function ScopeDialog({ scope, onChange, accountKey, onSignIn }: ScopeDialogProps
   const problem = kind === 'subscriptions' ? lists?.subscriptionsProblem : kind === 'managementGroup' ? lists?.groupsProblem : undefined;
 
   return (
-    <div ref={ref} className="menu" role="dialog" aria-label="Query scope" style={{ left: 0, top: 36, width: 420, padding: 12, gap: 8 }} onMouseDown={keepFocus}>
+    <div
+      ref={ref}
+      className="menu"
+      role="dialog"
+      aria-label="Query scope"
+      style={{ left: 0, top: 36, width: 420, padding: 12, gap: 8 }}
+      onMouseDown={keepFocus}
+    >
       <div role="radiogroup" aria-label="Scope kind" className="flex gap-1.5">
         {KINDS.map((k) => (
           <button
@@ -226,7 +239,13 @@ function ScopeDialog({ scope, onChange, accountKey, onSignIn }: ScopeDialogProps
               const on = chosen.includes(s.id);
               return (
                 <label key={s.id} className="flex h-[30px] items-center gap-2.5 px-1.5">
-                  <input type="checkbox" aria-label={s.name} checked={on} disabled={!on && full} onChange={(e) => toggle(s.id, e.target.checked)} />
+                  <input
+                    type="checkbox"
+                    aria-label={s.name}
+                    checked={on}
+                    disabled={!on && full}
+                    onChange={(e) => toggle(s.id, e.target.checked)}
+                  />
                   <span className="truncate">{s.name}</span>
                   <span className="mono faint ml-auto text-[11px]" title={s.id}>
                     {shortId(s.id)}
@@ -265,7 +284,9 @@ function ScopeDialog({ scope, onChange, accountKey, onSignIn }: ScopeDialogProps
               <span className="mono faint ml-auto text-[11px]">{g.name}</span>
             </label>
           ))}
-          {lists.groups.groups.length === 0 && !lists.groups.note && <span className="faint text-[12px]">No management groups to pick.</span>}
+          {lists.groups.groups.length === 0 && !lists.groups.note && (
+            <span className="faint text-[12px]">No management groups to pick.</span>
+          )}
         </div>
       )}
       {kind === 'managementGroup' && lists?.groups?.note && <span className="text-[12px] text-warn">{lists.groups.note}</span>}

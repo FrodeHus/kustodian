@@ -171,21 +171,43 @@ function TimespanMenu({ current, maxDays, onChoose }: { current: string; maxDays
 
   if (custom) {
     return (
-      <div className="menu" role="dialog" aria-label="Custom timespan" style={{ left: 0, top: 36, width: 300, padding: 12, gap: 8 }} onMouseDown={keepFocus}>
+      <div
+        className="menu"
+        role="dialog"
+        aria-label="Custom timespan"
+        style={{ left: 0, top: 36, width: 300, padding: 12, gap: 8 }}
+        onMouseDown={keepFocus}
+      >
         <label className="flex items-center gap-2 text-[12px]">
           <span className="w-10">Start</span>
-          <input ref={startField} className="textbox h-[28px] flex-1" type="datetime-local" aria-label="Start" value={start} onChange={(e) => setStart(e.target.value)} />
+          <input
+            ref={startField}
+            className="textbox h-[28px] flex-1"
+            type="datetime-local"
+            aria-label="Start"
+            value={start}
+            onChange={(e) => setStart(e.target.value)}
+          />
         </label>
         <label className="flex items-center gap-2 text-[12px]">
           <span className="w-10">End</span>
-          <input className="textbox h-[28px] flex-1" type="datetime-local" aria-label="End" value={end} onChange={(e) => setEnd(e.target.value)} />
+          <input
+            className="textbox h-[28px] flex-1"
+            type="datetime-local"
+            aria-label="End"
+            value={end}
+            onChange={(e) => setEnd(e.target.value)}
+          />
         </label>
         {problem && (
           <span role="alert" className="text-[12px] text-bad">
             {problem}
           </span>
         )}
-        <span className="faint text-[12px]">{maxDays > 30 ? `A workspace keeps data for up to ${maxDays} days.` : 'Advanced hunting keeps 30 days of data.'} The timespan is saved with the query.</span>
+        <span className="faint text-[12px]">
+          {maxDays > 30 ? `A workspace keeps data for up to ${maxDays} days.` : 'Advanced hunting keeps 30 days of data.'} The timespan is
+          saved with the query.
+        </span>
         <div className="flex justify-end gap-2">
           <button type="button" className="btn ghost" onClick={() => setCustom(false)}>
             Back
@@ -228,7 +250,14 @@ function TimespanMenu({ current, maxDays, onChoose }: { current: string; maxDays
           {p.label}
         </button>
       ))}
-      <button ref={customItem} type="button" role="menuitemradio" aria-checked={!isPreset(current)} className={isPreset(current) ? undefined : 'on'} onClick={startCustom}>
+      <button
+        ref={customItem}
+        type="button"
+        role="menuitemradio"
+        aria-checked={!isPreset(current)}
+        className={isPreset(current) ? undefined : 'on'}
+        onClick={startCustom}
+      >
         Custom…
       </button>
     </div>

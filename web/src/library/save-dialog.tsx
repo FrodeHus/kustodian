@@ -113,7 +113,9 @@ export function SaveDialog({ tab, onClose }: { tab: Tab; onClose: () => void }) 
             className="textbox"
             maxLength={MAX_NAME_LENGTH}
             autoFocus
-            value={name} onChange={(e) => setName(e.target.value)} />
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
         </div>
         <div className="field">
           <label htmlFor={`${id}-folder`}>Folder</label>
@@ -142,7 +144,12 @@ export function SaveDialog({ tab, onClose }: { tab: Tab; onClose: () => void }) 
           <button type="button" className="btn ghost" onClick={close}>
             Cancel
           </button>
-          <button type="button" className="btn" disabled={busy || !trimmed} onClick={() => attempt(() => saveToFile(tab.id, { name: trimmed }))}>
+          <button
+            type="button"
+            className="btn"
+            disabled={busy || !trimmed}
+            onClick={() => attempt(() => saveToFile(tab.id, { name: trimmed }))}
+          >
             Save to file
           </button>
           <button type="submit" className="btn primary" disabled={busy || !trimmed}>

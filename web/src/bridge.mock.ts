@@ -112,7 +112,13 @@ const explainView = {
       filteredLocally: false,
     },
   ],
-  limits: { objectsPerTable: 50000, fetchBudgetMb: 512, perObjectReadsPerTable: 2000, relationshipObjectsPerTable: 100, relationshipEntriesPerObject: 1000 },
+  limits: {
+    objectsPerTable: 50000,
+    fetchBudgetMb: 512,
+    perObjectReadsPerTable: 2000,
+    relationshipObjectsPerTable: 100,
+    relationshipEntriesPerObject: 1000,
+  },
 };
 
 const defaultSettings = {
@@ -167,7 +173,9 @@ const schemaLicenses = {
     },
   },
   columns: {
-    users: { signInActivity: { ...entraP1OrP2, source: 'https://learn.microsoft.com/graph/api/resources/user?view=graph-rest-1.0#properties' } },
+    users: {
+      signInActivity: { ...entraP1OrP2, source: 'https://learn.microsoft.com/graph/api/resources/user?view=graph-rest-1.0#properties' },
+    },
   },
 };
 
@@ -181,11 +189,29 @@ const workspace = (name: string, resourceGroup: string, subscriptionId: string, 
 });
 const armWorkspaces = {
   workspaces: [
-    workspace('appi-web-prod-ws', 'rg-web-prod', '00000000-0000-0000-0000-000000000011', 'westeurope', '5b0e2c1a-3f4d-4e6a-9c1b-7a8d2e4f6a10'),
+    workspace(
+      'appi-web-prod-ws',
+      'rg-web-prod',
+      '00000000-0000-0000-0000-000000000011',
+      'westeurope',
+      '5b0e2c1a-3f4d-4e6a-9c1b-7a8d2e4f6a10',
+    ),
     workspace('contoso-dev-logs', 'rg-dev', '00000000-0000-0000-0000-000000000012', 'westeurope', '8d3f9a52-1c7e-4b08-a6d4-2e9b5c7f1a33'),
     workspace('contoso-logs', 'rg-logging', '00000000-0000-0000-0000-000000000011', 'westeurope', 'c41a7e90-6b2d-4f35-8e17-d09a3b6c5e22'),
-    workspace('contoso-sentinel', 'rg-security', '00000000-0000-0000-0000-000000000011', 'westeurope', 'e7a9b3d4-52c1-4a68-b0f3-91d6c8e2a477'),
-    workspace('contoso-sentinel-dr', 'rg-security', '00000000-0000-0000-0000-000000000011', 'northeurope', '2f6c8d10-9a4b-47e3-85d2-b3e1f7a09c55'),
+    workspace(
+      'contoso-sentinel',
+      'rg-security',
+      '00000000-0000-0000-0000-000000000011',
+      'westeurope',
+      'e7a9b3d4-52c1-4a68-b0f3-91d6c8e2a477',
+    ),
+    workspace(
+      'contoso-sentinel-dr',
+      'rg-security',
+      '00000000-0000-0000-0000-000000000011',
+      'northeurope',
+      '2f6c8d10-9a4b-47e3-85d2-b3e1f7a09c55',
+    ),
   ],
 };
 
@@ -205,7 +231,15 @@ const listedUserColumns = [
 ];
 
 /** A column as `SchemaHandler` writes it for advanced hunting and Resource Graph: Graph's own fields are null. */
-const column = (name: string, type: string) => ({ name, type, description: '', filterable: null, listable: null, complexType: null, collection: false });
+const column = (name: string, type: string) => ({
+  name,
+  type,
+  description: '',
+  filterable: null,
+  listable: null,
+  complexType: null,
+  collection: false,
+});
 const table = (name: string, description: string, columns: [string, string][]) => ({
   name,
   path: null,
@@ -279,7 +313,11 @@ const huntingSchema = {
         { name: 'limit', type: 'long' },
       ],
     },
-    { name: 'SeenBy', description: 'The onboarded devices that have seen a device through device discovery.', parameters: [{ name: 'DeviceId', type: 'string' }] },
+    {
+      name: 'SeenBy',
+      description: 'The onboarded devices that have seen a device through device discovery.',
+      parameters: [{ name: 'DeviceId', type: 'string' }],
+    },
   ],
   complexTypes: {},
 };
@@ -520,7 +558,14 @@ interface SavedQuery extends SavedQueryInput {
 
 const graphId = '00000003-0000-0000-c000-000000000000';
 const armId = '797f4846-ba00-4fd7-ba43-dac1f8f63013';
-function plannedPermission(name: string, tables: string[], ticked: boolean, adminConsent = true, description = '', unlocks: string | null = null) {
+function plannedPermission(
+  name: string,
+  tables: string[],
+  ticked: boolean,
+  adminConsent = true,
+  description = '',
+  unlocks: string | null = null,
+) {
   return { resource: 'Microsoft Graph', resourceAppId: graphId, name, adminConsent, description, tables, unlocks, ticked };
 }
 
@@ -546,7 +591,10 @@ const entraAppPlan = {
             plannedPermission('Group.Read.All', ['groups'], true, true, ''),
           ],
         },
-        { title: 'Mail, Teams and files', permissions: [plannedPermission('Mail.Read', ['messages', 'attachments'], false, false, 'Read your mail')] },
+        {
+          title: 'Mail, Teams and files',
+          permissions: [plannedPermission('Mail.Read', ['messages', 'attachments'], false, false, 'Read your mail')],
+        },
       ],
     },
     {
@@ -555,7 +603,9 @@ const entraAppPlan = {
       subgroups: [
         {
           title: 'Advanced hunting',
-          permissions: [plannedPermission('ThreatHunting.Read.All', [], true, true, 'Run advanced hunting queries', 'Defender advanced hunting tabs')],
+          permissions: [
+            plannedPermission('ThreatHunting.Read.All', [], true, true, 'Run advanced hunting queries', 'Defender advanced hunting tabs'),
+          ],
         },
       ],
     },
@@ -566,7 +616,16 @@ const entraAppPlan = {
         {
           title: 'Resource Graph',
           permissions: [
-            { resource: 'Azure Service Management', resourceAppId: armId, name: 'user_impersonation', adminConsent: false, description: 'Access Azure Service Management as you', tables: [], unlocks: 'Resource Graph', ticked: true },
+            {
+              resource: 'Azure Service Management',
+              resourceAppId: armId,
+              name: 'user_impersonation',
+              adminConsent: false,
+              description: 'Access Azure Service Management as you',
+              tables: [],
+              unlocks: 'Resource Graph',
+              ticked: true,
+            },
           ],
         },
       ],
@@ -747,7 +806,13 @@ export function createMockTransport(): Transport {
       case 'workbook.list': {
         const all = [...workbooks.values()].sort((a, b) => a.name.localeCompare(b.name));
         const folders = [...new Set(all.map((w) => w.folder).filter((f): f is string => !!f))].sort();
-        const summaries = all.map((w) => ({ id: w.id, name: w.name, folder: w.folder ?? null, modifiedAt: w.modifiedAt, widgets: w.widgets.length }));
+        const summaries = all.map((w) => ({
+          id: w.id,
+          name: w.name,
+          folder: w.folder ?? null,
+          modifiedAt: w.modifiedAt,
+          widgets: w.widgets.length,
+        }));
         reply(id, { workbooks: summaries, folders, skipped: 0 });
         break;
       }
@@ -918,7 +983,11 @@ export function createMockTransport(): Transport {
         break;
       case 'solution.list':
         reply(id, {
-          solutions: mockSolutions.map((manifest) => ({ manifest, compatible: manifest.minAppVersion === '0.0.0', installedVersion: null })),
+          solutions: mockSolutions.map((manifest) => ({
+            manifest,
+            compatible: manifest.minAppVersion === '0.0.0',
+            installedVersion: null,
+          })),
           fetchedAt: new Date().toISOString(),
           offline: false,
         });
@@ -926,7 +995,7 @@ export function createMockTransport(): Transport {
       case 'solution.get': {
         const manifest = mockSolutions.find((s) => s.id === params?.id);
         if (!manifest) {
-          fail(id, 'bad_request', 'That solution isn\'t in the catalog.');
+          fail(id, 'bad_request', "That solution isn't in the catalog.");
           break;
         }
         reply(id, { manifest, readme: `# ${manifest.name}\n\n${manifest.description}`, installed: null, modified: [] });
@@ -1039,7 +1108,9 @@ export function createMockTransport(): Transport {
         reply(id, {});
         break;
       case 'entraApp.consentLink':
-        reply(id, { url: `https://login.microsoftonline.com/${entraAppPlan.tenantId}/v2.0/adminconsent?client_id=${entraAppCreated.appId}` });
+        reply(id, {
+          url: `https://login.microsoftonline.com/${entraAppPlan.tenantId}/v2.0/adminconsent?client_id=${entraAppCreated.appId}`,
+        });
         break;
       case 'arm.subscriptions':
         reply(id, armSubscriptions);

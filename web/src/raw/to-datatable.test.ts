@@ -19,7 +19,7 @@ interface KustoCode {
 
 const kusto = (globalThis as unknown as { Kusto: { Language: { KustoCode: { ParseAndAnalyze(text: string): KustoCode } } } }).Kusto;
 
-const items = <T,>(list: KustoList<T>): T[] => Array.from({ length: list.Count }, (_, i) => list.getItem(i));
+const items = <T>(list: KustoList<T>): T[] => Array.from({ length: list.Count }, (_, i) => list.getItem(i));
 
 /** What Kusto.Language makes of a query: its errors, and its result's columns as `name:type`. */
 function analyze(kql: string) {

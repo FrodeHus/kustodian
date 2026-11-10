@@ -5,7 +5,16 @@ import { useRevisions } from '../library/saving';
 import { errorText } from '../shell/errors';
 import { newId } from '../shell/ids';
 import { useTabs } from '../tabs/tab-store';
-import type { HistoryQuery, HistoryRecordAnswer, HistoryRecordParams, LibraryList, QueryRunParams, RunResult, SavedQuery, Source } from '../wire';
+import type {
+  HistoryQuery,
+  HistoryRecordAnswer,
+  HistoryRecordParams,
+  LibraryList,
+  QueryRunParams,
+  RunResult,
+  SavedQuery,
+  Source,
+} from '../wire';
 import { historyRows, historySetting, recordable, seriesLabel } from './history';
 import type { SkipReason } from './history';
 import type { Widget, WorkbookDoc } from './model';
@@ -128,7 +137,7 @@ const timers = new Map<string, ReturnType<typeof setTimeout>>();
 /** The current load of each tab; a read that finishes after an unload or a newer load is dropped. */
 const loads = new Map<string, symbol>();
 
-const omit = <T,>(o: Record<string, T>, key: string): Record<string, T> => Object.fromEntries(Object.entries(o).filter(([k]) => k !== key));
+const omit = <T>(o: Record<string, T>, key: string): Record<string, T> => Object.fromEntries(Object.entries(o).filter(([k]) => k !== key));
 
 const debounce = (key: string, fn: () => void) => {
   clearTimeout(timers.get(key));
@@ -232,7 +241,11 @@ function queue(
   key: string,
   own: Widget,
   refresh: boolean,
-  on: { onStart: (runId: string) => void; onAnswer: (run: WidgetRun, sent: { query: HistoryQuery; label: string }) => void; onDropped: () => void },
+  on: {
+    onStart: (runId: string) => void;
+    onAnswer: (run: WidgetRun, sent: { query: HistoryQuery; label: string }) => void;
+    onDropped: () => void;
+  },
 ): WidgetRun {
   drop(key);
   const s = useWorkbooks.getState().byTab[tabId];
@@ -266,11 +279,24 @@ function queue(
   const timespan = runParams.options?.timespan;
   const span: ResolvedParam[] =
     hunting && timespan && !params.some((p) => p.name === hunting.name)
-      ? [{ name: hunting.name, type: hunting.type, required: false, value: timespan, from: widget.parameters[hunting.name]?.from ?? 'workbook' }]
+      ? [
+          {
+            name: hunting.name,
+            type: hunting.type,
+            required: false,
+            value: timespan,
+            from: widget.parameters[hunting.name]?.from ?? 'workbook',
+          },
+        ]
       : [];
   const series = [...params, ...span];
   const sent = {
-    query: { source, text, options: widget.query.options ?? null, parameters: series.map(({ name, value, type }) => ({ name, value, type })) },
+    query: {
+      source,
+      text,
+      options: widget.query.options ?? null,
+      parameters: series.map(({ name, value, type }) => ({ name, value, type })),
+    },
     label: seriesLabel(series),
   };
   const job: Job = {
@@ -306,8 +332,7 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
       const s = st.byTab[tabId];
       return s ? { byTab: { ...st.byTab, [tabId]: { ...s, ...change(s) } } } : st;
     });
-  const setRun = (tabId: string, widgetId: string, run: WidgetRun) =>
-    update(tabId, (s) => ({ runs: { ...s.runs, [widgetId]: run } }));
+  const setRun = (tabId: string, widgetId: string, run: WidgetRun) => update(tabId, (s) => ({ runs: { ...s.runs, [widgetId]: run } }));
 
   /** Writes the values of the parameters marked `remember`, debounced. */
   const remember = (tabId: string) => {
@@ -318,13 +343,20 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
     debounce(`${tabId}:remember`, () => {
       const s = get().byTab[tabId];
       if (s) {
-        const values = Object.fromEntries(s.doc.parameters.filter((p) => p.remember).map((p) => [p.name, s.values.workbook[p.name] ?? p.value]));
+        const values = Object.fromEntries(
+          s.doc.parameters.filter((p) => p.remember).map((p) => [p.name, s.values.workbook[p.name] ?? p.value]),
+        );
         void call('workbook.values.save', { id: s.doc.id, values }).catch(() => undefined);
       }
     });
   };
 
-  const setHistory = (tabId: string, widgetId: string, query: HistoryQuery, change: (was: WidgetHistoryState) => Partial<WidgetHistoryState>) =>
+  const setHistory = (
+    tabId: string,
+    widgetId: string,
+    query: HistoryQuery,
+    change: (was: WidgetHistoryState) => Partial<WidgetHistoryState>,
+  ) =>
     update(tabId, (s) => {
       const was = s.history[widgetId] ?? { skipped: null, reset: false, recordedAt: null, query };
       return { history: { ...s.history, [widgetId]: { ...was, ...change(was) } } };
@@ -361,7 +393,8 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
           recordedAt: a.recorded ? Date.now() : was.recordedAt,
           pending: (was.pending ?? 1) - 1,
         })),
-      (e: unknown) => setHistory(tabId, widgetId, sent.query, (was) => ({ skipped: null, error: errorText(e), pending: (was.pending ?? 1) - 1 })),
+      (e: unknown) =>
+        setHistory(tabId, widgetId, sent.query, (was) => ({ skipped: null, error: errorText(e), pending: (was.pending ?? 1) - 1 })),
     );
   };
 
@@ -380,7 +413,20 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
     byTab: {},
 
     async load(tabId, doc, opts) {
-      const fresh: WorkbookState = { doc, values: initialValues(doc, {}), runs: {}, editing: false, undo: [], redo: [], dirty: opts?.dirty ?? false, selections: {}, history: {}, since: {}, activeTabs: {}, stale: {} };
+      const fresh: WorkbookState = {
+        doc,
+        values: initialValues(doc, {}),
+        runs: {},
+        editing: false,
+        undo: [],
+        redo: [],
+        dirty: opts?.dirty ?? false,
+        selections: {},
+        history: {},
+        since: {},
+        activeTabs: {},
+        stale: {},
+      };
       const token = Symbol(tabId);
       loads.set(tabId, token);
       set((st) => ({ byTab: { ...st.byTab, [tabId]: fresh } }));
@@ -456,12 +502,15 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
       return new Promise<RunResult>((resolve, reject) => {
         const queued = queue(tabId, `${tabId}/preview`, widget, false, {
           onStart: () => undefined,
-          onAnswer: (run) => (run.state === 'done' ? resolve(run.result) : reject(run.state === 'failed' ? run.error : new Error(run.state))),
+          onAnswer: (run) =>
+            run.state === 'done' ? resolve(run.result) : reject(run.state === 'failed' ? run.error : new Error(run.state)),
           onDropped: () => reject(new DOMException('A newer preview replaced this one.', 'AbortError')),
         });
         pump();
         if (queued.state !== 'waiting') {
-          reject(new Error(queued.state === 'blocked' ? queued.reason : queued.state === 'gone' ? 'This saved query is gone.' : 'No query yet.'));
+          reject(
+            new Error(queued.state === 'blocked' ? queued.reason : queued.state === 'gone' ? 'This saved query is gone.' : 'No query yet.'),
+          );
         }
       });
     },
@@ -570,7 +619,13 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
           const own = Object.entries(values.widgets[w.id] ?? {}).filter(([name]) => w.parameters[name]?.from !== 'fixed');
           return own.length === 0
             ? w
-            : { ...w, parameters: { ...w.parameters, ...Object.fromEntries(own.map(([name, value]) => [name, { from: 'widget' as const, value }])) } };
+            : {
+                ...w,
+                parameters: {
+                  ...w.parameters,
+                  ...Object.fromEntries(own.map(([name, value]) => [name, { from: 'widget' as const, value }])),
+                },
+              };
         }),
       }));
     },
@@ -693,7 +748,17 @@ export async function withLinkedCopies(doc: WorkbookDoc): Promise<WorkbookDoc> {
   const widgets = doc.widgets.map((w) => {
     const q = w.query?.saved ? library.get(w.query.saved.id) : undefined;
     return w.query && q && q.source !== 'raw'
-      ? { ...w, query: { ...w.query, source: q.source, text: q.text, options: q.options ?? null, parameters: q.parameters, saved: { id: q.id, name: q.name } } }
+      ? {
+          ...w,
+          query: {
+            ...w.query,
+            source: q.source,
+            text: q.text,
+            options: q.options ?? null,
+            parameters: q.parameters,
+            saved: { id: q.id, name: q.name },
+          },
+        }
       : w;
   });
   return { ...doc, widgets };

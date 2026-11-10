@@ -15,7 +15,11 @@ export function openSaved(q: SavedQuery) {
 
 /** The query's first line that isn't blank, at most 40 characters: what a recent run is called in the list and in its tab. */
 export function runTitle(text: string): string {
-  const line = text.split(/\r?\n/).find((l) => l.trim() !== '')?.trim() ?? 'Recent run';
+  const line =
+    text
+      .split(/\r?\n/)
+      .find((l) => l.trim() !== '')
+      ?.trim() ?? 'Recent run';
   return line.length > 40 ? `${line.slice(0, 39)}…` : line;
 }
 

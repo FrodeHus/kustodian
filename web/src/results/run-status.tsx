@@ -47,7 +47,10 @@ function relationshipChips(t: TableFetch): Chip[] {
     if (r.refused > 0 && r.refused === r.objects) {
       chips.push({ tone: 'warn', text: `No permission to read ${name}${needs ? `; it needs one of: ${needs}` : ''}` });
     } else if (r.refused > 0) {
-      chips.push({ tone: 'warn', text: `${name}: no permission for ${count(r.refused)} of ${count(r.objects)} objects, their values are empty` });
+      chips.push({
+        tone: 'warn',
+        text: `${name}: no permission for ${count(r.refused)} of ${count(r.objects)} objects, their values are empty`,
+      });
     }
     // Graph answers an entry of a type the account can't read with its id and type only, not with a refusal.
     if (r.limited > 0) {
@@ -82,7 +85,11 @@ function tableChips(tables: TableFetch[]): Chip[] {
   for (const t of tables) {
     const oneAtATime = [...t.perObject, ...t.relationships.map((r) => r.column)];
     if (oneAtATime.length > 0) {
-      chips.push({ tone: 'warn', text: `${plural(oneAtATime.length, 'column')} read one object at a time`, title: `${t.table}: ${oneAtATime.join(', ')}` });
+      chips.push({
+        tone: 'warn',
+        text: `${plural(oneAtATime.length, 'column')} read one object at a time`,
+        title: `${t.table}: ${oneAtATime.join(', ')}`,
+      });
     }
     if (t.perObjectFailed > 0) {
       chips.push({ tone: 'warn', text: `${t.table}: ${plural(t.perObjectFailed, 'per-object read')} failed` });
@@ -147,7 +154,8 @@ function resultChips(result: RunResult, source: Source, scope: ArgScope | null |
     return sourceChips(result, source, scope);
   }
   // More rows than were sent: how many there are, as "50,000 of 61,204 rows".
-  const rows = result.total > result.rows.length ? `${count(result.rows.length)} of ${plural(result.total, 'row')}` : plural(result.total, 'row');
+  const rows =
+    result.total > result.rows.length ? `${count(result.rows.length)} of ${plural(result.total, 'row')}` : plural(result.total, 'row');
   const chips: Chip[] = [{ tone: 'ok', text: `● ${rows}` }];
   if (result.droppedValues > 0) {
     chips.push({ tone: 'warn', text: `${plural(result.droppedValues, 'value')} didn't fit the column's type, left empty` });
@@ -193,7 +201,17 @@ function relationshipGrants(result: RunResult, source: Source, account: AccountI
 
 /** The line between the editor and the results: the run's progress, then how it ended and what it sent, worded for the source
  * the run went to. A run that needs Azure access offers "Grant Azure access", which runs it again once granted. */
-export function RunStatus({ run, scope, onSignIn, accountKey, onConsented, onGranted, createApp = false, account, onPickWorkspace }: RunStatusProps) {
+export function RunStatus({
+  run,
+  scope,
+  onSignIn,
+  accountKey,
+  onConsented,
+  onGranted,
+  createApp = false,
+  account,
+  onPickWorkspace,
+}: RunStatusProps) {
   let content: ReactNode;
   let meta: string | null = null;
 
@@ -204,7 +222,10 @@ export function RunStatus({ run, scope, onSignIn, accountKey, onConsented, onGra
       <span className="chip" role="status">
         <span className="size-2 animate-pulse rounded-full bg-accent" aria-hidden="true" />
         {stageLabel(run.stage, run.detail)}
-        {run.source === 'hunting' && run.stage === 'requesting' && run.options?.workspaces?.[0] && ` with ${run.options.workspaces[0].name}`}
+        {run.source === 'hunting' &&
+          run.stage === 'requesting' &&
+          run.options?.workspaces?.[0] &&
+          ` with ${run.options.workspaces[0].name}`}
       </span>
     );
   } else if (run.cancelled || !run.result) {
@@ -222,7 +243,10 @@ export function RunStatus({ run, scope, onSignIn, accountKey, onConsented, onGra
         {result.outcome !== 'ok' && (
           <span className="flex min-w-0 items-center gap-2 text-bad" role="alert">
             <span className="min-w-0 wrap-anywhere">{result.message ?? 'The query failed.'}</span>
-            <ErrorReportActions reportId={result.reportId} uiSections={{ message: result.message ?? 'The query failed.', query: run.kql }} />
+            <ErrorReportActions
+              reportId={result.reportId}
+              uiSections={{ message: result.message ?? 'The query failed.', query: run.kql }}
+            />
             {at && (
               <span className="mono faint shrink-0 text-[11.5px]">
                 Ln {at.line}, Col {at.column}

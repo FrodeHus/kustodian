@@ -15,7 +15,17 @@ vi.mock('../bridge', async (importOriginal) => ({
 }));
 
 function perm(name: string, tables: string[], ticked: boolean, extra: Partial<PlannedPermission> = {}): PlannedPermission {
-  return { resource: 'Microsoft Graph', resourceAppId: 'g', name, adminConsent: true, description: '', tables, unlocks: null, ticked, ...extra };
+  return {
+    resource: 'Microsoft Graph',
+    resourceAppId: 'g',
+    name,
+    adminConsent: true,
+    description: '',
+    tables,
+    unlocks: null,
+    ticked,
+    ...extra,
+  };
 }
 
 const plan: EntraAppPlan = {
@@ -31,11 +41,18 @@ const plan: EntraAppPlan = {
       id: 'graph',
       title: 'Graph',
       subgroups: [
-        { title: 'Directory', permissions: [perm('Directory.Read.All', ['users', 'groups', 'devices'], true), perm('User.Read.All', ['users'], true)] },
+        {
+          title: 'Directory',
+          permissions: [perm('Directory.Read.All', ['users', 'groups', 'devices'], true), perm('User.Read.All', ['users'], true)],
+        },
         { title: 'Mail', permissions: [perm('Mail.Read', ['messages'], false, { adminConsent: false })] },
       ],
     },
-    { id: 'security', title: 'Security', subgroups: [{ title: 'Advanced hunting', permissions: [perm('ThreatHunting.Read.All', ['DeviceInfo'], true)] }] },
+    {
+      id: 'security',
+      title: 'Security',
+      subgroups: [{ title: 'Advanced hunting', permissions: [perm('ThreatHunting.Read.All', ['DeviceInfo'], true)] }],
+    },
   ],
 };
 
@@ -104,7 +121,9 @@ describe('CreateAppDialog', () => {
     answer(() => Promise.resolve(created));
     await open();
     expect(screen.getByText('3 permissions · 4 of 6 tables · 3 need admin consent')).toBeTruthy();
-    expect(screen.getByText(/3 more tables have no published delegated permission; 1 are reachable only with write permissions/)).toBeTruthy();
+    expect(
+      screen.getByText(/3 more tables have no published delegated permission; 1 are reachable only with write permissions/),
+    ).toBeTruthy();
     fireEvent.click(screen.getByRole('checkbox', { name: /^Directory.Read.All/ }));
     expect(screen.getByText('2 permissions · 2 of 6 tables · 2 need admin consent')).toBeTruthy();
   });
@@ -314,9 +333,13 @@ describe('CreateAppDialog created view', () => {
     const { onSwitched } = await toCreated();
     fireEvent.click(screen.getByRole('button', { name: 'Switch and sign in' }));
     await waitFor(() => expect(onSwitched).toHaveBeenCalled());
-    const order = bridge.call.mock.calls.map((c) => c[0]).filter((m) => m === 'settings.get' || m === 'settings.set' || m === 'account.signIn');
+    const order = bridge.call.mock.calls
+      .map((c) => c[0])
+      .filter((m) => m === 'settings.get' || m === 'settings.set' || m === 'account.signIn');
     expect(order).toEqual(['settings.get', 'settings.set', 'account.signIn']);
-    expect(bridge.call).toHaveBeenCalledWith('settings.set', { settings: { version: 1, signIn: { clientId: created.appId, tenant: 't1' }, other: 1 } });
+    expect(bridge.call).toHaveBeenCalledWith('settings.set', {
+      settings: { version: 1, signIn: { clientId: created.appId, tenant: 't1' }, other: 1 },
+    });
     expect(bridge.call).toHaveBeenCalledWith('account.signIn', { clientId: created.appId, tenant: 't1', deviceCode: false });
   });
 
@@ -348,10 +371,20 @@ describe('CreateAppDialog created view', () => {
 
   it('retry_service_principal', async () => {
     const partial = { ...adminCreated, servicePrincipalId: null, servicePrincipalMessage: 'Graph said 403 Forbidden.' };
-    route({
-      'entraApp.retryServicePrincipal': () =>
-        Promise.resolve({ ...partial, servicePrincipalId: 'sp9', servicePrincipalMessage: null, ownerAdded: false, dropped: [], adminScopes: [] }),
-    }, partial);
+    route(
+      {
+        'entraApp.retryServicePrincipal': () =>
+          Promise.resolve({
+            ...partial,
+            servicePrincipalId: 'sp9',
+            servicePrincipalMessage: null,
+            ownerAdded: false,
+            dropped: [],
+            adminScopes: [],
+          }),
+      },
+      partial,
+    );
     await toCreated();
     expect(screen.getByText(/Graph said 403 Forbidden/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Open in Entra' })).toBeTruthy();
@@ -374,7 +407,12 @@ describe('CreateAppDialog created view', () => {
     await waitFor(() => expect(open.disabled).toBe(true));
     reject(new BridgeError('failed', "Kustodian couldn't open your browser."));
     const message = await screen.findByText("Kustodian couldn't open your browser.");
-    expect(screen.getByText(/1\. Grant for the whole tenant/).closest('.card')?.contains(message)).toBe(false);
+    expect(
+      screen
+        .getByText(/1\. Grant for the whole tenant/)
+        .closest('.card')
+        ?.contains(message),
+    ).toBe(false);
     expect(message.parentElement?.textContent).toMatch(/Try again/);
     expect(open.disabled).toBe(false);
   });

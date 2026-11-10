@@ -182,8 +182,15 @@ export function ResultPanel({ tabId, title, kql, result, pinned, dialogOpen = fa
       {active === 'rows' && chartFilter && (
         <div className="flex px-3 pt-2">
           <span className="chip min-w-0" title="Rows behind the chart mark you clicked">
-            <span className="truncate">Chart: {chartFilter.map((f) => `${f.id} = ${f.value === '' ? '(empty)' : f.value}`).join(' · ')}</span>
-            <button type="button" className="shrink-0 cursor-pointer" aria-label="Clear the chart filter" onClick={() => setChartFilter(null)}>
+            <span className="truncate">
+              Chart: {chartFilter.map((f) => `${f.id} = ${f.value === '' ? '(empty)' : f.value}`).join(' · ')}
+            </span>
+            <button
+              type="button"
+              className="shrink-0 cursor-pointer"
+              aria-label="Clear the chart filter"
+              onClick={() => setChartFilter(null)}
+            >
               ✕
             </button>
           </span>

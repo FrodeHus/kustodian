@@ -72,10 +72,7 @@ export async function importWorkbook(): Promise<void> {
   }
   // The file is untrusted: the host checks it as it would a save, before anything is shown.
   await call('workbook.check', { workbook: withFileVersion(doc) });
-  const [tools, list] = await Promise.all([
-    call<ToolList>('tools.list').catch(() => null),
-    call<WorkbookList>('workbook.list'),
-  ]);
+  const [tools, list] = await Promise.all([call<ToolList>('tools.list').catch(() => null), call<WorkbookList>('workbook.list')]);
   useImportReview.getState().show({
     fileName: file.name,
     text: JSON.stringify(doc, null, 2),
@@ -103,7 +100,9 @@ const saveId = (p: PendingImport, c: ReviewChoices) => (collides(p) && (!c.repla
  * whatever Replace says: an unsaved tab with my workbook's id would save over it. */
 export function openImported(p: PendingImport, c: ReviewChoices): void {
   const id = collides(p) ? crypto.randomUUID() : p.doc.id;
-  useTabs.getState().openWorkbook(applyImport(p.doc, { added: null, tools: c.tools, id, accountWorkspaces: c.accountWorkspaces }), { dirty: true });
+  useTabs
+    .getState()
+    .openWorkbook(applyImport(p.doc, { added: null, tools: c.tools, id, accountWorkspaces: c.accountWorkspaces }), { dirty: true });
 }
 
 export type AddedQueries = Record<string, { id: string; name: string }>;
@@ -125,7 +124,12 @@ export async function saveImported(p: PendingImport, c: ReviewChoices, added: Ad
         added[q.savedId] = { id: saved.id, name: saved.name };
       }
     }
-    const doc = applyImport(p.doc, { added: c.addQueries ? added : null, tools: c.tools, id: saveId(p, c), accountWorkspaces: c.accountWorkspaces });
+    const doc = applyImport(p.doc, {
+      added: c.addQueries ? added : null,
+      tools: c.tools,
+      id: saveId(p, c),
+      accountWorkspaces: c.accountWorkspaces,
+    });
     const { workbook } = await call<{ workbook: WorkbookDoc }>('workbook.save', { workbook: withFileVersion(doc) });
     useTabs.getState().openWorkbook(workbook, { savedId: workbook.id });
   } finally {

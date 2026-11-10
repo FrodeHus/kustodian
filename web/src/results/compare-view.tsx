@@ -62,7 +62,17 @@ export function CompareView({ pinned, current }: { pinned: ResultTable; current:
   );
 }
 
-function Diff({ pinned, current, keyColumn, columns }: { pinned: ResultTable; current: ResultTable; keyColumn: string; columns: string[] }) {
+function Diff({
+  pinned,
+  current,
+  keyColumn,
+  columns,
+}: {
+  pinned: ResultTable;
+  current: ResultTable;
+  keyColumn: string;
+  columns: string[];
+}) {
   const diff = useMemo(() => diffRows(pinned, current, keyColumn), [pinned, current, keyColumn]);
   const notes = useMemo(() => {
     const type = (t: ResultTable) => t.columns.find((c) => c.name === keyColumn)?.type;
@@ -136,7 +146,8 @@ function Diff({ pinned, current, keyColumn, columns }: { pinned: ResultTable; cu
       </div>
       <div className="muted flex gap-3 border-t border-line px-3 py-2 text-[12px]">
         <span>
-          {count(diff.added.length)} added · {count(diff.removed.length)} removed · {count(diff.changed.length)} changed · {count(diff.same)} the same
+          {count(diff.added.length)} added · {count(diff.removed.length)} removed · {count(diff.changed.length)} changed ·{' '}
+          {count(diff.same)} the same
         </span>
         {lines.length > MAX_SHOWN && <span>Showing the first {count(MAX_SHOWN)} differences.</span>}
       </div>

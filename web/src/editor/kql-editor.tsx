@@ -151,7 +151,8 @@ monaco.editor.defineTheme('kustodian-glass', {
   },
 });
 
-/** A palette theme's Monaco theme: its colours in the roles the dark theme gives the studio's tokens. */
+/** A palette theme's Monaco theme: its colours in the roles the dark theme gives the studio's tokens, over Monaco's light base for a
+ * light palette. */
 function paletteTheme(p: Palette): monaco.editor.IStandaloneThemeData {
   const hex = (colour: string) => colour.slice(1).toUpperCase();
   const roles: [string, string][] = [
@@ -165,7 +166,7 @@ function paletteTheme(p: Palette): monaco.editor.IStandaloneThemeData {
     [p.tbl, 'table database materializedView'],
   ];
   return {
-    base: 'vs-dark',
+    base: p.light ? 'vs' : 'vs-dark',
     inherit: true,
     rules: [
       { token: '', foreground: hex(p.text) },
@@ -305,8 +306,10 @@ export default function KqlEditor({ schemas, onRun, ref, draft }: KqlEditorProps
       }
     });
 
-    const runKeys = bindRunKeys(editor, { CtrlCmd: monaco.KeyMod.CtrlCmd, Shift: monaco.KeyMod.Shift, Enter: monaco.KeyCode.Enter }, (mode) =>
-      latest.current.onRun(mode),
+    const runKeys = bindRunKeys(
+      editor,
+      { CtrlCmd: monaco.KeyMod.CtrlCmd, Shift: monaco.KeyMod.Shift, Enter: monaco.KeyCode.Enter },
+      (mode) => latest.current.onRun(mode),
     );
     // The window's commands (palette, tabs, run without cache ...) work while typing too; not in a draft's editor, whose dialog
     // covers the tab they would act on.
