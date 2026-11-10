@@ -17,6 +17,10 @@ public sealed record ArmManagementGroup(string Name, string DisplayName);
 /// <summary>The management groups the account can see. <see cref="Note"/> says why the list is empty when they can't be listed.</summary>
 public sealed record ArmManagementGroups(IReadOnlyList<ArmManagementGroup> Groups, string? Note);
 
+/// <summary>A Log Analytics workspace the account can see: its <c>customerId</c> GUID (what a workspace-targeted query names), name,
+/// ARM resource id, resource group, subscription and region.</summary>
+public sealed record ArmWorkspace(string CustomerId, string Name, string ResourceId, string ResourceGroup, string SubscriptionId, string Location);
+
 /// <summary>Azure Resource Manager refused or failed a directory read; the message is fit to show. <see cref="Status"/> is the
 /// refusal's HTTP status, when there was one.</summary>
 public sealed class ArmDirectoryException(string message, HttpStatusCode? status = null) : Exception(message)
@@ -42,9 +46,17 @@ public sealed class ArmDirectory(HttpClient arm, TimeProvider time)
 
     public const string ResourceTypesQuery = "Resources | distinct type | order by type asc";
 
+    public const string WorkspacesQuery = """
+        resources
+        | where type =~ 'microsoft.operationalinsights/workspaces'
+        | project name, resourceId = id, customerId = tostring(properties.customerId), resourceGroup, subscriptionId, location
+        | order by name asc
+        """;
+
     public const string NoManagementGroups = "You can't list management groups.";
 
     public static readonly TimeSpan SubscriptionsCacheFor = TimeSpan.FromMinutes(10);
+    public static readonly TimeSpan WorkspacesCacheFor = TimeSpan.FromMinutes(10);
     public static readonly TimeSpan ResourceTypesCacheFor = TimeSpan.FromHours(24);
     public static readonly TimeSpan CallTimeout = TimeSpan.FromSeconds(30);
 
@@ -53,16 +65,20 @@ public sealed class ArmDirectory(HttpClient arm, TimeProvider time)
 
     private const int MaxListPages = 100;
     private const int MaxResourceTypes = 10_000;
+    private const int MaxWorkspaces = 10_000;
 
     private readonly ArgClient _arg = new(arm, time);
     private readonly ConcurrentDictionary<string, (IReadOnlyList<ArmSubscription> Value, DateTimeOffset Until)> _subscriptions = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, (IReadOnlyList<string> Value, DateTimeOffset Until)> _types = new(StringComparer.Ordinal);
+
+    private readonly ConcurrentDictionary<string, (IReadOnlyList<ArmWorkspace> Value, DateTimeOffset Until)> _workspaces = new(StringComparer.Ordinal);
 
     /// <summary>Forgets what was read for <paramref name="accountKey"/> (it signed out).</summary>
     public void RemoveAccount(string accountKey)
     {
         _subscriptions.TryRemove(accountKey, out _);
         _types.TryRemove(accountKey, out _);
+        _workspaces.TryRemove(accountKey, out _);
     }
 
     public async Task<IReadOnlyList<ArmSubscription>> SubscriptionsAsync(string accountKey, CancellationToken ct)
@@ -124,6 +140,35 @@ public sealed class ArmDirectory(HttpClient arm, TimeProvider time)
             : [.. answer.Rows.Select(r => r[column]).Where(v => v.ValueKind == JsonValueKind.String).Select(v => v.GetString()!)];
         _types[accountKey] = (types, now + ResourceTypesCacheFor);
         return types;
+    }
+
+    public async Task<IReadOnlyList<ArmWorkspace>> WorkspacesAsync(string accountKey, CancellationToken ct)
+    {
+        var now = time.GetUtcNow();
+        if (_workspaces.TryGetValue(accountKey, out var hit) && now < hit.Until)
+        {
+            return hit.Value;
+        }
+
+        var answer = await _arg.RunAsync(accountKey, WorkspacesQuery, ArgScope.Default, MaxWorkspaces, new RunDiagnostics(time), ct);
+        if (answer.Outcome != RunOutcome.Ok)
+        {
+            throw new ArmDirectoryException(answer.Message ?? "The workspaces couldn't be read.");
+        }
+
+        var names = answer.Columns.Select(c => c.Name).ToList();
+        string Cell(IReadOnlyList<JsonElement> row, string name) =>
+            names.IndexOf(name) is var i and >= 0 && row[i].ValueKind == JsonValueKind.String ? row[i].GetString()! : "";
+
+        IReadOnlyList<ArmWorkspace> workspaces =
+        [
+            .. answer.Rows
+                .Select(r => new ArmWorkspace(Cell(r, "customerId"), Cell(r, "name"), Cell(r, "resourceId"),
+                    Cell(r, "resourceGroup"), Cell(r, "subscriptionId"), Cell(r, "location")))
+                .Where(w => w.CustomerId.Length > 0),
+        ];
+        _workspaces[accountKey] = (workspaces, now + WorkspacesCacheFor);
+        return workspaces;
     }
 
     /// <summary>Every <c>value</c> item of a list, following <c>nextLink</c> within https ARM.</summary>

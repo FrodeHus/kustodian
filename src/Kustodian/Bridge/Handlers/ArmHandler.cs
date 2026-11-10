@@ -5,7 +5,7 @@ using Kustodian.Sources.Arg;
 namespace Kustodian.Messaging.Handlers;
 
 /// <summary><c>arm.subscriptions</c> (<c>{subscriptions}</c>), <c>arm.managementGroups</c> (<c>{groups, note?}</c>) and
-/// <c>arm.resourceTypes</c> (<c>{types}</c>) for the active account, from <see cref="ArmDirectory"/>. Nobody signed in, or an ARM
+/// <c>arm.resourceTypes</c> (<c>{types}</c>) and <c>arm.workspaces</c> (<c>{workspaces}</c>) for the active account, from <see cref="ArmDirectory"/>. Nobody signed in, or an ARM
 /// sign-in that has to be renewed, is <c>signInNeeded</c>; an ARM token that needs the user's consent is <c>consentNeeded</c>
 /// (the UI offers <c>account.consent</c>); anything else that fails is <c>failed</c> with Azure's message.</summary>
 public sealed class ArmHandler(ArmDirectory directory, Func<Task<string?>> activeAccount)
@@ -16,6 +16,8 @@ public sealed class ArmHandler(ArmDirectory directory, Func<Task<string?>> activ
     {
         bridge.Register("arm.subscriptions", async (_, ct) =>
             new SubscriptionsAnswer(await CallAsync(account => directory.SubscriptionsAsync(account, ct))));
+        bridge.Register("arm.workspaces", async (_, ct) =>
+            new WorkspacesAnswer(await CallAsync(account => directory.WorkspacesAsync(account, ct))));
         bridge.Register("arm.managementGroups", async (_, ct) =>
         {
             var groups = await CallAsync(account => directory.ManagementGroupsAsync(account, ct));
@@ -55,6 +57,8 @@ public sealed class ArmHandler(ArmDirectory directory, Func<Task<string?>> activ
     private sealed record GroupsAnswer(
         IReadOnlyList<ArmManagementGroup> Groups,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Note);
+
+    private sealed record WorkspacesAnswer(IReadOnlyList<ArmWorkspace> Workspaces);
 
     private sealed record TypesAnswer(IReadOnlyList<string> Types);
 }

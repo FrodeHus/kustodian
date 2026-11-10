@@ -435,6 +435,21 @@ export interface ArmResourceTypesAnswer {
   types: string[];
 }
 
+/** A Log Analytics workspace the account can see, as `arm.workspaces` lists it: `customerId` is the workspace GUID a query names. */
+export interface ArmWorkspace {
+  customerId: string;
+  name: string;
+  resourceId: string;
+  resourceGroup: string;
+  subscriptionId: string;
+  location: string;
+}
+
+/** `arm.workspaces`' answer, cached by the host for 10 minutes. */
+export interface ArmWorkspacesAnswer {
+  workspaces: ArmWorkspace[];
+}
+
 /** The themes made from a popular editor theme's palette (`shell/palettes.ts`). */
 export type PaletteTheme =
   | 'aurora'
