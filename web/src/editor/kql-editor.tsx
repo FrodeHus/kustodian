@@ -231,6 +231,11 @@ export interface KqlEditorHandle {
   focus(): void;
   /** Puts text where the cursor is, replacing the selection; false when the editor isn't ready and nothing was inserted. */
   insert(text: string): boolean;
+  /**
+   * Replaces the active model's text from `start` to `end` (lines and columns from 1) with `text`, as one undo step; false
+   * when the editor isn't ready and nothing changed.
+   */
+  replaceRange(start: { line: number; column: number }, end: { line: number; column: number }, text: string): boolean;
 }
 
 /** Text edited outside the tab store (the widget editor's query): one model, its own source, each change to `onChange`. */
@@ -460,6 +465,18 @@ export default function KqlEditor({ schemas, onRun, ref, draft }: KqlEditorProps
         }
         editor.executeEdits('schema-panel', [{ range: selection, text, forceMoveMarkers: true }]);
         editor.focus();
+        return true;
+      },
+      replaceRange(start, end, text) {
+        const editor = editorRef.current;
+        if (!editor?.getModel()) {
+          return false;
+        }
+        const range = { startLineNumber: start.line, startColumn: start.column, endLineNumber: end.line, endColumn: end.column };
+        // The stops make it an undo step of its own, not merged with typing just before or after.
+        editor.pushUndoStop();
+        editor.executeEdits('smart-filter', [{ range, text }]);
+        editor.pushUndoStop();
         return true;
       },
     }),

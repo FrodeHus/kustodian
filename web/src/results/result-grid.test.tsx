@@ -351,4 +351,54 @@ describe('ResultGrid', () => {
     fireEvent.change(screen.getByRole('searchbox', { name: 'Filter rows' }), { target: { value: 'Contoso' } });
     expect(onShownChange).toHaveBeenLastCalledWith([2, 0]);
   });
+
+  it('right-clicking a cell offers Filter by and Exclude; Esc closes the menu and focus goes back to the grid', () => {
+    const cols = [
+      { name: 'state', type: 'string' },
+      { name: 'created', type: 'datetime' },
+    ];
+    const rows = [['Enabled', '2026-11-10T08:00:00Z']];
+    const onFilter = vi.fn();
+    render(<ResultGrid columns={cols} rows={rows} onFilter={onFilter} />);
+
+    fireEvent.contextMenu(screen.getByText('Enabled'), { clientX: 40, clientY: 50 });
+    const menu = screen.getByRole('menu');
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((b) => b.textContent),
+    ).toEqual(['Filter by "Enabled"', 'Exclude "Enabled"']);
+    expect(document.activeElement).toBe(within(menu).getByRole('menuitem', { name: 'Filter by "Enabled"' }));
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' });
+    expect(document.activeElement?.textContent).toBe('Exclude "Enabled"');
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('region', { name: 'Result rows' }));
+    expect(onFilter).not.toHaveBeenCalled();
+
+    fireEvent.contextMenu(screen.getByText('Enabled'));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Filter by "Enabled"' }));
+    expect(onFilter).toHaveBeenCalledWith(cols[0], 'Enabled', 'eq');
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    // A datetime cell has four items.
+    fireEvent.contextMenu(screen.getByText('2026-11-10T08:00:00Z'));
+    expect(
+      within(screen.getByRole('menu'))
+        .getAllByRole('menuitem')
+        .map((b) => b.textContent),
+    ).toEqual([
+      'Filter by 2026-11-10T08:00:00Z',
+      'Exclude 2026-11-10T08:00:00Z',
+      'On or after 2026-11-10T08:00:00Z',
+      'Before 2026-11-10T08:00:00Z',
+    ]);
+  });
+
+  it('without onFilter, right-clicking a cell shows no menu', () => {
+    render(<ResultGrid columns={[{ name: 'state', type: 'string' }]} rows={[['Enabled']]} />);
+    const event = fireEvent.contextMenu(screen.getByText('Enabled'));
+    expect(event).toBe(true);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
 });

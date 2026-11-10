@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { useImperativeHandle, type Ref } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './app';
+import type { KqlEditorHandle } from './editor/kql-editor';
 import { BridgeError } from './bridge';
 import schema from './fixtures/graph-schema.json';
 import { useSchemas } from './schema/schema-store';
@@ -51,9 +53,28 @@ const emit = (event: string, data: unknown) => act(() => bridge.handlers.get(eve
 vi.mock('./editor/kql-editor', async () => {
   const { useTabs: tabs } = await import('./tabs/tab-store');
   return {
-    default: function FakeEditor() {
+    default: function FakeEditor({ ref }: { ref?: Ref<KqlEditorHandle> }) {
       const id = tabs((s) => s.activeId);
       const text = tabs((s) => s.tabs.find((t) => t.id === id)?.text ?? '');
+      // Replaces the range in the active tab's text, as the real editor's model edit does.
+      useImperativeHandle(ref, () => ({
+        format: () => undefined,
+        focus: () => undefined,
+        insert: () => false,
+        replaceRange(start, end, kql) {
+          const { activeId, tabs: all, setText } = tabs.getState();
+          const now = all.find((t) => t.id === activeId)?.text ?? '';
+          const at = (p: { line: number; column: number }) =>
+            now
+              .split('\n')
+              .slice(0, p.line - 1)
+              .reduce((n, l) => n + l.length + 1, 0) +
+            p.column -
+            1;
+          setText(activeId ?? '', now.slice(0, at(start)) + kql + now.slice(at(end)));
+          return true;
+        },
+      }));
       return <textarea aria-label="KQL query" value={text} onChange={(e) => id && tabs.getState().setText(id, e.target.value)} />;
     },
   };
@@ -1341,5 +1362,62 @@ describe('App', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  describe('smart filter', () => {
+    const named: RunResult = { ...rows, rows: [['x']] };
+    const ranText = async (text: string) => {
+      host({ accounts: [kari], cache: 'persistent' }, named);
+      render(<App />);
+      fireEvent.change(await screen.findByRole('textbox', { name: 'KQL query' }), { target: { value: text } });
+      fireEvent.click(screen.getByRole('button', { name: 'Run all Shift Enter' }));
+      await waitFor(() => expect(screen.getByRole('tab', { name: 'Rows · 1' })).toBeTruthy());
+    };
+    const filterBy = () => {
+      fireEvent.contextMenu(within(screen.getByRole('table')).getByText('x'));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Filter by "x"' }));
+    };
+    const editorText = () => (screen.getByRole('textbox', { name: 'KQL query' }) as HTMLTextAreaElement).value;
+
+    it('filter by puts a where line where the host says, in the editor, and runs that text', async () => {
+      answers['query.filterAt'] = () => ({ offset: 5 });
+      await ranText('users\n| take 5');
+      filterBy();
+
+      const filtered = 'users\n| where displayName == "x"\n| take 5';
+      await waitFor(() => expect(editorText()).toBe(filtered));
+      expect(bridge.call).toHaveBeenCalledWith('query.filterAt', {
+        source: 'graph',
+        kql: 'users\n| take 5',
+        column: 'displayName',
+        parameters: [],
+      });
+      await waitFor(() =>
+        expect(bridge.call).toHaveBeenCalledWith(
+          'query.run',
+          expect.objectContaining({ kql: filtered, source: 'graph' }),
+          expect.any(AbortSignal),
+        ),
+      );
+    });
+
+    it('a null offset puts the line at the end of the query', async () => {
+      answers['query.filterAt'] = () => ({ offset: null });
+      await ranText('users\n| take 5\n\n');
+      filterBy();
+
+      await waitFor(() => expect(editorText()).toBe('users\n| take 5\n| where displayName == "x"\n\n'));
+    });
+
+    it('with no query to add to, a notice says so and nothing runs', async () => {
+      await ranText('users\n| take 5');
+      fireEvent.change(screen.getByRole('textbox', { name: 'KQL query' }), { target: { value: '  ' } });
+      bridge.call.mockClear();
+      filterBy();
+
+      expect((await screen.findByRole('alert')).textContent).toMatch(/Couldn’t find the query to add the filter to\./);
+      expect(bridge.call).not.toHaveBeenCalledWith('query.filterAt', expect.anything());
+      expect(bridge.call).not.toHaveBeenCalledWith('query.run', expect.anything(), expect.anything());
+    });
   });
 });
