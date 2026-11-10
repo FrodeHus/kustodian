@@ -7,6 +7,16 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Hunting in a workspace**: a Workspace picker beside the hunting timespan sends the query to a Log Analytics workspace. The
+  default, **Primary workspace**, sends none. The workspace is saved with the query, in history and in workbook widgets, and
+  with one the timespan goes up to 730 days (a 90-day preset is added; without one it stays at 30). Workspaces are listed
+  through Azure Resource Graph, and querying one needs Microsoft Sentinel Reader on it. If Defender can't reach it, it answers
+  from your primary workspace; Kustodian says so on every workspace run and warns when the result's `TenantId` shows rows from
+  another workspace. A saved workspace this account can't see blocks the run. The schema panel doesn't list a workspace's
+  Sentinel tables yet; queries on them still run. See [docs/EntraPermissions.md](docs/EntraPermissions.md#hunting-in-a-workspace).
+- **Workspaces in workbooks**: a widget can have a workspace, and the workbook's timespan parameter keeps each widget's.
+  Importing a shared workbook file lists the workspaces it queries, named from your own workspace list by ID. Community
+  solutions never install a workspace; pick one after installing.
 - **Aurora theme**: Kustodian's own dark theme, from the logo and banner: navy ink with cyan, blue, violet and mint, a soft
   glow behind the workspace, and cards and workbook widgets tinted blue to violet. Pick it in Settings.
 - **Defender for Cloud solution**: secure score, recommendations, compliance, Defender for Servers Plan 2 coverage, attack
