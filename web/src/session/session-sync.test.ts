@@ -363,11 +363,14 @@ describe('session sync', () => {
     expect(useTabs.getState().tabs[0]?.highlights).toEqual([rule]);
     expect(useTabs.getState().tabs[1]?.highlights).toBeUndefined();
 
-    useTabs.getState().setHighlights('b', []);
+    useTabs.getState().setHighlights('b', [rule]);
     await vi.advanceTimersByTimeAsync(1000);
-    const written = saves().at(-1)?.tabs;
-    expect(written?.[0]?.highlights).toEqual([rule]);
-    expect(written?.[1]).not.toHaveProperty('highlights');
+    expect(saves().at(-1)?.tabs[1]?.highlights).toEqual([rule]);
+
+    // Clearing the rules leaves the field out, never [].
+    useTabs.getState().setHighlights('a', []);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(saves().at(-1)?.tabs[0]).not.toHaveProperty('highlights');
   });
 
   it('a_workbook_tab_survives_a_restart_with_its_document_and_unsaved_changes', async () => {
