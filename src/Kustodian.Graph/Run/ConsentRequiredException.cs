@@ -8,24 +8,28 @@ public sealed class ConsentRequiredException : Exception
 {
     public const string ArmMessage = "Kustodian needs your permission to read Azure resources for this account.";
 
+    public const string LogsMessage = "Kustodian needs your permission to read Log Analytics for this account.";
+
     public ConsentRequiredException()
         : this("arm")
     {
     }
 
     public ConsentRequiredException(string audience)
-        : base(ArmMessage)
+        : base(MessageFor(audience))
     {
         Audience = audience;
     }
 
     public ConsentRequiredException(string audience, Exception inner)
-        : base(ArmMessage, inner)
+        : base(MessageFor(audience), inner)
     {
         Audience = audience;
     }
 
-    /// <summary>The audience whose token needs the user, as the bridge names it (<c>arm</c>).</summary>
+    private static string MessageFor(string audience) => audience == "logs" ? LogsMessage : ArmMessage;
+
+    /// <summary>The audience whose token needs the user, as the bridge names it (<c>arm</c> or <c>logs</c>).</summary>
     public string Audience { get; }
 
     /// <summary>The <see cref="ConsentRequiredException"/> that <paramref name="ex"/> is or wraps (inner exceptions, aggregates),

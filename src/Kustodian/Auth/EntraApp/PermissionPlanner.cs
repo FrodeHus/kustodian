@@ -89,7 +89,11 @@ public static class PermissionPlanner
         [
             new("graph", "Graph", graphSubgroups),
             new("security", "Security", securitySubgroups),
-            new("azure", "Azure Resources", [new PlannedSubgroup(SourcePermissions.ResourceGraph.SubgroupTitle, [FromSource(SourcePermissions.ResourceGraph)])]),
+            new("azure", "Azure Resources", 
+            [
+                new PlannedSubgroup(SourcePermissions.ResourceGraph.SubgroupTitle, [FromSource(SourcePermissions.ResourceGraph)]),
+                new PlannedSubgroup(SourcePermissions.LogAnalytics.SubgroupTitle, [FromSource(SourcePermissions.LogAnalytics)]),
+            ]),
         ];
         return new PermissionPlan(groups, covered.Count, withoutData, writable.Count);
     }

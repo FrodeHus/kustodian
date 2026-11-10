@@ -20,6 +20,9 @@ public static class SourcePermissions
     /// <summary>Azure Service Management's application ID.</summary>
     public const string ArmAppId = "797f4846-ba00-4fd7-ba43-dac1f8f63013";
 
+    /// <summary>Log Analytics' application ID.</summary>
+    public const string LogAnalyticsAppId = "ca7f3f0b-7d91-482c-8e09-c5d840d0eac5";
+
     /// <summary>Advanced hunting needs Graph <c>ThreatHunting.Read.All</c>, which requires admin consent.</summary>
     public static SourcePermission Hunting { get; } = new(
         GraphAppId, "Microsoft Graph", "ThreatHunting.Read.All", true, "Defender advanced hunting tabs", "security", "Advanced hunting");
@@ -28,4 +31,8 @@ public static class SourcePermissions
     public static SourcePermission ResourceGraph { get; } = new(
         ArmAppId, "Azure Service Management", "user_impersonation", false,
         "Azure Resource Graph tabs, subscriptions and management groups", "azure", "Resource Graph");
+
+    /// <summary>Log Analytics queries need the delegated <c>Data.Read</c> scope, which does not need admin consent.</summary>
+    public static SourcePermission LogAnalytics { get; } = new(
+        LogAnalyticsAppId, "Log Analytics API", "Data.Read", false, "Log Analytics workspace tabs", "azure", "Log Analytics");
 }

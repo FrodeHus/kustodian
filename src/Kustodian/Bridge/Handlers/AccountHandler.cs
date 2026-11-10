@@ -49,9 +49,10 @@ public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cac
             var audience = request.Audience switch
             {
                 "arm" => Audience.Arm,
+                "logs" => Audience.LogAnalytics,
                 "graph" => Audience.Graph,
                 _ => throw new BridgeException(
-                    BridgeErrorCodes.BadRequest, "Consent is only asked for Azure or Graph (audience arm or graph)."),
+                    BridgeErrorCodes.BadRequest, "Consent is only asked for Azure, Graph or Log Analytics (audience arm, graph or logs)."),
             };
             var scope = audience == Audience.Graph ? await RequireGraphConsentAsync(key, request.Scope) : null;
             trail?.Add($"account.consent({request.Audience})");
@@ -83,8 +84,9 @@ public sealed class AccountHandler(AccountService accounts, TokenCacheStatus cac
             var audience = request.Audience switch
             {
                 "arm" => Audience.Arm,
+                "logs" => Audience.LogAnalytics,
                 "graph" => Audience.Graph,
-                _ => throw new BridgeException(BridgeErrorCodes.BadRequest, "A token is refreshed for Azure or Graph (audience arm or graph)."),
+                _ => throw new BridgeException(BridgeErrorCodes.BadRequest, "A token is refreshed for Azure, Graph or Log Analytics (audience arm, graph or logs)."),
             };
 
             try
