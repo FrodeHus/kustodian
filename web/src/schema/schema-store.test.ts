@@ -223,4 +223,86 @@ describe('useSchemas', () => {
     act(() => useSchemas.getState().reset());
     expect(useSchemas.getState().licenses).toBeNull();
   });
+
+  describe('Log Analytics', () => {
+    const ws = (customerId: string) => ({
+      customerId,
+      name: `ws-${customerId}`,
+      resourceId: '/x',
+      resourceGroup: 'rg',
+      subscriptionId: 's',
+      location: 'l',
+    });
+    const logsView = (table: string): SchemaView => ({
+      ...view('logs'),
+      tables: [{ name: table, path: null, area: null, description: '', docsUrl: null, permissions: [], columns: [] }],
+    });
+    const logsCalls = () =>
+      bridge.call.mock.calls
+        .filter(([m]) => m === 'schema.get')
+        .map(([, p]) => p as { source: string; workspace?: string; refresh?: boolean });
+
+    it('changing_a_logs_tabs_workspace_loads_that_workspaces_schema', async () => {
+      const id = useTabs.getState().open('logs');
+      stop = startSchemaLoading();
+      await settle();
+      // No workspace: nothing is asked.
+      expect(logsCalls()).toEqual([]);
+
+      act(() => useTabs.getState().setOptions(id, { timespan: 'P1D', scope: null, workspaces: [ws('aaa')] }));
+      await settle();
+      act(() => useTabs.getState().setOptions(id, { timespan: 'P1D', scope: null, workspaces: [ws('bbb')] }));
+      await settle();
+
+      expect(logsCalls()).toEqual([
+        { source: 'logs', workspace: 'aaa', refresh: false },
+        { source: 'logs', workspace: 'bbb', refresh: false },
+      ]);
+      expect(Object.keys(useSchemas.getState().logsByWorkspace).sort()).toEqual(['aaa', 'bbb']);
+    });
+
+    it('an_answer_for_a_workspace_the_tab_has_left_doesnt_replace_the_current_one', async () => {
+      const pending = new Map<string, (v: SchemaView) => void>();
+      bridge.call.mockImplementation((method: string, params?: { workspace?: string }) =>
+        method === 'schema.get' ? new Promise<SchemaView>((resolve) => pending.set(params?.workspace ?? '', resolve)) : Promise.resolve({}),
+      );
+      const id = useTabs.getState().open('logs');
+      stop = startSchemaLoading();
+      act(() => useTabs.getState().setOptions(id, { timespan: 'P1D', scope: null, workspaces: [ws('aaa')] }));
+      await settle();
+      act(() => useTabs.getState().setOptions(id, { timespan: 'P1D', scope: null, workspaces: [ws('bbb')] }));
+      await settle();
+
+      // B answers, then the read of A (started first) answers late.
+      pending.get('bbb')!(logsView('TableB'));
+      await settle();
+      pending.get('aaa')!(logsView('TableA'));
+      await settle();
+
+      const { logsByWorkspace } = useSchemas.getState();
+      expect(logsByWorkspace.bbb?.tables.map((t) => t.name)).toEqual(['TableB']);
+      expect(logsByWorkspace.aaa?.tables.map((t) => t.name)).toEqual(['TableA']);
+    });
+
+    it('the_latest_read_of_a_workspace_wins', async () => {
+      const pending: ((v: SchemaView) => void)[] = [];
+      bridge.call.mockImplementation((method: string) =>
+        method === 'schema.get' ? new Promise<SchemaView>((resolve) => pending.push(resolve)) : Promise.resolve({}),
+      );
+      const first = useSchemas.getState().loadLogs('aaa');
+      const refresh = useSchemas.getState().loadLogs('aaa', { refresh: true });
+      pending[1]!(logsView('New'));
+      await refresh;
+      pending[0]!(logsView('Old'));
+      await first;
+      expect(useSchemas.getState().logsByWorkspace.aaa?.tables[0]?.name).toBe('New');
+    });
+
+    it('reset_on_account_change_clears_logsByWorkspace', async () => {
+      await useSchemas.getState().loadLogs('aaa');
+      expect(useSchemas.getState().logsByWorkspace.aaa).toBeDefined();
+      act(() => useSchemas.getState().reset());
+      expect(useSchemas.getState().logsByWorkspace).toEqual({});
+    });
+  });
 });

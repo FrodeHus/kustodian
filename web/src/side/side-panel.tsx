@@ -41,15 +41,17 @@ interface SidePanelProps {
   accountKey?: string;
   /** Opens sign-in, when the schema panel's resource types need the account to sign in again. */
   onSignIn?: () => void;
-  /** The active hunting tab's workspace name, for the schema panel's note. */
+  /** The active hunting or logs tab's workspace name: a hunting tab's note, a logs tab's heading in the panel. */
   workspace?: string;
+  /** The active logs tab's workspace, whose tables the schema panel lists. */
+  workspaceId?: string;
 }
 
 /** The side panel the rail chose, for the active tab's source. */
-export function SidePanel({ panel, source: tabSource, text, onInsert, accountKey, onSignIn, workspace }: SidePanelProps) {
+export function SidePanel({ panel, source: tabSource, text, onInsert, accountKey, onSignIn, workspace, workspaceId }: SidePanelProps) {
   const source = schemaSourceOf(tabSource);
-  const schema = useSchemas((s) => s.byKey[source]);
-  const error = useSchemas((s) => s.errors[source]);
+  const schema = useSchemas((s) => (source === 'logs' ? (workspaceId ? s.logsByWorkspace[workspaceId] : undefined) : s.byKey[source]));
+  const error = useSchemas((s) => (source === 'logs' ? (workspaceId ? s.logsErrors[workspaceId] : undefined) : s.errors[source]));
   const errorReportId = useSchemas((s) => s.errorReportIds[source]);
   const resourceTypes = useSchemas((s) => s.resourceTypes);
   const resourceTypesError = useSchemas((s) => s.resourceTypesError);

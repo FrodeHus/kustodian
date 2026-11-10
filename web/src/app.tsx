@@ -1,4 +1,4 @@
-import { Component, Suspense, lazy, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Component, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { call } from './bridge';
 import { blockAt } from './editor/block-at';
 import type { KqlEditorHandle } from './editor/kql-editor';
@@ -96,6 +96,7 @@ function schemaFooter(
   view: SchemaView | undefined,
   resourceTypes: string[] | undefined,
   downloaded: boolean,
+  workspaceName?: string,
 ): string | null {
   if (source === 'arg') {
     return resourceTypes
@@ -113,6 +114,9 @@ function schemaFooter(
     // A refresh that failed keeps the tenant's schema read before, and says why it wasn't renewed.
     const refresh = view.fallbackReason?.replace(/\s*The schema read earlier is shown\.?$/, '').replace(/\.$/, '');
     return refresh ? `${tenant} · ${refresh}` : tenant;
+  }
+  if (source === 'logs') {
+    return workspaceName ? `Tables from ${workspaceName} · ${formatDate(view.generatedAt)}` : null;
   }
   // The full source (metadata commit, permissions URL) is the span's tooltip; it's too long for the status bar.
   return `${downloaded ? 'Downloaded' : 'Built-in'} Graph schema · ${formatDate(view.generatedAt)}`;
@@ -417,7 +421,14 @@ export function App() {
         id: 'schema.refresh',
         title: 'Refresh schema',
         group: 'View',
-        run: withTab((tab) => void useSchemas.getState().load(schemaSourceOf(tab.source), { refresh: true })),
+        run: withTab((tab) => {
+          const customerId = tab.options?.workspaces?.[0]?.customerId;
+          if (tab.source !== 'logs') {
+            void useSchemas.getState().load(schemaSourceOf(tab.source), { refresh: true });
+          } else if (customerId) {
+            void useSchemas.getState().loadLogs(customerId, { refresh: true });
+          }
+        }),
         enabled: () => activeTab() !== undefined,
       },
       {
@@ -580,7 +591,11 @@ export function App() {
     createAppAllowed.current = canCreateApp(account);
   }, [account]);
   const graphSchema = useSchemas((s) => s.byKey.graph);
-  const schemas = useSchemas((s) => s.byKey);
+  const byKey = useSchemas((s) => s.byKey);
+  // A logs tab completes against its workspace's tables, so its entry is that workspace's view (none until it is read).
+  const activeWorkspace = active?.source === 'logs' ? active.options?.workspaces?.[0]?.customerId : undefined;
+  const logsView = useSchemas((s) => (activeWorkspace ? s.logsByWorkspace[activeWorkspace] : undefined));
+  const schemas = useMemo(() => ({ ...byKey, logs: logsView }), [byKey, logsView]);
   const resourceTypes = useSchemas((s) => s.resourceTypes);
 
   // Another account sees another hunting schema and other resource types: every schema is read again.
@@ -702,7 +717,13 @@ export function App() {
     }
   };
   const footerSource = schemaSourceOf(active?.source ?? 'graph');
-  const footer = schemaFooter(footerSource, schemas[footerSource], resourceTypes, graphSchemaStatus?.downloaded === true);
+  const footer = schemaFooter(
+    footerSource,
+    schemas[footerSource],
+    resourceTypes,
+    graphSchemaStatus?.downloaded === true,
+    active?.options?.workspaces?.[0]?.name,
+  );
 
   return (
     <div className="flex h-full flex-col">
@@ -812,7 +833,8 @@ export function App() {
                   source={active?.source ?? 'graph'}
                   text={active?.text ?? ''}
                   onInsert={insert}
-                  workspace={active?.source === 'hunting' ? active.options?.workspaces?.[0]?.name : undefined}
+                  workspace={active?.source === 'hunting' || active?.source === 'logs' ? active.options?.workspaces?.[0]?.name : undefined}
+                  workspaceId={active?.source === 'logs' ? active.options?.workspaces?.[0]?.customerId : undefined}
                   accountKey={accountKey}
                   onSignIn={() => setAccountsOpen(true)}
                 />

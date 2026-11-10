@@ -320,6 +320,10 @@ export function SchemaPanel(props: SchemaPanelProps) {
         disabled={!schema}
       />
       <div className="min-h-0 flex-1 overflow-y-auto pb-3">
+        {source === 'logs' && !workspace && <p className="faint m-0 px-[14px] text-[12px]">Pick a workspace to see its tables.</p>}
+        {source === 'logs' && schema && schema.tables.length === 0 && schema.fallbackReason && (
+          <p className="faint m-0 px-[14px] text-[12px]">{schema.fallbackReason}</p>
+        )}
         {error && !schema && (
           <p role="alert" className="m-0 px-[14px] pb-2 text-[12px] text-bad">
             The schema couldn’t be loaded: {error}

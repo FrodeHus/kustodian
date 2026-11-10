@@ -350,6 +350,22 @@ const argSchema = {
   complexTypes: {},
 };
 
+const LOGS_COLUMNS: [string, string][] = [
+  ['TimeGenerated', 'datetime'],
+  ['Computer', 'string'],
+  ['Message', 'string'],
+];
+/** `schema.get {source: "logs", workspace}`: a small canned schema for each mock workspace, as `SchemaView.FromLogs` writes it. */
+const logsSchema = (names: string[]) => ({
+  source: 'logs',
+  origin: 'tenant',
+  fallbackReason: null,
+  generatedAt: '2026-10-21T06:12:00Z',
+  tables: names.map((name) => table(name, '', LOGS_COLUMNS)),
+  functions: [],
+  complexTypes: {},
+});
+
 /** `query.run`'s answer for advanced hunting and Resource Graph: no Graph tables, one request in the log (per page). */
 function serverRunResult(source: 'hunting' | 'arg' | 'logs') {
   const detail =
@@ -479,6 +495,7 @@ interface MockRequest {
   method?: string;
   params?: {
     tabId?: string;
+    workspace?: string;
     runId?: string;
     reportId?: string;
     adminScopes?: string[];
@@ -1058,6 +1075,14 @@ export function createMockTransport(): Transport {
             break;
           case 'arg':
             reply(id, argSchema);
+            break;
+          case 'logs':
+            // As `SchemaHandler`: a workspace is needed, and it must be a GUID.
+            if (!params?.workspace) {
+              fail(id, 'bad_request', 'Pick a workspace to see its tables.');
+            } else {
+              reply(id, logsSchema(params.workspace.startsWith('5b0e') ? ['AppRequests', 'AppTraces'] : ['Heartbeat', 'SecurityEvent']));
+            }
             break;
           default:
             fail(id, 'bad_request', `Unknown source ${params?.source ?? ''}.`);

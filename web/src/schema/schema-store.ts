@@ -14,6 +14,14 @@ export const schemaSourceOf = (source: TabSource): SchemaSource => (source === '
 interface SchemasState {
   /** Each source's schema, once read. */
   byKey: Record<Source, SchemaView | undefined>;
+  /** Each Log Analytics workspace's schema by customer ID, once read: a `logs` tab completes against its workspace's. */
+  logsByWorkspace: Record<string, SchemaView>;
+  /** Why a workspace's schema couldn't be read, by customer ID. */
+  logsErrors: Record<string, string>;
+  /** The workspaces being read now, by customer ID. */
+  logsLoading: Record<string, boolean>;
+  /** Reads a workspace's schema (`schema.get`); only the latest read of that workspace is kept. */
+  loadLogs(customerId: string, opts?: { refresh?: boolean }): Promise<void>;
   /** Why a source's schema couldn't be read; it isn't read again until "Refresh schema" or another account. */
   errors: Partial<Record<SchemaSource, string>>;
   /** The report ID the host gave each of those errors, if it did. */
@@ -52,6 +60,9 @@ export type ResourceTypesFix = 'consent' | 'signIn' | null;
 const empty = (): Pick<
   SchemasState,
   | 'byKey'
+  | 'logsByWorkspace'
+  | 'logsErrors'
+  | 'logsLoading'
   | 'errors'
   | 'errorReportIds'
   | 'loading'
@@ -63,6 +74,9 @@ const empty = (): Pick<
   | 'licenses'
 > => ({
   byKey: { graph: undefined, hunting: undefined, arg: undefined, logs: undefined, raw: undefined },
+  logsByWorkspace: {},
+  logsErrors: {},
+  logsLoading: {},
   errors: {},
   errorReportIds: {},
   loading: {},
@@ -94,6 +108,9 @@ const requests: Record<SchemaSource | 'types' | 'defaults' | 'licenses', number>
   defaults: 0,
   licenses: 0,
 };
+
+/** Counts each workspace's reads, so an answer for a workspace the tab has since left lands under its own ID only. */
+const logsRequests = new Map<string, number>();
 
 /**
  * One schema per source (spec 8), read lazily: a source is read when its first tab opens ({@link startSchemaLoading}), and read
@@ -138,7 +155,38 @@ export const useSchemas = create<SchemasState>()((set) => ({
     }
   },
 
+  async loadLogs(customerId, opts) {
+    const refresh = opts?.refresh ?? false;
+    const at = generation;
+    const request = (logsRequests.get(customerId) ?? 0) + 1;
+    logsRequests.set(customerId, request);
+    const latest = () => at === generation && request === logsRequests.get(customerId);
+    set((s) => ({ logsLoading: { ...s.logsLoading, [customerId]: true } }));
+    try {
+      const view = await call<SchemaView>('schema.get', { source: 'logs', workspace: customerId, refresh });
+      if (latest()) {
+        set((s) => {
+          const logsErrors = { ...s.logsErrors };
+          delete logsErrors[customerId];
+          return { logsByWorkspace: { ...s.logsByWorkspace, [customerId]: view }, logsErrors };
+        });
+      }
+    } catch (e) {
+      if (latest()) {
+        set((s) => ({ logsErrors: { ...s.logsErrors, [customerId]: errorText(e) } }));
+      }
+    } finally {
+      if (latest()) {
+        set((s) => ({ logsLoading: { ...s.logsLoading, [customerId]: false } }));
+      }
+    }
+  },
+
   async load(source, opts) {
+    // A Log Analytics schema belongs to a workspace: loadLogs reads it.
+    if (source === 'logs') {
+      return;
+    }
     const refresh = opts?.refresh ?? false;
     const at = generation;
     const request = ++requests[source];
@@ -195,11 +243,16 @@ async function readTypes() {
 
 /** Reads the schema of every source an open tab has that isn't read, being read, or failed. */
 function loadMissing() {
-  const { byKey, errors, loading, load } = useSchemas.getState();
-  const needed = new Set(useTabs.getState().tabs.map((t) => schemaSourceOf(t.source)));
-  for (const source of needed) {
+  const { byKey, errors, loading, load, logsByWorkspace, logsErrors, logsLoading, loadLogs } = useSchemas.getState();
+  const tabs = useTabs.getState().tabs;
+  for (const source of new Set(tabs.map((t) => schemaSourceOf(t.source)))) {
     if (!byKey[source] && !errors[source] && !loading[source]) {
       void load(source);
+    }
+  }
+  for (const id of new Set(tabs.flatMap((t) => (t.source === 'logs' ? [t.options?.workspaces?.[0]?.customerId] : [])))) {
+    if (id && !logsByWorkspace[id] && !logsErrors[id] && !logsLoading[id]) {
+      void loadLogs(id);
     }
   }
 }
