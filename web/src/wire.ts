@@ -585,6 +585,21 @@ export interface ExplainResult {
   limits: ExplainLimits;
 }
 
+/** `query.filterAt`'s params: the query as written, the result column a smart filter is on, and the tab's parameters (the
+ * host places the line in the text with them substituted). Another source is `bad_request`. */
+export interface FilterAtParams {
+  source: Exclude<Source, 'raw'>;
+  kql: string;
+  column: string;
+  parameters?: ParameterValue[];
+}
+
+/** `query.filterAt`'s answer: the 0-based offset in `kql` after which the `| where` line goes, or null when `kql` isn't a
+ * query. */
+export interface FilterAtAnswer {
+  offset: number | null;
+}
+
 /** `raw.send`'s and `raw.next`'s answer. `truncated`: the body was cut off at the host's limit. `accountKey`: the account it
  * was sent for; `raw.next {nextLink, accountKey}` takes it back, so a next page goes out for the first page's account. */
 export interface RawResponse {

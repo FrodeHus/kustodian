@@ -1103,6 +1103,10 @@ export function createMockTransport(): Transport {
         }
         reply(id, explainView);
         break;
+      case 'query.filterAt':
+        // The mock places every filter at the end of the text.
+        reply(id, { offset: (params?.kql ?? '').length });
+        break;
       case 'query.run': {
         // As `QueryOptions.Problem`: options that aren't valid are a bad_request, and nothing runs (ruling 1).
         const problem = optionsProblem(params?.options);
