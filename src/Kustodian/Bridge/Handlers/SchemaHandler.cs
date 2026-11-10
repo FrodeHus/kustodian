@@ -1,4 +1,5 @@
 using Kustodian.Graph.Fetch;
+using Kustodian.Graph.Run;
 using Kustodian.Graph.Schema;
 using Kustodian.Sources;
 using Kustodian.Sources.Arg;
@@ -19,7 +20,8 @@ namespace Kustodian.Messaging.Handlers;
 /// <c>refresh</c>): <c>available</c>, <c>missing</c>, or <c>unknown</c> when the licenses couldn't be read or nobody is signed
 /// in.</summary>
 public sealed class SchemaHandler(GraphSchema schema, HuntingSchemaSource hunting, Func<Task<string?>> activeAccount,
-    IGraphProbeCache? probes = null, ITenantLicenses? licenses = null, GraphLicenses? licenseMap = null, LogsSchemaSource? logs = null)
+    IGraphProbeCache? probes = null, ITenantLicenses? licenses = null, GraphLicenses? licenseMap = null, LogsSchemaSource? logs = null,
+    ArmDirectory? directory = null)
 {
     public const string SignInForTenantSchema = "Sign in to see your tenant's schema. The built-in schema is shown.";
     public const string PickWorkspace = "Pick a workspace to see its tables.";
@@ -67,11 +69,22 @@ public sealed class SchemaHandler(GraphSchema schema, HuntingSchemaSource huntin
         // Only a GUID goes on to a request.
         if (!Guid.TryParseExact(workspace, "D", out _))
             throw new BridgeException(BridgeErrorCodes.BadRequest, $"{workspace} is not a workspace id.");
-        if (logs is null)
+        if (logs is null || directory is null)
             throw new BridgeException(BridgeErrorCodes.BadRequest, "Log Analytics isn't available.");
-        return SchemaView.From(await activeAccount() is { } account
-            ? await logs.GetAsync(account, workspace, refresh, ct)
-            : logs.Empty(SignInForWorkspaceSchema), "logs");
+        if (await activeAccount() is not { } account)
+            return SchemaView.From(logs.Empty(SignInForWorkspaceSchema), "logs");
+        try
+        {
+            // Only a workspace in this account's list is read, as with a run.
+            var (match, blocked) = await WorkspaceCheck.RunAsync(directory, account, new QueryWorkspace(workspace, "", ""), ct);
+            return SchemaView.From(match is null
+                ? logs.Empty(blocked!)
+                : await logs.GetAsync(account, workspace, refresh, ct), "logs");
+        }
+        catch (Exception ex) when (ConsentRequiredException.FindIn(ex) is { } consent)
+        {
+            throw new BridgeException(BridgeErrorCodes.ConsentNeeded, consent.Message);
+        }
     }
 
     private async Task<SchemaLicenses> LicensesAsync(bool refresh, CancellationToken ct)

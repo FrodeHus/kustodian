@@ -284,6 +284,31 @@ describe('useSchemas', () => {
       expect(logsByWorkspace.aaa?.tables.map((t) => t.name)).toEqual(['TableA']);
     });
 
+    it('granting_logs_consent_reads_the_workspace_again', async () => {
+      const id = useTabs.getState().open('logs');
+      let granted = false;
+      bridge.call.mockImplementation((method: string) =>
+        method === 'schema.get'
+          ? granted
+            ? Promise.resolve(logsView('T'))
+            : Promise.reject(new BridgeError('consentNeeded', 'Needs consent.'))
+          : Promise.resolve({}),
+      );
+      useTabs.getState().setOptions(id, { timespan: 'P1D', scope: null, workspaces: [ws('aaa')] });
+      stop = startSchemaLoading();
+      await settle();
+      expect(useSchemas.getState().logsErrors.aaa).toBe('Needs consent.');
+      expect(useSchemas.getState().logsConsent.aaa).toBe(true);
+
+      granted = true;
+      act(() => useSchemas.getState().reloadLogs());
+      await settle();
+
+      expect(useSchemas.getState().logsByWorkspace.aaa?.tables[0]?.name).toBe('T');
+      expect(useSchemas.getState().logsErrors).toEqual({});
+      expect(useSchemas.getState().logsConsent).toEqual({});
+    });
+
     it('the_latest_read_of_a_workspace_wins', async () => {
       const pending: ((v: SchemaView) => void)[] = [];
       bridge.call.mockImplementation((method: string) =>

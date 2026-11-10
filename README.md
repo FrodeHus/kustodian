@@ -7,7 +7,8 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A desktop KQL workbench for your Microsoft tenant. Write one query language against **Microsoft Graph**, **Defender advanced
-hunting**, **Azure Resource Graph** and **Log Analytics**, with completion, parameters and results side by side. Runs on Windows, macOS and Linux.
+hunting**, **Azure Resource Graph** and **Log Analytics**, with completion, parameters and results side by side. Runs on
+Windows, macOS and Linux.
 
 ![Kustodian querying Microsoft Graph with KQL](docs/images/main.png)
 

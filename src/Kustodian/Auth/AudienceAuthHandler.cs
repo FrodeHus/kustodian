@@ -19,6 +19,8 @@ public abstract class AudienceAuthHandler(
     // Each account's last token, by hash, so a new one is noticed for the trail; the token itself isn't kept.
     private readonly ConcurrentDictionary<string, int> _seen = new(StringComparer.Ordinal);
 
+    private string Name => audience == Audience.Arm ? "Azure" : "Log Analytics";
+
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var uri = request.RequestUri;
@@ -26,7 +28,7 @@ public abstract class AudienceAuthHandler(
             && string.Equals(uri.Host, host, StringComparison.OrdinalIgnoreCase))
         {
             var account = GraphRequestAccount.AccountOf(request)
-                ?? throw new SignInRequiredException($"The {label} request names no account.");
+                ?? throw new SignInRequiredException($"The {Name} request names no account.");
             var token = await tokens.GetTokenAsync(account, audience, cancellationToken);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             // shortcut: a token not seen before stands for one fetched rather than cached (the first after start counts too);
@@ -38,7 +40,7 @@ public abstract class AudienceAuthHandler(
                 trail.Add($"token.acquire({label})");
             }
 
-            log.LogDebug("Attached a {Label} token to a request for {Host}", label, uri.Host);
+            log.LogDebug("Attached a {Name} token to a request for {Host}", Name, uri.Host);
         }
         else
         {

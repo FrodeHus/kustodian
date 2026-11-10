@@ -18,10 +18,14 @@ interface SchemasState {
   logsByWorkspace: Record<string, SchemaView>;
   /** Why a workspace's schema couldn't be read, by customer ID. */
   logsErrors: Record<string, string>;
+  /** The workspaces whose read needs Log Analytics consent, by customer ID. */
+  logsConsent: Record<string, boolean>;
   /** The workspaces being read now, by customer ID. */
   logsLoading: Record<string, boolean>;
   /** Reads a workspace's schema (`schema.get`); only the latest read of that workspace is kept. */
   loadLogs(customerId: string, opts?: { refresh?: boolean }): Promise<void>;
+  /** Forgets the workspace read errors and reads the open tabs' workspaces again (Log Analytics consent was granted). */
+  reloadLogs(): void;
   /** Why a source's schema couldn't be read; it isn't read again until "Refresh schema" or another account. */
   errors: Partial<Record<SchemaSource, string>>;
   /** The report ID the host gave each of those errors, if it did. */
@@ -62,6 +66,7 @@ const empty = (): Pick<
   | 'byKey'
   | 'logsByWorkspace'
   | 'logsErrors'
+  | 'logsConsent'
   | 'logsLoading'
   | 'errors'
   | 'errorReportIds'
@@ -76,6 +81,7 @@ const empty = (): Pick<
   byKey: { graph: undefined, hunting: undefined, arg: undefined, logs: undefined, raw: undefined },
   logsByWorkspace: {},
   logsErrors: {},
+  logsConsent: {},
   logsLoading: {},
   errors: {},
   errorReportIds: {},
@@ -168,18 +174,28 @@ export const useSchemas = create<SchemasState>()((set) => ({
         set((s) => {
           const logsErrors = { ...s.logsErrors };
           delete logsErrors[customerId];
-          return { logsByWorkspace: { ...s.logsByWorkspace, [customerId]: view }, logsErrors };
+          const logsConsent = { ...s.logsConsent };
+          delete logsConsent[customerId];
+          return { logsByWorkspace: { ...s.logsByWorkspace, [customerId]: view }, logsErrors, logsConsent };
         });
       }
     } catch (e) {
       if (latest()) {
-        set((s) => ({ logsErrors: { ...s.logsErrors, [customerId]: errorText(e) } }));
+        set((s) => ({
+          logsErrors: { ...s.logsErrors, [customerId]: errorText(e) },
+          logsConsent: { ...s.logsConsent, [customerId]: e instanceof BridgeError && e.code === 'consentNeeded' },
+        }));
       }
     } finally {
       if (latest()) {
         set((s) => ({ logsLoading: { ...s.logsLoading, [customerId]: false } }));
       }
     }
+  },
+
+  reloadLogs() {
+    set({ logsErrors: {}, logsConsent: {} });
+    loadMissing();
   },
 
   async load(source, opts) {

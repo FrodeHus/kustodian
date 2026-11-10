@@ -472,4 +472,31 @@ describe('SchemaPanel', () => {
     render(<SchemaPanel source="logs" workspace="contoso-logs" schema={unread} text="" onInsert={() => undefined} />);
     expect(screen.getByText("contoso-logs's tables couldn't be read.")).toBeTruthy();
   });
+
+  it('a_logs_schema_that_needs_consent_offers_the_grant_and_reads_again', async () => {
+    bridge.call.mockImplementation((method: string) => Promise.resolve(method === 'schema.get' ? { ...view, source: 'logs' } : {}));
+    const id = useTabs.getState().open('logs');
+    useTabs.getState().setOptions(id, {
+      timespan: 'P1D',
+      scope: null,
+      workspaces: [{ customerId: 'aaa', name: 'w', resourceId: '/x' }],
+    });
+    render(
+      <SchemaPanel
+        source="logs"
+        workspace="w"
+        schema={undefined}
+        error="Needs consent."
+        consentNeeded
+        accountKey="k1"
+        text=""
+        onInsert={() => undefined}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Grant Log Analytics access' }));
+
+    await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('schema.get', { source: 'logs', workspace: 'aaa', refresh: false }));
+    expect(bridge.call).toHaveBeenCalledWith('account.consent', { key: 'k1', audience: 'logs' });
+  });
 });

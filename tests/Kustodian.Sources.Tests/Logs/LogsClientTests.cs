@@ -116,6 +116,16 @@ public class LogsClientTests
     }
 
     [Fact]
+    public async Task A_200_with_a_null_error_does_not_warn()
+    {
+        var answer = await Run(new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK,
+            """{"tables":[{"name":"PrimaryResult","columns":[{"name":"a","type":"string"}],"rows":[["x"]]}],"error":null}""")));
+
+        Assert.Equal(RunOutcome.Ok, answer.Outcome);
+        Assert.Null(answer.PartialError);
+    }
+
+    [Fact]
     public async Task A_204_is_empty()
     {
         var answer = await Run(new StubGraph(_ => new HttpResponseMessage(HttpStatusCode.NoContent)));

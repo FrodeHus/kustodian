@@ -35,6 +35,8 @@ export function ConsentButton({
         setBusy(false);
         if (audience === 'arm') {
           void useSchemas.getState().reloadResourceTypes();
+        } else {
+          useSchemas.getState().reloadLogs();
         }
         onGranted?.();
       },

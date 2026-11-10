@@ -7,8 +7,9 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- **Log Analytics source**: a fourth source that runs KQL directly against one Log Analytics workspace, in tabs and in workbook
-  widgets. Pick a workspace (there is no Primary workspace); completion and the schema panel list that workspace's tables.
+- **Log Analytics source**: a fourth source that runs KQL directly against one Log Analytics workspace, in tabs
+  and in workbook widgets. Pick a workspace (there is no Primary workspace); completion and the schema panel list that
+  workspace's tables.
   The timespan starts at 1 day and goes up to 730. It needs the Log Analytics API `Data.Read` permission and Reader or Log
   Analytics Reader on the workspace; the run offers **Grant Log Analytics access** when consent is needed. Community
   solutions never carry a workspace. See [docs/EntraPermissions.md](docs/EntraPermissions.md#log-analytics).

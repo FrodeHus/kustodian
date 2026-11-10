@@ -939,6 +939,10 @@ export function App() {
                             if (hunting?.origin === 'builtIn' || hunting?.fallbackReason) {
                               void useSchemas.getState().load('hunting', { refresh: true });
                             }
+                            const workspace = active.source === 'logs' ? active.options?.workspaces?.[0]?.customerId : undefined;
+                            if (workspace) {
+                              void useSchemas.getState().loadLogs(workspace, { refresh: true });
+                            }
                             void useTabs.getState().rerun(id);
                           });
                         }}

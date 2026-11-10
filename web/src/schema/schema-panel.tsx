@@ -146,6 +146,8 @@ interface SchemaPanelProps {
   error?: string;
   /** The report ID the host gave that error, if it did. */
   errorReportId?: string;
+  /** A logs tab's read needs Log Analytics consent: the error offers the grant. */
+  consentNeeded?: boolean;
   /** The account's Resource Graph resource types (`arm.resourceTypes`), why they couldn't be listed, and what helps. */
   resourceTypes?: string[];
   resourceTypesError?: string | null;
@@ -174,6 +176,7 @@ export function SchemaPanel(props: SchemaPanelProps) {
     schema,
     error,
     errorReportId,
+    consentNeeded,
     resourceTypes,
     resourceTypesError,
     resourceTypesReportId,
@@ -334,6 +337,7 @@ export function SchemaPanel(props: SchemaPanelProps) {
           <p role="alert" className="m-0 px-[14px] pb-2 text-[12px] text-bad">
             The schema couldn’t be loaded: {error}
             <ErrorReportActions reportId={errorReportId} uiSections={{ message: error }} />
+            {consentNeeded && <ConsentButton audience="logs" accountKey={accountKey} />}
           </p>
         )}
         {found ? (

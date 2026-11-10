@@ -138,18 +138,19 @@ workspace and Kustodian sends its ID with the query.
 
 ## Log Analytics
 
-A **Log Analytics** tab (or workbook widget) runs KQL directly against one workspace, through the Log Analytics API. There is no
-Primary workspace: pick one before running. The schema panel and completion list that workspace's tables.
+A **Log Analytics** tab (or workbook widget) runs KQL directly against one workspace, through the Log Analytics
+API. There is no Primary workspace: pick one before running. The schema panel and completion list that workspace's tables.
 
 - **Listing workspaces** goes through Azure Resource Graph, as for hunting, so it needs Azure Service Management
   `user_impersonation`.
-- **The API permission**: **Log Analytics API** (app ID `ca7f3f0b-7d91-482c-8e09-c5d840d0eac5`), delegated `Data.Read`. It needs
-  no admin consent. With your own app registration, add it under **API permissions › Add a permission › APIs my organization
-  uses** (Option B), or leave it ticked in Option A's dialog, where it appears as **Log Analytics**.
-- **Data access** is Azure RBAC on the workspace: **Reader** or **Log Analytics Reader** (or table-level RBAC). Without it the
-  run answers "No permission".
+- **The API permission**: **Log Analytics API** (app ID `ca7f3f0b-7d91-482c-8e09-c5d840d0eac5`), delegated `Data.Read`. It
+  needs no admin consent. With your own app registration, add it under **API permissions › Add a permission › APIs my
+  organization uses** (Option B), or leave it ticked in Option A's dialog, where it appears as **Log Analytics**.
+- **Data access** is Azure RBAC on the workspace: **Reader** or **Log Analytics Reader** (or table-level RBAC). Without
+  it the run answers "No permission".
 - **Azure CLI and Microsoft Graph Command Line Tools accounts** use an Azure CLI sign-in for Log Analytics, as for Resource
-  Graph. If it needs your consent, the run offers **Grant Log Analytics access**; after that it is silent.
+  Graph. If it needs your consent, the first prompt can appear when the tables load (schema panel) or on the first run,
+  offering **Grant Log Analytics access**; after that it is silent.
 - **Timespan**: 1, 7, 30 or 90 days, or a custom range up to 730 days. A new tab starts at 1 day.
 - If the planner can't find the Log Analytics API in your tenant, check the app ID with
   `az ad sp show --id ca7f3f0b-7d91-482c-8e09-c5d840d0eac5 --query displayName` (it should print "Log Analytics API").

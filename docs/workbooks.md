@@ -25,8 +25,8 @@ on it; see [Entra ID permissions](EntraPermissions.md#hunting-in-a-workspace).
 A Log Analytics widget (source **Log Analytics**) always needs a workspace, picked in the widget editor; there is no Primary
 workspace. Until one is picked the widget says "Pick a workspace before running." with a button for it in edit mode, and
 nothing is sent. Its timespan starts at 1 day and can go up to 730 days. Querying a workspace needs Reader or Log Analytics
-Reader on it, and the first run may ask you to grant Log Analytics access; see
-[Entra ID permissions](EntraPermissions.md#log-analytics).
+Reader on it. The prompt to grant Log Analytics access can appear first when the tables load (schema panel) or on the first
+run; see [Entra ID permissions](EntraPermissions.md#log-analytics).
 
 Markdown links open in your own browser, but only for the sites Kustodian already opens: Microsoft sign-in and Entra
 pages (`login.microsoftonline.com`, `entra.microsoft.com`), Kustodian's own site (`frodehus.github.io`) and its GitHub release
@@ -75,8 +75,8 @@ set `minAppVersion` to the first release that has tabs.
 
 A Chart, Table or Stat widget gets its query one of two ways, picked in the widget editor:
 
-- **Written in the widget**: a source (Graph, Defender hunting, Azure Resource Graph or Log Analytics) and KQL, edited with the usual
-  completion for that source. Raw Graph requests can't be a widget's query.
+- **Written in the widget**: a source (Graph, Defender hunting, Azure Resource Graph or Log Analytics) and KQL,
+  edited with the usual completion for that source. Raw Graph requests can't be a widget's query.
 - **A saved query**: the widget is *linked* to a query in your library and always runs the library's current version, so
   editing the saved query changes every widget that uses it. **Open in tab** opens it; **Copy into widget** turns the widget
   into the first kind. The workbook keeps a copy of a linked query's last text, so a deleted saved query leaves the widget
@@ -189,9 +189,10 @@ the other widgets still run.
 **Parameters** (in edit mode) opens the workbook's parameters: name, label, type (text, number, timespan, datetime or list),
 choices, default and required. The dialog shows which widgets use each parameter and flags unused ones. A list without
 choices takes several values, one per line. A list with choices can allow several values, and can offer **All**, which
-sends every choice. **Remember my last value** keeps your pick on this computer, outside the workbook. A timespan can be marked as the Defender hunting timespan: hunting and Log Analytics widgets then use it
-(converted to the form the API takes, at most 30 days) unless they set it themselves. A hunting widget with a workspace, and any
-Log Analytics widget, can go up to 730 days, so the timespan keeps each widget's workspace and its cap follows each widget.
+sends every choice. **Remember my last value** keeps your pick on this computer, outside the workbook. A timespan can be
+marked as the Defender hunting timespan: hunting and Log Analytics widgets then use it (converted to the form the API takes)
+unless they set it themselves. Hunting without a workspace takes at most 30 days; hunting with a workspace, and Log
+Analytics, at most 730. The timespan keeps each widget's workspace, and its cap follows each widget.
 
 Change a workbook parameter in the bar under the toolbar and only the widgets that use it rerun. A text parameter reruns when
 you stop typing or press Enter. These changes aren't saved: the file holds the defaults you set in the dialog.

@@ -52,6 +52,7 @@ export function SidePanel({ panel, source: tabSource, text, onInsert, accountKey
   const source = schemaSourceOf(tabSource);
   const schema = useSchemas((s) => (source === 'logs' ? (workspaceId ? s.logsByWorkspace[workspaceId] : undefined) : s.byKey[source]));
   const error = useSchemas((s) => (source === 'logs' ? (workspaceId ? s.logsErrors[workspaceId] : undefined) : s.errors[source]));
+  const consentNeeded = useSchemas((s) => source === 'logs' && !!workspaceId && !!s.logsConsent[workspaceId]);
   const errorReportId = useSchemas((s) => s.errorReportIds[source]);
   const resourceTypes = useSchemas((s) => s.resourceTypes);
   const resourceTypesError = useSchemas((s) => s.resourceTypesError);
@@ -76,6 +77,7 @@ export function SidePanel({ panel, source: tabSource, text, onInsert, accountKey
           schema={schema}
           error={error}
           errorReportId={errorReportId}
+          consentNeeded={consentNeeded}
           resourceTypes={resourceTypes}
           resourceTypesError={resourceTypesError}
           resourceTypesReportId={resourceTypesReportId}

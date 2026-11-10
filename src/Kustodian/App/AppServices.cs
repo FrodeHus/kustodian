@@ -149,7 +149,7 @@ public sealed class AppServices : IAsyncDisposable
         new AppHandler(Objects, Probes, new UpdateCheck(_github, AppVersion.Text), window: Window).Register(bridge);
         new SettingsHandler(_settings, _startup.Limits, Trail).Register(bridge);
         new ErrorHandler(Reporter, Trail).Register(bridge);
-        new SchemaHandler(_schema, _huntingSchema, ActiveAccountAsync, Probes, _licenses, logs: _logsSchema).Register(bridge);
+        new SchemaHandler(_schema, _huntingSchema, ActiveAccountAsync, Probes, _licenses, logs: _logsSchema, directory: _armDirectory).Register(bridge);
         new GraphSchemaUpdateHandler(_schemaUpdates).Register(bridge);
         new QueryHandler(_schema, ActiveAccountAsync, Sources(), _recent, _time, new StderrLogger<QueryHandler>(), Limits, _licenses,
             Reporter, Trail).Register(bridge);

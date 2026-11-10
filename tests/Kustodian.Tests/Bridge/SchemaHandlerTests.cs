@@ -1,3 +1,5 @@
+using Kustodian.Graph.Run;
+using Kustodian.Sources.Arg;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -111,13 +113,20 @@ public class SchemaHandlerTests
 
     private const string Workspace = "11111111-2222-3333-4444-555555555555";
 
-    private static Messaging.Bridge LogsBridge(Stub logs, string? account = "account-1")
+    private static string Arm(string customerId) =>
+        "{\"totalRecords\":1,\"data\":[{\"name\":\"w\",\"resourceId\":\"/r\",\"customerId\":\"" + customerId + "\",\"resourceGroup\":\"rg\",\"subscriptionId\":\"s\",\"location\":\"l\"}]}";
+
+    private static Messaging.Bridge LogsBridge(Stub logs, string? account = "account-1", Stub? arm = null)
     {
         var bridge = new Messaging.Bridge(_ => { });
         new SchemaHandler(GraphSchemaCatalog.Beta, new HuntingSchemaSource(new HttpClient(), TimeProvider.System),
             () => Task.FromResult(account),
             logs: new LogsSchemaSource(new HttpClient(logs) { BaseAddress = new Uri("https://api.loganalytics.azure.com/") },
-                new FakeTimeProvider())).Register(bridge);
+                new FakeTimeProvider()),
+            directory: new ArmDirectory(new HttpClient(arm ?? new Stub(_ => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(Arm(Workspace), Encoding.UTF8, "application/json"),
+            })), new FakeTimeProvider())).Register(bridge);
         return bridge;
     }
 
@@ -156,6 +165,50 @@ public class SchemaHandlerTests
         var error = doc.RootElement.GetProperty("error");
         Assert.Equal("bad_request", error.GetProperty("code").GetString());
         Assert.Equal(message, error.GetProperty("message").GetString());
+        Assert.Empty(logs.Requests);
+    }
+
+    [Fact]
+    public async Task Schema_get_logs_consent_needed_is_its_own_error_code()
+    {
+        var logs = new Stub(_ => throw new ConsentRequiredException("logs"));
+
+        var response = await LogsBridge(logs).HandleAsync($$$"""{"id":"s","method":"schema.get","params":{"source":"logs","workspace":"{{{Workspace}}}"}}""");
+
+        Assert.NotNull(response);
+        using var doc = JsonDocument.Parse(response);
+        var error = doc.RootElement.GetProperty("error");
+        Assert.Equal("consentNeeded", error.GetProperty("code").GetString());
+        Assert.Equal(ConsentRequiredException.LogsMessage, error.GetProperty("message").GetString());
+    }
+
+    [Fact]
+    public async Task Schema_get_logs_without_an_account_has_no_tables_and_no_request()
+    {
+        var logs = new Stub(_ => throw new InvalidOperationException("No request is expected."));
+
+        var view = Result(await LogsBridge(logs, account: null).HandleAsync(
+            $$$"""{"id":"s","method":"schema.get","params":{"source":"logs","workspace":"{{{Workspace}}}"}}"""));
+
+        Assert.Equal(0, view.GetProperty("tables").GetArrayLength());
+        Assert.Equal(SchemaHandler.SignInForWorkspaceSchema, view.GetProperty("fallbackReason").GetString());
+        Assert.Empty(logs.Requests);
+    }
+
+    [Fact]
+    public async Task Schema_get_logs_for_a_workspace_the_account_does_not_list_never_reaches_metadata()
+    {
+        var logs = new Stub(_ => throw new InvalidOperationException("No request is expected."));
+        var arm = new Stub(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(Arm("99999999-0000-0000-0000-000000000000"), Encoding.UTF8, "application/json"),
+        });
+
+        var view = Result(await LogsBridge(logs, arm: arm).HandleAsync(
+            $$$"""{"id":"s","method":"schema.get","params":{"source":"logs","workspace":"{{{Workspace}}}"}}"""));
+
+        Assert.Equal(0, view.GetProperty("tables").GetArrayLength());
+        Assert.Contains("isn't available to this account", view.GetProperty("fallbackReason").GetString());
         Assert.Empty(logs.Requests);
     }
 

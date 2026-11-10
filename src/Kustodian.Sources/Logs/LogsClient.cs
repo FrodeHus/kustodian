@@ -182,7 +182,7 @@ public sealed class LogsClient(HttpClient logs, TimeProvider? time = null)
                 return LogsAnswer.Failure(RunOutcome.Failed, Unreadable);
             }
 
-            var partial = root.TryGetProperty("error", out var error)
+            var partial = root.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.Object
                 ? Text(error, "message") ?? Text(error, "code") ?? "Log Analytics reported a partial error."
                 : null;
             var tables = root.TryGetProperty("tables", out var t) && t.ValueKind == JsonValueKind.Array ? t.EnumerateArray().ToList() : [];
