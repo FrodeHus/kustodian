@@ -34,7 +34,24 @@ beforeEach(() => {
 describe('SaveWorkbookDialog', () => {
   it('shows the host’s refusal and stays open', async () => {
     const id = useTabs.getState().openWorkbook(newWorkbook('Workbook 1'));
-    useWorkbooks.setState({ byTab: { [id]: { doc: useTabs.getState().tabs[0]!.workbook!, values: { workbook: {}, widgets: {} }, runs: {}, editing: false, undo: [], redo: [], dirty: true, selections: {}, history: {}, since: {}, activeTabs: {}, stale: {} } } });
+    useWorkbooks.setState({
+      byTab: {
+        [id]: {
+          doc: useTabs.getState().tabs[0]!.workbook!,
+          values: { workbook: {}, widgets: {} },
+          runs: {},
+          editing: false,
+          undo: [],
+          redo: [],
+          dirty: true,
+          selections: {},
+          history: {},
+          since: {},
+          activeTabs: {},
+          stale: {},
+        },
+      },
+    });
     const onClose = vi.fn();
     render(<SaveWorkbookDialog tab={useTabs.getState().tabs[0]!} onClose={onClose} />);
 
@@ -42,7 +59,11 @@ describe('SaveWorkbookDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(await screen.findByRole('alert')).toHaveProperty('textContent', expect.stringContaining('A folder can’t contain /.'));
-    await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('workbook.save', { workbook: expect.objectContaining({ name: 'Workbook 1', folder: 'a/b' }) }));
+    await waitFor(() =>
+      expect(bridge.call).toHaveBeenCalledWith('workbook.save', {
+        workbook: expect.objectContaining({ name: 'Workbook 1', folder: 'a/b' }),
+      }),
+    );
     expect(onClose).not.toHaveBeenCalled();
   });
 });

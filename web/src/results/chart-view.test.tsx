@@ -101,7 +101,15 @@ describe('ChartView', () => {
       ['Teams', 'closed', 2],
       ['Exchange', 'open', 3],
     ];
-    const { container } = render(<ChartView columns={cols} rows={split} kql="t" picked={{ type: 'column', x: 'app', split: 'state', stack: 'stacked100' }} controls={false} />);
+    const { container } = render(
+      <ChartView
+        columns={cols}
+        rows={split}
+        kql="t"
+        picked={{ type: 'column', x: 'app', split: 'state', stack: 'stacked100' }}
+        controls={false}
+      />,
+    );
     const marks = [...container.querySelectorAll('[data-mark="bar"]')];
     expect(marks.map((m) => m.getAttribute('data-name'))).toEqual(['open', 'closed']);
     expect(marks.map((m) => m.getAttribute('data-stack'))).toEqual(['stack', 'stack']);
@@ -140,7 +148,9 @@ describe('ChartView', () => {
 
   it('chart_view_empty_state_explains', () => {
     render(<Chart columns={[{ name: 'tags', type: 'dynamic' }]} rows={[[[]]]} kql="t" />);
-    expect(screen.getByText('This result has no shape to chart: it needs a text, true/false or date column and a number column.')).toBeTruthy();
+    expect(
+      screen.getByText('This result has no shape to chart: it needs a text, true/false or date column and a number column.'),
+    ).toBeTruthy();
     expect(screen.queryByRole('combobox', { name: 'Chart type' })).toBeNull();
   });
 

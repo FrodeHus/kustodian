@@ -112,7 +112,13 @@ const explainView = {
       filteredLocally: false,
     },
   ],
-  limits: { objectsPerTable: 50000, fetchBudgetMb: 512, perObjectReadsPerTable: 2000, relationshipObjectsPerTable: 100, relationshipEntriesPerObject: 1000 },
+  limits: {
+    objectsPerTable: 50000,
+    fetchBudgetMb: 512,
+    perObjectReadsPerTable: 2000,
+    relationshipObjectsPerTable: 100,
+    relationshipEntriesPerObject: 1000,
+  },
 };
 
 const defaultSettings = {
@@ -167,7 +173,9 @@ const schemaLicenses = {
     },
   },
   columns: {
-    users: { signInActivity: { ...entraP1OrP2, source: 'https://learn.microsoft.com/graph/api/resources/user?view=graph-rest-1.0#properties' } },
+    users: {
+      signInActivity: { ...entraP1OrP2, source: 'https://learn.microsoft.com/graph/api/resources/user?view=graph-rest-1.0#properties' },
+    },
   },
 };
 
@@ -187,7 +195,15 @@ const listedUserColumns = [
 ];
 
 /** A column as `SchemaHandler` writes it for advanced hunting and Resource Graph: Graph's own fields are null. */
-const column = (name: string, type: string) => ({ name, type, description: '', filterable: null, listable: null, complexType: null, collection: false });
+const column = (name: string, type: string) => ({
+  name,
+  type,
+  description: '',
+  filterable: null,
+  listable: null,
+  complexType: null,
+  collection: false,
+});
 const table = (name: string, description: string, columns: [string, string][]) => ({
   name,
   path: null,
@@ -261,7 +277,11 @@ const huntingSchema = {
         { name: 'limit', type: 'long' },
       ],
     },
-    { name: 'SeenBy', description: 'The onboarded devices that have seen a device through device discovery.', parameters: [{ name: 'DeviceId', type: 'string' }] },
+    {
+      name: 'SeenBy',
+      description: 'The onboarded devices that have seen a device through device discovery.',
+      parameters: [{ name: 'DeviceId', type: 'string' }],
+    },
   ],
   complexTypes: {},
 };
@@ -502,7 +522,14 @@ interface SavedQuery extends SavedQueryInput {
 
 const graphId = '00000003-0000-0000-c000-000000000000';
 const armId = '797f4846-ba00-4fd7-ba43-dac1f8f63013';
-function plannedPermission(name: string, tables: string[], ticked: boolean, adminConsent = true, description = '', unlocks: string | null = null) {
+function plannedPermission(
+  name: string,
+  tables: string[],
+  ticked: boolean,
+  adminConsent = true,
+  description = '',
+  unlocks: string | null = null,
+) {
   return { resource: 'Microsoft Graph', resourceAppId: graphId, name, adminConsent, description, tables, unlocks, ticked };
 }
 
@@ -528,7 +555,10 @@ const entraAppPlan = {
             plannedPermission('Group.Read.All', ['groups'], true, true, ''),
           ],
         },
-        { title: 'Mail, Teams and files', permissions: [plannedPermission('Mail.Read', ['messages', 'attachments'], false, false, 'Read your mail')] },
+        {
+          title: 'Mail, Teams and files',
+          permissions: [plannedPermission('Mail.Read', ['messages', 'attachments'], false, false, 'Read your mail')],
+        },
       ],
     },
     {
@@ -537,7 +567,9 @@ const entraAppPlan = {
       subgroups: [
         {
           title: 'Advanced hunting',
-          permissions: [plannedPermission('ThreatHunting.Read.All', [], true, true, 'Run advanced hunting queries', 'Defender advanced hunting tabs')],
+          permissions: [
+            plannedPermission('ThreatHunting.Read.All', [], true, true, 'Run advanced hunting queries', 'Defender advanced hunting tabs'),
+          ],
         },
       ],
     },
@@ -548,7 +580,16 @@ const entraAppPlan = {
         {
           title: 'Resource Graph',
           permissions: [
-            { resource: 'Azure Service Management', resourceAppId: armId, name: 'user_impersonation', adminConsent: false, description: 'Access Azure Service Management as you', tables: [], unlocks: 'Resource Graph', ticked: true },
+            {
+              resource: 'Azure Service Management',
+              resourceAppId: armId,
+              name: 'user_impersonation',
+              adminConsent: false,
+              description: 'Access Azure Service Management as you',
+              tables: [],
+              unlocks: 'Resource Graph',
+              ticked: true,
+            },
           ],
         },
       ],
@@ -729,7 +770,13 @@ export function createMockTransport(): Transport {
       case 'workbook.list': {
         const all = [...workbooks.values()].sort((a, b) => a.name.localeCompare(b.name));
         const folders = [...new Set(all.map((w) => w.folder).filter((f): f is string => !!f))].sort();
-        const summaries = all.map((w) => ({ id: w.id, name: w.name, folder: w.folder ?? null, modifiedAt: w.modifiedAt, widgets: w.widgets.length }));
+        const summaries = all.map((w) => ({
+          id: w.id,
+          name: w.name,
+          folder: w.folder ?? null,
+          modifiedAt: w.modifiedAt,
+          widgets: w.widgets.length,
+        }));
         reply(id, { workbooks: summaries, folders, skipped: 0 });
         break;
       }
@@ -900,7 +947,11 @@ export function createMockTransport(): Transport {
         break;
       case 'solution.list':
         reply(id, {
-          solutions: mockSolutions.map((manifest) => ({ manifest, compatible: manifest.minAppVersion === '0.0.0', installedVersion: null })),
+          solutions: mockSolutions.map((manifest) => ({
+            manifest,
+            compatible: manifest.minAppVersion === '0.0.0',
+            installedVersion: null,
+          })),
           fetchedAt: new Date().toISOString(),
           offline: false,
         });
@@ -908,7 +959,7 @@ export function createMockTransport(): Transport {
       case 'solution.get': {
         const manifest = mockSolutions.find((s) => s.id === params?.id);
         if (!manifest) {
-          fail(id, 'bad_request', 'That solution isn\'t in the catalog.');
+          fail(id, 'bad_request', "That solution isn't in the catalog.");
           break;
         }
         reply(id, { manifest, readme: `# ${manifest.name}\n\n${manifest.description}`, installed: null, modified: [] });
@@ -1021,7 +1072,9 @@ export function createMockTransport(): Transport {
         reply(id, {});
         break;
       case 'entraApp.consentLink':
-        reply(id, { url: `https://login.microsoftonline.com/${entraAppPlan.tenantId}/v2.0/adminconsent?client_id=${entraAppCreated.appId}` });
+        reply(id, {
+          url: `https://login.microsoftonline.com/${entraAppPlan.tenantId}/v2.0/adminconsent?client_id=${entraAppCreated.appId}`,
+        });
         break;
       case 'arm.subscriptions':
         reply(id, armSubscriptions);

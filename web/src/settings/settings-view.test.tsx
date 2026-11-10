@@ -22,7 +22,13 @@ const creator: AccountInfo = {
 /** Settings as the app hosts them: the command opens the dialog, which the app keeps the state of. */
 function Hosted({ account }: { account?: AccountInfo }) {
   const [open, setOpen] = useState(false);
-  useEffect(() => registerCommands([{ id: 'account.createEntraApp', title: 'Create Entra ID application', group: 'Account', run: () => setOpen(true) }]), []);
+  useEffect(
+    () =>
+      registerCommands([
+        { id: 'account.createEntraApp', title: 'Create Entra ID application', group: 'Account', run: () => setOpen(true) },
+      ]),
+    [],
+  );
   return <SettingsView onClose={vi.fn()} onChange={vi.fn()} account={account} createAppOpen={open} onCreateAppOpen={setOpen} />;
 }
 
@@ -299,11 +305,43 @@ describe('SettingsView', () => {
           tablesWithData: 1,
           tablesWithoutData: 0,
           writeOnlyTables: 0,
-          groups: [{ id: 'g', title: 'Graph', subgroups: [{ title: 'Dir', permissions: [{ resource: 'Microsoft Graph', resourceAppId: 'g', name: 'A.Read.All', adminConsent: false, description: '', tables: ['x'], unlocks: null, ticked: true }] }] }],
+          groups: [
+            {
+              id: 'g',
+              title: 'Graph',
+              subgroups: [
+                {
+                  title: 'Dir',
+                  permissions: [
+                    {
+                      resource: 'Microsoft Graph',
+                      resourceAppId: 'g',
+                      name: 'A.Read.All',
+                      adminConsent: false,
+                      description: '',
+                      tables: ['x'],
+                      unlocks: null,
+                      ticked: true,
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
         });
       }
       if (method === 'entraApp.create') {
-        return Promise.resolve({ appId, objectId: 'o', servicePrincipalId: 's', tenantId: 't1', ownerAdded: true, ownerMessage: null, dropped: [], servicePrincipalMessage: null, adminScopes: [] });
+        return Promise.resolve({
+          appId,
+          objectId: 'o',
+          servicePrincipalId: 's',
+          tenantId: 't1',
+          ownerAdded: true,
+          ownerMessage: null,
+          dropped: [],
+          servicePrincipalMessage: null,
+          adminScopes: [],
+        });
       }
       return base(method, params);
     });

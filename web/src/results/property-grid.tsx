@@ -4,7 +4,8 @@ type Node = Record<string, unknown> | unknown[];
 
 const isNode = (value: unknown): value is Node => typeof value === 'object' && value !== null;
 
-const entriesOf = (value: Node): [string, unknown][] => (Array.isArray(value) ? value.map((v, i) => [String(i), v]) : Object.entries(value));
+const entriesOf = (value: Node): [string, unknown][] =>
+  Array.isArray(value) ? value.map((v, i) => [String(i), v]) : Object.entries(value);
 
 /** What a closed node holds: `{3 keys}`, `[2 items]`. */
 const summary = (value: Node) => {
@@ -50,7 +51,13 @@ function Row({ name, index, value, depth, openDepth }: { name: string; index: bo
       <tr>
         <th scope="row" title={key} style={{ paddingLeft: 6 + depth * 14 }}>
           {node ? (
-            <button type="button" className="pgrid-toggle" aria-label={`${name}: ${summary(value)}`} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+            <button
+              type="button"
+              className="pgrid-toggle"
+              aria-label={`${name}: ${summary(value)}`}
+              aria-expanded={open}
+              onClick={() => setOpen((o) => !o)}
+            >
               <span aria-hidden="true" className="pgrid-caret">
                 {open ? '▾' : '▸'}
               </span>

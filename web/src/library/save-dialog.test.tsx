@@ -43,7 +43,9 @@ describe('SaveDialog', () => {
     const dialog = screen.getByRole('dialog', { name: 'Save the query' });
     expect(screen.getByRole('textbox', { name: 'Name' })).toHaveProperty('value', 'Query 1');
     // The existing folders are offered; a new one can be typed.
-    await waitFor(() => expect([...dialog.querySelectorAll('datalist option')].map((o) => o.getAttribute('value'))).toEqual(['Identity', 'Apps']));
+    await waitFor(() =>
+      expect([...dialog.querySelectorAll('datalist option')].map((o) => o.getAttribute('value'))).toEqual(['Identity', 'Apps']),
+    );
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'Few users' } });
     fireEvent.change(screen.getByRole('combobox', { name: 'Folder' }), { target: { value: 'Mine' } });

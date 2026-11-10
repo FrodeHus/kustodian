@@ -111,7 +111,9 @@ export function DiagnosticsView({ result, source = 'graph', scope }: { result: R
                     <span className="min-w-0 flex-1 truncate" title={e.detail}>
                       {e.detail}
                     </span>
-                    <span className={`w-[36px] shrink-0 text-right ${e.status !== null && e.status >= 400 ? 'text-bad' : e.status !== null ? 'text-ok' : 'faint'}`}>
+                    <span
+                      className={`w-[36px] shrink-0 text-right ${e.status !== null && e.status >= 400 ? 'text-bad' : e.status !== null ? 'text-ok' : 'faint'}`}
+                    >
                       {e.status ?? '·'}
                     </span>
                     <span className="faint w-[64px] shrink-0 text-right">{e.durationMs === null ? '' : `${count(e.durationMs)} ms`}</span>

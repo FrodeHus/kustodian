@@ -35,7 +35,13 @@ describe('previewText', () => {
   it('preview_writes_each_type_as_a_literal_and_leaves_strings_alone', () => {
     const text = 'T | where a == {s} and b > {n} and c > ago({t}) and d < {d} and e in ({l}) and f has_any ({l}) and g == "{s}"';
     expect(
-      previewText(text, [def('s', 'text', 'say "hi"'), def('n', 'number', '5'), def('t', 'timespan', '7d'), def('d', 'datetime', '2026-10-21'), def('l', 'list', 'a\nb')]),
+      previewText(text, [
+        def('s', 'text', 'say "hi"'),
+        def('n', 'number', '5'),
+        def('t', 'timespan', '7d'),
+        def('d', 'datetime', '2026-10-21'),
+        def('l', 'list', 'a\nb'),
+      ]),
     ).toBe(
       'T | where a == "say \\"hi\\"" and b > 5 and c > ago(7d) and d < datetime(2026-10-21) and e in ("a", "b") and f has_any (dynamic(["a", "b"])) and g == "{s}"',
     );

@@ -116,7 +116,10 @@ describe('history in the widgets', () => {
     expect(within(widgetFrame()).getByText('412')).toBeTruthy();
     expect(within(widgetFrame()).getByText('Daily · 34 days')).toBeTruthy();
     expect(sent('history.values')).toEqual([
-      ['history.values', { workbookId: expect.any(String), widgetId: 'w', query, setting: { mode: 'values', interval: 'day', retentionDays: 90, keys: [] } }],
+      [
+        'history.values',
+        { workbookId: expect.any(String), widgetId: 'w', query, setting: { mode: 'values', interval: 'day', retentionDays: 90, keys: [] } },
+      ],
     ]);
   });
 
@@ -124,18 +127,29 @@ describe('history in the widgets', () => {
     call.mockImplementation((method: string) =>
       Promise.resolve(method === 'history.values' ? { snapshots: [snap(daysAgo(8), 375), snap(daysAgo(1), 390)], reset: false } : null),
     );
-    show(widget('stat', { since: 'previous' }), { state: 'done', result: result(n, [[412]]), finishedAt: NOW.getTime() }, { skipped: 'unsaved' });
+    show(
+      widget('stat', { since: 'previous' }),
+      { state: 'done', result: result(n, [[412]]), finishedAt: NOW.getTime() },
+      { skipped: 'unsaved' },
+    );
     expect(await screen.findByText('▲ 22 vs previous snapshot (390)')).toBeTruthy();
     expect(within(widgetFrame()).getByText('412')).toBeTruthy();
   });
 
   it('a_stat_with_row_tracking_counts_new_and_gone', async () => {
-    show(widget('stat', { mode: 'rows', keys: ['Id'], since: '2026-10-30' }), { state: 'done', result: result([{ name: 'Id', type: 'string' }], [['a']]), finishedAt: 5 });
+    show(widget('stat', { mode: 'rows', keys: ['Id'], since: '2026-10-30' }), {
+      state: 'done',
+      result: result([{ name: 'Id', type: 'string' }], [['a']]),
+      finishedAt: 5,
+    });
     expect(await screen.findByText('23 new · 41 no longer reported since Oct 30')).toBeTruthy();
     // This run's one row, not the stored 1,206 open rows an earlier run of the day left.
     expect(screen.getByText('1')).toBeTruthy();
     expect(screen.queryByText('1,206')).toBeNull();
-    expect(sent('history.changes')[0]?.[1]).toMatchObject({ since: sinceInstant('2026-10-30', NOW), setting: { mode: 'rows', keys: ['Id'] } });
+    expect(sent('history.changes')[0]?.[1]).toMatchObject({
+      since: sinceInstant('2026-10-30', NOW),
+      setting: { mode: 'rows', keys: ['Id'] },
+    });
     // Row tracking's footer has no snapshots to count days from.
     expect(within(widgetFrame()).getByText('Daily')).toBeTruthy();
   });
@@ -155,7 +169,11 @@ describe('history in the widgets', () => {
       expect.objectContaining({
         picked: { type: 'line', x: 'Snapshot' },
         columns: [{ name: 'Snapshot', type: 'datetime' }, ...n],
-        rows: [[daysAgo(2), 1], [new Date(2026, 10, 6).toISOString(), null], [daysAgo(0), 3]],
+        rows: [
+          [daysAgo(2), 1],
+          [new Date(2026, 10, 6).toISOString(), null],
+          [daysAgo(0), 3],
+        ],
       }),
     );
     expect(screen.queryByRole('combobox', { name: 'Since' })).toBeNull();
@@ -205,7 +223,11 @@ describe('history in the widgets', () => {
   });
 
   it('changing_since_refetches', async () => {
-    show(widget('table', { mode: 'rows', keys: ['Id'] }), { state: 'done', result: result([{ name: 'Id', type: 'string' }], [['a']]), finishedAt: 5 });
+    show(widget('table', { mode: 'rows', keys: ['Id'] }), {
+      state: 'done',
+      result: result([{ name: 'Id', type: 'string' }], [['a']]),
+      finishedAt: 5,
+    });
     await screen.findByRole('group', { name: 'Show' });
     expect(sent('history.changes')).toHaveLength(1);
     fireEvent.change(screen.getByRole('combobox', { name: 'Since' }), { target: { value: 'previous' } });
@@ -269,7 +291,11 @@ describe('history in the widgets', () => {
   });
 
   it('the_labels_never_say_patched_or_removed', async () => {
-    const { container } = show(widget('table', { mode: 'rows', keys: ['Id'] }), { state: 'done', result: result([{ name: 'Id', type: 'string' }], [['a']]), finishedAt: 5 });
+    const { container } = show(widget('table', { mode: 'rows', keys: ['Id'] }), {
+      state: 'done',
+      result: result([{ name: 'Id', type: 'string' }], [['a']]),
+      finishedAt: 5,
+    });
     const filters = await screen.findByRole('group', { name: 'Show' });
     for (const b of within(filters).getAllByRole('button')) {
       fireEvent.click(b);

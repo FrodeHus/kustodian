@@ -14,8 +14,8 @@ export function ErrorReportsExplainer() {
         report has an ID you can quote.
       </span>
       <span className="muted text-[12px]">
-        Sent: error types and where in Kustodian’s code they happened, the recent steps before it as codes, the app version and OS. Never your
-        tenant, account, queries, values, results or error messages.{' '}
+        Sent: error types and where in Kustodian’s code they happened, the recent steps before it as codes, the app version and OS. Never
+        your tenant, account, queries, values, results or error messages.{' '}
         <button type="button" className="text-accent underline" onClick={openTelemetryDocs}>
           What is sent, in detail
         </button>

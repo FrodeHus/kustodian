@@ -98,8 +98,8 @@ export function ExplainView({ request, onOpenRaw }: { request: ExplainRequest; o
       </div>
       <footer className="border-t border-line px-4 py-2 text-[12px] text-muted">
         Limits: {count(result.limits.objectsPerTable)} objects per table · {count(result.limits.fetchBudgetMb)} MB fetch budget ·{' '}
-        {count(result.limits.perObjectReadsPerTable)} per-object reads per table · {count(result.limits.relationshipObjectsPerTable)} objects per
-        relationship
+        {count(result.limits.perObjectReadsPerTable)} per-object reads per table · {count(result.limits.relationshipObjectsPerTable)}{' '}
+        objects per relationship
       </footer>
       {notice && <NoticeLine notice={notice} onDismiss={() => setNotice(null)} />}
     </div>
@@ -146,9 +146,7 @@ function TablePlan({ table, onCopy, onOpenRaw }: TablePlanProps) {
         </p>
       )}
       <Field label="Request">
-        <span className="codeblock whitespace-pre-wrap break-all">
-          {[`GET /beta/${table.url}`, ...table.headers].join('\n')}
-        </span>
+        <span className="codeblock whitespace-pre-wrap break-all">{[`GET /beta/${table.url}`, ...table.headers].join('\n')}</span>
         <div className="flex gap-2">
           <button type="button" className="btn" onClick={() => onCopy(GRAPH_BASE + table.url, 'the URL')}>
             Copy the URL
@@ -169,7 +167,9 @@ function TablePlan({ table, onCopy, onOpenRaw }: TablePlanProps) {
           ))}
         </ul>
       </Field>
-      <Field label="$filter">{table.filter ? <span className="codeblock whitespace-pre-wrap">{table.filter}</span> : <None>None: every object is read.</None>}</Field>
+      <Field label="$filter">
+        {table.filter ? <span className="codeblock whitespace-pre-wrap">{table.filter}</span> : <None>None: every object is read.</None>}
+      </Field>
       {table.count && (
         <Field label="Count">
           <span>Graph counts the objects; none is read.</span>

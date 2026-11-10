@@ -18,10 +18,38 @@ import {
 } from 'recharts';
 import type { ResultColumn } from '../wire';
 import type { Row } from './export';
-import { CHART_TYPES, NO_SHAPE, RENDER_HINTS, chartData, chartShape, isCategory, markFilter, isNumeric, renderHint, renderOptions, splitColumn, stackable, STACKS, type CellMatch, type ChartPoint, type ChartType, type Stack } from './chart-shape';
+import {
+  CHART_TYPES,
+  NO_SHAPE,
+  RENDER_HINTS,
+  chartData,
+  chartShape,
+  isCategory,
+  markFilter,
+  isNumeric,
+  renderHint,
+  renderOptions,
+  splitColumn,
+  stackable,
+  STACKS,
+  type CellMatch,
+  type ChartPoint,
+  type ChartType,
+  type Stack,
+} from './chart-shape';
 
 /** Series colours, from the theme's tokens, so they follow light and dark. */
-const COLOURS = ['var(--accent)', 'var(--warn)', 'var(--ok)', 'var(--bad)', 'var(--kw)', 'var(--fn)', 'var(--num)', 'var(--str)', 'var(--col)'];
+const COLOURS = [
+  'var(--accent)',
+  'var(--warn)',
+  'var(--ok)',
+  'var(--bad)',
+  'var(--kw)',
+  'var(--fn)',
+  'var(--num)',
+  'var(--str)',
+  'var(--col)',
+];
 const colour = (i: number) => COLOURS[i % COLOURS.length];
 
 const AXIS = { stroke: 'var(--line)', tick: { fill: 'var(--muted)', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' } };
@@ -121,7 +149,8 @@ export default function ChartView({
     const auto = picked.type ? (chartShape(columns, rows, picked.type, options) ?? { ...shape, type }) : shape;
     // A pick that the current result has no column for (after a new run) falls back to the shape's.
     const names = new Set(columns.map((c) => c.name));
-    const x = picked.x === undefined || (picked.x !== null && !names.has(picked.x)) || (picked.x === null && rows.length !== 1) ? auto.x : picked.x;
+    const x =
+      picked.x === undefined || (picked.x !== null && !names.has(picked.x)) || (picked.x === null && rows.length !== 1) ? auto.x : picked.x;
     const numbers = columns.filter((c) => c.name !== x && isNumeric(c)).map((c) => c.name);
     const chosen = (picked.series ?? auto.series).filter((s) => numbers.includes(s));
     const splits = columns.filter((c) => c.name !== x && isCategory(c)).map((c) => c.name);
@@ -156,7 +185,11 @@ export default function ChartView({
   const valueTick = stackOffset ? percent : undefined;
   // A pie draws one series, so ticking one replaces the other.
   const toggle = (name: string, on: boolean) =>
-    setPicked({ ...picked, series: type === 'pie' ? [name] : on ? numbers.filter((s) => s === name || spec.series.includes(s)) : spec.series.filter((s) => s !== name) });
+    setPicked({
+      ...picked,
+      series:
+        type === 'pie' ? [name] : on ? numbers.filter((s) => s === name || spec.series.includes(s)) : spec.series.filter((s) => s !== name),
+    });
   // Dates along the axis read as dates, whatever the chart type.
   const time = type === 'timechart' || columns.find((c) => c.name === spec.x)?.type === 'datetime';
   const xAxis = <XAxis dataKey="x" {...AXIS} tickFormatter={time ? dateTick : undefined} />;
@@ -177,7 +210,16 @@ export default function ChartView({
           {xAxis}
           <YAxis {...AXIS} tickFormatter={valueTick} />
           {series.map((s, i) => (
-            <Bar key={s} name={s} dataKey={valueOf(s)} fill={colour(i)} stackId={stackId} isAnimationActive={false} style={pointer} onClick={(_, i) => pick(i, s)} />
+            <Bar
+              key={s}
+              name={s}
+              dataKey={valueOf(s)}
+              fill={colour(i)}
+              stackId={stackId}
+              isAnimationActive={false}
+              style={pointer}
+              onClick={(_, i) => pick(i, s)}
+            />
           ))}
         </BarChart>
       );
@@ -189,7 +231,16 @@ export default function ChartView({
           <XAxis type="number" {...AXIS} tickFormatter={valueTick} />
           <YAxis type="category" dataKey="x" width={140} {...AXIS} tickFormatter={time ? dateTick : undefined} />
           {series.map((s, i) => (
-            <Bar key={s} name={s} dataKey={valueOf(s)} fill={colour(i)} stackId={stackId} isAnimationActive={false} style={pointer} onClick={(_, i) => pick(i, s)} />
+            <Bar
+              key={s}
+              name={s}
+              dataKey={valueOf(s)}
+              fill={colour(i)}
+              stackId={stackId}
+              isAnimationActive={false}
+              style={pointer}
+              onClick={(_, i) => pick(i, s)}
+            />
           ))}
         </BarChart>
       );
@@ -266,7 +317,13 @@ export default function ChartView({
         </ResponsiveContainer>
       ) : (
         <div className="flex h-full items-center justify-center">
-          <span className="faint text-[12px]">{numbers.length === 0 ? 'No number columns to chart along this axis.' : controls ? 'Tick a value to chart.' : 'No value picked to chart.'}</span>
+          <span className="faint text-[12px]">
+            {numbers.length === 0
+              ? 'No number columns to chart along this axis.'
+              : controls
+                ? 'Tick a value to chart.'
+                : 'No value picked to chart.'}
+          </span>
         </div>
       )}
     </div>
@@ -279,7 +336,10 @@ export default function ChartView({
     );
   }
   return (
-    <section className={`card flex min-h-0 flex-1 flex-col gap-3 p-4 ${full ? 'fixed inset-0 z-20 rounded-none' : 'm-4'}`} aria-label="Chart">
+    <section
+      className={`card flex min-h-0 flex-1 flex-col gap-3 p-4 ${full ? 'fixed inset-0 z-20 rounded-none' : 'm-4'}`}
+      aria-label="Chart"
+    >
       <div className="flex items-center gap-2.5">
         <b className="text-[14px]">
           {options.title ?? (type === 'timechart' ? 'Time chart' : `${CHART_TYPES.find((t) => t.type === type)?.name ?? ''} chart`)}
@@ -361,7 +421,12 @@ export default function ChartView({
         <span className="muted">Values</span>
         {numbers.map((name) => (
           <label key={name} className="flex items-center gap-1.5">
-            <input type="checkbox" aria-label={name} checked={spec.series.includes(name)} onChange={(e) => toggle(name, e.target.checked)} />
+            <input
+              type="checkbox"
+              aria-label={name}
+              checked={spec.series.includes(name)}
+              onChange={(e) => toggle(name, e.target.checked)}
+            />
             {name}
           </label>
         ))}

@@ -71,7 +71,14 @@ describe('SignIn', () => {
 
   it('accounts_scopes_and_memory_only_notice', async () => {
     bridge.call.mockResolvedValue(null);
-    const other: AccountInfo = { ...kari, key: 'k2', username: 'admin@fabrikam.example', tenantName: 'Fabrikam', active: false, clientId: '7d1f0000-0000-0000-0000-00000000c20a' };
+    const other: AccountInfo = {
+      ...kari,
+      key: 'k2',
+      username: 'admin@fabrikam.example',
+      tenantName: 'Fabrikam',
+      active: false,
+      clientId: '7d1f0000-0000-0000-0000-00000000c20a',
+    };
     const onChanged = vi.fn();
     render(
       <SignIn list={{ accounts: [kari, other], cache: 'memoryOnly', cacheReason: 'libsecret is not available.' }} onChanged={onChanged} />,
@@ -96,7 +103,9 @@ describe('SignIn', () => {
     expect(screen.getByRole('radio', { name: /^Azure CLI/ })).toBeTruthy();
     expect(screen.getByRole('radio', { name: /My own app registration/ })).toBeTruthy();
     fireEvent.click(screen.getByRole('radio', { name: /Microsoft Graph Command Line Tools/ }));
-    expect(screen.getByText(/Reaches what your tenant has granted Graph PowerShell\. Azure queries use your Azure CLI sign-in\./)).toBeTruthy();
+    expect(
+      screen.getByText(/Reaches what your tenant has granted Graph PowerShell\. Azure queries use your Azure CLI sign-in\./),
+    ).toBeTruthy();
     // The client is fixed; only the tenant can be typed.
     expect(screen.getByLabelText('Client ID')).toHaveProperty('disabled', true);
     expect(screen.getByLabelText('Client ID')).toHaveProperty('value', GRAPH_CLI_CLIENT_ID);
@@ -108,7 +117,11 @@ describe('SignIn', () => {
 
     fireEvent.change(screen.getByLabelText('Tenant'), { target: { value: ' contoso.example ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Use a device code instead' }));
-    expect(bridge.call).toHaveBeenCalledWith('account.signIn', { clientId: GRAPH_CLI_CLIENT_ID, tenant: 'contoso.example', deviceCode: true });
+    expect(bridge.call).toHaveBeenCalledWith('account.signIn', {
+      clientId: GRAPH_CLI_CLIENT_ID,
+      tenant: 'contoso.example',
+      deviceCode: true,
+    });
   });
 
   it('a saved graph cli default starts on graph cli, not own app', () => {
@@ -164,7 +177,13 @@ describe('SignIn', () => {
     expect(screen.getByRole('radio', { name: /^Azure CLI/ })).toHaveProperty('checked', true);
 
     // The settings arrive with a default client ID and tenant: "My own app registration" is chosen and filled in.
-    rerender(<SignIn list={none} onChanged={onChanged} defaults={{ clientId: 'c0ffee00-0000-0000-0000-000000000001', tenant: 'contoso.example' }} />);
+    rerender(
+      <SignIn
+        list={none}
+        onChanged={onChanged}
+        defaults={{ clientId: 'c0ffee00-0000-0000-0000-000000000001', tenant: 'contoso.example' }}
+      />,
+    );
     expect(screen.getByRole('radio', { name: /My own app registration/ })).toHaveProperty('checked', true);
     expect(screen.getByLabelText('Client ID')).toHaveProperty('value', 'c0ffee00-0000-0000-0000-000000000001');
     expect(screen.getByLabelText('Tenant')).toHaveProperty('value', 'contoso.example');
@@ -189,13 +208,25 @@ describe('SignIn', () => {
 
   describe('create button', () => {
     const list = (a: Partial<AccountInfo>): AccountList => ({ accounts: [{ ...kari, ...a }], cache: 'persistent' });
-    const planAnswer = (over: object = {}) => ({ canCreate: true, defaultName: 'n', tenantId: 't1', tenantName: 'T', groups: [], tablesWithData: 0, tablesWithoutData: 0, writeOnlyTables: 0, ...over });
+    const planAnswer = (over: object = {}) => ({
+      canCreate: true,
+      defaultName: 'n',
+      tenantId: 't1',
+      tenantName: 'T',
+      groups: [],
+      tablesWithData: 0,
+      tablesWithoutData: 0,
+      writeOnlyTables: 0,
+      ...over,
+    });
     const button = () => screen.queryByRole('button', { name: 'Create Entra ID application…' });
 
     const creator = { scopes: ['Application.ReadWrite.All', 'User.Read.All'] };
 
     it('button_hidden_for_own_client_and_expired_account', () => {
-      const { unmount } = render(<SignIn list={list({ ...creator, clientId: 'c0ffee00-0000-0000-0000-000000000001' })} onChanged={vi.fn()} />);
+      const { unmount } = render(
+        <SignIn list={list({ ...creator, clientId: 'c0ffee00-0000-0000-0000-000000000001' })} onChanged={vi.fn()} />,
+      );
       expect(button()).toBeNull();
       unmount();
       render(<SignIn list={list({ ...creator, expired: true })} onChanged={vi.fn()} />);
@@ -230,10 +261,46 @@ describe('SignIn', () => {
       const appId = '11111111-2222-3333-4444-555555555555';
       bridge.call.mockImplementation((method: string) => {
         if (method === 'entraApp.plan') {
-          return Promise.resolve({ ...planAnswer(), defaultName: 'Kustodian (kari)', groups: [{ id: 'g', title: 'Graph', subgroups: [{ title: 'Dir', permissions: [{ resource: 'Microsoft Graph', resourceAppId: 'g', name: 'A.Read.All', adminConsent: false, description: '', tables: ['x'], unlocks: null, ticked: true }] }] }] });
+          return Promise.resolve({
+            ...planAnswer(),
+            defaultName: 'Kustodian (kari)',
+            groups: [
+              {
+                id: 'g',
+                title: 'Graph',
+                subgroups: [
+                  {
+                    title: 'Dir',
+                    permissions: [
+                      {
+                        resource: 'Microsoft Graph',
+                        resourceAppId: 'g',
+                        name: 'A.Read.All',
+                        adminConsent: false,
+                        description: '',
+                        tables: ['x'],
+                        unlocks: null,
+                        ticked: true,
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          });
         }
         if (method === 'entraApp.create') {
-          return Promise.resolve({ appId, objectId: 'o', servicePrincipalId: 's', tenantId: 't1', ownerAdded: true, ownerMessage: null, dropped: [], servicePrincipalMessage: null, adminScopes: [] });
+          return Promise.resolve({
+            appId,
+            objectId: 'o',
+            servicePrincipalId: 's',
+            tenantId: 't1',
+            ownerAdded: true,
+            ownerMessage: null,
+            dropped: [],
+            servicePrincipalMessage: null,
+            adminScopes: [],
+          });
         }
         return Promise.resolve({});
       });

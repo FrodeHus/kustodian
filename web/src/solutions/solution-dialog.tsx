@@ -93,7 +93,12 @@ function Dialog({ id, compatible }: { id: string; compatible: boolean }) {
   const installed = details?.installed ?? null;
   // The host never deletes an item changed since install; they are listed so the user knows, and sent as keep.
   const changed = installed?.items.filter((i) => details?.modified.includes(i.libraryId)) ?? [];
-  const items = m ? [...m.content.queries.map((i) => ({ kind: 'query' as const, id: i })), ...m.content.workbooks.map((i) => ({ kind: 'workbook' as const, id: i }))] : [];
+  const items = m
+    ? [
+        ...m.content.queries.map((i) => ({ kind: 'query' as const, id: i })),
+        ...m.content.workbooks.map((i) => ({ kind: 'workbook' as const, id: i })),
+      ]
+    : [];
   const folder = m ? importFolder(m.name) : '';
 
   return (
@@ -144,7 +149,9 @@ function Dialog({ id, compatible }: { id: string; compatible: boolean }) {
             </div>
             <div className="flex min-h-0 flex-col gap-4 overflow-auto px-[18px] py-4 text-[12.5px]">
               {m.support !== 'kustodian' && (
-                <p className="m-0 rounded-lg bg-warn-soft px-3 py-2 text-[12px] text-warn">Not maintained by Kustodian. Review before running.</p>
+                <p className="m-0 rounded-lg bg-warn-soft px-3 py-2 text-[12px] text-warn">
+                  Not maintained by Kustodian. Review before running.
+                </p>
               )}
               {installed ? (
                 <section className="flex flex-col gap-1">
@@ -201,7 +208,12 @@ function Dialog({ id, compatible }: { id: string; compatible: boolean }) {
             Cancel
           </button>
           {installed ? (
-            <button type="button" className="btn" disabled={busy} onClick={() => run('solution.uninstall', { id, keep: details?.modified ?? [] })}>
+            <button
+              type="button"
+              className="btn"
+              disabled={busy}
+              onClick={() => run('solution.uninstall', { id, keep: details?.modified ?? [] })}
+            >
               Uninstall
             </button>
           ) : (

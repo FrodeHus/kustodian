@@ -17,7 +17,9 @@ function TriBox({ label, ticked, total, onChange }: { label: string; ticked: num
       ref.current.indeterminate = ticked > 0 && ticked < total;
     }
   }, [ticked, total]);
-  return <input ref={ref} type="checkbox" aria-label={label} checked={all} onChange={() => onChange(!all)} className="mt-0.5 accent-accent" />;
+  return (
+    <input ref={ref} type="checkbox" aria-label={label} checked={all} onChange={() => onChange(!all)} className="mt-0.5 accent-accent" />
+  );
 }
 
 function countTicked(perms: PlannedPermission[], ticked: ReadonlySet<string>): number {
@@ -28,7 +30,17 @@ function tableCount(perms: PlannedPermission[]): number {
   return new Set(perms.flatMap((p) => p.tables)).size;
 }
 
-function Row({ permission, groups, ticked, onToggle }: { permission: PlannedPermission; groups: PlannedGroup[]; ticked: ReadonlySet<string>; onToggle: PermissionListProps['onToggle'] }) {
+function Row({
+  permission,
+  groups,
+  ticked,
+  onToggle,
+}: {
+  permission: PlannedPermission;
+  groups: PlannedGroup[];
+  ticked: ReadonlySet<string>;
+  onToggle: PermissionListProps['onToggle'];
+}) {
   const [expanded, setExpanded] = useState(false);
   const on = ticked.has(permKey(permission));
   const lost = on ? [] : lostTables(permission, groups, ticked);
@@ -37,7 +49,13 @@ function Row({ permission, groups, ticked, onToggle }: { permission: PlannedPerm
 
   return (
     <div className="flex items-start gap-2.5 rounded-[7px] py-[7px] pr-2 pl-[30px] hover:bg-raise">
-      <input type="checkbox" aria-label={permission.name} checked={on} onChange={() => onToggle([permKey(permission)], !on)} className="mt-0.5 accent-accent" />
+      <input
+        type="checkbox"
+        aria-label={permission.name}
+        checked={on}
+        onChange={() => onToggle([permKey(permission)], !on)}
+        className="mt-0.5 accent-accent"
+      />
       <div className="flex min-w-0 flex-col gap-0.5">
         <span className="flex items-center gap-1.5">
           <span className="mono text-[12px]">{permission.name}</span>
@@ -91,16 +109,27 @@ export function PermissionList({ groups, ticked, onToggle }: PermissionListProps
         return (
           <div key={g.id} className="flex flex-col gap-1">
             <div className="muted flex items-center gap-2.5 pt-2.5 pb-1.5 pl-1 text-[11px] font-semibold tracking-[.08em] uppercase">
-              <TriBox label={g.title} ticked={countTicked(perms, ticked)} total={perms.length} onChange={(on) => onToggle(keys(perms), on)} />
+              <TriBox
+                label={g.title}
+                ticked={countTicked(perms, ticked)}
+                total={perms.length}
+                onChange={(on) => onToggle(keys(perms), on)}
+              />
               {g.title}
               <span className="faint ml-auto text-[12px] font-normal tracking-normal normal-case">
-                {countTicked(perms, ticked)} of {plural(perms.length, 'permission', 'permissions')} · {plural(tableCount(perms), 'table', 'tables')}
+                {countTicked(perms, ticked)} of {plural(perms.length, 'permission', 'permissions')} ·{' '}
+                {plural(tableCount(perms), 'table', 'tables')}
               </span>
             </div>
             {g.subgroups.map((s) => (
               <div key={s.title} className="flex flex-col">
                 <div className="flex items-center gap-2.5 rounded-[7px] bg-panel2 px-2 py-2 font-semibold">
-                  <TriBox label={s.title} ticked={countTicked(s.permissions, ticked)} total={s.permissions.length} onChange={(on) => onToggle(keys(s.permissions), on)} />
+                  <TriBox
+                    label={s.title}
+                    ticked={countTicked(s.permissions, ticked)}
+                    total={s.permissions.length}
+                    onChange={(on) => onToggle(keys(s.permissions), on)}
+                  />
                   {s.title}
                   <span className="faint ml-auto text-[12px] font-normal">
                     {countTicked(s.permissions, ticked)} of {plural(s.permissions.length, 'permission', 'permissions')}

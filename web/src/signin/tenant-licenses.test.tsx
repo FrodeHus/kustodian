@@ -49,7 +49,10 @@ describe('TenantLicenses', () => {
 
   it('refresh_reads_them_from_graph_again', async () => {
     useSchemas.setState({ licenses: contoso });
-    bridge.call.mockResolvedValue({ ...contoso, tables: { ...contoso.tables, deviceManagement_managedDevices: { ...intune, state: 'available' } } });
+    bridge.call.mockResolvedValue({
+      ...contoso,
+      tables: { ...contoso.tables, deviceManagement_managedDevices: { ...intune, state: 'available' } },
+    });
     render(<TenantLicenses accountKey="k1" />);
     expect(bridge.call).not.toHaveBeenCalled();
 

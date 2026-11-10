@@ -11,7 +11,13 @@ vi.mock('../bridge', async (importOriginal) => ({
   on: () => () => undefined,
 }));
 
-const limits = { objectsPerTable: 50000, fetchBudgetMb: 512, perObjectReadsPerTable: 2000, relationshipObjectsPerTable: 100, relationshipEntriesPerObject: 1000 };
+const limits = {
+  objectsPerTable: 50000,
+  fetchBudgetMb: 512,
+  perObjectReadsPerTable: 2000,
+  relationshipObjectsPerTable: 100,
+  relationshipEntriesPerObject: 1000,
+};
 
 const plan: ExplainResult = {
   error: null,
@@ -58,7 +64,11 @@ describe('ExplainView', () => {
     expect(within(table).getByText(`GET /beta/${plan.tables[0]!.url}`)).toBeTruthy();
 
     const select = within(table).getByRole('list', { name: '$select' });
-    expect(within(select).getAllByRole('listitem').map((i) => i.textContent)).toEqual(['id', 'displayName', 'signInActivity']);
+    expect(
+      within(select)
+        .getAllByRole('listitem')
+        .map((i) => i.textContent),
+    ).toEqual(['id', 'displayName', 'signInActivity']);
     expect(within(table).getByText("userType eq 'Guest'")).toBeTruthy();
 
     const sent = within(table).getByRole('list', { name: 'Sent to Graph' });
@@ -117,13 +127,18 @@ describe('ExplainView', () => {
     render(<ExplainView request={request} />);
 
     const table = await screen.findByRole('region', { name: 'users' });
-    expect(within(table).getByText(`GET /beta/${url} ConsistencyLevel: eventual`, { normalizer: (t) => t.replace(/\s+/g, ' ') })).toBeTruthy();
+    expect(
+      within(table).getByText(`GET /beta/${url} ConsistencyLevel: eventual`, { normalizer: (t) => t.replace(/\s+/g, ' ') }),
+    ).toBeTruthy();
     expect(within(table).getByText('createdDateTime desc')).toBeTruthy();
     expect(within(table).getByText(/limited to 5 in Graph \(\$orderby and \$top\)/)).toBeTruthy();
   });
 
   it('explain_shows_a_count_graph_answers', async () => {
-    bridge.call.mockResolvedValue({ ...plan, tables: [{ ...plan.tables[0]!, url: 'users/$count', count: true, headers: ['ConsistencyLevel: eventual'] }] });
+    bridge.call.mockResolvedValue({
+      ...plan,
+      tables: [{ ...plan.tables[0]!, url: 'users/$count', count: true, headers: ['ConsistencyLevel: eventual'] }],
+    });
     render(<ExplainView request={request} />);
 
     const table = await screen.findByRole('region', { name: 'users' });
@@ -151,7 +166,11 @@ describe('ExplainView', () => {
   });
 
   it('explain_shows_error_position', async () => {
-    bridge.call.mockResolvedValue({ ...plan, tables: [], error: { line: 2, column: 5, message: 'The name "x" does not refer to anything.' } });
+    bridge.call.mockResolvedValue({
+      ...plan,
+      tables: [],
+      error: { line: 2, column: 5, message: 'The name "x" does not refer to anything.' },
+    });
     // The block began on line 4 of the editor: the position is the editor's.
     render(<ExplainView request={{ ...request, origin: { line: 4, column: 1 } }} />);
 
@@ -181,7 +200,12 @@ describe('ExplainView', () => {
   });
 
   it('explain_view_shows_relationship_reads', async () => {
-    const rel = { column: 'memberOf', url: 'users/{id}/memberOf?$select=id&$top=999', permissions: ['GroupMember.Read.All', 'Directory.Read.All'], entryCap: 1000 };
+    const rel = {
+      column: 'memberOf',
+      url: 'users/{id}/memberOf?$select=id&$top=999',
+      permissions: ['GroupMember.Read.All', 'Directory.Read.All'],
+      entryCap: 1000,
+    };
     bridge.call.mockResolvedValue({ ...plan, tables: [{ ...plan.tables[0]!, relationships: [rel], filteredLocally: true }] });
     render(<ExplainView request={request} />);
 

@@ -46,7 +46,13 @@ function table(id: string, title: string, tools: ToolButton[]): Widget {
   return { ...w, id, title, query: { ...w.query!, text: 'VMs' }, tools };
 }
 
-const button = (extra: Partial<ToolButton> = {}): ToolButton => ({ ...newToolButton(), label: 'Stop VM', tool: 'Stop VM', mapping: { id: 'id' }, ...extra });
+const button = (extra: Partial<ToolButton> = {}): ToolButton => ({
+  ...newToolButton(),
+  label: 'Stop VM',
+  tool: 'Stop VM',
+  mapping: { id: 'id' },
+  ...extra,
+});
 
 function show(tools: ToolButton[], more: Widget[] = []) {
   const doc: WorkbookDoc = { ...newWorkbook('Fleet'), widgets: [table('tb', 'VMs', tools), ...more] };
@@ -60,7 +66,11 @@ function show(tools: ToolButton[], more: Widget[] = []) {
         undo: [],
         redo: [],
         dirty: false,
-        selections: {}, history: {}, since: {}, activeTabs: {}, stale: {},
+        selections: {},
+        history: {},
+        since: {},
+        activeTabs: {},
+        stale: {},
       },
     },
   });
@@ -137,7 +147,11 @@ describe('tool buttons on a table widget', () => {
     tick(2);
     tick(3);
     const s = useWorkbooks.getState().byTab['t']!;
-    act(() => useWorkbooks.setState({ byTab: { t: { ...s, doc: { ...s.doc, widgets: s.doc.widgets.map((w) => ({ ...w, selection: 'none' as const })) } } } }));
+    act(() =>
+      useWorkbooks.setState({
+        byTab: { t: { ...s, doc: { ...s.doc, widgets: s.doc.widgets.map((w) => ({ ...w, selection: 'none' as const })) } } },
+      }),
+    );
     expect(within(frame()).queryByText(/selected$/)).toBeNull();
     expect(within(frame()).getByRole('button', { name: 'Stop VM · all 3' })).toBeTruthy();
   });

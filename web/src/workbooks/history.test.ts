@@ -30,7 +30,13 @@ const setting = (over: Partial<WidgetHistory> = {}): WidgetHistory => ({
   since: 'P7D',
   ...over,
 });
-const p = (name: string, value: string, from: ResolvedParam['from'] = 'workbook'): ResolvedParam => ({ name, type: 'list', value, required: false, from });
+const p = (name: string, value: string, from: ResolvedParam['from'] = 'workbook'): ResolvedParam => ({
+  name,
+  type: 'list',
+  value,
+  required: false,
+  from,
+});
 
 describe('recordable', () => {
   it('a_cut_off_run_is_not_recordable', () => {
@@ -55,15 +61,30 @@ describe('recordable', () => {
 describe('historyRows', () => {
   const cols = ['CveId', 'DeviceName', 'DeviceId'].map((name) => ({ name, type: 'string' }));
   it('row_tracking_sends_keys_first_then_kept_columns', () => {
-    const r = result({ columns: cols, rows: [['CVE-1', 'pc1', 'd1'], ['CVE-1', 'pc2', 'd2']] });
+    const r = result({
+      columns: cols,
+      rows: [
+        ['CVE-1', 'pc1', 'd1'],
+        ['CVE-1', 'pc2', 'd2'],
+      ],
+    });
     const out = historyRows(r, setting({ keys: ['DeviceId', 'CveId'], keep: ['DeviceName'] }));
     expect(out).toEqual({
       columns: ['DeviceId', 'CveId', 'DeviceName'].map((name) => ({ name, type: 'string' })),
-      rows: [['d1', 'CVE-1', 'pc1'], ['d2', 'CVE-1', 'pc2']],
+      rows: [
+        ['d1', 'CVE-1', 'pc1'],
+        ['d2', 'CVE-1', 'pc2'],
+      ],
     });
   });
   it('duplicate_keys_are_caught_before_sending', () => {
-    const r = result({ columns: cols, rows: [['CVE-1', 'pc1', 'd1'], ['CVE-1', 'pc2', 'd1']] });
+    const r = result({
+      columns: cols,
+      rows: [
+        ['CVE-1', 'pc1', 'd1'],
+        ['CVE-1', 'pc2', 'd1'],
+      ],
+    });
     expect(historyRows(r, setting({ keys: ['DeviceId', 'CveId'] }))).toBe('keysNotUnique');
   });
   it('a_missing_key_column_is_not_unique', () => {
@@ -116,20 +137,35 @@ describe('withGaps', () => {
         { name: 'Snapshot', type: 'datetime' },
         { name: 'n', type: 'long' },
       ],
-      rows: [[local(11, 1), 1], [local(11, 2, 0), null], [local(11, 3, 0), null], [local(11, 4), 4]],
+      rows: [
+        [local(11, 1), 1],
+        [local(11, 2, 0), null],
+        [local(11, 3, 0), null],
+        [local(11, 4), 4],
+      ],
     });
-    expect(withGaps(snaps, 'run').rows).toEqual([[local(11, 1), 1], [local(11, 4), 4]]);
+    expect(withGaps(snaps, 'run').rows).toEqual([
+      [local(11, 1), 1],
+      [local(11, 4), 4],
+    ]);
     expect(withGaps(snaps, 'week').rows).toHaveLength(2);
   });
 
   it('an_empty_snapshot_is_a_null_point_so_the_line_breaks', () => {
     const snaps = [snap(local(11, 1), 1), { ...snap(local(11, 2), 0), rows: [] }, snap(local(11, 3), 3)];
-    expect(withGaps(snaps, 'day').rows).toEqual([[local(11, 1), 1], [local(11, 2), null], [local(11, 3), 3]]);
+    expect(withGaps(snaps, 'day').rows).toEqual([
+      [local(11, 1), 1],
+      [local(11, 2), null],
+      [local(11, 3), 3],
+    ]);
   });
 });
 
 describe('statChange', () => {
-  const h = { snapshots: [snap(local(10, 24), 375), snap(local(10, 25, 18), 380), snap(local(10, 28), 390), snap(local(11, 1), 412)], reset: false };
+  const h = {
+    snapshots: [snap(local(10, 24), 375), snap(local(10, 25, 18), 380), snap(local(10, 28), 390), snap(local(11, 1), 412)],
+    reset: false,
+  };
   const now = new Date(2026, 10, 1, 12);
   // The live run is the latest snapshot here: it was recorded.
   const live = (value: number, at = Date.parse(local(11, 1))) => ({ value, at });

@@ -10,8 +10,7 @@ const w = (id: string, x: number, y: number, ww: number, h: number, type: Widget
   parameters: {},
 });
 const byId = (list: Widget[], id: string) => list.find((i) => i.id === id)!.layout;
-const anyOverlap = (list: Widget[]) =>
-  list.some((a, i) => list.slice(i + 1).some((b) => overlaps(a.layout, b.layout)));
+const anyOverlap = (list: Widget[]) => list.some((a, i) => list.slice(i + 1).some((b) => overlaps(a.layout, b.layout)));
 
 describe('layout', () => {
   it('overlaps is false for touching edges', () => {

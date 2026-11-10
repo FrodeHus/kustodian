@@ -59,7 +59,10 @@ export function toCsv(
 }
 
 /** A Markdown table cell: its pipes escaped and its line breaks as `<br>`, so the cell stays on its row. */
-const markdownCell = (value: unknown) => cellText(value).replaceAll('|', '\\|').replace(/\r\n|\r|\n/g, '<br>');
+const markdownCell = (value: unknown) =>
+  cellText(value)
+    .replaceAll('|', '\\|')
+    .replace(/\r\n|\r|\n/g, '<br>');
 
 /** The rows as a Markdown table. `header: false` leaves out the header and its rule line. */
 export function toMarkdown(columns: ResultColumn[], rows: Row[], opts: { header?: boolean } = {}): string {
@@ -122,5 +125,9 @@ function content(format: ExportFormat, { columns, rows }: ResultTable): string {
 export function exportResult(format: ExportFormat, title: string, table: ResultTable): Promise<SavedFile | null> {
   const { extension, filter } = FILES[format];
   const name = title.replace(/\.kql$/i, '');
-  return call<SavedFile | null>('file.saveAs', { suggestedName: `${name}.${extension}`, filters: [filter], content: content(format, table) });
+  return call<SavedFile | null>('file.saveAs', {
+    suggestedName: `${name}.${extension}`,
+    filters: [filter],
+    content: content(format, table),
+  });
 }

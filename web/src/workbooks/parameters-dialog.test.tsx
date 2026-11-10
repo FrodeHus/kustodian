@@ -36,15 +36,34 @@ const onClose = vi.fn();
 
 function open() {
   useWorkbooks.setState({
-    byTab: { t: { doc, values: { workbook: {}, widgets: {} }, runs: {}, editing: true, undo: [], redo: [], dirty: false, selections: {}, history: {}, since: {}, activeTabs: {}, stale: {} } },
+    byTab: {
+      t: {
+        doc,
+        values: { workbook: {}, widgets: {} },
+        runs: {},
+        editing: true,
+        undo: [],
+        redo: [],
+        dirty: false,
+        selections: {},
+        history: {},
+        since: {},
+        activeTabs: {},
+        stale: {},
+      },
+    },
     runAll,
   });
   render(<ParametersDialog tabId="t" onClose={onClose} />);
 }
 
 const state = () => useWorkbooks.getState().byTab.t!;
-const names = () => within(screen.getByRole('list', { name: 'Parameters' })).getAllByRole('button').map((b) => b.querySelector('.mono')?.textContent);
-const item = (name: string) => within(screen.getByRole('list', { name: 'Parameters' })).getByRole('button', { name: new RegExp(`^${name}`) });
+const names = () =>
+  within(screen.getByRole('list', { name: 'Parameters' }))
+    .getAllByRole('button')
+    .map((b) => b.querySelector('.mono')?.textContent);
+const item = (name: string) =>
+  within(screen.getByRole('list', { name: 'Parameters' })).getByRole('button', { name: new RegExp(`^${name}`) });
 const type = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 const save = () => fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
@@ -53,7 +72,11 @@ beforeEach(() => {
   onClose.mockReset();
   doc = {
     ...newWorkbook('Review'),
-    parameters: [param('Window', { type: 'timespan', value: '7d', huntingTimespan: true }), param('Top', { type: 'number', value: '10' }), param('Unused')],
+    parameters: [
+      param('Window', { type: 'timespan', value: '7d', huntingTimespan: true }),
+      param('Top', { type: 'number', value: '10' }),
+      param('Unused'),
+    ],
     widgets: [
       widget('a', 'Sign-ins', 'signIns | take {Top}'),
       widget('b', 'Hunt', 'DeviceEvents | where Timestamp > ago({Window})'),
@@ -102,7 +125,11 @@ describe('ParametersDialog', () => {
     open();
     fireEvent.click(item('Top'));
     const used = screen.getByRole('list', { name: 'Used by' });
-    expect(within(used).getAllByRole('listitem').map((l) => l.textContent)).toEqual(['Sign-ins']);
+    expect(
+      within(used)
+        .getAllByRole('listitem')
+        .map((l) => l.textContent),
+    ).toEqual(['Sign-ins']);
     expect(item('Top').textContent).toContain('1 widget');
   });
 

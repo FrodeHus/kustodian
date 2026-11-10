@@ -22,7 +22,16 @@ const runs: RecentRun[] = [
     rows: 42,
     outcome: 'ok',
   },
-  { id: 'r1', source: 'graph', text: 'groups | take 1', parameters: [], startedAt: '2026-10-20T09:00:00Z', durationMs: 300, rows: 0, outcome: 'queryError' },
+  {
+    id: 'r1',
+    source: 'graph',
+    text: 'groups | take 1',
+    parameters: [],
+    startedAt: '2026-10-20T09:00:00Z',
+    durationMs: 300,
+    rows: 0,
+    outcome: 'queryError',
+  },
 ];
 
 let listed: RecentRun[];
@@ -93,7 +102,9 @@ describe('RecentPanel', () => {
     const before = calls();
 
     useTabs.setState((s) => ({
-      tabs: s.tabs.map((t) => (t.id === id ? { ...t, run: { state: 'done', runId: 'x', startedAt: 0, origin: { line: 1, column: 1 } } } : t)),
+      tabs: s.tabs.map((t) =>
+        t.id === id ? { ...t, run: { state: 'done', runId: 'x', startedAt: 0, origin: { line: 1, column: 1 } } } : t,
+      ),
     }));
 
     await waitFor(() => expect(calls()).toBe(before + 1));
@@ -106,7 +117,9 @@ describe('RecentPanel', () => {
     const id = useTabs.getState().open('graph');
 
     useTabs.setState((s) => ({
-      tabs: s.tabs.map((t) => (t.id === id ? { ...t, run: { state: 'done', runId: 'x', startedAt: 0, origin: { line: 1, column: 1 } } } : t)),
+      tabs: s.tabs.map((t) =>
+        t.id === id ? { ...t, run: { state: 'done', runId: 'x', startedAt: 0, origin: { line: 1, column: 1 } } } : t,
+      ),
     }));
 
     await screen.findAllByRole('button', { name: /^Open the run/ });
@@ -114,7 +127,19 @@ describe('RecentPanel', () => {
   });
 
   it('recent_follows_active_source_with_all_toggle', async () => {
-    listed = [...runs, { id: 'r3', source: 'arg', text: 'Resources | count', parameters: [], startedAt: '2026-10-21T11:00:00Z', durationMs: 900, rows: 1, outcome: 'ok' }];
+    listed = [
+      ...runs,
+      {
+        id: 'r3',
+        source: 'arg',
+        text: 'Resources | count',
+        parameters: [],
+        startedAt: '2026-10-21T11:00:00Z',
+        durationMs: 900,
+        rows: 1,
+        outcome: 'ok',
+      },
+    ];
     render(<RecentPanel source="arg" />);
 
     expect(await screen.findByRole('button', { name: /Resources \| count/ })).toBeTruthy();

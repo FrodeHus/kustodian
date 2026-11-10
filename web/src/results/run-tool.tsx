@@ -52,7 +52,12 @@ export function ToolItems({
           </button>
         );
       })}
-      <button type="button" role="menuitem" tabIndex={-1} onClick={() => void call('tools.edit').catch((e: unknown) => onError(errorText(e), reportIdOf(e)))}>
+      <button
+        type="button"
+        role="menuitem"
+        tabIndex={-1}
+        onClick={() => void call('tools.edit').catch((e: unknown) => onError(errorText(e), reportIdOf(e)))}
+      >
         Edit tools…
       </button>
     </>
@@ -90,7 +95,13 @@ export function RunToolDialog({
   const [outcomes, setOutcomes] = useState<ToolOutcome[]>([]);
   const [error, setError] = useState<Shown | null>(null);
   const [mapping, setMapping] = useState<ColumnMapping>(() => initialMapping ?? defaultMapping(tool, columns));
-  const [values, setValues] = useState<TypedValues>(() => Object.fromEntries(Object.keys(mapping).filter((p) => !mapping[p]).map((p) => [p, ''])));
+  const [values, setValues] = useState<TypedValues>(() =>
+    Object.fromEntries(
+      Object.keys(mapping)
+        .filter((p) => !mapping[p])
+        .map((p) => [p, '']),
+    ),
+  );
   const abort = useRef<AbortController | null>(null);
   useEffect(() => () => abort.current?.abort(), []);
 
@@ -113,7 +124,11 @@ export function RunToolDialog({
         setDone(progress.done);
       }
     });
-    call<{ outcomes: ToolOutcome[] }>('tools.run', { runId, name: tool.name, columns: columns.map((c) => c.name), rows, mapping, values }, controller.signal)
+    call<{ outcomes: ToolOutcome[] }>(
+      'tools.run',
+      { runId, name: tool.name, columns: columns.map((c) => c.name), rows, mapping, values },
+      controller.signal,
+    )
       .then(
         (answer) => setOutcomes(answer.outcomes),
         (e: unknown) => setError({ text: errorText(e), reportId: reportIdOf(e) }),
@@ -196,7 +211,9 @@ export function RunToolDialog({
           </fieldset>
         )}
         <span className="text-[12.5px]">
-          {batch ? `Runs once, with ${rowCount(rows.length)} on stdin as JSON:` : `Runs once for each of ${rowCount(rows.length)}. The first:`}
+          {batch
+            ? `Runs once, with ${rowCount(rows.length)} on stdin as JSON:`
+            : `Runs once for each of ${rowCount(rows.length)}. The first:`}
         </span>
         <pre className="codeblock m-0 shrink-0 overflow-auto">{preview}</pre>
         {stage === 'running' && (

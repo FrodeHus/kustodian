@@ -53,7 +53,9 @@ function warnDuplicates(cmd: Command) {
         parseShortcut(o.shortcut).some((c) => sameChord(c, chord)),
     );
     if (other) {
-      const written = [chord.mod && 'Mod', chord.ctrl && 'Ctrl', chord.shift && 'Shift', chord.alt && 'Alt', chord.key].filter(Boolean).join('+');
+      const written = [chord.mod && 'Mod', chord.ctrl && 'Ctrl', chord.shift && 'Shift', chord.alt && 'Alt', chord.key]
+        .filter(Boolean)
+        .join('+');
       console.warn(`The shortcut ${written} of ${cmd.id} is also the shortcut of ${other.id}.`);
     }
   }
@@ -125,7 +127,9 @@ export function parseShortcut(shortcut: string | undefined): Chord[] {
 /** How a shortcut is shown: one string per alternative, such as `Ctrl Shift P` or `⌘ ⇧ P`. */
 export function formatShortcut(shortcut: string | undefined): string[] {
   return parseShortcut(shortcut).map((c) =>
-    [c.mod && MOD, c.ctrl && 'Ctrl', c.shift && SHIFT, c.alt && 'Alt', c.key === 'Comma' ? ',' : c.key].filter((p): p is string => !!p).join(' '),
+    [c.mod && MOD, c.ctrl && 'Ctrl', c.shift && SHIFT, c.alt && 'Alt', c.key === 'Comma' ? ',' : c.key]
+      .filter((p): p is string => !!p)
+      .join(' '),
   );
 }
 
@@ -152,7 +156,10 @@ export function matchesChord(e: KeyboardEvent, c: Chord): boolean {
 function isEditable(target: EventTarget | null): boolean {
   return (
     target instanceof HTMLElement &&
-    (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target.isContentEditable)
+    (target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement ||
+      target.isContentEditable)
   );
 }
 

@@ -1,3 +1,5 @@
 dist
 package-lock.json
 *.tsbuildinfo
+# One rule per line by design, and tests read rules from it as text.
+src/styles.css

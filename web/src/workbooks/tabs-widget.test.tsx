@@ -20,7 +20,9 @@ function widget(id: string, type: WidgetType, title: string, extra: Partial<Widg
 
 let doc: WorkbookDoc;
 const showTab = vi.fn((tabId: string, tabsId: string, tab: string) =>
-  useWorkbooks.setState((s) => ({ byTab: { ...s.byTab, [tabId]: { ...s.byTab[tabId]!, activeTabs: { ...s.byTab[tabId]!.activeTabs, [tabsId]: tab } } } })),
+  useWorkbooks.setState((s) => ({
+    byTab: { ...s.byTab, [tabId]: { ...s.byTab[tabId]!, activeTabs: { ...s.byTab[tabId]!.activeTabs, [tabsId]: tab } } },
+  })),
 );
 const refreshTab = vi.fn(() => Promise.resolve());
 const runWidget = vi.fn(() => Promise.resolve());
@@ -46,7 +48,24 @@ function show(extra: Partial<WorkbookState> = {}, editing = false) {
 }
 
 const tab = (name: string | RegExp) => screen.getByRole('tab', { name });
-const done: WidgetRun = { state: 'done', result: { outcome: 'ok', message: null, error: null, columns: [], rows: [], total: 0, tables: [], durationMs: 1, droppedValues: 0, runId: 'r', diagnostics: [], permissions: [] }, finishedAt: 1 } as WidgetRun;
+const done: WidgetRun = {
+  state: 'done',
+  result: {
+    outcome: 'ok',
+    message: null,
+    error: null,
+    columns: [],
+    rows: [],
+    total: 0,
+    tables: [],
+    durationMs: 1,
+    droppedValues: 0,
+    runId: 'r',
+    diagnostics: [],
+    permissions: [],
+  },
+  finishedAt: 1,
+} as WidgetRun;
 
 beforeEach(() => {
   call.mockReset().mockReturnValue(new Promise(() => undefined));
@@ -57,7 +76,14 @@ beforeEach(() => {
     ...newWorkbook('Tabbed'),
     widgets: [
       widget('m', 'markdown', 'Notes', { markdown: 'Top' }),
-      widget('tw', 'tabs', '', { layout: { x: 0, y: 12, w: 12, h: 30 }, tabs: [{ id: 't1', name: 'Overview' }, { id: 't2', name: 'Details' }, { id: 't3', name: 'Empty' }] }),
+      widget('tw', 'tabs', '', {
+        layout: { x: 0, y: 12, w: 12, h: 30 },
+        tabs: [
+          { id: 't1', name: 'Overview' },
+          { id: 't2', name: 'Details' },
+          { id: 't3', name: 'Empty' },
+        ],
+      }),
       widget('a', 'markdown', 'Alpha', { markdown: 'A', in: { tabs: 'tw', tab: 't1' } }),
       widget('b', 'table', 'Beta', { in: { tabs: 'tw', tab: 't2' } }),
     ],
@@ -143,7 +169,11 @@ describe('TabsWidget', () => {
   });
 
   describe('editing tabs', () => {
-    const tabsOf = () => useWorkbooks.getState().byTab.t!.doc.widgets.find((w) => w.id === 'tw')!.tabs!.map((t) => t.name);
+    const tabsOf = () =>
+      useWorkbooks
+        .getState()
+        .byTab.t!.doc.widgets.find((w) => w.id === 'tw')!
+        .tabs!.map((t) => t.name);
     const widgets = () => useWorkbooks.getState().byTab.t!.doc.widgets;
     const menu = (name: string) => fireEvent.click(screen.getByRole('button', { name: `${name} tab menu` }));
     const item = (name: string) => screen.getByRole('menuitem', { name }) as HTMLButtonElement;
@@ -208,7 +238,9 @@ describe('TabsWidget', () => {
 
     it('dragging a tab past another reorders it, and a click still shows a tab', () => {
       show({}, true);
-      screen.getAllByRole('tab').forEach((el, i) => (el.getBoundingClientRect = () => ({ left: i * 100, width: 100, right: i * 100 + 100 }) as DOMRect));
+      screen
+        .getAllByRole('tab')
+        .forEach((el, i) => (el.getBoundingClientRect = () => ({ left: i * 100, width: 100, right: i * 100 + 100 }) as DOMRect));
       fireEvent.pointerDown(tab(/Overview/), { button: 0, clientX: 50, pointerId: 1 });
       fireEvent.pointerMove(tab(/Overview/), { clientX: 260, pointerId: 1 });
       fireEvent.pointerUp(tab(/Overview/), { clientX: 260, pointerId: 1 });
@@ -226,7 +258,9 @@ describe('TabsWidget', () => {
 
     it('Esc or a lost pointer capture drops a tab drag: nothing moves, and the click after Esc shows nothing', () => {
       show({}, true);
-      screen.getAllByRole('tab').forEach((el, i) => (el.getBoundingClientRect = () => ({ left: i * 100, width: 100, right: i * 100 + 100 }) as DOMRect));
+      screen
+        .getAllByRole('tab')
+        .forEach((el, i) => (el.getBoundingClientRect = () => ({ left: i * 100, width: 100, right: i * 100 + 100 }) as DOMRect));
       fireEvent.pointerDown(tab(/Details/), { button: 0, clientX: 150, pointerId: 1 });
       fireEvent.pointerMove(tab(/Details/), { clientX: 260, pointerId: 1 });
       fireEvent.keyDown(window, { key: 'Escape' });

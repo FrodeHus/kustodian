@@ -74,7 +74,9 @@ export function moveTab(widgets: Widget[], tabsId: string, tabId: string, by: -1
 export function removeTabs(widgets: Widget[], tabsId: string, children: 'move' | 'delete'): Widget[] {
   const tabs = widgets.find((w) => w.id === tabsId)?.tabs ?? [];
   const kids = children === 'move' ? tabs.flatMap((t) => childrenOf(widgets, tabsId, t.id)) : [];
-  return kids.reduce((acc, k) => moveTo(acc, k.id, null), widgets).filter((w) => w.id !== tabsId && (children === 'move' || w.in?.tabs !== tabsId));
+  return kids
+    .reduce((acc, k) => moveTo(acc, k.id, null), widgets)
+    .filter((w) => w.id !== tabsId && (children === 'move' || w.in?.tabs !== tabsId));
 }
 
 export function deleteTab(widgets: Widget[], tabsId: string, tabId: string, children: 'move' | 'delete'): Widget[] {

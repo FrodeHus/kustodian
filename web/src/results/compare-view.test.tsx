@@ -6,8 +6,22 @@ const columns = [
   { name: 'app', type: 'string' },
   { name: 'signIns', type: 'long' },
 ];
-const pinned = { columns, rows: [['Teams', 96], ['Legacy Intranet', 3], ['Exchange', 40]] };
-const current = { columns, rows: [['Teams', 118], ['Exchange', 40], ['Azure Portal', 12]] };
+const pinned = {
+  columns,
+  rows: [
+    ['Teams', 96],
+    ['Legacy Intranet', 3],
+    ['Exchange', 40],
+  ],
+};
+const current = {
+  columns,
+  rows: [
+    ['Teams', 118],
+    ['Exchange', 40],
+    ['Azure Portal', 12],
+  ],
+};
 
 describe('CompareView', () => {
   it('compare_view_shows_the_diff_by_key', () => {
@@ -44,13 +58,33 @@ describe('CompareView', () => {
       { name: 'id', type: 'string' },
     ];
     const { unmount } = render(
-      <CompareView pinned={{ columns: cols, rows: [['Teams', '1'], ['Teams', '2']] }} current={{ columns: cols, rows: [['Teams', '1']] }} />,
+      <CompareView
+        pinned={{
+          columns: cols,
+          rows: [
+            ['Teams', '1'],
+            ['Teams', '2'],
+          ],
+        }}
+        current={{ columns: cols, rows: [['Teams', '1']] }}
+      />,
     );
     expect(screen.getByRole('combobox', { name: 'Match rows on' })).toHaveProperty('value', 'id');
     expect(screen.queryByText('Key isn’t unique: rows are matched in order.')).toBeNull();
     unmount();
 
-    render(<CompareView pinned={{ columns: cols, rows: [['Teams', '1'], ['Teams', '1']] }} current={{ columns: cols, rows: [['Teams', '1']] }} />);
+    render(
+      <CompareView
+        pinned={{
+          columns: cols,
+          rows: [
+            ['Teams', '1'],
+            ['Teams', '1'],
+          ],
+        }}
+        current={{ columns: cols, rows: [['Teams', '1']] }}
+      />,
+    );
     expect(screen.getByRole('combobox', { name: 'Match rows on' })).toHaveProperty('value', 'app');
     expect(screen.getByText('Key isn’t unique: rows are matched in order.')).toBeTruthy();
     expect(screen.getByText('0 added · 1 removed · 0 changed · 1 the same')).toBeTruthy();

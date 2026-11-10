@@ -18,7 +18,12 @@ const wbParam = (name: string, value: string, extra: Partial<WorkbookParameter> 
   ...extra,
 });
 
-function widget(text: string, extra: Partial<WidgetQuery> = {}, parameters: Record<string, WidgetParam> = {}, type: Widget['type'] = 'table'): Widget {
+function widget(
+  text: string,
+  extra: Partial<WidgetQuery> = {},
+  parameters: Record<string, WidgetParam> = {},
+  type: Widget['type'] = 'table',
+): Widget {
   const w = newWidget(type, { x: 0, y: 0, w: 3, h: 8 });
   if (w.query) {
     w.query = { ...w.query, text, ...extra };
@@ -52,7 +57,10 @@ describe('widgetParams', () => {
   it('uses a fixed entry and ignores the widget values', () => {
     const w = widget('T | where a == {TimeRange}', {}, { TimeRange: { from: 'fixed', value: '3d' } });
     const doc = docOf([wbParam('TimeRange', '7d')], [w]);
-    expect(widgetParams(doc, w, { workbook: {}, widgets: { [w.id]: { TimeRange: '2h' } } })[0]).toMatchObject({ from: 'fixed', value: '3d' });
+    expect(widgetParams(doc, w, { workbook: {}, widgets: { [w.id]: { TimeRange: '2h' } } })[0]).toMatchObject({
+      from: 'fixed',
+      value: '3d',
+    });
   });
 
   it('makes an undefined name a widget parameter, from the query definition when there is one', () => {

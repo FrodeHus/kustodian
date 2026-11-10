@@ -27,13 +27,7 @@ export function ChartWidget({ widget, run }: { widget: Widget; run: WidgetRun })
   return (
     <ChartFailed>
       <Suspense fallback={<p className="faint m-0 p-4 text-[12px]">Loading the chart…</p>}>
-        <ChartView
-          columns={table.columns}
-          rows={table.rows}
-          kql={widget.query?.text ?? ''}
-          picked={picked}
-          controls={false}
-        />
+        <ChartView columns={table.columns} rows={table.rows} kql={widget.query?.text ?? ''} picked={picked} controls={false} />
       </Suspense>
     </ChartFailed>
   );

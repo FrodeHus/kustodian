@@ -40,7 +40,17 @@ describe('run tool', () => {
   });
 
   it('shows_the_first_command_then_runs_and_shows_each_output', async () => {
-    render(<RunToolDialog tool={echo} columns={columns} rows={[['u1', null], ['u2', null]]} onClose={() => undefined} />);
+    render(
+      <RunToolDialog
+        tool={echo}
+        columns={columns}
+        rows={[
+          ['u1', null],
+          ['u2', null],
+        ]}
+        onClose={() => undefined}
+      />,
+    );
 
     expect(screen.getByText('Runs once for each of 2 rows. The first:')).toBeTruthy();
     expect(screen.getByText(`/bin/echo id=u1 ''`)).toBeTruthy();
@@ -130,7 +140,15 @@ describe('run tool', () => {
 
     it('keeps_run_disabled_while_the_saved_column_is_gone', () => {
       const other = [{ name: 'other', type: 'string' }];
-      render(<RunToolDialog tool={idTool} columns={other} rows={[['x']]} initialMapping={startMapping(idTool, other, { id: 'gone' })} onClose={() => undefined} />);
+      render(
+        <RunToolDialog
+          tool={idTool}
+          columns={other}
+          rows={[['x']]}
+          initialMapping={startMapping(idTool, other, { id: 'gone' })}
+          onClose={() => undefined}
+        />,
+      );
       expect((screen.getByRole('button', { name: 'Run' }) as HTMLButtonElement).disabled).toBe(true);
     });
 
@@ -141,7 +159,9 @@ describe('run tool', () => {
 
     it('reports_once_when_a_run_is_answered_and_not_on_cancel', async () => {
       const onRan = vi.fn();
-      const { unmount } = render(<RunToolDialog tool={echo} columns={columns} rows={[['u1', null]]} onRan={onRan} onClose={() => undefined} />);
+      const { unmount } = render(
+        <RunToolDialog tool={echo} columns={columns} rows={[['u1', null]]} onRan={onRan} onClose={() => undefined} />,
+      );
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
       expect(onRan).not.toHaveBeenCalled();
       unmount();

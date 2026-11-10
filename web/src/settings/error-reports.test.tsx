@@ -38,7 +38,9 @@ describe('ErrorReportsDialog', () => {
   it('error_reports_explainer_says_what_is_and_is_never_sent', () => {
     render(<ErrorReportsExplainer />);
     expect(
-      screen.getByText(/error types and where in Kustodian’s code they happened, the recent steps before it as codes, the app version and OS/),
+      screen.getByText(
+        /error types and where in Kustodian’s code they happened, the recent steps before it as codes, the app version and OS/,
+      ),
     ).toBeTruthy();
     expect(screen.getByText(/Never your tenant, account, queries, values, results or error messages/)).toBeTruthy();
   });
