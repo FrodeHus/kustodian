@@ -11,6 +11,7 @@ using Kustodian.Library;
 using Kustodian.Sources;
 using Kustodian.Storage;
 using Kustodian.Telemetry;
+using Kusto.Language;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -31,10 +32,11 @@ namespace Kustodian.Messaging.Handlers;
 /// the user) answers <see cref="RunOutcome.ConsentNeeded"/> with its message; the account stays signed in. With a
 /// <paramref name="reporter"/>, every run that doesn't end <see cref="RunOutcome.Ok"/> (nor cancelled) gets a report ID; it is
 /// reported when the run failed unexpectedly (<see cref="RunResult.Cause"/>). The <paramref name="trail"/> hears
-/// <c>run.start(&lt;source&gt;)</c> and <c>run.end(&lt;outcome&gt;)</c>. <c>query.filterAt</c> answers <c>{offset}</c>: where a
+/// <c>run.start(&lt;source&gt;)</c> and <c>run.end(&lt;outcome&gt;)</c>. <c>query.filterAt</c> answers <c>{offset, name}</c>: where a
 /// smart filter's <c>where</c> line goes in a query of <c>graph</c>, <c>hunting</c> or <c>arg</c> (<see cref="FilterPlacement"/>;
 /// another source is a <c>bad_request</c>), found in the text with its parameters substituted and mapped back to the text as
-/// written (in the text as written when they can't be substituted); null when it isn't a query.</summary>
+/// written (in the text as written when they can't be substituted), null when it isn't a query; and the column's name as KQL
+/// accepts it (bracket-quoted when Kusto won't take it bare).</summary>
 public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeAccount, IReadOnlyDictionary<string, IQuerySource> sources,
     RecentService? recent = null, TimeProvider? time = null, ILogger<QueryHandler>? logger = null, GraphLimits? limits = null,
     ITenantLicenses? licenses = null, ErrorReporter? reporter = null, ErrorTrail? trail = null)
@@ -120,22 +122,23 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
             throw new BridgeException(BridgeErrorCodes.BadRequest, "Placing a filter needs kql and a column.");
         }
 
+        var name = KustoFacts.BracketNameIfNecessary(p.Column);
         var graph = p.Source == GraphSource ? schema : null;
         var substituted = ParameterSubstitution.Apply(p.Kql, p.Parameters ?? []);
         if (substituted.Text is not { } text)
         {
-            return new FilterAtAnswer(FilterPlacement.Offset(p.Kql, p.Column, graph));
+            return new FilterAtAnswer(FilterPlacement.Offset(p.Kql, p.Column, graph), name);
         }
 
         if (FilterPlacement.Offset(text, p.Column, graph) is not { } offset)
         {
-            return new FilterAtAnswer(null);
+            return new FilterAtAnswer(null, name);
         }
 
         var before = text.AsSpan(0, offset);
         var lineStart = before.LastIndexOf('\n') + 1;
         var (line, column) = substituted.MapBack(before.Count('\n') + 1, offset - lineStart + 1);
-        return new FilterAtAnswer(OffsetOf(p.Kql, line, column));
+        return new FilterAtAnswer(OffsetOf(p.Kql, line, column), name);
     }
 
     /// <summary>The character offset of a 1-based line and column in <paramref name="text"/>.</summary>
@@ -428,7 +431,7 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
 
     private sealed record FilterAtParams(string? Source, string? Kql, string? Column, IReadOnlyList<ParameterValue>? Parameters = null) : IHasParameters;
 
-    private sealed record FilterAtAnswer(int? Offset);
+    private sealed record FilterAtAnswer(int? Offset, string Name);
 
     private sealed record CancelParams(string? TabId);
 }

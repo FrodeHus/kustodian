@@ -42,6 +42,25 @@ public class QueryHandlerFilterAtTests
             reply.GetProperty("result").GetProperty("offset").GetInt32());
     }
 
+    [Theory]
+    [InlineData("to", "['to']")]
+    [InlineData("desc", "['desc']")]
+    [InlineData("displayName", "displayName")]
+    public async Task Name_is_the_column_as_written_in_KQL(string column, string name)
+    {
+        var reply = await Send(NewBridge(), new { source = "hunting", kql = "T | take 10", column });
+
+        Assert.Equal(name, reply.GetProperty("result").GetProperty("name").GetString());
+    }
+
+    [Fact]
+    public async Task Not_a_query_still_names_the_column()
+    {
+        var reply = await Send(NewBridge(), new { source = "hunting", kql = ".show tables", column = "to" });
+
+        Assert.Equal("['to']", reply.GetProperty("result").GetProperty("name").GetString());
+    }
+
     [Fact]
     public async Task Unknown_source_is_bad_request()
     {

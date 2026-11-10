@@ -595,9 +595,10 @@ export interface FilterAtParams {
 }
 
 /** `query.filterAt`'s answer: the 0-based offset in `kql` after which the `| where` line goes, or null when `kql` isn't a
- * query. */
+ * query; and the column's name as written in KQL (bracket-quoted when Kusto won't take it bare). */
 export interface FilterAtAnswer {
   offset: number | null;
+  name: string;
 }
 
 /** `raw.send`'s and `raw.next`'s answer. `truncated`: the body was cut off at the host's limit. `accountKey`: the account it
