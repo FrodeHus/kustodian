@@ -4,7 +4,8 @@ import { ErrorReportActions, type Shown } from '../shell/error-report';
 import { reportIdOf } from '../shell/report-id';
 import { inSendDetails } from '../shell/send-details-marker';
 import { SourceBadge } from '../tabs/source-badge';
-import { importFolder, importSummary, matchTools } from './import';
+import { importFolder, importSummary, matchTools, workspacesIn } from './import';
+import { WorkspaceRows } from './workspace-rows';
 import { noQueriesAdded, openImported, saveImported, useImportReview, type PendingImport, type ReviewChoices } from './sharing';
 
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -127,6 +128,7 @@ function Review({ p }: { p: PendingImport }) {
               </span>
               <span className="text-muted">Queries, layout, parameters and button settings only. A workbook file never holds results or tokens.</span>
             </Section>
+            <WorkspaceRows found={workspacesIn(p.doc)} />
             {summary.linked > 0 && (
               <Section title="Saved queries">
                 <span>

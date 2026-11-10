@@ -835,4 +835,6 @@ export interface SolutionDetails {
   readme: string;
   installed: InstalledSolution | null;
   modified: string[];
+  /** The solution's workbook files as published, so the dialog can list the workspaces they query. */
+  workbooks?: unknown[];
 }

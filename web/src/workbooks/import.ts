@@ -1,5 +1,5 @@
 import { MAX_FOLDER_LENGTH, MAX_NAME_LENGTH } from '../library/saving';
-import type { ParameterDef, QueryOptions, Source, ToolList } from '../wire';
+import type { ParameterDef, QueryOptions, QueryWorkspace, Source, ToolList } from '../wire';
 import { parseWorkbook, type Widget, type WorkbookDoc } from './model';
 
 /** JSON.parse, parseWorkbook, then only the fields Kustodian knows: what the review shows is all that is opened or saved. */
@@ -43,6 +43,7 @@ function known(doc: WorkbookDoc): WorkbookDoc {
           options: options && {
             timespan: options.timespan,
             scope: options.scope && typeof options.scope === 'object' ? only(options.scope, ['kind', 'ids']) : options.scope,
+            ...(Array.isArray(options.workspaces) && { workspaces: options.workspaces.flatMap(knownWorkspace) }),
           },
           parameters: w.query.parameters.map((p) => only(p, PARAM_DEF)),
         };
@@ -56,6 +57,26 @@ function known(doc: WorkbookDoc): WorkbookDoc {
       return next;
     }),
   };
+}
+
+/** A workspace from a file: its three string fields and nothing else. `name` is display text only; the host checks the ids. */
+function knownWorkspace(w: unknown): QueryWorkspace[] {
+  const o = w && typeof w === 'object' ? (w as Record<string, unknown>) : {};
+  const { customerId, name, resourceId } = o;
+  return typeof customerId === 'string' && typeof name === 'string' && typeof resourceId === 'string' ? [{ customerId, name, resourceId }] : [];
+}
+
+/** The workspaces the workbook's widgets query, each with how many widgets use it (what the import reviews list). */
+export function workspacesIn(doc: WorkbookDoc): { workspace: QueryWorkspace; widgets: number }[] {
+  const found = new Map<string, { workspace: QueryWorkspace; widgets: number }>();
+  for (const w of doc.widgets) {
+    for (const workspace of new Map((w.query?.options?.workspaces ?? []).map((x) => [x.customerId, x])).values()) {
+      const entry = found.get(workspace.customerId) ?? { workspace, widgets: 0 };
+      entry.widgets++;
+      found.set(workspace.customerId, entry);
+    }
+  }
+  return [...found.values()];
 }
 
 export interface ImportSummary {

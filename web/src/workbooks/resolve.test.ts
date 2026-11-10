@@ -117,6 +117,29 @@ describe('widgetRunOptions', () => {
     });
   });
 
+  const ws = { customerId: '11111111-1111-1111-1111-111111111111', name: 'Sentinel', resourceId: '/subscriptions/s/workspaces/w' };
+
+  it('the_timespan_parameter_keeps_a_widgets_workspace', () => {
+    const w = widget('T | take 1', { source: 'hunting', options: { timespan: 'P1D', scope: null, workspaces: [ws] } });
+    const doc = docOf([hp], [w]);
+    expect(widgetRunOptions(doc, w, none)).toEqual({ timespan: 'P7D', scope: null, workspaces: [ws] });
+  });
+
+  it('ninety_days_suits_a_widget_with_a_workspace_only', () => {
+    const plain = widget('T | take 1', { source: 'hunting' });
+    const withWs = widget('T | take 1', { source: 'hunting', options: { timespan: null, scope: null, workspaces: [ws] } });
+    const doc = docOf([hp], [plain, withWs]);
+    const values = { workbook: { TimeRange: '90d' }, widgets: {} };
+    expect(widgetRunOptions(doc, plain, values)).toEqual({ problem: 'TimeRange: at most 30 days for Defender hunting.' });
+    expect(widgetRunOptions(doc, withWs, values)).toEqual({ timespan: 'P90D', scope: null, workspaces: [ws] });
+    // Hours past 30 days are over the cap too.
+    expect(widgetRunOptions(doc, plain, { workbook: { TimeRange: '800h' }, widgets: {} })).toHaveProperty('problem');
+    expect(widgetRunOptions(doc, withWs, { workbook: { TimeRange: '800h' }, widgets: {} })).toMatchObject({ timespan: 'PT800H' });
+    expect(widgetRunOptions(doc, withWs, { workbook: { TimeRange: '800d' }, widgets: {} })).toEqual({
+      problem: 'TimeRange: at most 730 days for Defender hunting.',
+    });
+  });
+
   it('sends nothing for Graph and the own options for ARG', () => {
     const g = widget('x', { source: 'graph' });
     const arg = widget('x', { source: 'arg', options: { timespan: null, scope: { kind: 'subscriptions', ids: ['s'] } } });

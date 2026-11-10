@@ -159,4 +159,18 @@ describe('SolutionDialog', () => {
     fireEvent.keyDown(await screen.findByRole('dialog'), { key: 'Escape' });
     expect(useSolutionDialog.getState().id).toBeNull();
   });
+
+  it('lists the workspaces the solution workbooks query, and none when there are none', async () => {
+    const wb = (id: string, w: object) => ({
+      kind: 'kustodian.workbook', version: 1, id, name: id, parameters: [],
+      widgets: [{ id: 'h', type: 'table', title: 'h', layout: { x: 0, y: 0, w: 6, h: 8 },
+        query: { source: 'hunting', text: 'DeviceInfo', options: { timespan: 'P7D', scope: null, workspaces: [w] }, parameters: [], saved: null }, parameters: {} }],
+    });
+    const w = { customerId: '11111111-1111-1111-1111-111111111111', name: 'Sentinel prod', resourceId: '/subscriptions/s/workspaces/p' };
+    details = { ...details, workbooks: [wb('11111111-0000-0000-0000-000000000001', w), wb('11111111-0000-0000-0000-000000000002', w)] };
+    await open();
+
+    expect(await screen.findByText('This workbook queries 1 workspace')).toBeTruthy();
+    expect(screen.getByText('Sentinel prod').parentElement!.textContent).toContain('2 widgets');
+  });
 });

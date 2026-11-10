@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ToolList } from '../wire';
-import { applyImport, importFolder, importSummary, linkedQueries, matchTools, readWorkbookFile } from './import';
+import { applyImport, importFolder, importSummary, linkedQueries, matchTools, readWorkbookFile, workspacesIn } from './import';
 import { parseWorkbook, type WorkbookDoc } from './model';
 
 const ID = '7c1e0000-0000-0000-0000-000000000000';
@@ -158,5 +158,31 @@ describe('applyImport', () => {
     expect(out.id).toBe('new');
     expect('modifiedAt' in out).toBe(false);
     expect(JSON.stringify(d)).toBe(snapshot);
+  });
+});
+
+describe('workspaces', () => {
+  const G1 = '11111111-1111-1111-1111-111111111111';
+  const G2 = '22222222-2222-2222-2222-222222222222';
+  const ws = (customerId: string, name: string, extra: object = {}) => ({ customerId, name, resourceId: `/subscriptions/s/workspaces/${name}`, ...extra });
+  const hunt = (id: string, workspaces: unknown) => ({
+    id, type: 'table', title: id, layout: { x: 0, y: 0, w: 6, h: 8 },
+    query: { source: 'hunting', text: 'DeviceInfo', options: { timespan: 'P7D', scope: null, workspaces }, parameters: [], saved: null }, parameters: {},
+  });
+
+  it('workspaces_survive_import_with_only_three_fields', () => {
+    const text = JSON.stringify(file({ widgets: [hunt('a', [ws(G1, 'One', { token: 'secret' }), { customerId: 5, name: 'x', resourceId: 'r' }])] }));
+    const out = readWorkbookFile(text) as WorkbookDoc;
+    expect(out.widgets[0]!.query!.options!.workspaces).toEqual([ws(G1, 'One')]);
+    expect(JSON.stringify(out)).not.toContain('secret');
+  });
+
+  it('workspacesIn_counts_widgets_per_workspace', () => {
+    const d = doc({ widgets: [hunt('a', [ws(G1, 'One')]), hunt('b', [ws(G1, 'One')]), hunt('c', [ws(G2, 'Two')]), hunt('d', null)] });
+    expect(workspacesIn(d)).toEqual([
+      { workspace: ws(G1, 'One'), widgets: 2 },
+      { workspace: ws(G2, 'Two'), widgets: 1 },
+    ]);
+    expect(workspacesIn(doc())).toEqual([]);
   });
 });

@@ -55,6 +55,8 @@ const SEGMENT_TEXT_MAX = 8;
  * reruns as typing stops, or at once on Enter. */
 function ParamControl({ tabId, param, value }: { tabId: string; param: WorkbookParameter; value: string }) {
   const set = (v: string, now = true) => useWorkbooks.getState().setWorkbookValue(tabId, param.name, v, { now });
+  // A hunting widget with a workspace takes up to 730 days, so the parameter only complains past that.
+  const workspaceCap = useWorkbooks((st) => (st.byTab[tabId]?.doc.widgets.some((w) => w.query?.options?.workspaces?.length) ? 730 : 30));
   const label = param.label ?? param.name;
   // Choices make a picker for any type, as in a query tab; several values and All are a list's only.
   const choices = (param.choices ?? []).filter((c) => c.trim() !== '');
@@ -139,7 +141,7 @@ function ParamControl({ tabId, param, value }: { tabId: string; param: WorkbookP
     );
   }
   // A hunting timespan that can't be sent says so here, where it's fixed, as well as on the widgets it stops.
-  const problem = param.huntingTimespan ? huntingTimespanProblem(label, value) : null;
+  const problem = param.huntingTimespan ? huntingTimespanProblem(label, value, workspaceCap) : null;
   return (
     <div className="flex min-w-0 flex-col gap-1 text-[12.5px]">
       {/* One line, so the controls in a row line up; the whole label shows on hover. */}
@@ -331,7 +333,7 @@ function Updated({ at }: { at: number }) {
  * stacks them full width in (y, x) order when narrow (`.wb-grid`). Edit swaps in the EDITING toolbar (spec 5.2, screen 2):
  * + Add widget, Parameters, Undo, Redo, Discard and Done.
  */
-export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: () => void }) {
+export function WorkbookView({ tabId, onSignIn, accountKey }: { tabId: string; onSignIn?: () => void; accountKey?: string | null }) {
   const state = useWorkbooks((s) => s.byTab[tabId]);
   const savedId = useTabs((s) => s.tabs.find((t) => t.id === tabId)?.savedId);
   const [deleting, setDeleting] = useState(false);
@@ -631,6 +633,8 @@ export function WorkbookView({ tabId, onSignIn }: { tabId: string; onSignIn?: ()
           <WidgetEditor
             tabId={tabId}
             widgetId={editingWidget.id}
+            accountKey={accountKey}
+            onSignIn={onSignIn}
             onClose={() => {
               focusNext.current = () => editingWidget.opener;
               setEditingWidget(null);

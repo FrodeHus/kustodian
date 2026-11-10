@@ -721,7 +721,7 @@ export function App() {
                     // A workbook that breaks its view shows the error in its tab; the app and the other tabs stay.
                     <ErrorBoundary key={active.id}>
                       <Suspense fallback={<p className="faint m-0 p-4 text-[12px]">Loading the workbook…</p>}>
-                        <WorkbookView tabId={active.id} onSignIn={() => setAccountsOpen(true)} />
+                        <WorkbookView tabId={active.id} onSignIn={() => setAccountsOpen(true)} accountKey={accountKey} />
                       </Suspense>
                     </ErrorBoundary>
                   ) : raw ? (

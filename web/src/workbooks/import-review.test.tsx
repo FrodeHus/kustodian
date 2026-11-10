@@ -297,4 +297,26 @@ describe('ImportReview', () => {
     await closed();
     neverSent('library.save', 'workbook.save');
   });
+
+  it('lists_the_workbooks_workspaces', async () => {
+    const ws = (customerId: string, name: string) => ({ customerId, name, resourceId: `/subscriptions/s/workspaces/${name}` });
+    const hunt = (id: string, w: object) => ({
+      id, type: 'table', title: id, layout: { x: 0, y: 30, w: 6, h: 8 },
+      query: { source: 'hunting', text: 'DeviceInfo', options: { timespan: 'P7D', scope: null, workspaces: [w] }, parameters: [], saved: null }, parameters: {},
+    });
+    const one = ws('11111111-1111-1111-1111-111111111111', 'Sentinel prod');
+    const two = ws('22222222-2222-2222-2222-222222222222', 'Sentinel dev');
+    const base = JSON.parse(FILE) as { widgets: object[] };
+    fileText = JSON.stringify({ ...base, widgets: [...base.widgets, hunt('h1', one), hunt('h2', one), hunt('h3', two)] });
+    const dialog = await review();
+    expect(dialog.textContent).toContain('This workbook queries 2 workspaces');
+    expect(within(dialog).getByText('Sentinel prod').parentElement!.textContent).toContain('2 widgets');
+    expect(within(dialog).getByText('Sentinel dev').parentElement!.textContent).toContain('1 widget');
+    expect(dialog.textContent).not.toContain('1 widgets');
+  });
+
+  it('has no workspace section when the workbook queries none', async () => {
+    const dialog = await review();
+    expect(dialog.textContent).not.toContain('This workbook queries');
+  });
 });
