@@ -111,8 +111,8 @@ describe('WorkbookView', () => {
       expect(frame(title)).toBeTruthy();
     }
     expect(screen.getByRole('radiogroup', { name: 'Environment' })).toBeTruthy();
-    // The chart widget names the workbook parameter it uses.
-    expect(within(frame('Sign-ins by day')).getByText('Env')).toBeTruthy();
+    // The chart widget names the workbook parameter it uses, on its corner link icon.
+    expect(within(frame('Sign-ins by day')).getByRole('img', { name: 'Uses workbook parameters Env' })).toBeTruthy();
   });
 
   it('Print marks this workbook for the print styles, and prints in the page unless the host printed it', async () => {

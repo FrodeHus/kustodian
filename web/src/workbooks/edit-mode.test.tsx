@@ -55,6 +55,12 @@ const state = () => useWorkbooks.getState().byTab.t!;
 const layoutOf = (id: string) => state().doc.widgets.find((w) => w.id === id)?.layout;
 const grip = (title: string) => screen.getByRole('button', { name: `Move ${title}` });
 const live = () => document.querySelector('.wb-announce')!;
+const menuOf = (title: string) => screen.getByRole('button', { name: `${title} menu` });
+/** Opens the widget's ⋯ menu and returns its item. */
+const item = (title: string, name: string) => {
+  fireEvent.click(menuOf(title));
+  return screen.getByRole('menuitem', { name }) as HTMLButtonElement;
+};
 
 beforeEach(() => {
   // jsdom has no layout, so no elementFromPoint: nothing is under the pointer unless a test says so.
@@ -86,12 +92,10 @@ describe('workbook edit mode', () => {
     expect(added.layout).toEqual(spot);
   });
 
-  it('shows each widget’s size, and Edit widget, Duplicate and Remove on the selected one', () => {
+  it('shows each widget’s size and ✎ Edit widget; ⋯ has Edit widget, Duplicate and Remove', () => {
     show();
     const users = screen.getByRole('region', { name: 'Users' });
     expect(within(users).getByText('4 × 12')).toBeTruthy();
-    expect(within(users).queryByRole('button', { name: 'Duplicate' })).toBeNull();
-    fireEvent.focus(grip('Users'));
     const editWidget = within(users).getByRole('button', { name: 'Edit widget' });
     fireEvent.click(editWidget);
     const dialog = screen.getByRole('dialog', { name: 'Edit widget' });
@@ -102,9 +106,24 @@ describe('workbook edit mode', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(document.activeElement).toBe(editWidget);
-    fireEvent.click(within(users).getByRole('button', { name: 'Duplicate' }));
+    fireEvent.click(item('Users', 'Edit widget'));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Edit widget' })).getByRole('button', { name: 'Cancel' }));
+    // The item is gone by then: focus goes back to ⋯.
+    expect(document.activeElement).toBe(menuOf('Users'));
+    fireEvent.click(item('Users', 'Duplicate'));
     expect(state().doc.widgets).toHaveLength(3);
     expect(state().doc.widgets[2]?.title).toBe('Users');
+    fireEvent.click(item('Notes', 'Remove'));
+    expect(state().doc.widgets.map((w) => w.id)).not.toContain('b');
+  });
+
+  it('a widget with no query yet has Set up widget in edit mode only', () => {
+    show();
+    fireEvent.click(within(screen.getByRole('region', { name: 'Users' })).getByRole('button', { name: 'Set up widget' }));
+    expect(screen.getByRole('dialog', { name: 'Edit widget' })).toBeTruthy();
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Edit widget' })).getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    expect(screen.queryByRole('button', { name: 'Set up widget' })).toBeNull();
   });
 
   it('arrow right on a selected widget moves it one column and says where', () => {
@@ -230,6 +249,33 @@ describe('workbook edit mode', () => {
     expect(state().undo).toHaveLength(1);
   });
 
+  it('the others make way live during a drag, and go back when it is dropped', () => {
+    show();
+    const grid = document.querySelector('.wb-grid')!;
+    grid.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 1188,
+      height: 600,
+      right: 1188,
+      bottom: 600,
+      toJSON: () => ({}),
+    });
+    const cell = (name: string) => screen.getByRole('region', { name }).style;
+    const g = grip('Users');
+    fireEvent.pointerDown(g, { clientX: 10, clientY: 10, button: 0, pointerId: 1 });
+    // Two columns right: Users overlaps Notes, which moves under it before the drop.
+    fireEvent.pointerMove(g, { clientX: 210, clientY: 10, pointerId: 1, buttons: 1 });
+    expect(cell('Users').getPropertyValue('--x')).toBe('3');
+    expect(cell('Notes').getPropertyValue('--y')).toBe('13');
+    expect(layoutOf('b')).toMatchObject({ x: 4, y: 0 });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(cell('Users').getPropertyValue('--x')).toBe('1');
+    expect(cell('Notes').getPropertyValue('--y')).toBe('1');
+  });
+
   it('Esc during a drag drops it, and so does losing the pointer capture: nothing moves', () => {
     show();
     const grid = document.querySelector('.wb-grid')!;
@@ -274,8 +320,7 @@ describe('workbook edit mode', () => {
     for (const item of screen.getAllByRole('menuitem')) {
       expect((item as HTMLButtonElement).disabled).toBe(true);
     }
-    fireEvent.focus(grip('Note 0'));
-    expect((screen.getByRole('button', { name: 'Duplicate' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(item('Note 0', 'Duplicate').disabled).toBe(true);
   });
 
   it('the saved-query picker takes focus with an empty library, so Esc closes it, and gives focus back to + Add widget', async () => {
@@ -547,10 +592,7 @@ describe('workbook edit mode', () => {
       doc = { ...doc, widgets: [...doc.widgets, tabsWidget(), ...kids()] };
       show();
       const before = state().doc.widgets;
-      fireEvent.focus(grip('Untitled widget'));
-      const remove = within(screen.getByRole('region', { name: 'Untitled widget' })).getAllByRole('button', { name: 'Remove' })[0]!;
-      remove.focus();
-      fireEvent.click(remove);
+      fireEvent.click(item('Untitled widget', 'Remove'));
       const dialog = screen.getByRole('dialog', { name: 'Remove Tabs? It has 3 widgets.' });
       expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Move widgets to the top level' }));
       expect(within(dialog).getByRole('button', { name: 'Delete them too' })).toBeTruthy();
@@ -559,15 +601,14 @@ describe('workbook edit mode', () => {
       expect(live().textContent).not.toBe('Undone');
       fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
       expect(state().doc.widgets).toBe(before);
-      expect(document.activeElement).toBe(remove);
-      fireEvent.click(remove);
+      expect(document.activeElement).toBe(menuOf('Untitled widget'));
+      fireEvent.click(item('Untitled widget', 'Remove'));
       fireEvent.click(screen.getByRole('button', { name: 'Move widgets to the top level' }));
       expect(state().doc.widgets.map((w) => w.id)).toEqual(['a', 'b', 'k1', 'k2', 'k3']);
       expect(state().doc.widgets.every((w) => !w.in)).toBe(true);
       fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
       expect(state().doc.widgets).toEqual(before);
-      fireEvent.focus(grip('Untitled widget'));
-      fireEvent.click(within(screen.getByRole('region', { name: 'Untitled widget' })).getAllByRole('button', { name: 'Remove' })[0]!);
+      fireEvent.click(item('Untitled widget', 'Remove'));
       fireEvent.click(screen.getByRole('button', { name: 'Delete them too' }));
       expect(state().doc.widgets.map((w) => w.id)).toEqual(['a', 'b']);
     });
@@ -575,8 +616,7 @@ describe('workbook edit mode', () => {
     it('removing a tabs widget without widgets asks nothing', () => {
       doc = { ...doc, widgets: [...doc.widgets, tabsWidget()] };
       show();
-      fireEvent.focus(grip('Untitled widget'));
-      fireEvent.click(within(screen.getByRole('region', { name: 'Untitled widget' })).getAllByRole('button', { name: 'Remove' })[0]!);
+      fireEvent.click(item('Untitled widget', 'Remove'));
       expect(screen.queryByRole('dialog')).toBeNull();
       expect(state().doc.widgets.map((w) => w.id)).toEqual(['a', 'b']);
     });
@@ -584,8 +624,7 @@ describe('workbook edit mode', () => {
     it('Duplicate on a tabs widget copies its tabs and children, and is disabled over the limit', () => {
       doc = { ...doc, widgets: [...doc.widgets, { ...tabsWidget(), title: 'Sections' }, ...kids()] };
       show();
-      fireEvent.focus(grip('Sections'));
-      fireEvent.click(within(screen.getByRole('region', { name: 'Sections' })).getAllByRole('button', { name: 'Duplicate' })[0]!);
+      fireEvent.click(item('Sections', 'Duplicate'));
       const all = state().doc.widgets;
       expect(all).toHaveLength(10);
       const copy = all[6]!;
@@ -604,16 +643,11 @@ describe('workbook edit mode', () => {
       );
       doc = { ...doc, widgets: [...doc.widgets, ...fill, { ...tabsWidget(), title: 'Sections' }, ...kids()] };
       show();
-      fireEvent.focus(grip('Sections'));
-      const dup = within(screen.getByRole('region', { name: 'Sections' })).getAllByRole('button', {
-        name: 'Duplicate',
-      })[0] as HTMLButtonElement;
+      const dup = item('Sections', 'Duplicate');
       expect(dup.disabled).toBe(true);
       expect(dup.title).toBe('A workbook can have at most 100 widgets.');
-      fireEvent.focus(grip('Note 0'));
-      expect(
-        (within(screen.getByRole('region', { name: 'Note 0' })).getByRole('button', { name: 'Duplicate' }) as HTMLButtonElement).disabled,
-      ).toBe(false);
+      fireEvent.keyDown(dup, { key: 'Escape' });
+      expect(item('Note 0', 'Duplicate').disabled).toBe(false);
     });
 
     describe('moving widgets between places', () => {
@@ -639,6 +673,30 @@ describe('workbook edit mode', () => {
       const pointAt = (el: Element) => (document.elementFromPoint = () => el);
       afterEach(() => {
         vi.useRealTimers();
+      });
+
+      it('a drag over a tabs widget leaves it where it is, so its tabs can still be dropped into', () => {
+        // Sections beside Users, Notes under them.
+        doc = {
+          ...doc,
+          widgets: doc.widgets.map((w) =>
+            w.id === 'tw'
+              ? { ...w, layout: { x: 4, y: 0, w: 8, h: 30 } }
+              : w.id === 'b'
+                ? { ...w, layout: { ...w.layout, x: 0, y: 30 } }
+                : w,
+          ),
+        };
+        show();
+        gridOf('').getBoundingClientRect = rect(0);
+        const g = grip('Users');
+        fireEvent.pointerDown(g, { clientX: 10, clientY: 10, button: 0, pointerId: 1 });
+        // Two columns right: Users lands over Sections, which stays put; only the drop target shows.
+        fireEvent.pointerMove(g, { clientX: 210, clientY: 10, pointerId: 1, buttons: 1 });
+        expect(document.querySelector<HTMLElement>('.wb-widget.wb-drop')!.style.getPropertyValue('--x')).toBe('3');
+        expect(screen.getByRole('region', { name: 'Sections' }).style.getPropertyValue('--y')).toBe('1');
+        expect(screen.getByRole('region', { name: 'Users' }).style.getPropertyValue('--x')).toBe('1');
+        fireEvent.keyDown(window, { key: 'Escape' });
       });
 
       it('moving or resizing a widget inside a tab leaves top-level widgets untouched', () => {
