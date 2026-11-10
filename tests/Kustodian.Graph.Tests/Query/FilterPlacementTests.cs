@@ -33,6 +33,14 @@ public sealed class FilterPlacementTests
     [InlineData("graph", "users | project-rename name = displayName", "name", "users | project-rename name = displayName")]
     // GraphSelfJoin
     [InlineData("graph", "users | join (users) on id", "id", "users | join (users) on id")]
+    // GraphArgMax: summarize picks a row per group from all rows
+    [InlineData("graph", "users | summarize arg_max(createdDateTime, *) by companyName", "displayName",
+        "users | summarize arg_max(createdDateTime, *) by companyName")]
+    // GraphLeftOuterJoin: the column comes from inside the join
+    [InlineData("graph", "groups | join kind=leftouter (users) on $left.id == $right.id", "userPrincipalName",
+        "groups | join kind=leftouter (users) on $left.id == $right.id")]
+    // GraphTop: top picks its rows from all rows
+    [InlineData("graph", "users | top 5 by createdDateTime", "displayName", "users | top 5 by createdDateTime")]
     // NotAQuery
     [InlineData("hunting", ".show tables", "x", null)]
     public void Offset_is_after_the_expected_text(string source, string kql, string column, string? expected)
