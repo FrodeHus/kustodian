@@ -23,7 +23,7 @@ The owner's own requirement: **the user picks the workspace a query targets.**
 ## Goals
 
 - **Part 1:** hunting tabs, saved queries, history and workbook widgets can name a workspace. The toolbar shows a workspace
-  picker on hunting tabs; "Defender only" (no workspace) stays the default and works exactly as today.
+  picker on hunting tabs; "Primary workspace" (no workspace sent) stays the default and works exactly as today.
 - **Part 2:** a fourth query source, `logs` (UI name "Log Analytics"), next to `graph`, `hunting` and `arg`, working
   everywhere the server-side sources work (tabs, saved queries, history, Recent, workbook widgets). It **requires** a
   workspace.
@@ -91,8 +91,8 @@ files load unchanged and no file format version changes.
 
 **Picker.** `web/src/toolbar/workspace-picker.tsx`, built like `scope-picker.tsx`, with the same consent, sign-in and error
 states: a searchable list (name, resource group, subscription name, location). On hunting tabs the first entry is
-"Defender only (no workspace)". The toolbar always shows what's set. Changing it marks the tab dirty. The last workspace
-picked is remembered per account and preselected on a new `logs` tab only (my call: hunting tabs start at "Defender only",
+"Primary workspace" (no `workspaceId` sent; Graph then uses the caller's primary workspace, if one is connected). The toolbar always shows what's set. Changing it marks the tab dirty. The last workspace
+picked is remembered per account and preselected on a new `logs` tab only (my call: hunting tabs start at "Primary workspace",
 so nobody's hunting runs change underneath them).
 
 **Workbooks.** The widget editor shows the picker for hunting and `logs` widgets; the workspace is stored in the widget's
@@ -193,7 +193,7 @@ Mirror `Hunting/` and `Arg/`:
 As the other sources are tested.
 
 - Part 1: the request has `workspaceId` only when set; `QueryOptions.Problem` with the workspace part and per-source caps; the
-  fallback note in diagnostics; the picker's "Defender only" entry; the tab store sending `options.workspace`; old saved
+  fallback note in diagnostics; the picker's "Primary workspace" entry; the tab store sending `options.workspace`; old saved
   queries and workbooks loading unchanged.
 - Shared: the ARG workspace query's parsing; the picker's states (`workspace-picker.test.tsx`).
 - Part 2: `LogsClient` on canned answers (success, partial error, 400 with position, 403, 204, 504, oversized body);
