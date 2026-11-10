@@ -102,7 +102,8 @@ describe('ResultPanel', () => {
     first.unmount();
 
     render(<ResultPanel {...props} />);
-    expect(screen.getByRole('button', { name: 'Group by: displayName' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Group by' })).toBeTruthy();
+    expect(screen.getByText('Grouped by displayName')).toBeTruthy();
   });
 
   it('result_panel_pin_adds_compare', () => {

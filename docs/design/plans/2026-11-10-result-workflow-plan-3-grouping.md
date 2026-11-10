@@ -34,7 +34,10 @@
 - Copy:
   - The header menu item is `Group by this column`. When the column is already grouped it reads `Stop grouping by this
     column`. When three columns are already grouped, the item is disabled with the title `Up to 3 columns`.
-  - The chip reads `Grouped by A › B`, and its clear button is labelled `Clear grouping`.
+  - The chip reads `Grouped by A › B` (title the same, at most 16rem wide and truncated), and its clear button is labelled
+    `Clear grouping`.
+  - On the Rows grid the toolbar button reads just `Group by`; the chip names the columns. Single-column grids (widgets,
+    history, Compare) keep `Group by: x`.
   - A group row reads `<column>: <value> · <count>`, with `null` for an empty value.
 - Workbook table widgets, history tables and the Compare view keep their own grid state and get no header menu (no
   `statistics` prop). They keep today's single-column toolbar grouping behaviour, apart from the count order.
@@ -43,7 +46,8 @@
 
 - **The toolbar Group by menu becomes multi-select.** Today its items are radio buttons for a single column. They become
   `menuitemcheckbox` items: checking one adds it at the end, unchecking removes it. At three columns the unchecked ones are
-  disabled. `No grouping` clears all. The button text becomes `Group by: A › B`. This is how "both add to the same grouping"
+  disabled. `No grouping` clears all. The button keeps reading `Group by` and the chip names the columns, so the result bar
+  doesn't overlap the result tabs. This is how "both add to the same grouping"
   (spec §6) works with nesting.
 - **A group row's Filter by / Exclude value** is the first leaf row's original value in that column. The grouping value
   itself is display text (`cellText`), so it can't be used.
@@ -143,7 +147,7 @@
   - Header menu: `Group by this column` groups by it.
     - On a grouped column it reads `Stop grouping by this column` and removes it.
     - With 3 grouped columns it is disabled with the title `Up to 3 columns`.
-  - Toolbar menu: checking two columns nests them in that order, and the button reads `Group by: A › B`. `No grouping`
+  - Toolbar menu: checking two columns nests them in that order; the button reads `Group by` and the chip `Grouped by A › B`. `No grouping`
     clears.
   - Chip:
     - With grouping, `Grouped by A › B` shows.

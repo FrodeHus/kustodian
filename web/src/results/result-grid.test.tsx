@@ -548,7 +548,8 @@ describe('ResultGrid', () => {
       fireEvent.click(headerItem('g', 'Group by this column'));
       fireEvent.click(headerItem('v', 'Group by this column'));
       fireEvent.click(headerItem('n', 'Group by this column'));
-      expect(screen.getByRole('button', { name: 'Group by: g › v › n' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Group by' })).toBeTruthy();
+      expect(screen.getByText('Grouped by g › v › n')).toBeTruthy();
       const capped = headerItem('w', 'Group by this column');
       expect(capped).toHaveProperty('disabled', true);
       expect(capped.getAttribute('title')).toBe('Up to 3 columns');
@@ -561,14 +562,16 @@ describe('ResultGrid', () => {
       fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: 'g' }));
       fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: 'v' }));
       expect(within(menu).getByRole('menuitemcheckbox', { name: 'v' }).getAttribute('aria-checked')).toBe('true');
-      expect(screen.getByRole('button', { name: 'Group by: g › v' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Group by' })).toBeTruthy();
+      expect(screen.getByText('Grouped by g › v')).toBeTruthy();
 
       fireEvent.click(toggle(/g: x/));
       expect(texts(container)).toEqual(['▾ g: x · 3', '▸ v: q · 2', '▸ v: p · 1', '▸ g: z · 2', '▸ g: y · 1']);
 
       // Unchecking removes it; at three the others are disabled.
       fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: 'v' }));
-      expect(screen.getByRole('button', { name: 'Group by: g' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Group by' })).toBeTruthy();
+      expect(screen.getByText('Grouped by g')).toBeTruthy();
       fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: 'v' }));
       fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: 'n' }));
       const w = within(menu).getByRole('menuitemcheckbox', { name: 'w' });
@@ -586,6 +589,7 @@ describe('ResultGrid', () => {
       fireEvent.click(headerItem('g', 'Group by this column'));
       fireEvent.click(headerItem('v', 'Group by this column'));
       expect(screen.getByText('Grouped by g › v')).toBeTruthy();
+      expect(screen.getByText('Grouped by g › v').parentElement?.getAttribute('title')).toBe('Grouped by g › v');
 
       fireEvent.click(screen.getByRole('button', { name: 'Clear grouping' }));
       expect(screen.queryByText(/^Grouped by/)).toBeNull();

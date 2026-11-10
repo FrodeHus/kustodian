@@ -547,7 +547,8 @@ export function ResultGrid({
           </button>
         </>
       </MenuButton>
-      <MenuButton label="Group by" text={grouping.length > 0 ? `Group by: ${grouping.join(' › ')}` : undefined}>
+      {/* On the Rows grid the chip names the columns, so the button stays short beside the result tabs. */}
+      <MenuButton label="Group by" text={!nested && grouping.length > 0 ? `Group by: ${grouping.join(' › ')}` : undefined}>
         <>
           <button
             type="button"
@@ -586,7 +587,7 @@ export function ResultGrid({
         </>
       </MenuButton>
       {nested && grouping.length > 0 && (
-        <span className="chip min-w-0">
+        <span className="chip min-w-0 max-w-[16rem]" title={`Grouped by ${grouping.join(' › ')}`}>
           <span className="truncate">Grouped by {grouping.join(' › ')}</span>
           <button type="button" className="shrink-0 cursor-pointer" aria-label="Clear grouping" onClick={() => setGrouping([])}>
             ✕
