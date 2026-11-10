@@ -92,6 +92,10 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Workbook widgets can fix their own access**: a widget refused for want of access showed Grant access and Refresh
+  access buttons that could never be clicked, so you had to rerun the query in a query tab. They now work in the widget, and
+  while any widget lacks access the workbook toolbar shows **Refresh access** next to Refresh all, which grants or refreshes
+  what the failed widgets need and then refreshes the workbook.
 - **Failed run messages are readable**: when a query or a workbook widget failed (no permission, say), the message
   was squeezed to one letter per line and its report ID ran over the buttons beside it. The status line now wraps.
 - **Vulnerability management tables in advanced hunting**: `DeviceTvmSoftwareVulnerabilities` and the other `DeviceTvm*`
