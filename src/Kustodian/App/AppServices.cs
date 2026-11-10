@@ -171,7 +171,7 @@ public sealed class AppServices : IAsyncDisposable
         IQuerySource[] sources =
         [
             new GraphQuerySource(Runner, _findings),
-            new HuntingQuerySource(new HuntingClient(_hunting, _time), _time, new StderrLogger<HuntingQuerySource>()),
+            new HuntingQuerySource(new HuntingClient(_hunting, _time), _armDirectory, _time, new StderrLogger<HuntingQuerySource>()),
             new ArgQuerySource(_arg, _startup.Limits.ArgRowsPerRun, _time, new StderrLogger<ArgQuerySource>()),
         ];
         return sources.ToDictionary(s => s.Name, StringComparer.Ordinal);

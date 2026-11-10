@@ -21,6 +21,9 @@ public enum RunOutcome
     ConsentNeeded,
     /// <summary>A table the query reads needs a license the tenant doesn't have: nothing was read.</summary>
     Unlicensed,
+    /// <summary>The workspace the run was asked to target isn't one the account can see (or the list couldn't be read): nothing was
+    /// sent, so Defender can't answer from another workspace in its place.</summary>
+    WorkspaceUnavailable,
     Failed,
 }
 

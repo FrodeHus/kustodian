@@ -5,6 +5,7 @@ using Kustodian.Graph.Engine;
 using Kustodian.Graph.Fetch;
 using Kustodian.Graph.Query;
 using Kustodian.Graph.Run;
+using Kustodian.Sources.Arg;
 using Kustodian.Sources.Hunting;
 using Microsoft.Extensions.Time.Testing;
 
@@ -16,7 +17,23 @@ public class HuntingQuerySourceTests
     private const string RunId = "6f9619ff-8b86-d011-b42d-00c04fc964ff";
     private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 21, 8, 0, 0, TimeSpan.Zero));
 
-    private HuntingQuerySource Source(StubGraph graph) => new(new HuntingClient(graph.Client(), _time), _time);
+    private const string Guid1 = "0f5c1c3e-8f3c-4c52-9d3b-5f0a1c2d3e4f";
+    private const string Guid2 = "1a2b3c4d-1111-4222-8333-444455556666";
+    private const string Other = "9e9e9e9e-9999-4999-8999-999999999999";
+
+    private static readonly QueryWorkspace Sentinel = new(Guid1.ToUpperInvariant(), "contoso-sentinel", "/subscriptions/s/x");
+
+    private static string WorkspaceList(params string[] customerIds) =>
+        "{\"totalRecords\":" + customerIds.Length + ",\"data\":[" + string.Join(",", customerIds.Select(c =>
+            $"{{\"name\":\"contoso-sentinel\",\"resourceId\":\"/r/{c}\",\"customerId\":\"{c}\",\"resourceGroup\":\"rg\",\"subscriptionId\":\"s\",\"location\":\"l\"}}")) + "]}";
+
+    /// <summary>An ARM stub that fails the test when asked: the run needs no workspace list.</summary>
+    private static readonly StubGraph NoArm = new(_ => throw new InvalidOperationException("ARM was called"));
+
+    private HuntingQuerySource Source(StubGraph graph, StubGraph? arm = null) =>
+        new(new HuntingClient(graph.Client(), _time), new ArmDirectory((arm ?? NoArm).Client(), _time), _time);
+
+    private static QueryOptions OnWorkspace(string timespan = "P90D") => new(timespan, null, [Sentinel]);
 
     private static QueryRunRequest Request(string kql, QueryOptions? options = null, IReadOnlyList<ParameterValue>? parameters = null) =>
         new(Account, kql, parameters ?? [], false, RunId, options);
@@ -358,5 +375,147 @@ public class HuntingQuerySourceTests
         public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
         public override void SetLength(long value) => throw new NotSupportedException();
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    [Fact]
+    public async Task No_workspace_sends_todays_body()
+    {
+        var graph = Answering(HttpStatusCode.OK, "hunting-run-200.json");
+
+        await Source(graph).RunAsync(Request("T", new QueryOptions("P30D", null)), null, TestContext.Current.CancellationToken);
+
+        Assert.Equal("""{"Query":"T","Timespan":"P30D"}""", Assert.Single(graph.Seen).Body);
+        Assert.Empty(NoArm.Seen);
+    }
+
+    [Fact]
+    public async Task A_workspace_is_sent_as_workspaceId()
+    {
+        var graph = Answering(HttpStatusCode.OK, "hunting-run-200.json");
+        var arm = new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK, WorkspaceList(Guid1)));
+
+        // The options carry the id in upper case, the list in lower: GUID text compares ignoring case.
+        var result = await Source(graph, arm).RunAsync(Request("T", OnWorkspace()), null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(RunOutcome.Ok, result.Outcome);
+        Assert.Equal($$"""{"Query":"T","Timespan":"P90D","workspaceId":"{{Guid1.ToUpperInvariant()}}"}""", Assert.Single(graph.Seen).Body);
+    }
+
+    [Fact]
+    public async Task A_workspace_the_account_cant_see_is_not_run()
+    {
+        var graph = Answering(HttpStatusCode.OK, "hunting-run-200.json");
+        var arm = new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK, WorkspaceList(Guid2)));
+
+        var result = await Source(graph, arm).RunAsync(Request("T", OnWorkspace()), null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(RunOutcome.WorkspaceUnavailable, result.Outcome);
+        Assert.Equal("contoso-sentinel isn't available to this account. Pick a workspace.", result.Message);
+        Assert.Empty(graph.Seen);
+    }
+
+    [Fact]
+    public async Task Another_accounts_workspace_is_not_run()
+    {
+        var graph = Answering(HttpStatusCode.OK, "hunting-run-200.json");
+        var arm = new StubGraph(r => StubGraph.Json(HttpStatusCode.OK,
+            WorkspaceList(GraphRequestAccount.AccountOf(r) == "account-a" ? Guid1 : Guid2)));
+        var source = Source(graph, arm);
+
+        var asA = await source.RunAsync(Request("T", OnWorkspace()) with { AccountKey = "account-a" }, null, TestContext.Current.CancellationToken);
+        var asB = await source.RunAsync(Request("T", OnWorkspace()) with { AccountKey = "account-b" }, null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(RunOutcome.Ok, asA.Outcome);
+        Assert.Equal(RunOutcome.WorkspaceUnavailable, asB.Outcome);
+        Assert.Single(graph.Seen);
+    }
+
+    [Fact]
+    public async Task An_unreadable_list_blocks_the_run()
+    {
+        var graph = Answering(HttpStatusCode.OK, "hunting-run-200.json");
+        var arm = new StubGraph(_ => StubGraph.Json(HttpStatusCode.InternalServerError, "{}"));
+
+        var result = await Source(graph, arm).RunAsync(Request("T", OnWorkspace()), null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(RunOutcome.WorkspaceUnavailable, result.Outcome);
+        Assert.False(string.IsNullOrEmpty(result.Message));
+        Assert.Empty(graph.Seen);
+    }
+
+    [Fact]
+    public async Task A_consent_needed_list_propagates()
+    {
+        var graph = Answering(HttpStatusCode.OK, "hunting-run-200.json");
+        var arm = new StubGraph(_ => throw new ConsentRequiredException("arm"));
+
+        await Assert.ThrowsAsync<ConsentRequiredException>(() =>
+            Source(graph, arm).RunAsync(Request("T", OnWorkspace()), null, TestContext.Current.CancellationToken));
+        Assert.Empty(graph.Seen);
+    }
+
+    [Fact]
+    public async Task A_sign_in_needed_list_is_sign_in_needed()
+    {
+        var graph = Answering(HttpStatusCode.OK, "hunting-run-200.json");
+        var arm = new StubGraph(_ => throw new SignInRequiredException("again"));
+
+        var result = await Source(graph, arm).RunAsync(Request("T", OnWorkspace()), null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(RunOutcome.SignInNeeded, result.Outcome);
+        Assert.Empty(graph.Seen);
+    }
+
+    [Fact]
+    public async Task A_workspace_run_notes_the_fallback()
+    {
+        var graph = Answering(HttpStatusCode.OK, "hunting-run-200.json");
+        var arm = new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK, WorkspaceList(Guid1)));
+
+        var result = await Source(graph, arm).RunAsync(Request("T", OnWorkspace()), null, TestContext.Current.CancellationToken);
+
+        Assert.Contains("If Defender can't reach contoso-sentinel, it answers from your primary workspace.",
+            result.Diagnostics.Select(e => e.Detail));
+    }
+
+    [Theory]
+    [InlineData(Other, true)]
+    [InlineData("", false)]
+    [InlineData("0F5C1C3E-8F3C-4C52-9D3B-5F0A1C2D3E4F", false)]
+    public async Task A_TenantId_that_differs_warns(string tenantId, bool warns)
+    {
+        var graph = new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK,
+            $$"""{"schema":[{"name":"TenantId","type":"String"}],"results":[{"TenantId":"{{Guid1}}"},{"TenantId":"{{tenantId}}"}]}"""));
+        var arm = new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK, WorkspaceList(Guid1)));
+
+        var result = await Source(graph, arm).RunAsync(Request("T", OnWorkspace()), null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(warns, result.Diagnostics.Any(e => e.Kind == DiagnosticKinds.Warning && e.Detail ==
+            "Some rows came from another workspace than contoso-sentinel: Defender may have answered from your primary workspace."));
+    }
+
+    [Fact]
+    public async Task Without_a_TenantId_column_nothing_warns()
+    {
+        var arm = new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK, WorkspaceList(Guid1)));
+
+        var result = await Source(Answering(HttpStatusCode.OK, "hunting-run-200.json"), arm)
+            .RunAsync(Request("T", OnWorkspace()), null, TestContext.Current.CancellationToken);
+
+        Assert.DoesNotContain(result.Diagnostics, e => e.Kind == DiagnosticKinds.Warning);
+    }
+
+    [Fact]
+    public async Task NoPermission_with_a_workspace_mentions_Sentinel_Reader()
+    {
+        var graph = new StubGraph(_ => StubGraph.Json(HttpStatusCode.Forbidden, "{}"));
+        var arm = new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK, WorkspaceList(Guid1)));
+
+        var withWorkspace = await Source(graph, arm).RunAsync(Request("T", OnWorkspace()), null, TestContext.Current.CancellationToken);
+        var without = await Source(graph).RunAsync(Request("T"), null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(RunOutcome.NoPermission, withWorkspace.Outcome);
+        Assert.EndsWith(" With a workspace you also need Microsoft Sentinel Reader on it.", withWorkspace.Message);
+        Assert.Equal(HuntingClient.NoPermission, without.Message);
     }
 }

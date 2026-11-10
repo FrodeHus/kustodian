@@ -21,6 +21,7 @@ const OUTCOMES: Record<string, string> = {
   signInNeeded: 'Sign-in needed',
   consentNeeded: 'Azure access needed',
   unlicensed: 'License missing',
+  workspaceUnavailable: 'Not run',
   failed: 'Failed',
 };
 

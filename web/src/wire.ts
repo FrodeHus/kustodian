@@ -108,6 +108,8 @@ export type RunOutcome =
   | 'consentNeeded'
   /** A table the query reads needs a license the tenant doesn't have: nothing was read. */
   | 'unlicensed'
+  /** The workspace the run targets isn't one the account can see: nothing was run. */
+  | 'workspaceUnavailable'
   | 'failed';
 
 /** What one relationship column's reads did. `truncated`: objects whose list hit `entryCap`; `refused`: objects Graph refused for
