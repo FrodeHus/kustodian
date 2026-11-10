@@ -82,7 +82,7 @@ export function WorkspacePicker({ workspaces, onChange, accountKey, onSignIn, op
     <div ref={ref} className="relative">
       <button
         type="button"
-        className="btn whitespace-nowrap"
+        className={`btn whitespace-nowrap${missing ? ' border-bad text-bad' : ''}`}
         aria-haspopup="dialog"
         aria-expanded={open}
         onMouseDown={(e) => e.preventDefault()}

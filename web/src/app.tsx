@@ -672,6 +672,7 @@ export function App() {
                   source={active?.source ?? 'graph'}
                   text={active?.text ?? ''}
                   onInsert={insert}
+                  workspace={active?.source === 'hunting' ? active.options?.workspaces?.[0]?.name : undefined}
                   accountKey={accountKey}
                   onSignIn={() => setAccountsOpen(true)}
                 />
@@ -741,6 +742,7 @@ export function App() {
                         accountKey={accountKey}
                         account={account}
                         createApp={canCreateApp(account)}
+                        onPickWorkspace={() => setPicker('workspace')}
                         onConsented={() => void useTabs.getState().rerun(active.id)}
                         onGranted={() => {
                           const id = active.id;

@@ -161,6 +161,8 @@ interface SchemaPanelProps {
   /** The active tab's query, for "In this query". */
   text: string;
   onInsert: (name: string) => void;
+  /** The advanced hunting tab's workspace name: its Sentinel tables aren't in the schema, which the panel says. */
+  workspace?: string;
 }
 
 /** The left panel for the active tab's source (spec 6.1): the schema tree with search; descriptions show on hover. Advanced
@@ -181,6 +183,7 @@ export function SchemaPanel(props: SchemaPanelProps) {
     licenses,
     text,
     onInsert,
+    workspace,
   } = props;
   const [query, setQuery] = useState('');
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
@@ -363,6 +366,12 @@ export function SchemaPanel(props: SchemaPanelProps) {
               ))}
             </ul>
           </>
+        )}
+        {source === 'hunting' && workspace && (
+          <div className="m-3 flex flex-col gap-1.5 rounded-lg border border-line bg-panel2 px-3 py-2.5">
+            <span className="text-[12px] font-semibold">{workspace}</span>
+            <span className="muted text-[12px]">Its Sentinel tables aren&apos;t listed here yet. Queries on them still run.</span>
+          </div>
         )}
         {source === 'arg' && (
           <>
