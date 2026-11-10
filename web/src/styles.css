@@ -512,3 +512,8 @@ body {
 @media screen {
   .print-only { position: absolute; inset-inline: 0; top: 0; height: 0; overflow: hidden; visibility: hidden; pointer-events: none; }
 }
+/* Heatmap: a coloured cell takes --heat; an empty one is a faint diagonal hatch. */
+.heat-cell { background: var(--heat); }
+.heat-empty { background: repeating-linear-gradient(135deg, transparent 0 3px, var(--line) 3px 4px); }
+.heat-cell[data-pickable='true'] { cursor: pointer; }
+.heat-cell[data-active='true'] { outline: 2px solid var(--text); outline-offset: -1px; position: relative; z-index: 1; }

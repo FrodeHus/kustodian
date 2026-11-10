@@ -18,6 +18,7 @@ import {
 } from 'recharts';
 import type { ResultColumn } from '../wire';
 import type { Row } from './export';
+import { TOOLTIP, dateTick } from './chart-style';
 import {
   CHART_TYPES,
   NO_SHAPE,
@@ -64,31 +65,6 @@ const glow = (i: number) => ({ filter: `drop-shadow(0 0 5px color-mix(in srgb, $
 const ANIMATED_POINTS = 2000;
 // Many series wrap the legend; capped and scrolling, it can't grow over the options above the chart.
 const LEGEND = { wrapperStyle: { fontSize: 12, color: 'var(--muted)', maxHeight: 64, overflowY: 'auto' as const } };
-// The glass themes' --panel is near see-through, so over the chart the tooltip takes their menu background, as menus do.
-const TOOLTIP = {
-  contentStyle: {
-    background: 'var(--glass-menu, var(--panel))',
-    backdropFilter: 'var(--glass-blur)',
-    border: '1px solid var(--line)',
-    borderRadius: 8,
-    color: 'var(--text)',
-    fontSize: 12,
-  },
-  labelStyle: { color: 'var(--muted)' },
-  // Recharts' own hover band is light grey, glaring on dark themes.
-  cursor: { fill: 'var(--raise)', stroke: 'var(--line)' },
-};
-
-/** A date along a time chart's axis: day and month, and the time when it isn't midnight. */
-function dateTick(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  const day = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
-  return date.getUTCHours() === 0 && date.getUTCMinutes() === 0 ? day : `${day} ${date.toISOString().slice(11, 16)}`;
-}
-
 const valueOf = (series: string) => (p: ChartPoint) => p.values[series];
 
 /** What the Chart tab's pickers override: the type, the x axis (null for the series' names) and the series. */
