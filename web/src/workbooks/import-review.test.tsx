@@ -45,6 +45,7 @@ let library: Map<string, SavedQuery>;
 let workbooks: Map<string, WorkbookDoc>;
 let refuseSave: boolean;
 let fileText: string;
+let armWorkspaces: () => Promise<unknown>;
 
 const sent = (method: string) => bridge.call.mock.calls.filter((c) => c[0] === method).map((c) => c[1] as Record<string, unknown>);
 const savedWorkbook = () => sent('workbook.save')[0]!.workbook as WorkbookDoc;
@@ -55,6 +56,7 @@ beforeEach(() => {
   workbooks = new Map();
   refuseSave = false;
   fileText = FILE;
+  armWorkspaces = () => Promise.resolve({ workspaces: [] });
   let n = 0;
   bridge.call.mockReset();
   bridge.call.mockImplementation((method: string, params?: Record<string, unknown>) => {
@@ -63,6 +65,8 @@ beforeEach(() => {
         return Promise.resolve({ path: '/x/VM hygiene.kustodian-workbook.json', name: 'VM hygiene.kustodian-workbook.json', text: fileText });
       case 'workbook.check':
         return Promise.resolve(null);
+      case 'arm.workspaces':
+        return armWorkspaces();
       case 'tools.list':
         return Promise.resolve({
           tools: ['Start VM', 'Deallocate VM'].map((name) => ({ name, command: '/usr/bin/az', args: [], mode: 'each' })),
@@ -308,11 +312,58 @@ describe('ImportReview', () => {
     const two = ws('22222222-2222-2222-2222-222222222222', 'Sentinel dev');
     const base = JSON.parse(FILE) as { widgets: object[] };
     fileText = JSON.stringify({ ...base, widgets: [...base.widgets, hunt('h1', one), hunt('h2', one), hunt('h3', two)] });
+    armWorkspaces = () =>
+      Promise.resolve({
+        workspaces: [
+          { ...one, customerId: one.customerId.toUpperCase(), name: 'Account prod', resourceGroup: 'rg', subscriptionId: 's', location: 'x' },
+          { ...two, name: 'Account dev', resourceGroup: 'rg', subscriptionId: 's', location: 'x' },
+        ],
+      });
     const dialog = await review();
     expect(dialog.textContent).toContain('This workbook queries 2 workspaces');
-    expect(within(dialog).getByText('Sentinel prod').parentElement!.textContent).toContain('2 widgets');
-    expect(within(dialog).getByText('Sentinel dev').parentElement!.textContent).toContain('1 widget');
+    expect((await within(dialog).findByText('Account prod')).parentElement!.textContent).toContain('2 widgets');
+    expect((await within(dialog).findByText('Account dev')).parentElement!.textContent).toContain('1 widget');
     expect(dialog.textContent).not.toContain('1 widgets');
+  });
+
+  const hunting = (name: string, customerId: string) => {
+    const base = JSON.parse(FILE) as { widgets: object[] };
+    const w = { customerId, name, resourceId: '/r' };
+    fileText = JSON.stringify({
+      ...base,
+      widgets: [...base.widgets, { id: 'h', type: 'table', title: 'h', layout: { x: 0, y: 30, w: 6, h: 8 },
+        query: { source: 'hunting', text: 'DeviceInfo', options: { timespan: 'P7D', scope: null, workspaces: [w] }, parameters: [], saved: null }, parameters: {} }],
+    });
+  };
+  const GUID1 = '11111111-1111-1111-1111-111111111111';
+  const listed = (name: string, customerId = GUID1) => ({ workspaces: [{ customerId, name, resourceId: '/r', resourceGroup: 'g', subscriptionId: 's', location: 'x' }] });
+
+  it('shows the account name and short id for a workspace it can see, not the file name', async () => {
+    hunting('Looks like the safe one', GUID1);
+    armWorkspaces = () => Promise.resolve(listed('Real name'));
+    const dialog = await review();
+    expect(await within(dialog).findByText('Real name')).toBeTruthy();
+    expect(dialog.textContent).toContain('1111…1111');
+    expect(within(dialog).queryByText('Looks like the safe one')).toBeNull();
+  });
+
+  it('says a workspace the account cannot see is not available', async () => {
+    hunting('Their workspace', GUID1);
+    armWorkspaces = () => Promise.resolve(listed('Other', '22222222-2222-2222-2222-222222222222'));
+    const dialog = await review();
+    const note = await within(dialog).findByText('· not available to this account');
+    expect(note.className).toContain('text-bad');
+    expect(dialog.textContent).toContain('Their workspace');
+  });
+
+  it('says not checked while the list loads or when it cannot be read', async () => {
+    hunting('Their workspace', GUID1);
+    armWorkspaces = () => Promise.reject(new BridgeError('signInNeeded', 'Sign in again.'));
+    const dialog = await review();
+    const note = await within(dialog).findByText('· not checked');
+    expect(note.className).toContain('text-faint');
+    expect(dialog.textContent).toContain('Their workspace');
+    expect(dialog.textContent).toContain('1111…1111');
   });
 
   it('has no workspace section when the workbook queries none', async () => {

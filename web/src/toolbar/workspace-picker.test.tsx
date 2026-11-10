@@ -106,6 +106,13 @@ describe('WorkspacePicker', () => {
     expect(trigger.className).toContain('text-bad');
   });
 
+  it('the_trigger_prefers_the_lists_name_to_the_saved_one', async () => {
+    const relabelled = { customerId: 'C-SENTINEL', name: 'someone else', resourceId: '/r/sentinel' };
+    render(<Picker initial={[relabelled]} onChange={() => undefined} />);
+    fireEvent.click(screen.getByRole('button', { name: /Workspace:/ }));
+    expect(await screen.findByRole('button', { name: 'Workspace: contoso-sentinel' })).toBeTruthy();
+  });
+
   it('a_saved_workspace_in_the_list_keeps_the_normal_tone', async () => {
     render(<Picker initial={[sentinel]} onChange={() => undefined} />);
     const trigger = screen.getByRole('button', { name: 'Workspace: contoso-sentinel' });

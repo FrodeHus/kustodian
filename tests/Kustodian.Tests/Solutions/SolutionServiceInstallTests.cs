@@ -172,6 +172,32 @@ public sealed class SolutionServiceInstallTests : IDisposable
         Assert.Equal(BundledVersion, (await svc.ListAsync(false, Ct)).Solutions.Single(s => s.Manifest.Id == Id).InstalledVersion);
     }
 
+    private const string Workspace = """{"customerId":"11111111-1111-1111-1111-111111111111","name":"Theirs","resourceId":"/subscriptions/s/workspaces/w"}""";
+
+    [Fact]
+    public async Task InstallDropsAnAuthorsWorkspacesFromQueriesAndWorkbooks()
+    {
+        var query = FileJson("queries/risky-users.json");
+        query["options"] = new JsonObject { ["timespan"] = "P7D", ["scope"] = null, ["workspaces"] = new JsonArray(JsonNode.Parse(Workspace)) };
+        Publish("queries/risky-users.json", Bytes(query));
+        var wb = FileJson("workbooks/risky-users-review.json");
+        var widget = wb["widgets"]!.AsArray().Select(w => w!.AsObject()).First(w => w["query"] is JsonObject);
+        widget["query"]!["options"] = new JsonObject { ["timespan"] = "P7D", ["scope"] = null, ["workspaces"] = new JsonArray(JsonNode.Parse(Workspace)) };
+        Publish("workbooks/risky-users-review.json", Bytes(wb));
+        var svc = Service();
+
+        await svc.InstallAsync(Id, Skip(), Ct);
+
+        var installed = (await _library.ListAsync(Ct)).Queries.Single(q => q.Origin!.ItemId == "risky-users");
+        Assert.NotNull(installed.Options);
+        Assert.Null(installed.Options.Workspaces);
+        var summary = Assert.Single((await _workbooks.ListAsync(Ct)).Workbooks);
+        var saved = (await _workbooks.GetAsync(summary.Id, Ct))!;
+        Assert.DoesNotContain("workspaces", saved.ToJsonString());
+        // Hashed on the stripped form: nothing the user didn't touch counts as changed.
+        Assert.Empty(await svc.ModifiedAsync(Id, Ct));
+    }
+
     [Fact]
     public async Task InstallSkipsItems()
     {

@@ -76,7 +76,8 @@ export function WorkspacePicker({ workspaces, onChange, accountKey, onSignIn, op
     };
   }, [open, onOpenChange]);
 
-  const missing = chosen !== undefined && known !== null && !known.some((w) => w.customerId === chosen.customerId);
+  const listed = chosen && known?.find((w) => w.customerId.toLowerCase() === chosen.customerId.toLowerCase());
+  const missing = chosen !== undefined && known !== null && !listed;
 
   return (
     <div ref={ref} className="relative">
@@ -88,7 +89,7 @@ export function WorkspacePicker({ workspaces, onChange, accountKey, onSignIn, op
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => onOpenChange(!open)}
       >
-        Workspace: {chosen ? chosen.name : primaryLabel}
+        Workspace: {chosen ? (listed?.name ?? chosen.name) : primaryLabel}
         {missing && ' · not available'} <span aria-hidden="true">▾</span>
       </button>
       {open && (
