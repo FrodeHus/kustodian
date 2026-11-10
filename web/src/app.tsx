@@ -18,6 +18,7 @@ import { findParams } from './params/find-params';
 import { ParamsForm } from './params/params-form';
 import { DiagnosticsView } from './results/diagnostics-view';
 import { EXPORT_FORMATS, EXPORT_NAMES, exportResult } from './results/export';
+import { NoticeLine } from './results/result-grid';
 import { ResultPanel } from './results/result-panel';
 import type { OnFilter } from './results/menu';
 import { filterable, filterCondition, filterTarget, targetEnd, withLine, type FilterOp } from './results/smart-filter';
@@ -306,6 +307,7 @@ export function App() {
   const [saving, setSaving] = useState<string | null>(null);
   /** The tab the Add to workbook dialog is open for. */
   const [addingToWorkbook, setAddingToWorkbook] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [settings, setSettings] = useState<SettingsAnswer | null>(null);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -791,6 +793,11 @@ export function App() {
   const insert = (text: string) => (raw || workbook ? false : (editor.current?.insert(text) ?? false));
   const savingTab = tabs.find((t) => t.id === saving);
   const addingTab = tabs.find((t) => t.id === addingToWorkbook);
+  const addingOpen = addingTab !== undefined && addable(addingTab);
+  // The dialog goes when its tab re-runs, changes source or closes: its open state goes with it.
+  if (addingToWorkbook !== null && !addingOpen) {
+    setAddingToWorkbook(null);
+  }
   const closeSettings = () => {
     setCreateAppOpen(false);
     setSettingsOpen(false);
@@ -838,6 +845,7 @@ export function App() {
           </button>
         </div>
       )}
+      {notice && <NoticeLine notice={{ tone: 'ok', text: notice }} onDismiss={() => setNotice(null)} />}
       {/* Sign-in, settings and the workspace share this area: settings are a sheet over it, as wide as the window when it's narrow. */}
       <div className="relative flex min-h-0 flex-1 flex-col">
         {/* Settings can be opened from sign-in too (the title bar's account menu): they cover it until they close. */}
@@ -1066,9 +1074,7 @@ export function App() {
           </footer>
         </div>
       </div>
-      {addingTab && addable(addingTab) && (
-        <AddToWorkbookDialog tab={addingTab} onClose={() => setAddingToWorkbook(null)} onNotice={setProblem} />
-      )}
+      {addingTab && addingOpen && <AddToWorkbookDialog tab={addingTab} onClose={() => setAddingToWorkbook(null)} onNotice={setNotice} />}
       {savingTab?.source === 'workbook' && <SaveWorkbookDialog tab={savingTab} onClose={() => setSaving(null)} />}
       {savingTab && savingTab.source !== 'workbook' && (
         <SaveDialog

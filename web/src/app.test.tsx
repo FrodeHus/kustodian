@@ -1577,7 +1577,7 @@ describe('App', () => {
       expect(await screen.findByRole('dialog', { name: 'Add to workbook' })).toBeTruthy();
     });
 
-    it('is not offered before a run, for a raw tab, a workbook tab, or once the source changed', async () => {
+    it('is not offered before a run, for a raw tab or for a workbook tab', async () => {
       host({ accounts: [kari], cache: 'persistent' }, named);
       render(<App />);
       await screen.findByRole('tab', { name: /Query 1/ });
@@ -1586,6 +1586,7 @@ describe('App', () => {
       act(() => void useTabs.getState().openWorkbook());
       expect(runCommand('workbook.addQuery')).toBe(false);
       act(() => openRaw());
+      expect(runCommand('workbook.addQuery')).toBe(false);
     });
 
     it('is not offered once the tab’s source changed since the run', async () => {
@@ -1593,6 +1594,16 @@ describe('App', () => {
       act(() => useTabs.getState().setSource(useTabs.getState().activeId!, 'arg'));
       expect(runCommand('workbook.addQuery')).toBe(false);
       expect(screen.queryByRole('menuitem', { name: 'Add to workbook…' })).toBeNull();
+    });
+
+    it('closes the dialog when the tab stops qualifying, and the shortcuts work again', async () => {
+      await ranText('users\n| take 5');
+      expect(runCommand('workbook.addQuery')).toBe(true);
+      expect(await screen.findByRole('dialog', { name: 'Add to workbook' })).toBeTruthy();
+      act(() => useTabs.getState().setSource(useTabs.getState().activeId!, 'arg'));
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add to workbook' })).toBeNull());
+      fireEvent.keyDown(window, { key: 'k', code: 'KeyK', ctrlKey: true });
+      expect(await screen.findByRole('combobox', { name: 'Type a command' })).toBeTruthy();
     });
   });
 });
