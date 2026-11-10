@@ -283,6 +283,7 @@ property's **Filter…** button. The grid focuses rows, not cells, so it has no 
 | Filter by adds `\| where` to the query in the editor, runs it, and one undo (Cmd/Ctrl+Z) removes the line | - | - | - |
 | From the keyboard: Enter on a row, Tab to a property's Filter…, Enter, arrow keys, Enter runs the filter; Esc closes only the menu | - | - | - |
 | Graph `users \| project id, displayName \| take 50`, Filter by a name: Explain shows the name in `$filter`; Cmd/Ctrl+Z removes the line. Once in a light theme, once in a dark one | - | - | - |
+| Log Analytics tab on a workspace, `SigninLogs \| project TimeGenerated, UserPrincipalName \| take 50`, Filter by a user: the line goes before `take` and the run returns only that user | - | - | - |
 | Graph `users \| take 50`, Filter by a name: Explain shows `$filter` and `$top=50`; Cmd/Ctrl+Z removes the line. Once in a light theme, once in a dark one | - | - | - |
 
 ## Notes

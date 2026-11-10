@@ -33,7 +33,7 @@ namespace Kustodian.Messaging.Handlers;
 /// <paramref name="reporter"/>, every run that doesn't end <see cref="RunOutcome.Ok"/> (nor cancelled) gets a report ID; it is
 /// reported when the run failed unexpectedly (<see cref="RunResult.Cause"/>). The <paramref name="trail"/> hears
 /// <c>run.start(&lt;source&gt;)</c> and <c>run.end(&lt;outcome&gt;)</c>. <c>query.filterAt</c> answers <c>{offset, name}</c>: where a
-/// smart filter's <c>where</c> line goes in a query of <c>graph</c>, <c>hunting</c> or <c>arg</c> (<see cref="FilterPlacement"/>;
+/// smart filter's <c>where</c> line goes in a query of <c>graph</c>, <c>hunting</c>, <c>arg</c> or <c>logs</c> (<see cref="FilterPlacement"/>;
 /// another source is a <c>bad_request</c>), found in the text with its parameters substituted and mapped back to the text as
 /// written (in the text as written when they can't be substituted), null when it isn't a query; and the column's name as KQL
 /// accepts it (bracket-quoted when Kusto won't take it bare).</summary>
@@ -45,7 +45,7 @@ public sealed class QueryHandler(GraphSchema schema, Func<Task<string?>> activeA
     private const string ExplainRefused = "Explain is only available for Microsoft Graph.";
     private const string CompletionRefused = "Completion comes from the editor for this source.";
     private const long BytesPerMegabyte = 1L << 20;
-    private static readonly string[] FilterSources = [GraphSource, "hunting", "arg"];
+    private static readonly string[] FilterSources = [GraphSource, "hunting", "arg", "logs"];
     private static readonly ParameterValue DefaultParameter = new("", "text", "", false);
 
     private readonly TimeProvider _time = time ?? TimeProvider.System;

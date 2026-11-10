@@ -161,6 +161,7 @@ describe('filterable', () => {
     expect(filterable(tab('graph', undefined))).toBe(true);
     expect(filterable(tab('hunting', 'hunting'))).toBe(true);
     expect(filterable(tab('arg', 'arg'))).toBe(true);
+    expect(filterable(tab('logs', 'logs'))).toBe(true);
   });
   it('is not offered for raw or workbook tabs', () => {
     expect(filterable(tab('raw', 'raw'))).toBe(false);

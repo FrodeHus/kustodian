@@ -45,7 +45,11 @@ export function columnName(name: string): string {
 /** Whether the smart filter is offered for the tab's rows: a query source's run that kept its text, on the source it went to. */
 export function filterable(tab: Pick<Tab, 'source' | 'run'>): boolean {
   const { source, run } = tab;
-  return (source === 'graph' || source === 'hunting' || source === 'arg') && !!run?.kql && (run.source ?? 'graph') === source;
+  return (
+    (source === 'graph' || source === 'hunting' || source === 'arg' || source === 'logs') &&
+    !!run?.kql &&
+    (run.source ?? 'graph') === source
+  );
 }
 
 const isEmpty = (value: unknown) => value === null || value === undefined || value === '';

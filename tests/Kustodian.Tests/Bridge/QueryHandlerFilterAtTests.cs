@@ -62,6 +62,14 @@ public class QueryHandlerFilterAtTests
     }
 
     [Fact]
+    public async Task Log_analytics_is_placed_like_hunting()
+    {
+        var reply = await Send(NewBridge(), new { source = "logs", kql = "SigninLogs | project a | take 10", column = "a" });
+
+        Assert.Equal("SigninLogs | project a".Length, reply.GetProperty("result").GetProperty("offset").GetInt32());
+    }
+
+    [Fact]
     public async Task Unknown_source_is_bad_request()
     {
         var reply = await Send(NewBridge(), new { source = "nope", kql = "T", column = "a" });
