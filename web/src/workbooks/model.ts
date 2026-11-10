@@ -1,5 +1,6 @@
 import type { Picked } from '../results/chart-view';
-import type { ParameterDef, QueryOptions, Source } from '../wire';
+import { HIGHLIGHT_COLOURS, HIGHLIGHT_OPS, MAX_HIGHLIGHTS } from '../results/highlights';
+import type { HighlightRule, ParameterDef, QueryOptions, Source } from '../wire';
 
 export const WORKBOOK_KIND = 'kustodian.workbook';
 /** The newest file version: 2 is written only for a workbook with a tabs widget (spec §15), otherwise 1. */
@@ -27,7 +28,16 @@ export interface WidgetQuery {
   parameters: ParameterDef[];
   /** Set for a linked saved query; text, source, options and parameters are then the last copy of it (spec §9.2). */
   saved: { id: string; name: string } | null;
+  /** Left out when there are none: the host hashes an unlinked query in full to tell whether a solution workbook changed. */
+  highlights?: HighlightRule[];
 }
+
+/** `query` with `rules` as its highlights; none leaves the key out. */
+export function withHighlights(query: WidgetQuery, rules: HighlightRule[] | null | undefined): WidgetQuery {
+  const { highlights: _old, ...rest } = query;
+  return rules?.length ? { ...rest, highlights: rules } : rest;
+}
+
 export type RowSelectionMode = 'multi' | 'single' | 'none';
 export interface ToolButton {
   label: string;
@@ -198,6 +208,15 @@ function parseWidgetParams(v: unknown): Record<string, WidgetParam> {
   return Object.fromEntries(entries.map(([name, p]) => [name, { ...p, from: p.from, value: p.value }]));
 }
 
+const isRule = (r: unknown): r is HighlightRule =>
+  isObj(r) &&
+  typeof r.id === 'string' &&
+  typeof r.column === 'string' &&
+  typeof r.value === 'string' &&
+  HIGHLIGHT_OPS.includes(r.op as HighlightRule['op']) &&
+  HIGHLIGHT_COLOURS.includes(r.colour as HighlightRule['colour']) &&
+  (r.target === 'row' || r.target === 'cell');
+
 function parseQuery(v: unknown): WidgetQuery | null | undefined {
   if (v === undefined || v === null) {
     return undefined;
@@ -206,14 +225,18 @@ function parseQuery(v: unknown): WidgetQuery | null | undefined {
     return null;
   }
   const saved = isObj(v.saved) && typeof v.saved.id === 'string' ? v.saved : null;
-  return {
-    ...v,
-    source: v.source as WidgetQuery['source'],
-    text: str(v.text, ''),
-    options: isObj(v.options) ? (v.options as unknown as QueryOptions) : null,
-    parameters: Array.isArray(v.parameters) ? v.parameters.flatMap((p) => parseParamDef(p) ?? []) : [],
-    saved: saved ? { id: saved.id as string, name: str(saved.name, '') } : null,
-  };
+  const rules = Array.isArray(v.highlights) && v.highlights.length <= MAX_HIGHLIGHTS && v.highlights.every(isRule) ? v.highlights : null;
+  return withHighlights(
+    {
+      ...v,
+      source: v.source as WidgetQuery['source'],
+      text: str(v.text, ''),
+      options: isObj(v.options) ? (v.options as unknown as QueryOptions) : null,
+      parameters: Array.isArray(v.parameters) ? v.parameters.flatMap((p) => parseParamDef(p) ?? []) : [],
+      saved: saved ? { id: saved.id as string, name: str(saved.name, '') } : null,
+    },
+    rules,
+  );
 }
 
 const num = (v: unknown, fallback: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : fallback);

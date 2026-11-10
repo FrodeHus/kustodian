@@ -18,7 +18,7 @@ import type {
 import { historyRows, historySetting, recordable, seriesLabel } from './history';
 import type { SkipReason } from './history';
 import type { Widget, WorkbookDoc } from './model';
-import { parseWorkbook, withFileVersion } from './model';
+import { parseWorkbook, withFileVersion, withHighlights } from './model';
 import type { ResolvedParam, ViewValues } from './resolve';
 import { initialValues, missingRequired, toParameterValues, widgetParams, widgetRunOptions, widgetsUsing } from './resolve';
 import type { RowSelection } from './tool-buttons';
@@ -214,7 +214,7 @@ export function editRanWidgets(tabId: string): string[] {
   return [...(editStarts.get(tabId)?.ran ?? [])];
 }
 
-/** The widget as it runs: a linked one takes the library query's text, source, options and parameters (as last read for the
+/** The widget as it runs: a linked one takes the library query's text, source, options, parameters and highlight rules (as last read for the
  * tab). Null when gone. */
 export function effectiveWidget(tabId: string, widget: Widget): Widget | null {
   const query = widget.query;
@@ -227,7 +227,10 @@ export function effectiveWidget(tabId: string, widget: Widget): Widget | null {
   if (!q || q.source === 'raw') {
     return null;
   }
-  return { ...widget, query: { ...query, source: q.source, text: q.text, options: q.options ?? null, parameters: q.parameters } };
+  return {
+    ...widget,
+    query: withHighlights({ ...query, source: q.source, text: q.text, options: q.options ?? null, parameters: q.parameters }, q.highlights),
+  };
 }
 
 /**
@@ -753,7 +756,7 @@ export function startWorkbookTabs(notify?: (message: string) => void): () => voi
 }
 
 /**
- * Linked widgets take their saved query's current source, text, options, parameters and name, so the file works without the
+ * Linked widgets take their saved query's current source, text, options, parameters, highlight rules and name, so the file works without the
  * library entry (spec §9.2); a link the library no longer has (or an unreadable library) keeps its last copy.
  */
 export async function withLinkedCopies(doc: WorkbookDoc): Promise<WorkbookDoc> {
@@ -766,14 +769,17 @@ export async function withLinkedCopies(doc: WorkbookDoc): Promise<WorkbookDoc> {
     return w.query && q && q.source !== 'raw'
       ? {
           ...w,
-          query: {
-            ...w.query,
-            source: q.source,
-            text: q.text,
-            options: q.options ?? null,
-            parameters: q.parameters,
-            saved: { id: q.id, name: q.name },
-          },
+          query: withHighlights(
+            {
+              ...w.query,
+              source: q.source,
+              text: q.text,
+              options: q.options ?? null,
+              parameters: q.parameters,
+              saved: { id: q.id, name: q.name },
+            },
+            q.highlights,
+          ),
         }
       : w;
   });

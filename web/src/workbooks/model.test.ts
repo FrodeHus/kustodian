@@ -53,6 +53,23 @@ describe('parseWorkbook', () => {
     expect(d).toMatchObject({ extra: { keep: true } });
   });
 
+  it("keeps a widget query's highlight rules; a doc without them reads unchanged, with no highlights key", () => {
+    const rule = { id: 'r1', column: 'state', op: '==', value: 'FAIL', colour: 'danger', target: 'row' };
+    const e = example();
+    e.widgets[0]!.query = { ...e.widgets[0]!.query, highlights: [rule] } as never;
+    expect(doc(e).widgets[0]?.query?.highlights).toEqual([rule]);
+    expect('highlights' in doc(example()).widgets[0]!.query!).toBe(false);
+  });
+
+  it('drops an invalid, empty or over-long highlight list', () => {
+    const rule = { id: 'r1', column: 'state', op: '==', value: 'FAIL', colour: 'danger', target: 'row' };
+    for (const highlights of [[], 'x', [rule, { ...rule, op: 'like' }], [{ ...rule, colour: 'pink' }], Array(21).fill(rule)]) {
+      const e = example();
+      e.widgets[0]!.query = { ...e.widgets[0]!.query, highlights } as never;
+      expect('highlights' in doc(e).widgets[0]!.query!).toBe(false);
+    }
+  });
+
   it('refuses another kind and a newer version', () => {
     expect(parseWorkbook({ ...example(), kind: 'other' })).toBe("This isn't a Kustodian workbook.");
     expect(parseWorkbook(null)).toBe("This isn't a Kustodian workbook.");

@@ -13,10 +13,11 @@ import { exceedsDays } from '../toolbar/timespan';
 import { WorkspacePicker } from '../toolbar/workspace-picker';
 import type { HistorySeries, LibraryList, ParameterDef, RunResult, SavedQuery } from '../wire';
 import type { ParamFrom, Widget, WidgetQuery } from './model';
-import { MAX_UNIT_LENGTH } from './model';
+import { MAX_UNIT_LENGTH, withHighlights } from './model';
 import { ClearConfirm, HistorySection } from './history-section';
 import { widgetParams, workbookValues } from './resolve';
 import { ColumnSelect, ToolButtonsSection } from './tool-buttons-section';
+import { HighlightList } from '../results/highlight-list';
 import { ChartWidget } from './widgets/chart-widget';
 import { MarkdownWidget } from './widgets/markdown-widget';
 import { StatWidget } from './widgets/stat-widget';
@@ -38,12 +39,13 @@ const FROM_NAMES: [ParamFrom, string][] = [
   ['fixed', 'Fixed'],
 ];
 
-type Section = 'query' | 'parameters' | 'visualization' | 'tools' | 'history';
-// A table has no visualization settings in v1; only a table has tool buttons.
+type Section = 'query' | 'parameters' | 'visualization' | 'highlight' | 'tools' | 'history';
+// A table has no visualization settings in v1; only a table has highlight rules and tool buttons.
 const SECTIONS: [Section, string][] = [
   ['query', 'Query'],
   ['parameters', 'Parameters'],
   ['visualization', 'Visualization'],
+  ['highlight', 'Highlight'],
   ['tools', 'Tool buttons'],
   ['history', 'History'],
 ];
@@ -53,18 +55,21 @@ const changesSeries = (a: Widget, b: Widget): boolean =>
   JSON.stringify([a.query?.text, a.query?.saved?.id, a.query?.source, a.query?.options, a.history?.mode, a.history?.keys]) !==
     JSON.stringify([b.query?.text, b.query?.saved?.id, b.query?.source, b.query?.options, b.history?.mode, b.history?.keys]) || !b.history;
 
-/** The query a saved one makes: its source, text, options and parameters, linked when `linked`. */
+/** The query a saved one makes: its source, text, options, parameters and highlight rules, linked when `linked`. */
 const fromSaved = (query: WidgetQuery, q: SavedQuery, linked: boolean): WidgetQuery =>
   q.source === 'raw'
     ? query
-    : {
-        ...query,
-        source: q.source,
-        text: q.text,
-        options: q.options ?? null,
-        parameters: q.parameters,
-        saved: linked ? { id: q.id, name: q.name } : null,
-      };
+    : withHighlights(
+        {
+          ...query,
+          source: q.source,
+          text: q.text,
+          options: q.options ?? null,
+          parameters: q.parameters,
+          saved: linked ? { id: q.id, name: q.name } : null,
+        },
+        q.highlights,
+      );
 
 /**
  * Edit widget (spec 5.4 and 6.2, screen 3): the title, then for a data widget its Query (written here, or a linked saved
@@ -544,13 +549,13 @@ export function WidgetEditor({
     body = (
       <>
         <div role="tablist" aria-label="Widget settings" className="flex">
-          {SECTIONS.filter(([s]) => (s === 'visualization' ? visualizationPanel : s !== 'tools' || draft.type === 'table')).map(
-            ([s, name]) => (
-              <button key={s} type="button" role="tab" className="rtab" aria-selected={section === s} onClick={() => setSection(s)}>
-                {name}
-              </button>
-            ),
-          )}
+          {SECTIONS.filter(([s]) =>
+            s === 'visualization' ? visualizationPanel : (s !== 'tools' && s !== 'highlight') || draft.type === 'table',
+          ).map(([s, name]) => (
+            <button key={s} type="button" role="tab" className="rtab" aria-selected={section === s} onClick={() => setSection(s)}>
+              {name}
+            </button>
+          ))}
         </div>
         <div className="min-h-0 overflow-auto" role="tabpanel">
           {section === 'query' ? (
@@ -559,6 +564,16 @@ export function WidgetEditor({
             parametersPanel
           ) : section === 'history' ? (
             historyPanel
+          ) : section === 'highlight' && live.query ? (
+            <div className="flex flex-col gap-2">
+              {query?.saved && <span className="faint text-[12px]">Edit the saved query to change these.</span>}
+              <HighlightList
+                rules={live.query.highlights ?? []}
+                columns={result?.columns ?? []}
+                readOnly={!!query?.saved}
+                onChange={(rules) => query && set({ query: withHighlights(query, rules) })}
+              />
+            </div>
           ) : section === 'tools' ? (
             <ToolButtonsSection draft={draft} columns={result?.columns ?? []} set={set} />
           ) : (
