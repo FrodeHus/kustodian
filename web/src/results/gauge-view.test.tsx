@@ -28,7 +28,7 @@ const arc = (el: HTMLElement) => el.querySelector<SVGElement>('[data-testid="gau
 
 describe('GaugeView', () => {
   it('gauge_view_shows_value_target_and_colours', () => {
-    render(<GaugeView data={data()} animate={false} />);
+    render(<GaugeView data={data()} onPick={vi.fn()} animate={false} />);
     const [a, b, c] = screen.getAllByRole('button');
     expect(a!.getAttribute('aria-label')).toBe('Contoso: 72');
     expect(a!.textContent).toContain('72');
@@ -41,7 +41,13 @@ describe('GaugeView', () => {
   });
 
   it('gauge_view_without_target_uses_accent_and_no_tick', () => {
-    render(<GaugeView data={data({ target: undefined, targetFill: undefined, gauges: [gauge('A', 5, null)] })} animate={false} />);
+    render(
+      <GaugeView
+        data={data({ target: undefined, targetFill: undefined, gauges: [gauge('A', 5, null)] })}
+        onPick={vi.fn()}
+        animate={false}
+      />,
+    );
     const g = screen.getByRole('button');
     expect(arc(g)!.getAttribute('stroke')).toBe('var(--accent)');
     expect(g.textContent).not.toContain('desired');
@@ -70,7 +76,7 @@ describe('GaugeView', () => {
   });
 
   it('gauge_view_arrows_home_end_move_focus', () => {
-    render(<GaugeView data={data()} animate={false} />);
+    render(<GaugeView data={data()} onPick={vi.fn()} animate={false} />);
     const [a, b, c] = screen.getAllByRole('button');
     expect([a, b, c].map((g) => g!.tabIndex)).toEqual([0, -1, -1]);
     a!.focus();
@@ -89,7 +95,7 @@ describe('GaugeView', () => {
   });
 
   it('gauge_view_shows_readout_on_hover', () => {
-    render(<GaugeView data={data({ better: 'lower' })} animate={false} />);
+    render(<GaugeView data={data({ better: 'lower' })} onPick={vi.fn()} animate={false} />);
     fireEvent.mouseOver(screen.getAllByRole('button')[0]!);
     const tip = screen.getByTestId('gauge-tip');
     expect(tip.textContent).toContain('Contoso');
@@ -98,16 +104,22 @@ describe('GaugeView', () => {
   });
 
   it('gauge_view_renders_the_note_above_the_gauges', () => {
-    render(<GaugeView data={data({ note: 'Showing 24 of 30 rows.' })} animate={false} />);
+    render(<GaugeView data={data({ note: 'Showing 24 of 30 rows.' })} onPick={vi.fn()} animate={false} />);
     const note = screen.getByText('Showing 24 of 30 rows.');
     expect(note.compareDocumentPosition(screen.getAllByRole('button')[0]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('gauge_view_centres_a_single_gauge_up_to_260px', () => {
-    const { container } = render(<GaugeView data={data({ gauges: [gauge('A', 5, null)] })} animate={false} />);
+    render(<GaugeView data={data({ gauges: [gauge('A', 5, null)] })} onPick={vi.fn()} animate={false} />);
     const grid = screen.getByRole('button').parentElement!;
     expect(grid.style.gridTemplateColumns).toBe('minmax(130px, 260px)');
     expect(grid.style.justifyContent).toBe('center');
-    expect(container).toBeTruthy();
+    expect(grid.style.padding).toBe('4px');
+  });
+
+  it('gauge_view_without_onpick_renders_groups_not_buttons', () => {
+    render(<GaugeView data={data()} animate={false} />);
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    expect(screen.getAllByRole('group').length).toBeGreaterThan(0);
   });
 });

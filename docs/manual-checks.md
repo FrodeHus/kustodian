@@ -378,14 +378,14 @@ not opened.
 | `ExposureScore` sample (38, 22, 30, 61), desired 30, Lower is better: Fabrikam 22 and Woodgrove 30 green, Contoso 38 and Tailspin 61 red; the `aria-label` reads `Woodgrove: 30, desired 30, lower is better, at target` | ok (mock) | - | - |
 | Hover a gauge: the readout under the gauges shows the label, `Score: 85` and `desired 80 · higher is better` | ok (mock) | - | - |
 | Tab into the gauges, arrow keys move focus, Enter filters the Rows tab to that row (`Fabrikam`, one row) | ok (mock) | - | - |
-| The focus ring is fully visible on every side | - (clipped on the left, top and bottom edges: the gauges sit flush in an `overflow: auto` box) | - | - |
+| The focus ring is fully visible on every side | ok (mock; after the fix: it was clipped on the left, top and bottom edges until the gauges box got `padding: 4`) | - | - |
 | Click a gauge: the Rows tab opens filtered to that row | not checked separately (Enter checked) | - | - |
 | `secureScores \| project tenant, createdDateTime, Score` (90 rows): 24 gauges and `Showing 24 of 90 rows. Add \`take\`, \`top\` or a filter to show fewer.`; with Label `createdDateTime` the note says `top 1 by createdDateTime` | ok (mock) | - | - |
 | The same query as a workbook Chart widget (added with **Add to workbook…**) shows the gauges with their desired level; with Values history on (Every run, workbook saved) it refreshes and records (`Every run · 0 days`) and still shows the gauges | ok (mock; only in Light) | - | - |
 | **Print or save as PDF…** on that workbook: the four gauges print in colour with their ticks, nothing cut off | ok (mock) | - | - |
 | Once in a light theme, once in a dark one | ok (mock; dark for the Chart tab only, the workbook widget and print in Light) | - | - |
 
-Found while checking: the keyboard focus ring on a gauge is clipped by the scrolling box around the gauges.
+Found while checking: the keyboard focus ring on a gauge was clipped by the scrolling box around the gauges. Fixed with 4px padding on that box and re-checked in the mock (Contoso focused, ring complete on all sides).
 
 ## Notes
 

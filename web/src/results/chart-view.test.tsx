@@ -445,7 +445,9 @@ describe('ChartView', () => {
     });
 
     it('chart_view_gauge_stale_picks_fall_back', () => {
-      render(<ChartView columns={tenants} rows={tenantRows} kql="t" picked={{ type: 'gauge', x: 'gone', series: ['gone'] }} />);
+      render(
+        <ChartView columns={tenants} rows={tenantRows} kql="t" picked={{ type: 'gauge', x: 'gone', series: ['gone'] }} onPick={vi.fn()} />,
+      );
       expect(screen.getByRole('combobox', { name: 'Label' })).toHaveProperty('value', 'tenant');
       expect(screen.getByRole('checkbox', { name: 'Score' })).toHaveProperty('checked', true);
       expect(screen.getByRole('button', { name: 'Acme: 40' })).toBeTruthy();

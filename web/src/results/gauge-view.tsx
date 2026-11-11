@@ -71,7 +71,7 @@ export default function GaugeView({
   // Clamped in render, so a rerun with fewer rows never points at a missing gauge.
   const active = Math.min(picked, gauges.length - 1);
   const shown = gauges[hover ?? focused ?? -1];
-  const clickable = labelColumn !== null;
+  const clickable = labelColumn !== null && onPick !== undefined;
   const pick = (g: Gauge) => labelColumn !== null && onPick?.([{ id: labelColumn, value: g.key }]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLElement>, i: number) => {
@@ -95,6 +95,7 @@ export default function GaugeView({
         style={{
           minHeight: 0,
           overflowY: 'auto',
+          padding: 4, // room for the 2px focus outline, which overflow would clip
           display: 'grid',
           gridTemplateColumns: gauges.length === 1 ? 'minmax(130px, 260px)' : 'repeat(auto-fill, minmax(130px, 1fr))',
           justifyContent: 'center',
