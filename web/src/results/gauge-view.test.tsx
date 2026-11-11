@@ -102,4 +102,12 @@ describe('GaugeView', () => {
     const note = screen.getByText('Showing 24 of 30 rows.');
     expect(note.compareDocumentPosition(screen.getAllByRole('button')[0]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
+
+  it('gauge_view_centres_a_single_gauge_up_to_260px', () => {
+    const { container } = render(<GaugeView data={data({ gauges: [gauge('A', 5, null)] })} animate={false} />);
+    const grid = screen.getByRole('button').parentElement!;
+    expect(grid.style.gridTemplateColumns).toBe('minmax(130px, 260px)');
+    expect(grid.style.justifyContent).toBe('center');
+    expect(container).toBeTruthy();
+  });
 });

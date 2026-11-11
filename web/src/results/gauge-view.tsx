@@ -96,7 +96,8 @@ export default function GaugeView({
           minHeight: 0,
           overflowY: 'auto',
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+          gridTemplateColumns: gauges.length === 1 ? 'minmax(130px, 260px)' : 'repeat(auto-fill, minmax(130px, 1fr))',
+          justifyContent: 'center',
           gap: 8,
           justifyItems: 'center',
           alignContent: 'start',
@@ -109,7 +110,7 @@ export default function GaugeView({
             role={clickable ? 'button' : 'group'}
             tabIndex={i === active ? 0 : -1}
             aria-label={g.aria}
-            className="text-text focus-visible:outline-none"
+            className="gauge text-text"
             style={{ width: '100%', maxWidth: gauges.length === 1 ? 260 : 180, cursor: clickable ? 'pointer' : undefined, borderRadius: 8 }}
             onMouseOver={() => setHover(i)}
             onFocus={() => {
