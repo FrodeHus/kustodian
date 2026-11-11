@@ -362,6 +362,31 @@ item with only a start line ends at the grid's edge); the empty readout showed a
 card or widget spilled out of it, hiding the readout and legend; in print the grid was cut off at the widget's height and, being
 as wide as its labels, at the page's right edge.
 
+### Gauge (2026-11-11)
+
+Checked by the builder in Chromium (Playwright) against the Vite dev server with the mock bridge (`web/src/bridge.mock.ts`), on
+macOS, at 1440x900. Not checked in the desktop app or against a live tenant, so the macOS cells say "mock". The mock answers a
+query with `secureScores` and `by tenant` with four tenants (Contoso 72, Fabrikam 85, Woodgrove 80, Tailspin 41 as `Score`), any
+other `secureScores` query with 90 daily Contoso rows, and a query with `ExposureScore` with 38, 22, 30 and 61. Light was
+checked by adding `.theme-light` to the root element (the footer's Theme label did not switch it in the mock). Printing used
+Playwright's PDF output of the workbook's **Print or save as PDF…** (A4) with `window.print` stubbed; the native print sheet was
+not opened.
+
+| Check | macOS | Windows | Linux |
+| --- | --- | --- | --- |
+| `secureScores \| summarize Score = max(currentScore) by tenant`: Chart tab, pick Gauge; Label `tenant`, Value `Score`, desired 80, Higher is better: Contoso 72 and Tailspin 41 red, Fabrikam 85 and Woodgrove 80 green, a tick on each ring, `desired 80` under each value | ok (mock) | - | - |
+| `ExposureScore` sample (38, 22, 30, 61), desired 30, Lower is better: Fabrikam 22 and Woodgrove 30 green, Contoso 38 and Tailspin 61 red; the `aria-label` reads `Woodgrove: 30, desired 30, lower is better, at target` | ok (mock) | - | - |
+| Hover a gauge: the readout under the gauges shows the label, `Score: 85` and `desired 80 · higher is better` | ok (mock) | - | - |
+| Tab into the gauges, arrow keys move focus, Enter filters the Rows tab to that row (`Fabrikam`, one row) | ok (mock) | - | - |
+| The focus ring is fully visible on every side | - (clipped on the left, top and bottom edges: the gauges sit flush in an `overflow: auto` box) | - | - |
+| Click a gauge: the Rows tab opens filtered to that row | not checked separately (Enter checked) | - | - |
+| `secureScores \| project tenant, createdDateTime, Score` (90 rows): 24 gauges and `Showing 24 of 90 rows. Add \`take\`, \`top\` or a filter to show fewer.`; with Label `createdDateTime` the note says `top 1 by createdDateTime` | ok (mock) | - | - |
+| The same query as a workbook Chart widget (added with **Add to workbook…**) shows the gauges with their desired level; with Values history on (Every run, workbook saved) it refreshes and records (`Every run · 0 days`) and still shows the gauges | ok (mock; only in Light) | - | - |
+| **Print or save as PDF…** on that workbook: the four gauges print in colour with their ticks, nothing cut off | ok (mock) | - | - |
+| Once in a light theme, once in a dark one | ok (mock; dark for the Chart tab only, the workbook widget and print in Light) | - | - |
+
+Found while checking: the keyboard focus ring on a gauge is clipped by the scrolling box around the gauges.
+
 ## Notes
 
 - macOS window: the owner's own Kustodian had quit before this check, and the builder's instance was started with `HOME`

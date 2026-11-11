@@ -438,6 +438,42 @@ function dayHourResult<T extends typeof runResult>(base: T): T {
   return { ...base, columns, rows, total: rows.length };
 }
 
+/** A `secureScores` query's answer: four tenants with `by tenant`, else 90 daily Contoso rows, for the Gauge and its 24-row cap. */
+function secureScoreResult<T extends typeof runResult>(base: T, byTenant: boolean): T {
+  const columns = [
+    { name: 'tenant', type: 'string' },
+    { name: 'createdDateTime', type: 'datetime' },
+    { name: 'currentScore', type: 'real' },
+    { name: 'maxScore', type: 'real' },
+    { name: 'Score', type: 'real' },
+  ];
+  const start = Date.parse('2026-08-14T00:00:00Z');
+  const rows = byTenant
+    ? [
+        ['Contoso', 72],
+        ['Fabrikam', 85],
+        ['Woodgrove', 80],
+        ['Tailspin', 41],
+      ].map(([t, v]) => [t, new Date(start + 89 * 86400000).toISOString(), v, 100, v])
+    : Array.from({ length: 90 }, (_, d) => ['Contoso', new Date(start + d * 86400000).toISOString(), 50 + (d % 40), 100, 50 + (d % 40)]);
+  return { ...base, columns, rows, total: rows.length };
+}
+
+/** An `ExposureScore` query's answer: four tenants on a long column, for a Gauge with a lower-is-better target. */
+function exposureScoreResult<T extends typeof runResult>(base: T): T {
+  const rows = [
+    ['Contoso', 38],
+    ['Fabrikam', 22],
+    ['Woodgrove', 30],
+    ['Tailspin', 61],
+  ];
+  const columns = [
+    { name: 'tenant', type: 'string' },
+    { name: 'ExposureScore', type: 'long' },
+  ];
+  return { ...base, columns, rows, total: rows.length };
+}
+
 /** A `by Computer` query's answer: 60 computers by hour over a week, so the Heatmap has an `Other` row and scrolls sideways. */
 function computerHourResult<T extends typeof runResult>(base: T): T {
   const start = Date.parse('2026-11-03T00:00:00Z');
@@ -1263,13 +1299,17 @@ export function createMockTransport(): Transport {
           // `cutoff` in the query text: more rows exist than came back, so a history run is skipped as cut off.
           const answer = kql.includes('DeviceTvmSoftwareVulnerabilities')
             ? vulnerabilityResult(base)
-            : kql.includes('hourofday')
-              ? dayHourResult(base)
-              : /\bby Computer\b/.test(kql)
-                ? computerHourResult(base)
-                : /\bcount\(\)/.test(kql)
-                  ? countedResult(base)
-                  : base;
+            : kql.includes('secureScores')
+              ? secureScoreResult(base, kql.includes('by tenant'))
+              : kql.includes('ExposureScore')
+                ? exposureScoreResult(base)
+                : kql.includes('hourofday')
+                  ? dayHourResult(base)
+                  : /\bby Computer\b/.test(kql)
+                    ? computerHourResult(base)
+                    : /\bcount\(\)/.test(kql)
+                      ? countedResult(base)
+                      : base;
           const result = { ...answer, ...(kql.includes('cutoff') ? { total: answer.rows.length + 1000 } : {}), runId };
           // As the host's Recent: newest first, with the run's options, so "open again" brings them back.
           recent.unshift({

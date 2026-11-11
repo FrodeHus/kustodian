@@ -15,6 +15,10 @@ follow [Semantic Versioning](https://semver.org/).
   rest in Other, and date or number axes keep the latest 200 rows and 2,000 columns, each with a note saying so. A result that
   only a heatmap can draw, such as day × hour, now offers it instead of saying there is nothing to chart. Workbook heatmaps
   print to the page width.
+- **Gauge chart**: show a number per row as a ring, such as a secure score per tenant. Pick **Gauge** from the Chart tab's type
+  list or a workbook chart widget's buttons; Kustodian never switches to it on its own. Type a desired level and choose whether
+  higher or lower is better: a ring is red on the wrong side and green at or past it. The first 24 rows are drawn, with a note
+  saying so. With Values history, a widget shows the latest snapshot.
 - **Add to workbook**: put a query on a workbook from **Add to workbook…** in the Rows tab's Export menu or the command
   palette, once a Graph, advanced hunting, Resource Graph or Log Analytics query has run. Choose a workbook (or make one) and a
   Table, Chart or Stat widget. A saved query with no unsaved changes is linked; anything else is copied in. Source, options,
