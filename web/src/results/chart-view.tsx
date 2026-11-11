@@ -40,7 +40,10 @@ import {
   type ChartType,
 } from './chart-shape';
 import HeatmapView from './heatmap-view';
-import { HEATMAP_NO_SHAPE, HEATMAP_PICK, heatmapAxes, heatmapData, heatmapShape } from './heatmap-shape';
+import GaugeView from './gauge-view';
+import { ANY_PICK, GAUGE_NO_SHAPE, GAUGE_PICK, gaugeData, gaugeLabels, gaugeShape } from './gauge-shape';
+import { GaugeFields } from './gauge-fields';
+import { HEATMAP_NO_SHAPE, heatmapAxes, heatmapData, heatmapShape } from './heatmap-shape';
 
 /** Series colours, from the theme's tokens, so they follow light and dark. */
 const COLOURS = [
@@ -129,15 +132,57 @@ export default function ChartView({
     const options = renderOptions(kql);
     const shape = chartShape(columns, rows, hint, options);
     const heat = heatmapShape(columns, rows, options);
-    if (!shape && !heat) {
+    const dial = gaugeShape(columns, options);
+    // A gauge picked on a result with no number column still explains itself (and keeps the type picker), rather than a dead end.
+    if (!shape && !heat && !dial && picked.type !== 'gauge') {
       return null;
     }
     const names = new Set(columns.map((c) => c.name));
+    if (picked.type === 'gauge') {
+      const none: string[] = [];
+      if (!dial) {
+        return {
+          hint,
+          options,
+          type: picked.type,
+          note: GAUGE_NO_SHAPE,
+          xs: none,
+          numbers: none,
+          splits: none,
+          spec: { type: picked.type, x: null, series: none },
+          series: none,
+          data: [],
+        };
+      }
+      // A pick counts only for a column the result has, in its role: the value a number, the label any other column.
+      const numeric = columns.filter(isNumeric).map((c) => c.name);
+      const value = numeric.find((n) => n === picked.series?.[0]) ?? dial.series[0] ?? '';
+      const labels = gaugeLabels(columns, value);
+      const x =
+        picked.x === null || (picked.x !== undefined && labels.includes(picked.x))
+          ? picked.x
+          : labels.includes(dial.x ?? '')
+            ? dial.x
+            : null;
+      const spec = { type: picked.type, x, series: [value], split: null };
+      return {
+        hint,
+        options,
+        type: picked.type,
+        xs: labels,
+        numbers: numeric,
+        splits: none,
+        spec,
+        series: none,
+        data: [],
+        gauge: gaugeData(columns, rows, spec, picked),
+      };
+    }
     if (picked.type === 'heatmap' || !shape) {
       const type = picked.type ?? 'column';
       if (type !== 'heatmap' || !heat) {
-        // Only a heatmap fits, but it's never picked for the user; or the heatmap picked can't lay this result out.
-        const note = type === 'heatmap' ? HEATMAP_NO_SHAPE : HEATMAP_PICK;
+        // Only a heatmap or gauge fits, but neither is picked for the user; or the heatmap picked can't lay this result out.
+        const note = type === 'heatmap' ? HEATMAP_NO_SHAPE : heat ? ANY_PICK : GAUGE_PICK;
         const none: string[] = [];
         return {
           hint,
@@ -197,9 +242,10 @@ export default function ChartView({
   const { hint, options, type, xs, numbers, splits, spec, series, data } = view;
   const { x } = spec;
   const heat = 'heat' in view ? view.heat : undefined;
+  const gauge = 'gauge' in view ? view.gauge : undefined;
   const note = 'note' in view ? view.note : undefined;
-  // Only a heatmap fits, and it isn't picked: no type is shown as chosen.
-  const choose = note === HEATMAP_PICK;
+  // Only a heatmap or gauge fits, and none is picked: no type is shown as chosen.
+  const choose = note === ANY_PICK || note === GAUGE_PICK;
   // The point at `index` (a mark's, or the chart's active one for lines and areas), and the series clicked when there is one.
   const pick = (index: unknown, name?: string) => {
     const point = data[Number(index)];
@@ -214,12 +260,12 @@ export default function ChartView({
   const stackId = stack === 'none' ? undefined : 'stack';
   const stackOffset = stack === 'stacked100' ? 'expand' : undefined;
   const valueTick = stackOffset ? percent : undefined;
-  // A pie and a heatmap draw one series, so ticking one replaces the other.
+  // A pie, a heatmap and a gauge draw one series, so ticking one replaces the other.
   const toggle = (name: string, on: boolean) =>
     setPicked({
       ...picked,
       series:
-        type === 'pie' || type === 'heatmap'
+        type === 'pie' || type === 'heatmap' || type === 'gauge'
           ? [name]
           : on
             ? numbers.filter((s) => s === name || spec.series.includes(s))
@@ -246,8 +292,8 @@ export default function ChartView({
   );
 
   let chart;
-  // A heatmap, or a note in its place, draws no Recharts chart.
-  if (!heat && !note) {
+  // A heatmap or gauge, or a note in its place, draws no Recharts chart.
+  if (!heat && !gauge && !note) {
     switch (type) {
       case 'column':
         chart = (
@@ -382,6 +428,8 @@ export default function ChartView({
         <div className="flex h-full items-center justify-center">
           <span className="faint text-[12px]">{note}</span>
         </div>
+      ) : gauge ? (
+        <GaugeView data={gauge} onPick={onPick} animate={animate} />
       ) : heat ? (
         <HeatmapView data={heat} value={spec.series[0] ?? ''} onPick={onPick} fit={!animate} />
       ) : spec.series.length > 0 && !controls && type === 'bar' ? (
@@ -410,7 +458,7 @@ export default function ChartView({
       )}
     </div>
   );
-  const xLabel = type === 'heatmap' ? 'Columns' : type === 'pie' ? 'Slices' : 'X axis';
+  const xLabel = type === 'heatmap' ? 'Columns' : type === 'pie' ? 'Slices' : type === 'gauge' ? 'Label' : 'X axis';
   const splitLabel = type === 'heatmap' ? 'Rows' : 'Split by';
   if (!controls) {
     return (
@@ -433,7 +481,9 @@ export default function ChartView({
                 ? 'Time chart'
                 : type === 'heatmap'
                   ? 'Heatmap'
-                  : `${CHART_TYPES.find((t) => t.type === type)?.name ?? ''} chart`)}
+                  : type === 'gauge'
+                    ? 'Gauge'
+                    : `${CHART_TYPES.find((t) => t.type === type)?.name ?? ''} chart`)}
         </b>
         {hint && type === hint && <span className="muted text-[12px]">From render {RENDER_WORDS[hint]}</span>}
         <div className="grow" />
@@ -466,11 +516,12 @@ export default function ChartView({
             <select
               className="textbox"
               style={{ height: 28 }}
-              aria-label={type === 'heatmap' ? xLabel : 'X axis'}
+              aria-label={type === 'heatmap' || type === 'gauge' ? xLabel : 'X axis'}
               value={x ?? ''}
               onChange={(e) => setPicked({ ...picked, x: e.target.value === '' ? null : e.target.value })}
             >
-              {rows.length === 1 && type !== 'heatmap' && <option value="">Column names</option>}
+              {rows.length === 1 && type !== 'heatmap' && type !== 'gauge' && <option value="">Column names</option>}
+              {type === 'gauge' && <option value="">Row number</option>}
               {xs.map((name) => (
                 <option key={name} value={name}>
                   {name}
@@ -478,7 +529,7 @@ export default function ChartView({
               ))}
             </select>
           </label>
-          {type !== 'pie' && x !== null && (
+          {type !== 'pie' && type !== 'gauge' && x !== null && (
             <label className="flex items-center gap-2">
               <span className="muted">{splitLabel}</span>
               <select
@@ -515,7 +566,7 @@ export default function ChartView({
               </select>
             </label>
           )}
-          <span className="muted">{type === 'heatmap' ? 'Value' : 'Values'}</span>
+          <span className="muted">{type === 'heatmap' || type === 'gauge' ? 'Value' : 'Values'}</span>
           {numbers.map((name) => (
             <label key={name} className="flex items-center gap-1.5">
               <input
@@ -527,6 +578,7 @@ export default function ChartView({
               {name}
             </label>
           ))}
+          {type === 'gauge' && <GaugeFields picked={picked} onChange={setPicked} layout="inline" />}
         </div>
       )}
       {plot}
