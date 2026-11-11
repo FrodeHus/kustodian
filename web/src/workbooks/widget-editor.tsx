@@ -3,6 +3,7 @@ import { call } from '../bridge';
 import { openSaved } from '../library/open-library';
 import { PARAMETER_TYPES } from '../params/find-params';
 import { CHART_TYPES, STACKS, chartShape, isCategory, renderHint, renderOptions, stackable, withType } from '../results/chart-shape';
+import { GaugeFields } from '../results/gauge-fields';
 import { heatmapAxes } from '../results/heatmap-shape';
 import { useSchemas } from '../schema/schema-store';
 import { errorText } from '../shell/errors';
@@ -440,6 +441,7 @@ export function WidgetEditor({
       splits.push(picked.split);
     }
     const heatmap = picked.type === 'heatmap';
+    const gauge = picked.type === 'gauge';
     const rows = heatmapAxes(result?.columns ?? [], picked.series?.[0]).filter((name) => name !== picked.x);
     if (heatmap && picked.split && !rows.includes(picked.split)) {
       rows.push(picked.split);
@@ -463,36 +465,39 @@ export function WidgetEditor({
           {columns.length === 0 && <span className="faint text-[12px]">Run preview to choose columns.</span>}
           <div className="grid grid-cols-3 gap-3">
             <ColumnSelect
-              label={heatmap ? 'Columns' : 'X'}
+              label={heatmap ? 'Columns' : gauge ? 'Label' : 'X'}
               value={picked.x ?? ''}
               columns={columns}
               onChange={(x) => set({ chart: { ...picked, x: x || undefined } })}
             />
             <ColumnSelect
-              label={heatmap ? 'Value' : 'Y'}
+              label={heatmap || gauge ? 'Value' : 'Y'}
               value={picked.series?.[0] ?? ''}
               columns={columns}
               onChange={(y) => set({ chart: { ...picked, series: y ? [y] : undefined } })}
             />
-            <label className="field">
-              <span>{heatmap ? 'Rows' : 'Split by'}</span>
-              <select
-                className="textbox"
-                value={picked.split === undefined ? 'auto' : picked.split === null ? 'none' : `col:${picked.split}`}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  set({ chart: { ...picked, split: v === 'auto' ? undefined : v === 'none' ? null : v.slice(4) } });
-                }}
-              >
-                <option value="auto">Automatic</option>
-                {!heatmap && <option value="none">None</option>}
-                {(heatmap ? rows : splits).map((name) => (
-                  <option key={name} value={`col:${name}`}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {!gauge && (
+              <label className="field">
+                <span>{heatmap ? 'Rows' : 'Split by'}</span>
+                <select
+                  className="textbox"
+                  value={picked.split === undefined ? 'auto' : picked.split === null ? 'none' : `col:${picked.split}`}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    set({ chart: { ...picked, split: v === 'auto' ? undefined : v === 'none' ? null : v.slice(4) } });
+                  }}
+                >
+                  <option value="auto">Automatic</option>
+                  {!heatmap && <option value="none">None</option>}
+                  {(heatmap ? rows : splits).map((name) => (
+                    <option key={name} value={`col:${name}`}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {gauge && <GaugeFields layout="field" picked={picked} onChange={(chart) => set({ chart })} />}
             {chartType && stackable(chartType) && (
               <label className="field">
                 <span>Stacking</span>

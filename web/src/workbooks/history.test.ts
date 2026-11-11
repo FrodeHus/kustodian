@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RunResult } from '../wire';
-import { historyRows, recordable, seriesLabel, sinceInstant, sinceLabel, SKIP_TEXT, statChange, withGaps } from './history';
+import { historyRows, latestSnapshot, recordable, seriesLabel, sinceInstant, sinceLabel, SKIP_TEXT, statChange, withGaps } from './history';
 import type { WidgetHistory } from './model';
 import type { ResolvedParam } from './resolve';
 import type { WidgetRun } from './workbook-store';
@@ -190,5 +190,16 @@ describe('statChange', () => {
     expect(statChange(h, 'n', 'P30D', now, live(412))).toBeNull();
     expect(statChange({ snapshots: [snap(local(11, 1), 412)], reset: false }, 'n', 'previous', now, live(412))).toBeNull();
     expect(statChange(h, 'missing', 'P7D', now, live(412))).toBeNull();
+  });
+});
+
+describe('latestSnapshot', () => {
+  it('latest_snapshot_picks_the_newest_with_its_own_columns_and_rows', () => {
+    const newest = { takenAt: local(11, 3), columns: [{ name: 'Tenant', type: 'string' }, ...snap('', 0).columns], rows: [['a', 3]] };
+    expect(latestSnapshot([snap(local(11, 1), 1), newest, snap(local(11, 2), 2)])).toEqual({
+      columns: newest.columns,
+      rows: newest.rows,
+    });
+    expect(latestSnapshot([])).toBeNull();
   });
 });

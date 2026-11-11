@@ -179,6 +179,36 @@ describe('history in the widgets', () => {
     expect(screen.queryByRole('combobox', { name: 'Since' })).toBeNull();
   });
 
+  it('a_gauge_with_history_shows_the_newest_snapshot_by_its_own_labels', async () => {
+    const tenants = [
+      { name: 'Tenant', type: 'string' },
+      { name: 'n', type: 'long' },
+    ];
+    const at = (takenAt: string, a: number, b: number) => ({
+      takenAt,
+      columns: tenants,
+      rows: [
+        ['A', a],
+        ['B', b],
+      ],
+    });
+    const three = { snapshots: [at(daysAgo(0), 5, 6), at(daysAgo(2), 1, 2), at(daysAgo(1), 3, 4)], reset: false };
+    call.mockImplementation((method: string) => Promise.resolve(method === 'history.values' ? three : null));
+    const picked = { type: 'gauge' as const, x: 'Tenant', series: ['n'] };
+    show(widget('chart', {}, { chart: picked }), { state: 'done', result: result(n, [[3]]), finishedAt: 5 });
+    await act(async () => undefined);
+    expect(chart).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        picked,
+        columns: tenants,
+        rows: [
+          ['A', 5],
+          ['B', 6],
+        ],
+      }),
+    );
+  });
+
   it('history_widget_heatmap_values', async () => {
     const twoDays = { snapshots: [snap(daysAgo(2), 1), snap(daysAgo(0), 3)], reset: false };
     call.mockImplementation((method: string) => Promise.resolve(method === 'history.values' ? twoDays : null));

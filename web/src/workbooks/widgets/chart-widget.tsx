@@ -1,6 +1,6 @@
 import { Suspense, lazy, useContext, useMemo } from 'react';
 import { ChartFailed } from '../../results/result-panel';
-import { HistoryData, withGaps } from '../history';
+import { HistoryData, latestSnapshot, withGaps } from '../history';
 import type { Widget } from '../model';
 import type { WidgetRun } from '../workbook-store';
 import { Printing } from './printing';
@@ -17,12 +17,16 @@ export function ChartWidget({ widget, run }: { widget: Widget; run: WidgetRun })
   const printing = useContext(Printing);
   const history = widget.history;
   // Stable inputs, so the chart's own memo holds across the workbook's re-renders.
-  const gapped = useMemo(
-    () => (history?.mode === 'values' && values?.snapshots.length ? withGaps(values.snapshots, history.interval) : null),
-    [history, values],
-  );
   const chart = widget.chart;
-  const picked = useMemo(() => (gapped ? { ...chart, x: 'Snapshot' } : (chart ?? {})), [gapped, chart]);
+  const gauge = chart?.type === 'gauge';
+  const gapped = useMemo(() => {
+    if (history?.mode !== 'values' || !values?.snapshots.length) {
+      return null;
+    }
+    // A gauge shows where things stand now: the newest snapshot as it is, not a series over time.
+    return gauge ? latestSnapshot(values.snapshots) : withGaps(values.snapshots, history.interval);
+  }, [history, values, gauge]);
+  const picked = useMemo(() => (gapped && !gauge ? { ...chart, x: 'Snapshot' } : (chart ?? {})), [gapped, gauge, chart]);
   if (run.state !== 'done') {
     return null;
   }
