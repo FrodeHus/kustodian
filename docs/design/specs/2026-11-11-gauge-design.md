@@ -131,7 +131,7 @@ instead if it turns out simpler.
   Label column (for example the tenant) instead of forcing `x` to `Snapshot`. Trends over time are a line chart's job. This is a
   special case in `ChartWidget` (`web/src/workbooks/chart-widget.tsx`), with a test. Without it, `withGaps` returns snapshots
   oldest first, so the cap would show the oldest 24 days and never today's score, and per-tenant rows would all carry the same
-  date label. The cap note's "add `top 1`" advice doesn't apply here and isn't shown for history rows.
+  date label. With only the latest snapshot, the rows are the query's own, so the cap and its note apply as usual.
 - **Print / PDF:** the gauges are SVG and wrap within the page width, so nothing is cut off. The builder checks this the way the
   heatmap was checked.
 
