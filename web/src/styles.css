@@ -534,3 +534,9 @@ body {
 .heat-cell { background: var(--heat); }
 .heat-empty { background: repeating-linear-gradient(135deg, transparent 0 3px, var(--line) 3px 4px); }
 .heat-cell[data-pickable='true'] { cursor: pointer; }
+
+/* A gauge's arc grows from empty over 700 ms (the offset it ends at is its own); not for those who ask for less motion. */
+@keyframes gauge-grow { from { stroke-dashoffset: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .gauge-arc { animation: none !important; }
+}
