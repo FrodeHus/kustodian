@@ -1,7 +1,7 @@
 import type { ResultColumn } from '../wire';
 import { cellText, type Row } from './export';
 
-export type ChartType = 'column' | 'bar' | 'line' | 'area' | 'pie' | 'timechart' | 'heatmap';
+export type ChartType = 'column' | 'bar' | 'line' | 'area' | 'pie' | 'timechart' | 'heatmap' | 'gauge';
 
 /** What to chart: its type, the column along the x axis (or the pie's slices), and the number columns to plot. An `x` of null
  * puts the series' names along the axis instead, each drawn with its value from the result's first row. `split` names the
@@ -24,6 +24,7 @@ export const CHART_TYPES: { type: ChartType; name: string }[] = [
   { type: 'pie', name: 'Pie' },
   { type: 'timechart', name: 'Time chart' },
   { type: 'heatmap', name: 'Heatmap' },
+  { type: 'gauge', name: 'Gauge' },
 ];
 
 /** The Chart tab's words for a result it can't chart. */
@@ -88,21 +89,42 @@ export const STACKS: { stack: Stack; name: string }[] = [
   { stack: 'stacked100', name: 'Stacked 100%' },
 ];
 
-/** What the Chart tab's pickers override: the type, the x axis (null for the series' names) and the series. */
+/** Which direction of a gauge's value is good. */
+export type Better = 'higher' | 'lower';
+
+/** What the Chart tab's pickers override: the type, the x axis (null for the series' names) and the series. A gauge also has
+ * a `target`, which direction is `better`, and a `min` and `max` for its scale. */
 export interface Picked {
   type?: ChartType;
   x?: string | null;
   series?: string[];
   split?: string | null;
   stack?: Stack;
+  target?: number;
+  better?: Better;
+  min?: number;
+  max?: number;
 }
 
 /** Only bars and areas stack. */
 export const stackable = (type: ChartType) => type === 'column' || type === 'bar' || type === 'area';
 
-/** The picks with a new type. Switching to or from a heatmap clears the columns picked, as they mean different things there. */
+/** The picks with a new type. Switching to or from a heatmap or gauge clears the columns picked, as they mean different things
+ * there; the stack and the gauge's config stay. */
 export function withType(picked: Picked, type: ChartType | undefined): Picked {
-  return picked.type !== 'heatmap' && type !== 'heatmap' ? { ...picked, type } : { type, stack: picked.stack };
+  const clears = (t: ChartType | undefined) => t === 'heatmap' || t === 'gauge';
+  if (!clears(picked.type) && !clears(type)) {
+    return { ...picked, type };
+  }
+  const { stack, target, better, min, max } = picked;
+  return {
+    type,
+    stack,
+    ...(target !== undefined && { target }),
+    ...(better !== undefined && { better }),
+    ...(min !== undefined && { min }),
+    ...(max !== undefined && { max }),
+  };
 }
 
 /** The `with (...)` properties of a query's `| render` that the Chart tab follows. Column names are as written; ones the

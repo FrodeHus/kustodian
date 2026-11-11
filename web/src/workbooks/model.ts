@@ -297,6 +297,19 @@ const parseTabs = (v: unknown): Tab[] =>
 const parsePlace = (v: unknown): Place | undefined =>
   isObj(v) && typeof v.tabs === 'string' && typeof v.tab === 'string' ? { tabs: v.tabs, tab: v.tab } : undefined;
 
+/** The chart picks as written, with the gauge's fields kept only when valid. */
+function parseChart(v: Obj): Picked {
+  const { target, better, min, max, ...rest } = v;
+  const num = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) ? n : undefined);
+  const valid = {
+    target: num(target),
+    better: better === 'higher' || better === 'lower' ? better : undefined,
+    min: num(min),
+    max: num(max),
+  };
+  return { ...rest, ...Object.fromEntries(Object.entries(valid).filter(([, x]) => x !== undefined)) } as Picked;
+}
+
 function parseWidget(v: unknown): Widget | null {
   if (!isObj(v) || !WIDGET_TYPES.includes(v.type as WidgetType) || typeof v.id !== 'string') {
     return null;
@@ -322,7 +335,7 @@ function parseWidget(v: unknown): Widget | null {
     parameters: parseWidgetParams(v.parameters),
     ...(query ? { query } : {}),
     ...('markdown' in v ? { markdown: str(v.markdown, '') } : {}),
-    ...(isObj(chart) ? { chart: chart as Picked } : {}),
+    ...(isObj(chart) ? { chart: parseChart(chart) } : {}),
     ...(type === 'table'
       ? {
           selection: oneOf(selection, ['single', 'none'], 'multi') as RowSelectionMode,
