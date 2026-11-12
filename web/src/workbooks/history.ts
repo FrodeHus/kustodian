@@ -106,6 +106,12 @@ const localDay = (iso: string) => {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 };
 
+/** The newest snapshot's own columns and rows, with no `Snapshot` column; null with no snapshots. */
+export function latestSnapshot(snapshots: HistoryValues['snapshots']): { columns: ResultColumn[]; rows: unknown[][] } | null {
+  const newest = snapshots.reduce<(typeof snapshots)[number] | null>((a, s) => (!a || s.takenAt > a.takenAt ? s : a), null);
+  return newest && { columns: newest.columns, rows: newest.rows };
+}
+
 /** The snapshots as one table, oldest first, with a leading `Snapshot` column. For `day`, a row of nulls on each missing day,
  * so the chart draws a gap there. Columns are the latest snapshot's; an older snapshot's are matched by name. */
 export function withGaps(

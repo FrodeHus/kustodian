@@ -3,7 +3,8 @@ import { useState, type ComponentProps, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { NO_SHAPE, withType, type Picked } from './chart-shape';
 import ChartView from './chart-view';
-import { HEATMAP_NO_SHAPE, HEATMAP_PICK } from './heatmap-shape';
+import { ANY_PICK, GAUGE_NO_SHAPE, GAUGE_PICK } from './gauge-shape';
+import { HEATMAP_NO_SHAPE } from './heatmap-shape';
 
 // jsdom has no layout for Recharts to measure: each chart stands in as an element naming its kind and series.
 vi.mock('recharts', () => {
@@ -296,7 +297,7 @@ describe('ChartView', () => {
   it('chart_view_pick_heatmap_when_nothing_else_fits', () => {
     const { container, unmount } = render(<Chart columns={week} rows={weekRows} kql="t" />);
     expect(screen.getByRole('combobox', { name: 'Chart type' })).toBeTruthy();
-    expect(screen.getByText(HEATMAP_PICK)).toBeTruthy();
+    expect(screen.getByText(ANY_PICK)).toBeTruthy();
     expect(screen.getByText('Chart', { selector: 'b' })).toBeTruthy();
     expect(screen.getByRole('combobox', { name: 'Chart type' })).toHaveProperty('value', '');
     expect(screen.getByRole('option', { name: 'Choose a type' })).toHaveProperty('disabled', true);
@@ -375,5 +376,95 @@ describe('ChartView', () => {
     expect(container.querySelectorAll('[data-cell]')).toHaveLength(4);
     expect(screen.queryByRole('combobox')).toBeNull();
     expect(screen.queryByRole('checkbox')).toBeNull();
+  });
+
+  describe('gauge', () => {
+    const tenants = [
+      { name: 'tenant', type: 'string' },
+      { name: 'Score', type: 'long' },
+    ];
+    const tenantRows = [
+      ['Acme', 40],
+      ['Beta', 90],
+    ];
+    const pickGauge = () => fireEvent.change(screen.getByRole('combobox', { name: 'Chart type' }), { target: { value: 'gauge' } });
+
+    it('chart_view_gauge_pickers', () => {
+      render(<Chart columns={tenants} rows={tenantRows} kql="t" />);
+      pickGauge();
+      expect(screen.getByRole('combobox', { name: 'Chart type' })).toHaveProperty('value', 'gauge');
+      expect(screen.getByText('Gauge', { selector: 'b' })).toBeTruthy();
+      expect(screen.getByRole('combobox', { name: 'Label' })).toBeTruthy();
+      expect(screen.getByText('Value', { selector: 'span' })).toBeTruthy();
+      for (const name of ['Desired level', 'Direction', 'Min', 'Max']) {
+        expect(screen.getByRole(name === 'Direction' ? 'combobox' : 'spinbutton', { name })).toBeTruthy();
+      }
+      expect(screen.queryByRole('combobox', { name: 'Split by' })).toBeNull();
+      expect(screen.queryByRole('combobox', { name: 'Stacking' })).toBeNull();
+      expect(optionNames('Label')).toEqual(['Row number', 'tenant']);
+    });
+
+    it('chart_view_gauge_row_number_and_single_value', () => {
+      const setPicked = vi.fn();
+      const cols = [...tenants, { name: 'Other', type: 'long' }];
+      render(<ChartView columns={cols} rows={[['Acme', 40, 1]]} kql="t" picked={{ type: 'gauge' }} setPicked={setPicked} />);
+      fireEvent.change(screen.getByRole('combobox', { name: 'Label' }), { target: { value: '' } });
+      expect(setPicked).toHaveBeenLastCalledWith({ type: 'gauge', x: null });
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Score' }));
+      expect(setPicked).toHaveBeenLastCalledWith({ type: 'gauge', series: ['Score'] });
+    });
+
+    it('chart_view_gauge_cannot_shape_explains', () => {
+      render(<ChartView columns={[{ name: 'a', type: 'string' }]} rows={[['x']]} kql="t" picked={{ type: 'gauge' }} />);
+      expect(screen.getByText(GAUGE_NO_SHAPE)).toBeTruthy();
+    });
+
+    it('chart_view_gauge_offered_when_nothing_else_fits', () => {
+      const { unmount } = render(<Chart columns={week} rows={weekRows} kql="t" />);
+      expect(screen.getByText(ANY_PICK)).toBeTruthy();
+      expect(screen.getByRole('combobox', { name: 'Chart type' })).toHaveProperty('value', '');
+      expect(screen.getByRole('option', { name: 'Choose a type' })).toBeTruthy();
+      unmount();
+
+      const only = [
+        { name: 'a', type: 'dynamic' },
+        { name: 'n', type: 'long' },
+      ];
+      render(
+        <Chart
+          columns={only}
+          rows={[
+            [{}, 1],
+            [{}, 2],
+          ]}
+          kql="t"
+        />,
+      );
+      expect(screen.getByText(GAUGE_PICK)).toBeTruthy();
+      expect(screen.getByRole('combobox', { name: 'Chart type' })).toHaveProperty('value', '');
+    });
+
+    it('chart_view_gauge_stale_picks_fall_back', () => {
+      render(
+        <ChartView columns={tenants} rows={tenantRows} kql="t" picked={{ type: 'gauge', x: 'gone', series: ['gone'] }} onPick={vi.fn()} />,
+      );
+      expect(screen.getByRole('combobox', { name: 'Label' })).toHaveProperty('value', 'tenant');
+      expect(screen.getByRole('checkbox', { name: 'Score' })).toHaveProperty('checked', true);
+      expect(screen.getByRole('button', { name: 'Acme: 40' })).toBeTruthy();
+    });
+
+    it('chart_view_gauge_click_picks_the_row', () => {
+      const onPick = vi.fn();
+      render(<ChartView columns={tenants} rows={tenantRows} kql="t" picked={{ type: 'gauge' }} onPick={onPick} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Beta: 90' }));
+      expect(onPick).toHaveBeenCalledWith([{ id: 'tenant', value: 'Beta' }]);
+    });
+
+    it('chart_view_gauge_desired_level_keeps_other_picks', () => {
+      const setPicked = vi.fn();
+      render(<ChartView columns={tenants} rows={tenantRows} kql="t" picked={{ type: 'gauge', better: 'lower' }} setPicked={setPicked} />);
+      fireEvent.change(screen.getByRole('spinbutton', { name: 'Desired level' }), { target: { value: '80' } });
+      expect(setPicked).toHaveBeenCalledWith({ type: 'gauge', better: 'lower', target: 80 });
+    });
   });
 });

@@ -323,6 +323,7 @@ body {
   .field { display: flex; flex-direction: column; gap: 5px; }
   .field label { font-size: 12px; font-weight: 600; color: var(--muted); }
   .textbox { height: 32px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); padding: 0 10px; font: inherit; }
+  .textbox[aria-invalid='true'] { border-color: var(--bad); }
   .param-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px 14px; align-items: start; }
   .param-grid > * > .textbox, .param-grid > * > .relative, .param-grid .param-pick { width: 100%; }
   .param-pick { display: inline-flex; align-items: center; justify-content: space-between; gap: 6px; height: 28px; padding: 0 8px; text-align: left; cursor: pointer; min-width: 0; }
@@ -534,3 +535,11 @@ body {
 .heat-cell { background: var(--heat); }
 .heat-empty { background: repeating-linear-gradient(135deg, transparent 0 3px, var(--line) 3px 4px); }
 .heat-cell[data-pickable='true'] { cursor: pointer; }
+
+/* A gauge's arc grows from empty over 700 ms (the offset it ends at is its own); not for those who ask for less motion. */
+@keyframes gauge-grow { from { stroke-dashoffset: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .gauge-arc { animation: none !important; }
+}
+
+.gauge:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

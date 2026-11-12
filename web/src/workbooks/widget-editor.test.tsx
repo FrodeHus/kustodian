@@ -368,6 +368,22 @@ describe('WidgetEditor', () => {
       expect(applied().chart).toEqual({ type: 'heatmap', x: 'day', series: ['n'] });
     });
 
+    it('widget_editor_gauge_fields', () => {
+      doc.widgets[0] = { ...doc.widgets[0]!, type: 'chart', chart: { type: 'column', x: 'day', series: ['n'] } };
+      open('a', result);
+      tab('Visualization');
+      fireEvent.click(screen.getByRole('button', { name: 'Gauge' }));
+      for (const name of ['Label', 'Value', 'Desired level', 'Direction', 'Min', 'Max']) {
+        expect(screen.getByLabelText(name)).toBeTruthy();
+      }
+      expect(screen.queryByRole('combobox', { name: 'Split by' })).toBeNull();
+      expect(screen.queryByRole('combobox', { name: 'X' })).toBeNull();
+      fireEvent.change(screen.getByLabelText('Desired level'), { target: { value: '80' } });
+      fireEvent.change(select('Direction'), { target: { value: 'lower' } });
+      apply();
+      expect(applied().chart).toMatchObject({ type: 'gauge', target: 80, better: 'lower' });
+    });
+
     it('Split by None writes null, so the chart doesn’t split', () => {
       doc.widgets[0] = { ...doc.widgets[0]!, type: 'chart', chart: { type: 'column' } };
       open('a', result);

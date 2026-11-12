@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NO_SHAPE, VALUE_SERIES, chartData, chartShape, markFilter, renderHint, renderOptions } from './chart-shape';
+import { CHART_TYPES, NO_SHAPE, VALUE_SERIES, chartData, chartShape, markFilter, renderHint, renderOptions, withType } from './chart-shape';
 
 const col = (name: string, type: string) => ({ name, type });
 
@@ -263,5 +263,31 @@ describe('chartShape', () => {
     expect(chartShape(columns, rows, 'column', { xcolumn: 'missing', ycolumns: ['missing'] })).toEqual(chartShape(columns, rows, 'column'));
     // A number column can be the x axis; it leaves the series.
     expect(chartShape(columns, rows, 'line', { xcolumn: 'n' })).toEqual({ type: 'line', x: 'n', series: ['m'] });
+  });
+});
+
+describe('withType', () => {
+  it('keeps the gauge config and clears the columns when switching to a gauge', () => {
+    expect(withType({ type: 'column', x: 'a', series: ['n'], target: 80, better: 'lower', min: 10, max: 90 }, 'gauge')).toEqual({
+      type: 'gauge',
+      stack: undefined,
+      target: 80,
+      better: 'lower',
+      min: 10,
+      max: 90,
+    });
+  });
+  it('keeps the target and clears the columns when switching from a gauge', () => {
+    expect(withType({ type: 'gauge', x: 'a', series: ['n'], target: 80 }, 'column')).toEqual({
+      type: 'column',
+      stack: undefined,
+      target: 80,
+    });
+  });
+  it('still clears the columns from a column to a heatmap', () => {
+    expect(withType({ type: 'column', x: 'a', series: ['n'] }, 'heatmap')).toEqual({ type: 'heatmap', stack: undefined });
+  });
+  it('lists the gauge last', () => {
+    expect(CHART_TYPES.at(-1)).toEqual({ type: 'gauge', name: 'Gauge' });
   });
 });

@@ -5,9 +5,6 @@ import { cellText, type Row } from './export';
 /** The Chart tab's words for a result a heatmap can't draw. */
 export const HEATMAP_NO_SHAPE = 'A heatmap needs two columns to lay out and a number column.';
 
-/** The Chart tab's words for a result only a heatmap fits. */
-export const HEATMAP_PICK = 'Pick Heatmap from the chart type list to chart this result.';
-
 /** The columns that can be a heatmap's axes: every column that isn't `dynamic` and isn't the `value` column. */
 export function heatmapAxes(columns: ResultColumn[], value: string | undefined): string[] {
   return columns.filter((c) => c.type !== 'dynamic' && c.name !== value).map((c) => c.name);

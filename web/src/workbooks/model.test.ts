@@ -467,3 +467,29 @@ describe('isoTimespan cap', () => {
     expect(isoTimespan('800h')).toBeNull();
   });
 });
+
+describe('gauge chart fields', () => {
+  const parseChart = (chart: unknown) => {
+    const d = parseWorkbook({
+      kind: 'kustodian.workbook',
+      version: 1,
+      id: 'i',
+      name: 'n',
+      widgets: [
+        { id: 'c', type: 'chart', layout: { x: 0, y: 0, w: 4, h: 8 }, query: { source: 'graph', text: 'x', options: null }, chart },
+      ],
+    });
+    return typeof d === 'string' ? undefined : d.widgets[0]?.chart;
+  };
+
+  it('round_trips_valid_gauge_fields', () => {
+    const chart = { type: 'gauge', target: 80, better: 'lower', min: 0, max: 100 };
+    expect(parseChart(chart)).toEqual(chart);
+  });
+  it('drops_invalid_gauge_fields_and_keeps_the_type', () => {
+    expect(parseChart({ type: 'gauge', target: '80', better: 'up', min: NaN, max: Infinity })).toEqual({ type: 'gauge' });
+  });
+  it('adds_no_gauge_fields', () => {
+    expect(parseChart({ type: 'column', x: 'a' })).toEqual({ type: 'column', x: 'a' });
+  });
+});
