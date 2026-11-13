@@ -1039,6 +1039,38 @@ describe('choices from a query', () => {
     expect(runs.map((r) => [r.params.tabId, r.params.options?.timespan])).toEqual([['t/param:H', 'P1D']]);
   });
 
+  it('a reload keeps the loaded items while it runs', async () => {
+    void useWorkbooks.getState().load('t', docOf([chosen('A', 'T')], []));
+    await flush();
+    key('A')!.answer(result([['x']]));
+    await flush();
+    void useWorkbooks.getState().loadChoices('t', ['A'], { refresh: true });
+    await flush();
+    expect(choices('A')).toEqual({ state: 'loading', items: [{ value: 'x', label: 'x' }] });
+    // A second reload while still loading keeps them too.
+    void useWorkbooks.getState().loadChoices('t', ['A'], { refresh: true });
+    await flush();
+    expect(choices('A')).toEqual({ state: 'loading', items: [{ value: 'x', label: 'x' }] });
+  });
+
+  it('a choice query with no text has no choices entry', async () => {
+    void useWorkbooks.getState().load('t', docOf([chosen('A', '')], []));
+    await flush();
+    expect(choices('A')).toBeUndefined();
+  });
+
+  it('a value picked while the choices reload reruns at once', async () => {
+    void useWorkbooks.getState().load('t', docOf([chosen('A', 'T')], [widget('w', 'T {A}')]));
+    await flush();
+    key('A')!.answer(result([['x']]));
+    await answerAll();
+    void useWorkbooks.getState().loadChoices('t', ['A'], { refresh: true });
+    await flush();
+    useWorkbooks.getState().setWorkbookValue('t', 'A', 'x');
+    await flush();
+    expect(ran()).toContain('t/w');
+  });
+
   it('a failed choice query leaves the value and the widgets run', async () => {
     const doc = docOf(
       [chosen('A', 'T', 'graph', { value: 'v' }), chosen('R', 'T {Need}'), wbParam('Need', '', { required: true })],

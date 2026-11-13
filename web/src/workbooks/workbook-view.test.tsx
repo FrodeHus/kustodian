@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTabs } from '../tabs/tab-store';
 import type { RunResult } from '../wire';
+import type { ParamChoices } from './choices';
 import type { Widget, WidgetType, WorkbookDoc, WorkbookParameter } from './model';
 import { newWidget, newWorkbook, parseWorkbook } from './model';
 import type { WidgetRun, WorkbookState } from './workbook-store';
@@ -64,7 +65,7 @@ let doc: WorkbookDoc;
 const setWorkbookValue = vi.fn();
 const setWidgetValue = vi.fn();
 
-function show(runs: Record<string, WidgetRun>, editing = false, accountKey?: string) {
+function show(runs: Record<string, WidgetRun>, editing = false, accountKey?: string, choices: Record<string, ParamChoices> = {}) {
   const state: WorkbookState = {
     doc,
     values: { workbook: { Env: 'prod', Days: '7' }, widgets: {} },
@@ -77,7 +78,7 @@ function show(runs: Record<string, WidgetRun>, editing = false, accountKey?: str
     history: {},
     since: {},
     activeTabs: {},
-    choices: {},
+    choices,
     stale: {},
   };
   useWorkbooks.setState({ byTab: { t: state }, setWorkbookValue, setWidgetValue });
@@ -323,6 +324,97 @@ describe('WorkbookView', () => {
     expect(setWorkbookValue).toHaveBeenLastCalledWith('t', 'Sev', 'High\nLow', { now: true });
     fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Select all' }));
     expect(setWorkbookValue).toHaveBeenLastCalledWith('t', 'Sev', 'High\nMedium\nLow', { now: true });
+  });
+
+  describe('choices from a query', () => {
+    const queried: WorkbookParameter = {
+      ...env,
+      name: 'Table',
+      label: 'Table',
+      value: 'a',
+      choices: null,
+      choicesQuery: { source: 'graph', text: 'T', options: null },
+    };
+    const items = [
+      { value: 'a', label: 'Alpha table' },
+      { value: 'b', label: 'Bravo table' },
+      { value: 'c', label: 'Charlie table' },
+    ];
+    const showQuery = (p: WorkbookParameter, loaded: ParamChoices | undefined, editing = false) => {
+      doc = { ...doc, parameters: [p] };
+      show({}, editing, undefined, loaded ? { [p.name]: loaded } : {});
+      act(() =>
+        useWorkbooks.setState((st) => ({ byTab: { t: { ...st.byTab.t!, values: { workbook: { [p.name]: p.value }, widgets: {} } } } })),
+      );
+    };
+
+    it('query choices show as a select with their labels; picking one reruns at once', () => {
+      showQuery(queried, { state: 'done', items, capped: false });
+      const pick = screen.getByRole('combobox', { name: 'Table' });
+      expect(
+        within(pick)
+          .getAllByRole('option')
+          .map((o) => o.textContent),
+      ).toEqual(['Alpha table', 'Bravo table', 'Charlie table']);
+      fireEvent.change(pick, { target: { value: 'b' } });
+      expect(setWorkbookValue).toHaveBeenLastCalledWith('t', 'Table', 'b', { now: true });
+    });
+
+    it('a multi list with All over query choices sends every loaded choice and shows All', () => {
+      showQuery({ ...queried, type: 'list', multi: true, all: true, value: 'a' }, { state: 'done', items, capped: false });
+      fireEvent.click(screen.getByRole('button', { name: 'Table' }));
+      fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Select all' }));
+      expect(setWorkbookValue).toHaveBeenLastCalledWith('t', 'Table', 'a\nb\nc', { now: true });
+      cleanup();
+      showQuery({ ...queried, type: 'list', multi: true, all: true, value: 'a\nb\nc' }, { state: 'done', items, capped: false });
+      expect(screen.getByRole('button', { name: 'Table' }).textContent).toContain('All');
+    });
+
+    it('while loading the current value shows with Loading choices…', () => {
+      showQuery({ ...queried, value: 'zed' }, { state: 'loading' });
+      expect((screen.getByRole('textbox', { name: 'Table' }) as HTMLInputElement).value).toBe('zed');
+      expect(screen.getByRole('status').textContent).toBe('Loading choices…');
+    });
+
+    it('a reload keeps the list as a select with the hint', () => {
+      showQuery(queried, { state: 'loading', items });
+      expect(screen.getByRole('combobox', { name: 'Table' })).toBeTruthy();
+      expect(screen.getByRole('status').textContent).toBe('Loading choices…');
+    });
+
+    it("a failed choice query is free entry with Couldn't load choices: <error>", () => {
+      showQuery(queried, { state: 'failed', error: 'boom' });
+      expect(screen.getByRole('textbox', { name: 'Table' })).toBeTruthy();
+      expect(screen.getByRole('alert').textContent).toBe("Couldn't load choices: boom");
+    });
+
+    it('no rows is free entry with The query returned no choices.', () => {
+      showQuery(queried, { state: 'done', items: [], capped: false });
+      expect(screen.getByRole('textbox', { name: 'Table' })).toBeTruthy();
+      expect(screen.getByRole('status').textContent).toBe('The query returned no choices.');
+    });
+
+    it('capped shows Showing the first 1,000 choices.', () => {
+      showQuery(queried, { state: 'done', items, capped: true });
+      expect(screen.getByRole('combobox', { name: 'Table' })).toBeTruthy();
+      expect(screen.getByRole('status').textContent).toBe('Showing the first 1,000 choices.');
+    });
+
+    it('a logs query with no workspace says Pick a workspace for these choices. in edit mode', () => {
+      showQuery(queried, { state: 'needsWorkspace' }, true);
+      expect(screen.getByRole('textbox', { name: 'Table' })).toBeTruthy();
+      expect(screen.getByRole('status').textContent).toBe('Pick a workspace for these choices.');
+      cleanup();
+      showQuery(queried, { state: 'needsWorkspace' }, false);
+      expect(screen.queryByRole('status')).toBeNull();
+    });
+
+    it('a query with no choices entry is plain free entry with no hint', () => {
+      showQuery(queried, undefined);
+      expect(screen.getByRole('textbox', { name: 'Table' })).toBeTruthy();
+      expect(screen.queryByRole('status')).toBeNull();
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
   });
 
   it('collapses to a line of values, and Reset puts changed values back', () => {

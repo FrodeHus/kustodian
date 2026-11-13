@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RunResult } from '../wire';
-import { choicesFrom, choicesUsing, choiceWidget, MAX_CHOICES } from './choices';
+import { choicesFrom, choicesUsing, choiceWidget, effectiveChoices, MAX_CHOICES } from './choices';
 import type { WorkbookParameter } from './model';
 import { newWorkbook } from './model';
 
@@ -80,5 +80,22 @@ describe('choices', () => {
     expect(choicesUsing(doc, 'A')).toEqual(['B']);
     expect(choicesUsing(doc, 'B')).toEqual(['A']);
     expect(choicesUsing(doc, 'Span')).toEqual(['H']);
+  });
+});
+
+describe('effectiveChoices', () => {
+  const asked = param('Q', { choicesQuery: { source: 'graph', text: 'T', options: null } });
+  const items = [{ value: 'a', label: 'A' }];
+  it('is a fixed list as value and label, skipping blanks', () => {
+    expect(effectiveChoices(param('F', { choices: ['x', ' '] }), undefined)).toEqual([{ value: 'x', label: 'x' }]);
+    expect(effectiveChoices(param('F'), undefined)).toBeNull();
+  });
+  it("is a query's items when done or reloading, else null", () => {
+    expect(effectiveChoices(asked, { state: 'done', items, capped: false })).toEqual(items);
+    expect(effectiveChoices(asked, { state: 'loading', items })).toEqual(items);
+    expect(effectiveChoices(asked, { state: 'loading' })).toBeNull();
+    expect(effectiveChoices(asked, { state: 'done', items: [], capped: false })).toBeNull();
+    expect(effectiveChoices(asked, { state: 'failed', error: 'x' })).toBeNull();
+    expect(effectiveChoices(asked, undefined)).toBeNull();
   });
 });

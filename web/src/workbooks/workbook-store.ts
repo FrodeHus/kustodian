@@ -362,6 +362,12 @@ function choicesOf(run: WidgetRun): ParamChoices {
   }
 }
 
+/** Choices loaded, or reloading with the old list still offered: a value picked from them reruns at once. */
+const pickedFrom = (c: ParamChoices | undefined) => c?.state === 'done' || (c?.state === 'loading' && !!c.items);
+
+/** The loaded items a reload carries along. */
+const itemsOf = (c: ParamChoices | undefined) => (c?.state === 'done' || c?.state === 'loading' ? c.items : undefined);
+
 export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set, get) => {
   const update = (tabId: string, change: (s: WorkbookState) => Partial<WorkbookState>) =>
     set((st) => {
@@ -591,6 +597,9 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
         }));
       }
       const setChoices = (name: string, c: ParamChoices) => update(tabId, (t) => ({ choices: { ...t.choices, [name]: c } }));
+      // No query text: plain free entry, no entry and no hint.
+      const clearChoices = (name: string) =>
+        update(tabId, (t) => ({ choices: Object.fromEntries(Object.entries(t.choices).filter(([n]) => n !== name)) }));
       return Promise.all(
         params.map(
           (p) =>
@@ -612,7 +621,14 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
                 },
                 onDropped: settle,
               });
-              setChoices(p.name, queued.state === 'waiting' ? { state: 'loading' } : choicesOf(queued));
+              if (queued.state === 'idle') {
+                clearChoices(p.name);
+              } else if (queued.state === 'waiting') {
+                const items = itemsOf(get().byTab[tabId]?.choices[p.name]);
+                setChoices(p.name, items ? { state: 'loading', items } : { state: 'loading' });
+              } else {
+                setChoices(p.name, choicesOf(queued));
+              }
               pump();
               if (queued.state !== 'waiting') {
                 settle();
@@ -664,7 +680,7 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
       };
       const key = `${tabId}:value:${name}`;
       // Any value typed, whatever its type, waits until typing stops; one picked from choices runs at once.
-      const typed = !s.doc.parameters.find((p) => p.name === name)?.choices?.length && s.choices[name]?.state !== 'done';
+      const typed = !s.doc.parameters.find((p) => p.name === name)?.choices?.length && !pickedFrom(s.choices[name]);
       rerunAfter(key, !opts?.now && typed, rerun);
     },
 

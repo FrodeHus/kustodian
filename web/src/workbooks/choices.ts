@@ -10,7 +10,7 @@ export interface Choice {
 }
 /** A parameter's choices from its query: view state in the store, never saved. */
 export type ParamChoices =
-  | { state: 'loading' }
+  | { state: 'loading'; items?: Choice[] } // items: the list being reloaded, still usable
   | { state: 'done'; items: Choice[]; capped: boolean }
   | { state: 'failed'; error: string }
   | { state: 'needsWorkspace' };
@@ -55,4 +55,13 @@ export function choicesFrom(result: RunResult): { items: Choice[]; capped: boole
 export function choicesUsing(doc: WorkbookDoc, name: string): string[] {
   const widgets = doc.parameters.flatMap((p) => (p.name === name ? [] : (choiceWidget(p) ?? [])));
   return widgetsUsing({ ...doc, widgets }, name).map((id) => id.slice(ID_PREFIX.length));
+}
+
+/** The choices a control offers: a fixed list, or a query's loaded items (kept while it reloads); null for free entry. */
+export function effectiveChoices(param: WorkbookParameter, loaded: ParamChoices | undefined): Choice[] | null {
+  if (param.choicesQuery) {
+    return (loaded?.state === 'done' || loaded?.state === 'loading') && loaded.items?.length ? loaded.items : null;
+  }
+  const fixed = (param.choices ?? []).filter((c) => c.trim() !== '');
+  return fixed.length > 0 ? fixed.map((c) => ({ value: c, label: c })) : null;
 }
