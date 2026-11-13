@@ -149,6 +149,27 @@ describe('ChartView', () => {
     expect(screen.getByText('From render piechart')).toBeTruthy();
   });
 
+  it('chart_view_draws_make_series', () => {
+    const series = [
+      { name: 'Timestamp', type: 'dynamic' },
+      { name: 'ReportingDevices', type: 'dynamic' },
+    ];
+    render(
+      <Chart
+        columns={series}
+        rows={[
+          [
+            ['2026-11-11T00:00:00Z', '2026-11-11T00:15:00Z'],
+            [4, 0],
+          ],
+        ]}
+        kql="t | render timechart"
+      />,
+    );
+    expect(screen.getByRole('combobox', { name: 'Chart type' })).toHaveProperty('value', 'timechart');
+    expect(screen.queryByText(NO_SHAPE)).toBeNull();
+  });
+
   it('chart_view_empty_state_explains', () => {
     render(<Chart columns={[{ name: 'tags', type: 'dynamic' }]} rows={[[[]]]} kql="t" />);
     expect(

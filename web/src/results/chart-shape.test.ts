@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { CHART_TYPES, NO_SHAPE, VALUE_SERIES, chartData, chartShape, markFilter, renderHint, renderOptions, withType } from './chart-shape';
+import {
+  CHART_TYPES,
+  NO_SHAPE,
+  VALUE_SERIES,
+  chartData,
+  chartShape,
+  markFilter,
+  renderHint,
+  renderOptions,
+  seriesTable,
+  withType,
+} from './chart-shape';
 
 const col = (name: string, type: string) => ({ name, type });
 
@@ -71,6 +82,34 @@ describe('chartShape', () => {
     expect(
       chartData(withText, [['2026-10-19T00:00:00Z', 'Teams', true, 5]], { type: 'timechart', x: 'day', series: ['n'] }).series,
     ).toEqual(['Teams']);
+  });
+
+  it('series_table_expands_make_series_arrays', () => {
+    const columns = [col('app', 'string'), col('Timestamp', 'dynamic'), col('n', 'dynamic')];
+    const rows = [
+      ['Teams', ['2026-11-11T00:00:00.0000000Z', '2026-11-11T00:15:00.0000000Z'], [3, 0]],
+      ['Outlook', ['2026-11-11T00:00:00.0000000Z', '2026-11-11T00:15:00.0000000Z'], [1, 2]],
+    ];
+    const table = seriesTable(columns, rows);
+    expect(table.expanded).toBe(true);
+    expect(table.columns).toEqual([col('app', 'string'), col('Timestamp', 'datetime'), col('n', 'long')]);
+    expect(table.rows).toEqual([
+      ['Teams', '2026-11-11T00:00:00.0000000Z', 3],
+      ['Teams', '2026-11-11T00:15:00.0000000Z', 0],
+      ['Outlook', '2026-11-11T00:00:00.0000000Z', 1],
+      ['Outlook', '2026-11-11T00:15:00.0000000Z', 2],
+    ]);
+    expect(chartShape(table.columns, table.rows, 'timechart')).toEqual({ type: 'timechart', x: 'Timestamp', series: ['n'] });
+  });
+
+  it('series_table_leaves_other_results', () => {
+    const tags = [col('name', 'string'), col('tags', 'dynamic')];
+    expect(seriesTable(tags, [['a', ['x']]]).expanded).toBe(false);
+    // Arrays of different lengths, or without numbers, aren't a series.
+    const two = [col('a', 'dynamic'), col('b', 'dynamic')];
+    expect(seriesTable(two, [[[1, 2], [3]]]).expanded).toBe(false);
+    expect(seriesTable(two, [[['x'], ['y']]]).expanded).toBe(false);
+    expect(seriesTable(two, [[{}, {}]]).expanded).toBe(false);
   });
 
   it('chart_shape_null_explains', () => {
