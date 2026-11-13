@@ -16,7 +16,7 @@
     "@fontsource/inter": "^5.2.8",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@kusto/monaco-kusto": "15.0.2",
-    "@tailwindcss/vite": "^4.3.4",
+    "@tailwindcss/vite": "^4.3.5",
     "@tanstack/react-table": "^9.3.1",
     "@tanstack/react-virtual": "^3.14.26",
     "dompurify": "^3.4.17",
@@ -29,7 +29,7 @@
     "react-markdown": "^10.1.0",
     "recharts": "^3.10.1",
     "tailwindcss": "^4.3.3",
-    "zustand": "^5.0.16"
+    "zustand": "^5.1.0"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.2",
@@ -37,12 +37,12 @@
     "@testing-library/user-event": "^14.6.8",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
-    "@vitejs/plugin-react": "^6.2.1",
-    "jsdom": "^30.1.3",
-    "oxlint": "^1.91.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "jsdom": "^31.0.0",
+    "oxlint": "^1.93.0",
     "prettier": "3.9.10",
     "typescript": "~7.0.2",
-    "vite": "^8.3.4",
+    "vite": "^8.3.7",
     "vitest": "^5.1.0"
   },
   "overrides": {
