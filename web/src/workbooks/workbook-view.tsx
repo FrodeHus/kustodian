@@ -795,6 +795,8 @@ export function WorkbookView({ tabId, onSignIn, accountKey }: { tabId: string; o
         createPortal(
           <ParametersDialog
             tabId={tabId}
+            accountKey={accountKey}
+            onSignIn={onSignIn}
             onClose={() => {
               focusNext.current = () => parametersRef.current;
               setParametersOpen(false);
