@@ -30,6 +30,7 @@ import {
   isNumeric,
   renderHint,
   renderOptions,
+  seriesTable,
   splitColumn,
   stackable,
   STACKS,
@@ -88,10 +89,10 @@ const RENDER_WORDS = Object.fromEntries(Object.entries(RENDER_HINTS).map(([word,
  * column, bar, slice or point gives `onPick` the cells of the rows behind it. Loaded on demand, so Recharts is a chunk of its own.
  */
 export default function ChartView({
-  columns,
-  rows,
+  columns: resultColumns,
+  rows: resultRows,
   kql,
-  onPick,
+  onPick: resultPick,
   picked,
   setPicked = () => undefined,
   controls = true,
@@ -110,6 +111,9 @@ export default function ChartView({
   animate?: boolean;
 }) {
   const [full, setFull] = useState(false);
+  const { columns, rows, expanded } = useMemo(() => seriesTable(resultColumns, resultRows), [resultColumns, resultRows]);
+  // A make-series point is one element of an array cell, which the grid's cell filter can't match.
+  const onPick = expanded ? undefined : resultPick;
   // Gradient ids are per chart: a workbook shows several.
   const gradient = `fill${useId().replace(/[^\w-]/g, '')}`;
   // Esc leaves full screen first, before anything else that listens for it.

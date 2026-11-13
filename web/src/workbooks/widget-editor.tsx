@@ -2,7 +2,17 @@ import { Suspense, lazy, useEffect, useId, useRef, useState, type ReactNode } fr
 import { call } from '../bridge';
 import { openSaved } from '../library/open-library';
 import { PARAMETER_TYPES } from '../params/find-params';
-import { CHART_TYPES, STACKS, chartShape, isCategory, renderHint, renderOptions, stackable, withType } from '../results/chart-shape';
+import {
+  CHART_TYPES,
+  STACKS,
+  chartShape,
+  isCategory,
+  renderHint,
+  renderOptions,
+  seriesTable,
+  stackable,
+  withType,
+} from '../results/chart-shape';
 import { GaugeFields } from '../results/gauge-fields';
 import { heatmapAxes } from '../results/heatmap-shape';
 import { useSchemas } from '../schema/schema-store';
@@ -432,8 +442,9 @@ export function WidgetEditor({
     const picked = draft.chart ?? {};
     // The type and stacking the chart draws when the widget leaves them automatic, as the Chart tab works them out.
     const kql = live.query?.text ?? '';
+    const series = result && seriesTable(result.columns, result.rows);
     const chartType =
-      picked.type ?? (result ? chartShape(result.columns, result.rows, renderHint(kql), renderOptions(kql))?.type : undefined);
+      picked.type ?? (series ? chartShape(series.columns, series.rows, renderHint(kql), renderOptions(kql))?.type : undefined);
     const stack = picked.stack ?? renderOptions(kql).stack ?? 'none';
     const splits = (result?.columns ?? []).filter((c) => c.name !== picked.x && isCategory(c)).map((c) => c.name);
     // Keep a saved split listed before a preview has run, so the select shows it.

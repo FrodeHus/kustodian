@@ -240,6 +240,50 @@ export function chartShape(columns: ResultColumn[], rows: Row[], renderHint?: Ch
   return series.length > 0 ? { ...spec, x, series: spec.type === 'pie' ? series.slice(0, 1) : series, ...(split ? { split } : {}) } : null;
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+
+/** The column type of a series' elements: a number, a date (ISO text), otherwise text. */
+function elementType(values: unknown[]): string {
+  const present = values.filter((v) => v !== null && v !== undefined);
+  if (present.length > 0 && present.every((v) => typeof v === 'number')) {
+    return present.every(Number.isInteger) ? 'long' : 'real';
+  }
+  if (present.length > 0 && present.every((v) => typeof v === 'string' && ISO_DATE.test(v))) {
+    return 'datetime';
+  }
+  return 'string';
+}
+
+/**
+ * A `make-series` result as rows to chart: each row's arrays laid out one element per row, the other columns repeated (so a
+ * `by` column still splits the series). Applies when the result has two or more `dynamic` columns, all of them arrays of one
+ * length in each row, and one of them holds numbers; otherwise the result as it is, with `expanded` false.
+ */
+export function seriesTable(columns: ResultColumn[], rows: Row[]): { columns: ResultColumn[]; rows: Row[]; expanded: boolean } {
+  const arrays = columns.flatMap((c, i) => (c.type === 'dynamic' ? [i] : []));
+  const fits =
+    arrays.length >= 2 &&
+    rows.length > 0 &&
+    rows.every((row) => {
+      const lengths = arrays.map((i) => (Array.isArray(row[i]) ? (row[i] as unknown[]).length : -1));
+      return lengths.every((n) => n >= 0 && n === lengths[0]);
+    });
+  if (!fits) {
+    return { columns, rows, expanded: false };
+  }
+  const types = new Map(arrays.map((i) => [i, elementType(rows.flatMap((row) => row[i] as unknown[]))]));
+  if (![...types.values()].some((t) => t === 'long' || t === 'real')) {
+    return { columns, rows, expanded: false };
+  }
+  return {
+    columns: columns.map((c, i) => ({ ...c, type: types.get(i) ?? c.type })),
+    rows: rows.flatMap((row) =>
+      (row[arrays[0] ?? 0] as unknown[]).map((_, at) => row.map((cell, i) => (types.has(i) ? ((cell as unknown[])[at] ?? null) : cell))),
+    ),
+    expanded: true,
+  };
+}
+
 /** {@link chartShape} before a `render`'s options, but for an `xcolumn` the hint's x axis is that column. */
 function baseShape(
   columns: ResultColumn[],
