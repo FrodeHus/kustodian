@@ -102,6 +102,21 @@ describe('chartShape', () => {
     expect(chartShape(table.columns, table.rows, 'timechart')).toEqual({ type: 'timechart', x: 'Timestamp', series: ['n'] });
   });
 
+  it('series_table_reads_arrays_sent_as_json_text', () => {
+    // Advanced hunting sends make-series arrays as JSON text.
+    const columns = [col('ReportingDevices', 'dynamic'), col('Timestamp', 'dynamic'), col('note', 'string')];
+    const rows = [['[1,0]', '["2026-11-11T08:00:00.0000000Z","2026-11-11T08:15:00.0000000Z"]', 'x']];
+    const table = seriesTable(columns, rows);
+    expect(table.columns).toEqual([col('ReportingDevices', 'long'), col('Timestamp', 'datetime'), col('note', 'string')]);
+    expect(table.rows).toEqual([
+      [1, '2026-11-11T08:00:00.0000000Z', 'x'],
+      [0, '2026-11-11T08:15:00.0000000Z', 'x'],
+    ]);
+    // Text columns too, when the server types them as text.
+    expect(seriesTable([col('a', 'string'), col('b', 'string')], [['[1]', '["2026-11-11T08:00:00Z"]']]).expanded).toBe(true);
+    expect(seriesTable([col('a', 'string'), col('b', 'string')], [['[1', '[2]']]).expanded).toBe(false);
+  });
+
   it('series_table_leaves_other_results', () => {
     const tags = [col('name', 'string'), col('tags', 'dynamic')];
     expect(seriesTable(tags, [['a', ['x']]]).expanded).toBe(false);

@@ -254,31 +254,66 @@ function elementType(values: unknown[]): string {
   return 'string';
 }
 
+/** A cell's array: the array itself, or JSON text holding one (advanced hunting sends `dynamic` values as text). */
+function arrayOf(value: unknown): unknown[] | undefined {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.startsWith('[')) {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
 /**
  * A `make-series` result as rows to chart: each row's arrays laid out one element per row, the other columns repeated (so a
- * `by` column still splits the series). Applies when the result has two or more `dynamic` columns, all of them arrays of one
- * length in each row, and one of them holds numbers; otherwise the result as it is, with `expanded` false.
+ * `by` column still splits the series). The arrays are the `dynamic` or text columns holding an array (or its JSON text) in
+ * every row. Applies when there are two or more, of one length in each row, and one of them holds numbers; otherwise the
+ * result as it is, with `expanded` false.
  */
 export function seriesTable(columns: ResultColumn[], rows: Row[]): { columns: ResultColumn[]; rows: Row[]; expanded: boolean } {
-  const arrays = columns.flatMap((c, i) => (c.type === 'dynamic' ? [i] : []));
-  const fits =
-    arrays.length >= 2 &&
-    rows.length > 0 &&
-    rows.every((row) => {
-      const lengths = arrays.map((i) => (Array.isArray(row[i]) ? (row[i] as unknown[]).length : -1));
-      return lengths.every((n) => n >= 0 && n === lengths[0]);
-    });
-  if (!fits) {
-    return { columns, rows, expanded: false };
+  const unchanged = { columns, rows, expanded: false };
+  if (rows.length === 0) {
+    return unchanged;
   }
-  const types = new Map(arrays.map((i) => [i, elementType(rows.flatMap((row) => row[i] as unknown[]))]));
+  const arrays = new Map<number, unknown[][]>();
+  columns.forEach((c, i) => {
+    if (c.type !== 'dynamic' && c.type !== 'string') {
+      return;
+    }
+    const cells: unknown[][] = [];
+    for (const row of rows) {
+      const array = arrayOf(row[i]);
+      if (!array) {
+        return;
+      }
+      cells.push(array);
+    }
+    arrays.set(i, cells);
+  });
+  const lists = [...arrays.values()];
+  const fits = lists.length >= 2 && rows.every((_, r) => lists.every((cells) => cells[r]?.length === lists[0]?.[r]?.length));
+  if (!fits) {
+    return unchanged;
+  }
+  const types = new Map([...arrays].map(([i, cells]) => [i, elementType(cells.flat())]));
   if (![...types.values()].some((t) => t === 'long' || t === 'real')) {
-    return { columns, rows, expanded: false };
+    return unchanged;
   }
   return {
     columns: columns.map((c, i) => ({ ...c, type: types.get(i) ?? c.type })),
-    rows: rows.flatMap((row) =>
-      (row[arrays[0] ?? 0] as unknown[]).map((_, at) => row.map((cell, i) => (types.has(i) ? ((cell as unknown[])[at] ?? null) : cell))),
+    rows: rows.flatMap((row, r) =>
+      (lists[0]?.[r] ?? []).map((_, at) =>
+        row.map((cell, i) => {
+          const cells = arrays.get(i);
+          return cells ? (cells[r]?.[at] ?? null) : cell;
+        }),
+      ),
     ),
     expanded: true,
   };
