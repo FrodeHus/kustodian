@@ -60,7 +60,7 @@ under the box ("A parameter's choices can't use itself.").
 
 ### Running
 
-- A choice query runs through the workbook store's queue under the key `${tabId}:param:${name}`, so it shares the per-source
+- A choice query runs through the workbook store's queue under the key `${tabId}/param:${name}`, so it shares the per-source
   limit of three and is dropped when a newer run starts. It is not added to Recent and never recorded in history.
 - Its `{name}` placeholders resolve from the workbook's current values (as a widget's do when they come from the workbook).
   The huntingTimespan parameter applies to hunting and logs choice queries as it does to widgets.

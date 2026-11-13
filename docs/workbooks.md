@@ -221,6 +221,21 @@ marked as the Defender hunting timespan: hunting and Log Analytics widgets then 
 unless they set it themselves. Hunting without a workspace takes at most 30 days; hunting with a workspace, and Log
 Analytics, at most 730. The timespan keeps each widget's workspace, and its cap follows each widget.
 
+**Choices** can be None, a Fixed list, or **From a query**. For a query, pick the source (Graph, Defender hunting, Resource
+Graph or Log Analytics) and write the KQL. Hunting and Log Analytics also take a workspace, and hunting defaults to the
+Primary workspace. **Preview** shows the first 10 choices, or the error. The first column is the value and an optional second
+column is its label. Empty values are dropped, duplicates keep the first, and at most 1,000 choices are kept ("Showing the
+first 1,000 choices."). A choice query can use other parameters and the workbook timespan, but not its own `{name}`: "A
+parameter's choices can't use itself."
+
+Choices load when the workbook opens, on Refresh all, after the dialog saves, and when a parameter the query uses, or the
+workbook timespan, changes. They share the limit of three runs per source with widgets, and are not added to Recent or to
+history. While they reload, the previous choices stay pickable with "Loading choices…". Loading never changes the value, and a
+value that isn't in the list is kept. If the query fails, the parameter becomes free entry with "Couldn't load choices:
+<error>", and widgets still run. If it returns no rows, it is free entry with "The query returned no choices." A Log
+Analytics choice query with no workspace says "Pick a workspace for these choices." in edit mode. Several values and **All**
+work as with a fixed list, and All sends every loaded choice.
+
 Change a workbook parameter in the bar under the toolbar and only the widgets that use it rerun. A text parameter reruns when
 you stop typing or press Enter. These changes aren't saved: the file holds the defaults you set in the dialog.
 
@@ -259,7 +274,8 @@ remembered values.
 a review first. Nothing runs, and nothing is saved, until you choose. The review shows:
 
 - **What's in it**: the widgets, parameters and buttons.
-- **Workspaces**: the workspaces the file queries, with how many widgets use each. Names come from your own workspace list,
+- **Workspaces**: the workspaces the file queries, with how many widgets use each. A choice query's workspace is listed
+  too, as "choices for <label>". Names come from your own workspace list,
   matched by ID. A name only the file claims shows as "not available to this account", or "not checked" when your list can't be
   read. Saving the import, or opening it without saving, is the confirmation.
 - **Saved queries**: they are added to your library with new ids, in a folder named after the workbook, or copied into the

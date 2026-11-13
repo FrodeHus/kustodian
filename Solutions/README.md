@@ -26,7 +26,7 @@ Solutions/
 | `solutionVersion` | `x.y.z`. Raise it with every change to the solution, or installed copies are never offered the update. |
 | `support` | `kustodian` or `community`. |
 | `categories` | Free-form labels. |
-| `sources` | The sources its queries use: `graph`, `hunting`, `arg` or `logs`. A `logs` query never carries a workspace: whoever installs it picks one. |
+| `sources` | The sources its queries use: `graph`, `hunting`, `arg` or `logs`. A `logs` query never carries a workspace: whoever installs it picks one. Installing a solution removes the workspace from a parameter choice query too. |
 | `minAppVersion` | `x.y.z`, the oldest app that can install it. It cannot be above the next release. |
 | `requires` | Optional: `graph` permissions, `roles`, `licenses` and `azure` access it needs. |
 | `content` | The `queries`, `workbooks` and `tools` it ships, by id. Each query and workbook id is a valid id and has a file. |
@@ -37,7 +37,7 @@ A workbook links its queries with `query.saved.id` set to the query's id, not a 
 
 A valid manifest, exactly the files the manifest lists, queries that the library accepts and that parse, workbooks the app
 accepts in the form it writes, no GUID other than a workbook's own `id` and its widget ids, no e-mail address, and an
-up-to-date `index.json`. Widget queries parse too, and Graph queries, in query files and in widgets, are checked against
+up-to-date `index.json`. Widget queries and parameter choice queries parse too, and Graph queries, in query files and in widgets, are checked against
 the app's Graph schema and planned as a run would plan them. Workbook widgets have no tool buttons yet: tool buttons in
 solution workbooks come with tool support. A changed solution must raise its `solutionVersion` (the
 `solutionVersion bumped` check).
