@@ -9,7 +9,7 @@ follow [Semantic Versioning](https://semver.org/).
 
 - **Charts draw `make-series`**: a `make-series` result now charts as it is, with `| render timechart` and no `mv-expand`.
   A `by` column still draws a series per value. Clicking a point on these charts doesn't filter the Rows tab, as its rows hold
-  the whole series.
+  the whole series. This includes advanced hunting, which sends the series as text.
 - **Heatmap chart**: show a number across two lists at once, such as sign-ins by day × hour or resources by type × region.
   Pick **Heatmap** from the Chart tab's type list or a workbook chart widget's buttons; Kustodian never switches to it on its
   own. Columns, Rows and Value pick what goes across, what goes down and what sets the colour, and hour and day-of-week
