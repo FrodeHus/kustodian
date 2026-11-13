@@ -40,6 +40,19 @@ const doc = (json: unknown) => {
 };
 
 describe('parseWorkbook', () => {
+  it('reads choicesQuery and drops choices beside it', () => {
+    const withParam = (extra: object) => {
+      const e = example();
+      e.parameters = [{ name: 'Tables', type: 'list', value: '', required: false, ...extra }] as never;
+      return doc(e).parameters[0]!;
+    };
+    const q = { source: 'logs', text: 'Usage | distinct DataType', options: null };
+    expect(withParam({ choices: ['a'], choicesQuery: q })).toMatchObject({ choices: null, choicesQuery: q });
+    expect(withParam({ choicesQuery: { ...q, source: 'raw' } }).choicesQuery).toBeNull();
+    expect(withParam({ choicesQuery: { ...q, text: 5 } }).choicesQuery).toBeNull();
+    expect(withParam({ choices: ['a'] })).toMatchObject({ choices: ['a'], choicesQuery: null });
+  });
+
   it('reads the spec example and keeps unknown fields', () => {
     const d = doc(example());
     expect(d.name).toBe('VM hygiene');
