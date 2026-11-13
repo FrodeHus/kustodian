@@ -48,9 +48,9 @@ describe('parseWorkbook', () => {
     };
     const q = { source: 'logs', text: 'Usage | distinct DataType', options: null };
     expect(withParam({ choices: ['a'], choicesQuery: q })).toMatchObject({ choices: null, choicesQuery: q });
-    expect(withParam({ choicesQuery: { ...q, source: 'raw' } }).choicesQuery).toBeNull();
-    expect(withParam({ choicesQuery: { ...q, text: 5 } }).choicesQuery).toBeNull();
-    expect(withParam({ choices: ['a'] })).toMatchObject({ choices: ['a'], choicesQuery: null });
+    expect(withParam({ choicesQuery: { ...q, source: 'raw' } })).not.toHaveProperty('choicesQuery');
+    expect(withParam({ choicesQuery: { ...q, text: 5 } })).not.toHaveProperty('choicesQuery');
+    expect(withParam({ choices: ['a'] })).toMatchObject({ choices: ['a'] });
   });
 
   it('reads the spec example and keeps unknown fields', () => {

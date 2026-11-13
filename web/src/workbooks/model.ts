@@ -425,7 +425,7 @@ function parseParameter(v: unknown): WorkbookParameter | null {
   if (!isObj(v) || typeof v.name !== 'string') {
     return null;
   }
-  const q = v.choicesQuery;
+  const { choicesQuery: q, ...rest } = v;
   const choicesQuery: ChoicesQuery | null =
     isObj(q) && typeof q.source === 'string' && SOURCES.includes(q.source) && typeof q.text === 'string'
       ? {
@@ -436,14 +436,14 @@ function parseParameter(v: unknown): WorkbookParameter | null {
         }
       : null;
   return {
-    ...v,
+    ...rest,
     name: v.name,
     type: str(v.type, 'text'),
     value: str(v.value, ''),
     required: bool(v.required),
     label: strOrNull(v.label),
     choices: choicesQuery ? null : choices(v.choices),
-    choicesQuery,
+    ...(choicesQuery && { choicesQuery }),
     multi: bool(v.multi),
     all: bool(v.all),
     remember: bool(v.remember),

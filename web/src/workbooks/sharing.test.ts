@@ -40,7 +40,6 @@ beforeEach(() => {
         value: 'default',
         required: false,
         choices: null,
-        choicesQuery: null,
         label: null,
         multi: false,
         all: false,
