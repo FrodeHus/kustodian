@@ -103,6 +103,7 @@ function open(widgetId: string, lastResult?: RunResult) {
         history: {},
         since: {},
         activeTabs: {},
+        choices: {},
         stale: {},
       },
     },

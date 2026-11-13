@@ -937,3 +937,160 @@ describe('tabs', () => {
     expect(tab().undo).toEqual([]);
   });
 });
+
+describe('choices from a query', () => {
+  const chosen = (name: string, text: string, source: 'graph' | 'hunting' | 'logs' = 'graph', extra: Partial<WorkbookParameter> = {}) =>
+    wbParam(name, '', { choicesQuery: { source, text, options: null }, ...extra });
+  const choices = (name: string) => tab().choices[name];
+  const key = (name: string) => runs.find((r) => r.params.tabId === `t/param:${name}`);
+
+  it('loads choices with the widgets, under its own key, three per source', async () => {
+    const hunting = ['a', 'b', 'c'].map((id) => widget(id, `T${id}`, { source: 'hunting' }));
+    void useWorkbooks.getState().load('t', docOf([chosen('Tables', 'T | distinct Name', 'hunting')], hunting));
+    await flush();
+    expect(ran()).toEqual(['t/param:Tables', 't/a', 't/b']);
+    expect(state('c')).toBe('waiting');
+    expect(choices('Tables')).toEqual({ state: 'loading' });
+    expect(key('Tables')?.params).toMatchObject({ source: 'hunting', kql: 'T | distinct Name', addToRecent: false });
+
+    key('Tables')!.answer(result([['x'], ['y']]));
+    await flush();
+    expect(choices('Tables')).toEqual({
+      state: 'done',
+      items: [
+        { value: 'x', label: 'x' },
+        { value: 'y', label: 'y' },
+      ],
+      capped: false,
+    });
+    expect(ran()).toEqual(['t/param:Tables', 't/a', 't/b', 't/c']);
+    expect(Object.keys(tab().runs)).toEqual(['a', 'b', 'c']);
+    expect(bridge.call.mock.calls.filter(([m]) => m === 'history.record')).toHaveLength(0);
+  });
+
+  it('a logs choice query without a workspace is needsWorkspace and sends nothing', async () => {
+    void useWorkbooks.getState().load('t', docOf([chosen('W', 'Heartbeat', 'logs')], [widget('g', 'users')]));
+    await flush();
+    expect(choices('W')).toEqual({ state: 'needsWorkspace' });
+    expect(ran()).toEqual(['t/g']);
+  });
+
+  it('a value change reloads the choices that use it, not the others; A and B using each other reload once each', async () => {
+    const doc = docOf([chosen('A', 'T {B}'), chosen('B', 'T {A}'), chosen('C', 'T'), wbParam('N', 'n')], [widget('w', 'T {N}')]);
+    void useWorkbooks.getState().load('t', doc);
+    await flush();
+    await answerAll(); // the three choice queries; then w starts
+    await answerAll();
+
+    useWorkbooks.getState().setWorkbookValue('t', 'A', 'a', { now: true });
+    await flush();
+    expect(ran()).toEqual(['t/param:B']);
+    expect(runs[0]!.params.parameters).toEqual([{ name: 'A', type: 'text', value: 'a', required: false }]);
+    await answerAll();
+    expect(ran()).toEqual([]);
+
+    useWorkbooks.getState().setWorkbookValue('t', 'B', 'b', { now: true });
+    await flush();
+    expect(ran()).toEqual(['t/param:A']);
+    await answerAll();
+
+    useWorkbooks.getState().setWorkbookValue('t', 'N', 'm', { now: true });
+    await flush();
+    expect(ran()).toEqual(['t/w']);
+  });
+
+  it('a self-reference resolves as empty text and does not reload itself', async () => {
+    void useWorkbooks.getState().load('t', docOf([chosen('A', 'T {A}', 'graph', { value: 'v' })], []));
+    await flush();
+    expect(runs[0]!.params.parameters).toEqual([{ name: 'A', type: 'text', value: '', required: false }]);
+    await answerAll();
+    useWorkbooks.getState().setWorkbookValue('t', 'A', 'x', { now: true });
+    await flush();
+    expect(ran()).toEqual([]);
+  });
+
+  it('a value picked from loaded choices reruns at once; one typed while they failed waits', async () => {
+    void useWorkbooks.getState().load('t', docOf([chosen('A', 'T'), chosen('B', 'U')], [widget('w', 'T {A} {B}')]));
+    await flush();
+    key('A')!.answer(result([['x']]));
+    key('B')!.answer({ ...result([]), outcome: 'failed', message: 'boom' });
+    await answerAll();
+
+    useWorkbooks.getState().setWorkbookValue('t', 'A', 'x');
+    await flush();
+    expect(ran()).toEqual(['t/w']);
+    await answerAll();
+    useWorkbooks.getState().setWorkbookValue('t', 'B', 'y');
+    await flush();
+    expect(ran()).toEqual([]);
+    await vi.advanceTimersByTimeAsync(400);
+    expect(ran()).toEqual(['t/w']);
+  });
+
+  it('the hunting timespan reloads a hunting choice query and is sent as its timespan', async () => {
+    const span = wbParam('Span', '7d', { type: 'timespan', huntingTimespan: true });
+    void useWorkbooks.getState().load('t', docOf([span, chosen('H', 'T', 'hunting'), chosen('G', 'T')], []));
+    await flush();
+    expect(key('H')?.params.options?.timespan).toBe('P7D');
+    await answerAll();
+
+    useWorkbooks.getState().setWorkbookValue('t', 'Span', '1d', { now: true });
+    await flush();
+    expect(runs.map((r) => [r.params.tabId, r.params.options?.timespan])).toEqual([['t/param:H', 'P1D']]);
+  });
+
+  it('a failed choice query leaves the value and the widgets run', async () => {
+    const doc = docOf(
+      [chosen('A', 'T', 'graph', { value: 'v' }), chosen('R', 'T {Need}'), wbParam('Need', '', { required: true })],
+      [widget('w', 'T {A}')],
+    );
+    void useWorkbooks.getState().load('t', doc);
+    await flush();
+    expect(choices('R')).toEqual({ state: 'failed', error: 'Needs a value before the widget runs.' });
+    expect(ran()).toEqual(['t/param:A', 't/w']);
+    key('A')!.answer({ ...result([]), outcome: 'failed', message: 'Bad query' });
+    await flush();
+    expect(choices('A')).toEqual({ state: 'failed', error: 'Bad query' });
+    expect(tab().values.workbook.A).toBe('v');
+    expect(state('w')).toBe('running');
+  });
+
+  it('a choice query that rejects is failed with the error text', async () => {
+    bridge.call.mockImplementation((method: string) =>
+      method === 'query.run' ? Promise.reject(new Error('offline')) : Promise.resolve({ values: {}, queries: [], folders: [], skipped: 0 }),
+    );
+    void useWorkbooks.getState().load('t', docOf([chosen('A', 'T')], []));
+    await flush();
+    expect(choices('A')).toEqual({ state: 'failed', error: 'offline' });
+  });
+
+  it('loading never changes the value', async () => {
+    void useWorkbooks.getState().load('t', docOf([chosen('A', 'T', 'graph', { value: 'X' })], []));
+    await flush();
+    key('A')!.answer(result([['y'], ['z']]));
+    await flush();
+    expect(choices('A')).toMatchObject({ state: 'done' });
+    expect(tab().values.workbook.A).toBe('X');
+  });
+
+  it("a renamed parameter drops the old name's choices after the dialog's runAll", async () => {
+    void useWorkbooks.getState().load('t', docOf([chosen('Old', 'T')], []));
+    await flush();
+    const old = key('Old')!;
+    useWorkbooks.getState().edit('t', (d) => ({ ...d, parameters: d.parameters.map((p) => ({ ...p, name: 'New' })) }));
+    void useWorkbooks.getState().runAll('t');
+    await flush();
+    expect(old.signal.aborted).toBe(true);
+    old.answer(result([['x']]));
+    await flush();
+    expect(Object.keys(tab().choices)).toEqual(['New']);
+  });
+
+  it('unload drops a loading choice query', async () => {
+    void useWorkbooks.getState().load('t', docOf([chosen('A', 'T')], []));
+    await flush();
+    const run = key('A')!;
+    useWorkbooks.getState().unload('t');
+    expect(run.signal.aborted).toBe(true);
+  });
+});

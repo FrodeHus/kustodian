@@ -41,6 +41,7 @@ function show() {
         history: {},
         since: {},
         activeTabs: {},
+        choices: {},
         stale: {},
       },
     },

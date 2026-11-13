@@ -17,6 +17,8 @@ import type {
 } from '../wire';
 import { historyRows, historySetting, recordable, seriesLabel } from './history';
 import type { SkipReason } from './history';
+import type { ParamChoices } from './choices';
+import { choicesFrom, choicesUsing, choiceWidget } from './choices';
 import type { Widget, WorkbookDoc } from './model';
 import { parseWorkbook, withFileVersion, withHighlights } from './model';
 import type { ResolvedParam, ViewValues } from './resolve';
@@ -51,6 +53,8 @@ export interface WorkbookState {
   activeTabs: Record<string, string>;
   /** Widgets (on tabs not shown) whose shown result is out of date, by widget id: view state, never in the doc. */
   stale: Record<string, true>;
+  /** Each parameter's choices from its query, by name: view state, never in the doc. */
+  choices: Record<string, ParamChoices>;
   /** The parameter bar is folded to a line of its values: view state, never in the doc. */
   paramsCollapsed?: true;
 }
@@ -87,6 +91,9 @@ export interface WorkbookActions {
   runDraft(tabId: string, widget: Widget): Promise<RunResult>;
   /** Runs the visible data widgets; hidden ones that ran are marked stale. */
   runAll(tabId: string, opts?: { refresh?: boolean }): Promise<void>;
+  /** Runs the choice queries of the parameters `names` (all that have one when omitted; then choices of parameters without
+   * one are dropped). Never recorded in history, never in `runs`. */
+  loadChoices(tabId: string, names?: string[], opts?: { refresh?: boolean }): Promise<void>;
   /** Shows a tab of a tabs widget and runs its widgets that haven't run or are stale. `tabId` is the workbook's tab. */
   showTab(tabId: string, tabsId: string, tab: string): void;
   /** Reruns the visible tab of a tabs widget, as Refresh does. */
@@ -339,6 +346,22 @@ function queue(
   return { state: 'waiting' };
 }
 
+/** A choice query's run as the parameter's choices. */
+function choicesOf(run: WidgetRun): ParamChoices {
+  switch (run.state) {
+    case 'done':
+      return run.result.outcome === 'ok'
+        ? { state: 'done', ...choicesFrom(run.result) }
+        : { state: 'failed', error: run.result.message ?? 'The query failed.' };
+    case 'failed':
+      return { state: 'failed', error: errorText(run.error) };
+    case 'blocked':
+      return { state: 'failed', error: run.reason };
+    default:
+      return { state: 'failed', error: 'No query yet.' };
+  }
+}
+
 export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set, get) => {
   const update = (tabId: string, change: (s: WorkbookState) => Partial<WorkbookState>) =>
     set((st) => {
@@ -440,6 +463,7 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
         since: {},
         activeTabs: {},
         stale: {},
+        choices: {},
       };
       const token = Symbol(tabId);
       loads.set(tabId, token);
@@ -541,11 +565,61 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
       if (opts?.refresh) {
         await readLibrary(tabId);
       }
-      await runVisible(
-        tabId,
-        (get().byTab[tabId]?.doc.widgets ?? []).map((w) => w.id),
-        opts,
-      );
+      await Promise.all([
+        get().loadChoices(tabId, undefined, opts),
+        runVisible(
+          tabId,
+          (get().byTab[tabId]?.doc.widgets ?? []).map((w) => w.id),
+          opts,
+        ),
+      ]);
+    },
+
+    loadChoices(tabId, names, opts) {
+      const s = get().byTab[tabId];
+      if (!s) {
+        return Promise.resolve();
+      }
+      const params = s.doc.parameters.filter((p) => p.choicesQuery && (!names || names.includes(p.name)));
+      if (!names) {
+        const current = new Set(params.map((p) => `${tabId}/param:${p.name}`));
+        for (const key of [...jobs.keys()].filter((k) => k.startsWith(`${tabId}/param:`) && !current.has(k))) {
+          drop(key);
+        }
+        update(tabId, (t) => ({
+          choices: Object.fromEntries(Object.entries(t.choices).filter(([n]) => params.some((p) => p.name === n))),
+        }));
+      }
+      const setChoices = (name: string, c: ParamChoices) => update(tabId, (t) => ({ choices: { ...t.choices, [name]: c } }));
+      return Promise.all(
+        params.map(
+          (p) =>
+            new Promise<void>((settle) => {
+              const key = `${tabId}/param:${p.name}`;
+              const widget = choiceWidget(p)!;
+              // As a logs widget: without a workspace nothing is sent; the control asks for one.
+              if (widget.query!.source === 'logs' && !widget.query!.options?.workspaces?.length) {
+                drop(key);
+                setChoices(p.name, { state: 'needsWorkspace' });
+                settle();
+                return;
+              }
+              const queued = queue(tabId, key, widget, opts?.refresh ?? false, {
+                onStart: () => undefined,
+                onAnswer: (run) => {
+                  setChoices(p.name, choicesOf(run));
+                  settle();
+                },
+                onDropped: settle,
+              });
+              setChoices(p.name, queued.state === 'waiting' ? { state: 'loading' } : choicesOf(queued));
+              pump();
+              if (queued.state !== 'waiting') {
+                settle();
+              }
+            }),
+        ),
+      ).then(() => undefined);
     },
 
     showTab(tabId, tabsId, tab) {
@@ -583,10 +657,14 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
         // A linked widget is rerun by what its library query uses, not its local copy.
         const running = { ...doc, widgets: doc.widgets.map((w) => effectiveWidget(tabId, w) ?? w) };
         void runVisible(tabId, widgetsUsing(running, name));
+        const using = choicesUsing(doc, name);
+        if (using.length > 0) {
+          void get().loadChoices(tabId, using);
+        }
       };
       const key = `${tabId}:value:${name}`;
       // Any value typed, whatever its type, waits until typing stops; one picked from choices runs at once.
-      const typed = !s.doc.parameters.find((p) => p.name === name)?.choices?.length;
+      const typed = !s.doc.parameters.find((p) => p.name === name)?.choices?.length && s.choices[name]?.state !== 'done';
       rerunAfter(key, !opts?.now && typed, rerun);
     },
 

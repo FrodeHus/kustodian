@@ -49,6 +49,7 @@ function open() {
         history: {},
         since: {},
         activeTabs: {},
+        choices: {},
         stale: {},
       },
     },

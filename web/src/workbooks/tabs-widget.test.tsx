@@ -40,6 +40,7 @@ function show(extra: Partial<WorkbookState> = {}, editing = false) {
     history: {},
     since: {},
     activeTabs: {},
+    choices: {},
     stale: {},
     ...extra,
   };

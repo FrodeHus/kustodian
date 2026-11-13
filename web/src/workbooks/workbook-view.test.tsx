@@ -77,6 +77,7 @@ function show(runs: Record<string, WidgetRun>, editing = false, accountKey?: str
     history: {},
     since: {},
     activeTabs: {},
+    choices: {},
     stale: {},
   };
   useWorkbooks.setState({ byTab: { t: state }, setWorkbookValue, setWidgetValue });
