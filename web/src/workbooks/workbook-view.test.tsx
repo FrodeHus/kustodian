@@ -360,6 +360,24 @@ describe('WorkbookView', () => {
       expect(setWorkbookValue).toHaveBeenLastCalledWith('t', 'Table', 'b', { now: true });
     });
 
+    it('the multi menu button and the collapsed summary show labels, not values', () => {
+      showQuery({ ...queried, type: 'list', multi: true, all: false, value: 'a\nb' }, { state: 'done', items, capped: false });
+      expect(screen.getByRole('button', { name: 'Table' }).textContent).toContain('Alpha table, Bravo table');
+      expect(screen.getByRole('button', { name: 'Table' }).textContent).not.toContain('a, b');
+      cleanup();
+      showQuery({ ...queried, value: 'b' }, { state: 'done', items, capped: false });
+      fireEvent.click(screen.getByRole('button', { name: /Parameters/ }));
+      expect(document.querySelector('.param-summary')?.textContent).toContain('Bravo table');
+    });
+
+    it('Discard reloads the choices', () => {
+      const loadChoices = vi.fn().mockResolvedValue(undefined);
+      showQuery(queried, { state: 'done', items, capped: false }, true);
+      useWorkbooks.setState({ loadChoices });
+      fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+      expect(loadChoices).toHaveBeenCalledWith('t');
+    });
+
     it('a multi list with All over query choices sends every loaded choice and shows All', () => {
       showQuery({ ...queried, type: 'list', multi: true, all: true, value: 'a' }, { state: 'done', items, capped: false });
       fireEvent.click(screen.getByRole('button', { name: 'Table' }));

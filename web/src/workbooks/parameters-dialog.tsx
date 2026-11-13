@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { PARAMETER_TYPES, findParams } from '../params/find-params';
+import { errorText } from '../shell/errors';
 import { inSendDetails } from '../shell/send-details-marker';
 import { WorkspacePicker } from '../toolbar/workspace-picker';
 import { choiceWidget, choicesFrom } from './choices';
@@ -67,6 +68,7 @@ export function ParametersDialog({
   const itemRefs = useRef<Record<string, HTMLElement | null>>({});
   const focusKey = useRef<string | null>(null);
   const dragged = useRef<number | null>(null);
+  const previews = useRef(0);
 
   // Focus starts on the first parameter, or Add parameter when there is none: the first button.
   useEffect(() => dialogRef.current?.querySelector<HTMLElement>('button')?.focus(), []);
@@ -109,8 +111,13 @@ export function ParametersDialog({
   const selfUse = (r: Row) => !!r.p.choicesQuery && findParams(r.p.choicesQuery.text).includes(r.p.name);
   const invalid = rows.some((r, i) => error(r, i) || selfUse(r));
 
-  const change = (patch: Partial<WorkbookParameter>) => {
+  // Dropping the preview also outdates any answer still on its way.
+  const clearPreview = () => {
+    previews.current++;
     setPreview(null);
+  };
+  const change = (patch: Partial<WorkbookParameter>) => {
+    clearPreview();
     setRows(rows.map((r, i) => (i === sel ? { ...r, p: { ...r.p, ...patch } } : r)));
   };
   // One workbook timespan sends the hunting timespan: marking this one clears the mark elsewhere.
@@ -191,16 +198,26 @@ export function ParametersDialog({
     if (!w) {
       return;
     }
-    setPreview(null);
+    clearPreview();
+    const n = previews.current;
     useWorkbooks
       .getState()
       .runDraft(tabId, w)
       .then(
         (res) => {
+          if (n !== previews.current) {
+            return;
+          }
+          if (res.outcome !== 'ok') {
+            return setPreview({ items: [], error: res.message ?? 'The query failed.' });
+          }
           const { items } = choicesFrom(res);
-          setPreview({ items: items.map((c) => c.label) });
+          setPreview(items.length === 0 ? { items: [], error: 'The query returned no choices.' } : { items: items.map((c) => c.label) });
         },
-        (e: unknown) => setPreview({ items: [], error: e instanceof Error ? e.message : String(e) }),
+        (e: unknown) =>
+          n === previews.current &&
+          !(e instanceof DOMException && e.name === 'AbortError') &&
+          setPreview({ items: [], error: errorText(e) }),
       );
   };
 
@@ -223,7 +240,7 @@ export function ParametersDialog({
         <b id={`${id}-title`} className="text-[14px]">
           Workbook parameters
         </b>
-        <div className="grid min-h-0 grid-cols-[240px_minmax(0,1fr)] gap-4">
+        <div className="grid min-h-0 overflow-auto grid-cols-[240px_minmax(0,1fr)] gap-4">
           <div className="flex flex-col gap-2">
             <ul className="m-0 flex list-none flex-col gap-1 p-0" aria-label="Parameters">
               {rows.map((r, i) => {
@@ -243,7 +260,10 @@ export function ParametersDialog({
                       type="button"
                       className="btn ghost flex w-full flex-col items-start text-left"
                       aria-current={i === sel}
-                      onClick={() => setAt(i)}
+                      onClick={() => {
+                        clearPreview();
+                        setAt(i);
+                      }}
                       onKeyDown={(e) => onItemKey(e, i)}
                     >
                       <span className="mono">{r.p.name}</span>
@@ -323,7 +343,7 @@ export function ParametersDialog({
                               },
                         ),
                       );
-                      setPreview(null);
+                      clearPreview();
                     }}
                   >
                     <option value="none">None, free entry</option>

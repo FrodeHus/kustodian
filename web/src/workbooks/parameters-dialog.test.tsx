@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Widget, WorkbookDoc, WorkbookParameter } from './model';
 import { newWidget, newWorkbook } from './model';
@@ -229,6 +229,7 @@ describe('ParametersDialog', () => {
     fromQuery();
     type('KQL', 'x');
     runDraft.mockResolvedValueOnce({
+      outcome: 'ok',
       columns: [{ name: 'a', type: 'string' }],
       rows: Array.from({ length: 12 }, (_, i) => [`v${i}`]),
     });
@@ -240,5 +241,37 @@ describe('ParametersDialog', () => {
     runDraft.mockRejectedValueOnce(new Error('Boom'));
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
     expect((await screen.findByText('Boom')).getAttribute('role')).toBe('alert');
+  });
+
+  it('Preview shows a failed run message and says when there are no choices', async () => {
+    const runDraft = vi.fn();
+    useWorkbooks.setState({ runDraft });
+    open();
+    fromQuery();
+    type('KQL', 'x');
+    runDraft.mockResolvedValueOnce({ outcome: 'failed', message: 'Bad KQL', columns: [], rows: [] });
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+    expect((await screen.findByText('Bad KQL')).getAttribute('role')).toBe('alert');
+    runDraft.mockResolvedValueOnce({ outcome: 'ok', columns: [{ name: 'a', type: 'string' }], rows: [] });
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+    expect(await screen.findByText('The query returned no choices.')).toBeTruthy();
+  });
+
+  it('drops a Preview answer that arrives after the text changed, and ignores an AbortError', async () => {
+    const runDraft = vi.fn();
+    useWorkbooks.setState({ runDraft });
+    open();
+    fromQuery();
+    type('KQL', 'x');
+    let answer!: (r: unknown) => void;
+    runDraft.mockReturnValueOnce(new Promise((r) => (answer = r)));
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+    type('KQL', 'xy');
+    await act(async () => answer({ outcome: 'ok', columns: [{ name: 'a', type: 'string' }], rows: [['late']] }));
+    expect(screen.queryByText('late')).toBeNull();
+    runDraft.mockRejectedValueOnce(new DOMException('A newer preview replaced this one.', 'AbortError'));
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+    await act(async () => undefined);
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

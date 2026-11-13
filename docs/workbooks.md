@@ -223,7 +223,7 @@ Analytics, at most 730. The timespan keeps each widget's workspace, and its cap 
 
 **Choices** can be None, a Fixed list, or **From a query**. For a query, pick the source (Graph, Defender hunting, Resource
 Graph or Log Analytics) and write the KQL. Hunting and Log Analytics also take a workspace, and hunting defaults to the
-Primary workspace. **Preview** shows the first 10 choices, or the error. The first column is the value and an optional second
+Primary workspace. **Preview** shows the first 10 choices, the query's error message if the run failed, or "The query returned no choices." The first column is the value and an optional second
 column is its label. Empty values are dropped, duplicates keep the first, and at most 1,000 choices are kept ("Showing the
 first 1,000 choices."). A choice query can use other parameters and the workbook timespan, but not its own `{name}`: "A
 parameter's choices can't use itself."

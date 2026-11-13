@@ -46,17 +46,19 @@ const lines = (v: string) => v.split('\n').filter((x) => x !== '');
 
 /** A parameter's value as the collapsed bar and its picker show it. */
 function shownValue(param: WorkbookParameter, value: string, loaded?: ParamChoices): string {
-  const choices = effectiveChoices(param, loaded)?.map((c) => c.value) ?? [];
+  const items = effectiveChoices(param, loaded) ?? [];
+  const choices = items.map((c) => c.value);
+  const label = (v: string) => items.find((c) => c.value === v)?.label ?? v;
   if (param.type === 'list' && choices.length > 0) {
     const picked = lines(value);
     if (param.all && choices.every((c) => picked.includes(c))) {
       return 'All';
     }
     if (param.multi) {
-      return picked.length > 0 ? picked.join(', ') : 'None';
+      return picked.length > 0 ? picked.map(label).join(', ') : 'None';
     }
   }
-  return value === '' ? 'Any' : value;
+  return value === '' ? 'Any' : label(value);
 }
 
 /** Few short choices show as a row of buttons, the rest as a select. */
@@ -542,6 +544,10 @@ export function WorkbookView({ tabId, onSignIn, accountKey }: { tabId: string; o
     // Edits don't rerun widgets (the store's ruling); Done reruns once if the doc changed. Back at the starting doc (a discard,
     // or undone all the way), a widget run on a draft reruns, so it doesn't keep that draft's rows.
     if (discard || !start || !now || start === now) {
+      // A dialog Save may have loaded choices from a query that the discard just undid.
+      if (discard) {
+        void store().loadChoices(tabId);
+      }
       for (const id of ran) {
         void store().runWidget(tabId, id);
       }

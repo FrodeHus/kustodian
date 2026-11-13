@@ -183,7 +183,7 @@ public sealed partial class RepoSolutionsTests
         }
     }
 
-    /// <summary>Every widget query with its text: workbook parameters fill what the widget doesn't define itself.</summary>
+    /// <summary>Every widget query and parameter choice query with its text: workbook parameters fill what the widget doesn't define itself.</summary>
     private static IEnumerable<(string Folder, string File, string? Source, string Text, List<ParameterDef> Defs)> WidgetQueries() =>
         Workbooks().SelectMany(w =>
         {

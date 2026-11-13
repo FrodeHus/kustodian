@@ -356,7 +356,7 @@ function choicesOf(run: WidgetRun): ParamChoices {
     case 'failed':
       return { state: 'failed', error: errorText(run.error) };
     case 'blocked':
-      return { state: 'failed', error: run.reason };
+      return { state: 'failed', error: run.reason === NEEDS_VALUE ? 'Needs a value in another parameter first.' : run.reason };
     default:
       return { state: 'failed', error: 'No query yet.' };
   }

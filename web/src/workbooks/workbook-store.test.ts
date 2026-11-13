@@ -1078,7 +1078,7 @@ describe('choices from a query', () => {
     );
     void useWorkbooks.getState().load('t', doc);
     await flush();
-    expect(choices('R')).toEqual({ state: 'failed', error: 'Needs a value before the widget runs.' });
+    expect(choices('R')).toEqual({ state: 'failed', error: 'Needs a value in another parameter first.' });
     expect(ran()).toEqual(['t/param:A', 't/w']);
     key('A')!.answer({ ...result([]), outcome: 'failed', message: 'Bad query' });
     await flush();
