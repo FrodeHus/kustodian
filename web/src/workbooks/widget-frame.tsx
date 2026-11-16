@@ -351,7 +351,8 @@ export function WidgetFrame({
     }
     const parameters: ParameterDef[] = widgetParams(doc, w, values).map((p) => ({
       name: p.name,
-      type: p.type,
+      // A query tab has no workspace parameter: it takes the customer id as text.
+      type: p.type === 'workspace' ? 'text' : p.type,
       value: p.value,
       required: p.required,
       choices: choicesOf(w, p),

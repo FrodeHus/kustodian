@@ -274,4 +274,33 @@ describe('ParametersDialog', () => {
     await act(async () => undefined);
     expect(screen.queryByRole('alert')).toBeNull();
   });
+
+  it('Type offers workspace', () => {
+    open();
+    const opts = within(screen.getByLabelText('Type'))
+      .getAllByRole('option')
+      .map((o) => o.textContent);
+    expect(opts).toContain('workspace');
+  });
+
+  it('a second workspace parameter says so and Save is off', () => {
+    doc = { ...doc, parameters: [param('Ws', { type: 'workspace' }), param('Other')] };
+    open();
+    fireEvent.click(item('Other'));
+    type('Type', 'workspace');
+    expect(screen.getByRole('alert').textContent).toBe('A workbook can have only one workspace parameter.');
+    expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
+    type('Type', 'text');
+    expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('a workspace parameter hides Choices, Several values and Offer All; its Default is a picker', () => {
+    doc = { ...doc, parameters: [param('Ws', { type: 'workspace', multi: true, all: true })] };
+    open();
+    expect(screen.queryByLabelText('Choices')).toBeNull();
+    expect(screen.queryByLabelText('Several values')).toBeNull();
+    expect(screen.queryByLabelText('Offer “All”')).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'Default' })).toBeNull();
+    expect(screen.getByRole('button', { name: /^Workspace:/ })).toBeTruthy();
+  });
 });

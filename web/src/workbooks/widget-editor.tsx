@@ -27,7 +27,7 @@ import type { HistorySeries, LibraryList, ParameterDef, RunResult, SavedQuery } 
 import type { ParamFrom, Widget, WidgetQuery } from './model';
 import { MAX_UNIT_LENGTH, withHighlights } from './model';
 import { ClearConfirm, HistorySection } from './history-section';
-import { widgetParams, workbookValues } from './resolve';
+import { widgetParams, workbookValues, workspaceParameter } from './resolve';
 import { ColumnSelect, ToolButtonsSection } from './tool-buttons-section';
 import { HighlightList } from '../results/highlight-list';
 import { ChartWidget } from './widgets/chart-widget';
@@ -167,6 +167,7 @@ export function WidgetEditor({
   const set = (change: Partial<Widget>) => setDraft({ ...draft, ...change });
   const setQuery = (change: Partial<WidgetQuery>) => draft.query && set({ query: { ...draft.query, ...change } });
   const query = draft.query;
+  const wsParam = workspaceParameter(doc);
   const linked = query?.saved ? queries?.find((q) => q.id === query.saved?.id) : undefined;
   // The draft as it runs: a linked query is the library's.
   const live: Widget = query && linked ? { ...draft, query: fromSaved(query, linked, true) } : draft;
@@ -330,20 +331,26 @@ export function WidgetEditor({
             </label>
             {(query.source === 'hunting' || query.source === 'logs') && (
               <div className="flex">
-                <WorkspacePicker
-                  workspaces={query.options?.workspaces}
-                  // Without a workspace Defender's data reaches back 30 days only, so a longer timespan goes back to the default.
-                  onChange={(workspaces) => {
-                    const o = query.options ?? { timespan: null, scope: null };
-                    const over = query.source === 'hunting' && !workspaces?.length && o.timespan && exceedsDays(o.timespan, 30);
-                    setQuery({ options: { ...o, workspaces, ...(over ? { timespan: DEFAULT_TIMESPAN } : {}) } });
-                  }}
-                  {...(query.source === 'logs' ? { primaryLabel: null } : {})}
-                  accountKey={accountKey}
-                  onSignIn={onSignIn}
-                  open={pickingWorkspace}
-                  onOpenChange={setPickingWorkspace}
-                />
+                {wsParam ? (
+                  <span className="faint self-center text-[12.5px]">
+                    The workspace comes from the {wsParam.label ?? wsParam.name} parameter.
+                  </span>
+                ) : (
+                  <WorkspacePicker
+                    workspaces={query.options?.workspaces}
+                    // Without a workspace Defender's data reaches back 30 days only, so a longer timespan goes back to the default.
+                    onChange={(workspaces) => {
+                      const o = query.options ?? { timespan: null, scope: null };
+                      const over = query.source === 'hunting' && !workspaces?.length && o.timespan && exceedsDays(o.timespan, 30);
+                      setQuery({ options: { ...o, workspaces, ...(over ? { timespan: DEFAULT_TIMESPAN } : {}) } });
+                    }}
+                    {...(query.source === 'logs' ? { primaryLabel: null } : {})}
+                    accountKey={accountKey}
+                    onSignIn={onSignIn}
+                    open={pickingWorkspace}
+                    onOpenChange={setPickingWorkspace}
+                  />
+                )}
                 {query.source === 'logs' && (
                   <TimespanPicker
                     timespan={query.options?.timespan ?? LOGS_TIMESPAN}

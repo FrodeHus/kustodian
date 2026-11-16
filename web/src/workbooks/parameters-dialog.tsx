@@ -1,10 +1,10 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
-import { PARAMETER_TYPES, findParams } from '../params/find-params';
+import { findParams } from '../params/find-params';
 import { errorText } from '../shell/errors';
 import { inSendDetails } from '../shell/send-details-marker';
 import { WorkspacePicker } from '../toolbar/workspace-picker';
 import { choiceWidget, choicesFrom } from './choices';
-import type { ChoicesQuery, WorkbookParameter } from './model';
+import { WORKBOOK_PARAMETER_TYPES, type ChoicesQuery, type WorkbookParameter } from './model';
 import { widgetsUsing } from './resolve';
 import { useWorkbooks } from './workbook-store';
 
@@ -28,12 +28,13 @@ interface Row {
 /** Choices as kept: each line trimmed, blank ones dropped; null when there are none. */
 const clean = (p: WorkbookParameter): WorkbookParameter => {
   const kept = (p.choices ?? []).map((c) => c.trim()).filter((c) => c !== '');
-  const choices = !p.choicesQuery && p.choices && kept.length > 0 ? kept : null;
+  const workspace = p.type === 'workspace';
+  const choices = !workspace && !p.choicesQuery && p.choices && kept.length > 0 ? kept : null;
   const several = p.type === 'list' && (!!choices || !!p.choicesQuery);
   const { choicesQuery, ...rest } = p;
   return {
     ...rest,
-    ...(choicesQuery ? { choicesQuery } : {}),
+    ...(choicesQuery && !workspace ? { choicesQuery } : {}),
     choices,
     multi: several && p.multi,
     all: several && p.all,
@@ -61,6 +62,7 @@ export function ParametersDialog({
   const [rows, setRows] = useState<Row[]>(() => (doc?.parameters ?? []).map((p) => ({ key: crypto.randomUUID(), orig: p.name, p })));
   const [at, setAt] = useState(0);
   const [pickingWorkspace, setPickingWorkspace] = useState(false);
+  const [pickingDefault, setPickingDefault] = useState(false);
   const [preview, setPreview] = useState<{ items: string[]; error?: string } | null>(null);
   const id = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -105,6 +107,9 @@ export function ParametersDialog({
   const error = (r: Row, i: number) => {
     if (!NAME_RULE.test(r.p.name)) {
       return 'Use letters, digits and _, not starting with a digit.';
+    }
+    if (r.p.type === 'workspace' && rows.findIndex((o) => o.p.type === 'workspace') !== i) {
+      return 'A workbook can have only one workspace parameter.';
     }
     return rows.some((o, j) => j !== i && o.p.name === r.p.name) ? `Another parameter is already named ${r.p.name}.` : null;
   };
@@ -191,7 +196,8 @@ export function ParametersDialog({
   const p = row?.p;
   const err = row ? error(row, sel) : null;
   const several = p?.type === 'list' && (!!p.choices || !!p.choicesQuery);
-  const query = p?.choicesQuery;
+  const isWorkspace = p?.type === 'workspace';
+  const query = isWorkspace ? undefined : p?.choicesQuery;
   const setQuery = (patch: Partial<ChoicesQuery>) => change({ choicesQuery: { ...query!, ...patch } });
   const runPreview = () => {
     const w = p && choiceWidget(p);
@@ -270,7 +276,7 @@ export function ParametersDialog({
                       <span className="faint text-[11.5px]">
                         {r.p.type}
                         {r.p.value ? ` · ${r.p.value}` : ''} · {n === 0 ? 'Not used' : `${n} ${n === 1 ? 'widget' : 'widgets'}`}
-                        {error(r, i) ? ' · Fix the name' : ''}
+                        {error(r, i) ? ' · Fix this' : ''}
                       </span>
                     </button>
                   </li>
@@ -315,44 +321,46 @@ export function ParametersDialog({
                 <label className="field">
                   <span>Type</span>
                   <select className="textbox" value={p.type} onChange={(e) => change({ type: e.target.value })}>
-                    {PARAMETER_TYPES.map((t) => (
+                    {WORKBOOK_PARAMETER_TYPES.map((t) => (
                       <option key={t} value={t}>
                         {t}
                       </option>
                     ))}
                   </select>
                 </label>
-                <label className="field">
-                  <span>Choices</span>
-                  <select
-                    className="textbox"
-                    value={query ? 'query' : p.choices ? 'fixed' : 'none'}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      const { choicesQuery: _drop, ...rest } = p;
-                      setRows(
-                        rows.map((r, i) =>
-                          i !== sel
-                            ? r
-                            : {
-                                ...r,
-                                p:
-                                  v === 'query'
-                                    ? { ...p, choices: null, choicesQuery: { source: 'hunting', text: '', options: null } }
-                                    : { ...rest, choices: v === 'fixed' ? [''] : null },
-                              },
-                        ),
-                      );
-                      clearPreview();
-                    }}
-                  >
-                    <option value="none">None, free entry</option>
-                    <option value="fixed">Fixed list</option>
-                    <option value="query">From a query</option>
-                  </select>
-                </label>
+                {!isWorkspace && (
+                  <label className="field">
+                    <span>Choices</span>
+                    <select
+                      className="textbox"
+                      value={query ? 'query' : p.choices ? 'fixed' : 'none'}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        const { choicesQuery: _drop, ...rest } = p;
+                        setRows(
+                          rows.map((r, i) =>
+                            i !== sel
+                              ? r
+                              : {
+                                  ...r,
+                                  p:
+                                    v === 'query'
+                                      ? { ...p, choices: null, choicesQuery: { source: 'hunting', text: '', options: null } }
+                                      : { ...rest, choices: v === 'fixed' ? [''] : null },
+                                },
+                          ),
+                        );
+                        clearPreview();
+                      }}
+                    >
+                      <option value="none">None, free entry</option>
+                      <option value="fixed">Fixed list</option>
+                      <option value="query">From a query</option>
+                    </select>
+                  </label>
+                )}
               </div>
-              {p.choices && (
+              {p.choices && !isWorkspace && (
                 <label className="field">
                   <span>Fixed list</span>
                   <textarea
@@ -430,20 +438,37 @@ export function ParametersDialog({
                   </div>
                 </div>
               )}
-              <label className="field">
-                <span>Default</span>
-                {p.type === 'list' && !p.choices && !query ? (
-                  <textarea
-                    className="textbox mono h-auto py-1.5"
-                    rows={3}
-                    placeholder="One value per line"
-                    value={p.value}
-                    onChange={(e) => change({ value: e.target.value })}
-                  />
-                ) : (
-                  <input className="textbox mono" value={p.value} onChange={(e) => change({ value: e.target.value })} />
-                )}
-              </label>
+              {isWorkspace ? (
+                <div className="field">
+                  <span>Default</span>
+                  <div className="flex">
+                    <WorkspacePicker
+                      workspaces={p.value === '' ? null : [{ customerId: p.value, name: '', resourceId: '' }]}
+                      onChange={(picked) => change({ value: picked?.[0]?.customerId ?? '' })}
+                      primaryLabel="None"
+                      accountKey={accountKey}
+                      onSignIn={onSignIn}
+                      open={pickingDefault}
+                      onOpenChange={setPickingDefault}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <label className="field">
+                  <span>Default</span>
+                  {p.type === 'list' && !p.choices && !query ? (
+                    <textarea
+                      className="textbox mono h-auto py-1.5"
+                      rows={3}
+                      placeholder="One value per line"
+                      value={p.value}
+                      onChange={(e) => change({ value: e.target.value })}
+                    />
+                  ) : (
+                    <input className="textbox mono" value={p.value} onChange={(e) => change({ value: e.target.value })} />
+                  )}
+                </label>
+              )}
               <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-[12.5px]">
                 {several && (
                   <>
