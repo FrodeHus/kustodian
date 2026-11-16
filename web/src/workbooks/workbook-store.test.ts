@@ -1126,3 +1126,55 @@ describe('choices from a query', () => {
     expect(run.signal.aborted).toBe(true);
   });
 });
+
+describe('workspace parameter', () => {
+  const ws = (value: string) => wbParam('Workspace', value, { type: 'workspace' });
+  const typed = (id: string, source: 'logs' | 'hunting' | 'graph', options: WidgetQuery['options'] = null) =>
+    widget(id, `T${id}`, { source, options });
+  const sentTo = (id: string) => runs.find((r) => r.params.tabId === `t/${id}`)?.params.options;
+  const id1 = '11111111-1111-1111-1111-111111111111';
+  const id2 = '22222222-2222-2222-2222-222222222222';
+
+  it('a logs widget runs on the workspace parameter value', async () => {
+    void useWorkbooks.getState().load('t', docOf([ws(id1)], [typed('a', 'logs')]));
+    await flush();
+    expect(sentTo('a')?.workspaces).toEqual([{ customerId: id1, name: '', resourceId: '' }]);
+  });
+
+  it('an empty workspace parameter: logs says Pick a workspace and sends nothing', async () => {
+    const own = { timespan: null, scope: null, workspaces: [{ customerId: id2, name: '', resourceId: '' }] };
+    void useWorkbooks.getState().load('t', docOf([ws('')], [typed('a', 'logs', own), typed('b', 'graph')]));
+    await flush();
+    expect(tab().runs.a).toMatchObject({ state: 'done', result: { outcome: 'workspaceUnavailable' } });
+    expect(ran()).toEqual(['t/b']);
+  });
+
+  it('changing it reruns logs and hunting widgets and logs choice queries, not graph', async () => {
+    const choice = wbParam('C', '', { choicesQuery: { source: 'logs', text: 'T', options: null } });
+    void useWorkbooks.getState().load('t', docOf([ws(id1), choice], [typed('l', 'logs'), typed('h', 'hunting'), typed('g', 'graph')]));
+    await flush();
+    await answerAll();
+    useWorkbooks.getState().setWorkbookValue('t', 'Workspace', id2);
+    await flush();
+    expect(ran().sort()).toEqual(['t/h', 't/l', 't/param:C']);
+    expect(sentTo('l')?.workspaces?.[0]?.customerId).toBe(id2);
+  });
+
+  it('history series differ per workspace value', async () => {
+    const h: Widget = {
+      ...typed('a', 'logs'),
+      history: { mode: 'values', interval: 'day', retentionDays: 30, keys: [], keep: [], since: 'previous' },
+    };
+    void useWorkbooks.getState().load('t', docOf([ws(id1)], [h]));
+    await flush();
+    runs.at(-1)!.answer(result([[1]]));
+    await flush();
+    const first = tab().history.a?.query.options;
+    useWorkbooks.getState().setWorkbookValue('t', 'Workspace', id2);
+    await flush();
+    runs.at(-1)!.answer(result([[1]]));
+    await flush();
+    expect(first?.workspaces?.[0]?.customerId).toBe(id1);
+    expect(tab().history.a?.query.options?.workspaces?.[0]?.customerId).toBe(id2);
+  });
+});

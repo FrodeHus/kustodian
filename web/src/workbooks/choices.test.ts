@@ -35,7 +35,7 @@ const param = (name: string, extra: Partial<WorkbookParameter> = {}): WorkbookPa
   huntingTimespan: false,
   ...extra,
 });
-const query = (text: string, source: 'graph' | 'hunting' = 'graph') => ({ choicesQuery: { source, text, options: null } });
+const query = (text: string, source: 'graph' | 'hunting' | 'logs' = 'graph') => ({ choicesQuery: { source, text, options: null } });
 
 describe('choices', () => {
   it('choicesFrom: first column value, second label, nulls dropped, duplicates keep the first', () => {
@@ -80,6 +80,19 @@ describe('choices', () => {
     expect(choicesUsing(doc, 'A')).toEqual(['B']);
     expect(choicesUsing(doc, 'B')).toEqual(['A']);
     expect(choicesUsing(doc, 'Span')).toEqual(['H']);
+  });
+
+  it('choicesUsing: the workspace parameter reloads logs and hunting choice queries, not graph', () => {
+    const doc = {
+      ...newWorkbook('t'),
+      parameters: [
+        param('W', { type: 'workspace' }),
+        param('H', query('T', 'hunting')),
+        param('L', query('T', 'logs')),
+        param('G', query('T')),
+      ],
+    };
+    expect(choicesUsing(doc, 'W')).toEqual(['H', 'L']);
   });
 });
 
