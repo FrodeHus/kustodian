@@ -2,7 +2,16 @@ import { describe, expect, it } from 'vitest';
 import type { ParameterDef } from '../wire';
 import type { Widget, WidgetParam, WidgetQuery, WorkbookDoc, WorkbookParameter } from './model';
 import { newWidget, newWorkbook } from './model';
-import { initialValues, missingRequired, toParameterValues, widgetParams, widgetRunOptions, widgetsUsing, workbookValues } from './resolve';
+import {
+  initialValues,
+  missingRequired,
+  toParameterValues,
+  widgetParams,
+  widgetRunOptions,
+  widgetsUsing,
+  workbookValues,
+  widgetWorkspace,
+} from './resolve';
 
 const wbParam = (name: string, value: string, extra: Partial<WorkbookParameter> = {}): WorkbookParameter => ({
   name,
@@ -198,5 +207,59 @@ describe('workbookValues', () => {
   it('gives every workbook parameter its value: the view value, else the default for one added since opening', () => {
     const doc = docOf([wbParam('dept', 'Finance'), wbParam('range', '7d')], []);
     expect(workbookValues(doc, { workbook: { range: '1d', gone: 'x' }, widgets: {} })).toEqual({ dept: 'Finance', range: '1d' });
+  });
+});
+
+describe('the workspace parameter', () => {
+  const G1 = '11111111-1111-1111-1111-111111111111';
+  const G2 = '22222222-2222-2222-2222-222222222222';
+  const own = { customerId: G2, name: 'Own', resourceId: '/r' };
+  const wsp = (value: string) => wbParam('Workspace', value, { type: 'workspace' });
+  const hp = wbParam('TimeRange', '90d', { type: 'timespan', huntingTimespan: true });
+  const sent = [{ customerId: G1, name: '', resourceId: '' }];
+
+  it('overrides a widgets own workspace', () => {
+    const w = widget('T', { source: 'logs', options: { timespan: 'P1D', scope: null, workspaces: [own] } });
+    expect(widgetRunOptions(docOf([wsp(G1)], [w]), w, none)).toMatchObject({ workspaces: sent });
+    expect(widgetWorkspace(docOf([wsp(G1)], [w]), w, none)).toEqual({ set: true, customerId: G1 });
+  });
+
+  it('lets a widgets fixed entry win', () => {
+    const w = widget('T', { source: 'logs' }, { Workspace: { from: 'fixed', value: G2 } });
+    expect(widgetRunOptions(docOf([wsp(G1)], [w]), w, none)).toMatchObject({ workspaces: [{ customerId: G2 }] });
+  });
+
+  it('with an empty value: logs gets no workspace, hunting none', () => {
+    const l = widget('T', { source: 'logs', options: { timespan: 'P1D', scope: null, workspaces: [own] } });
+    const h = widget('T', { source: 'hunting', options: { timespan: 'P1D', scope: null, workspaces: [own] } });
+    const doc = docOf([wsp('')], [l, h]);
+    expect(widgetRunOptions(doc, l, none)).toMatchObject({ workspaces: null });
+    expect(widgetRunOptions(doc, h, none)).toMatchObject({ workspaces: null });
+  });
+
+  it('makes the timespan cap follow the resolved workspace', () => {
+    const h = widget('T', { source: 'hunting' });
+    expect(widgetRunOptions(docOf([hp, wsp(G1)], [h]), h, none)).toEqual({ timespan: 'P90D', scope: null, workspaces: sent });
+    expect(widgetRunOptions(docOf([hp, wsp('')], [h]), h, none)).toHaveProperty('problem');
+  });
+
+  it('is used by logs and hunting widgets, not graph or arg', () => {
+    const l = widget('T', { source: 'logs' });
+    const h = widget('T', { source: 'hunting' });
+    const a = widget('T', { source: 'arg' });
+    const g = widget('T', { source: 'graph' });
+    const shown = widget('T', { source: 'logs' }, { Workspace: { from: 'widget', value: '' } });
+    expect(widgetsUsing(docOf([wsp(G1)], [l, h, a, g, shown]), 'Workspace')).toEqual([l.id, h.id]);
+  });
+
+  it('is sent to the host as text', () => {
+    const p = { name: 'Workspace', type: 'workspace', value: G1, required: false, from: 'workbook' as const };
+    expect(toParameterValues([p])[0]?.type).toBe('text');
+  });
+
+  it('leaves widget options unchanged without a workspace parameter', () => {
+    const w = widget('T', { source: 'logs', options: { timespan: 'P1D', scope: null, workspaces: [own] } });
+    expect(widgetRunOptions(docOf([], [w]), w, none)).toEqual({ timespan: 'P1D', scope: null, workspaces: [own] });
+    expect(widgetWorkspace(docOf([], [w]), w, none).set).toBe(false);
   });
 });

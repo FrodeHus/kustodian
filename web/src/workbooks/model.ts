@@ -1,6 +1,10 @@
+import { PARAMETER_TYPES } from '../params/find-params';
 import type { Picked } from '../results/chart-shape';
 import { HIGHLIGHT_COLOURS, HIGHLIGHT_OPS, MAX_HIGHLIGHTS } from '../results/highlights';
 import type { HighlightRule, ParameterDef, QueryOptions, Source } from '../wire';
+
+/** Workbook parameters add the workspace type; query tabs don't have it. */
+export const WORKBOOK_PARAMETER_TYPES = [...PARAMETER_TYPES, 'workspace'] as const;
 
 export const WORKBOOK_KIND = 'kustodian.workbook';
 /** The newest file version: 2 is written only for a workbook with a tabs widget (spec §15), otherwise 1. */
