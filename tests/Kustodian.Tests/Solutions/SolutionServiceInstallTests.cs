@@ -199,6 +199,33 @@ public sealed class SolutionServiceInstallTests : IDisposable
     }
 
     [Fact]
+    public async Task Install_StripsChoiceQueryWorkspaces()
+    {
+        var wb = FileJson("workbooks/risky-users-review.json");
+        var choices = new JsonObject
+        {
+            ["source"] = "logs",
+            ["text"] = "T | distinct A",
+            ["options"] = new JsonObject { ["timespan"] = "P7D", ["scope"] = null, ["workspaces"] = new JsonArray(JsonNode.Parse(Workspace)) },
+        };
+        var parameters = wb["parameters"] as JsonArray ?? [];
+        parameters.Add(new JsonObject { ["name"] = "Pick", ["type"] = "string", ["choicesQuery"] = choices });
+        wb["parameters"] = parameters;
+        Publish("workbooks/risky-users-review.json", Bytes(wb));
+        var svc = Service();
+
+        await svc.InstallAsync(Id, Skip(), Ct);
+
+        var summary = Assert.Single((await _workbooks.ListAsync(Ct)).Workbooks);
+        var saved = (await _workbooks.GetAsync(summary.Id, Ct))!;
+        var kept = saved["parameters"]!.AsArray().Select(p => p!["choicesQuery"]).OfType<JsonObject>().Single();
+        Assert.Equal("T | distinct A", kept["text"]!.GetValue<string>());
+        Assert.Equal("P7D", kept["options"]!["timespan"]!.GetValue<string>());
+        Assert.DoesNotContain("workspaces", saved.ToJsonString());
+        Assert.Empty(await svc.ModifiedAsync(Id, Ct));
+    }
+
+    [Fact]
     public async Task InstallSkipsItems()
     {
         var installed = await Service().InstallAsync(Id, Skip("risky-signins"), Ct);

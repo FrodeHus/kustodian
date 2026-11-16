@@ -347,6 +347,12 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
             doc["id"] = Guid.NewGuid().ToString("D");
             doc["folder"] = folder;
             doc.Remove("origin");
+            foreach (var options in (doc["parameters"] as JsonArray ?? []).OfType<JsonObject>().Select(p => p["choicesQuery"]).OfType<JsonObject>()
+                         .Select(c => c["options"]).OfType<JsonObject>())
+            {
+                options.Remove("workspaces");
+            }
+
             if (doc["widgets"] is JsonArray widgets)
             {
                 foreach (var options in widgets.OfType<JsonObject>().Select(w => w["query"]).OfType<JsonObject>()

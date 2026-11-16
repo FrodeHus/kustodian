@@ -183,12 +183,12 @@ public sealed partial class RepoSolutionsTests
         }
     }
 
-    /// <summary>Every widget query with its text: workbook parameters fill what the widget doesn't define itself.</summary>
+    /// <summary>Every widget query and parameter choice query with its text: workbook parameters fill what the widget doesn't define itself.</summary>
     private static IEnumerable<(string Folder, string File, string? Source, string Text, List<ParameterDef> Defs)> WidgetQueries() =>
         Workbooks().SelectMany(w =>
         {
             var shared = Defs(w.Json["parameters"]);
-            return (w.Json["widgets"] as JsonArray ?? []).OfType<JsonObject>().Where(widget => widget["query"] is JsonObject)
+            var widgets = (w.Json["widgets"] as JsonArray ?? []).OfType<JsonObject>().Where(widget => widget["query"] is JsonObject)
                 .Select(widget =>
                 {
                     var query = widget["query"]!;
@@ -196,6 +196,10 @@ public sealed partial class RepoSolutionsTests
                     return (w.Folder, $"workbooks/{w.Id}.json (widget {widget["id"]})", query["source"]?.GetValue<string>(),
                         query["text"]!.GetValue<string>(), own.Concat(shared.Where(s => own.All(o => o.Name != s.Name))).ToList());
                 });
+            var choices = (w.Json["parameters"] as JsonArray ?? []).OfType<JsonObject>().Where(p => p["choicesQuery"] is JsonObject)
+                .Select(p => (w.Folder, $"workbooks/{w.Id}.json (parameter {p["name"]})", p["choicesQuery"]!["source"]?.GetValue<string>(),
+                    p["choicesQuery"]!["text"]!.GetValue<string>(), shared));
+            return widgets.Concat(choices);
         });
 
     private static List<ParameterDef> Defs(JsonNode? node) =>

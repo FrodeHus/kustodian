@@ -1,9 +1,20 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
-import { PARAMETER_TYPES } from '../params/find-params';
+import { PARAMETER_TYPES, findParams } from '../params/find-params';
+import { errorText } from '../shell/errors';
 import { inSendDetails } from '../shell/send-details-marker';
-import type { WorkbookParameter } from './model';
+import { WorkspacePicker } from '../toolbar/workspace-picker';
+import { choiceWidget, choicesFrom } from './choices';
+import type { ChoicesQuery, WorkbookParameter } from './model';
 import { widgetsUsing } from './resolve';
 import { useWorkbooks } from './workbook-store';
+
+const SOURCES: [ChoicesQuery['source'], string][] = [
+  ['graph', 'Graph'],
+  ['hunting', 'Defender hunting'],
+  ['arg', 'Resource Graph'],
+  ['logs', 'Log Analytics'],
+];
+const PREVIEW_ROWS = 10;
 
 const NAME_RULE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -17,10 +28,12 @@ interface Row {
 /** Choices as kept: each line trimmed, blank ones dropped; null when there are none. */
 const clean = (p: WorkbookParameter): WorkbookParameter => {
   const kept = (p.choices ?? []).map((c) => c.trim()).filter((c) => c !== '');
-  const choices = p.choices && kept.length > 0 ? kept : null;
-  const several = p.type === 'list' && !!choices;
+  const choices = !p.choicesQuery && p.choices && kept.length > 0 ? kept : null;
+  const several = p.type === 'list' && (!!choices || !!p.choicesQuery);
+  const { choicesQuery, ...rest } = p;
   return {
-    ...p,
+    ...rest,
+    ...(choicesQuery ? { choicesQuery } : {}),
     choices,
     multi: several && p.multi,
     all: several && p.all,
@@ -33,16 +46,29 @@ const clean = (p: WorkbookParameter): WorkbookParameter => {
  * details, with the widgets that use it. Save writes one `edit` (a rename renames the widgets' own entries, never query
  * text) and reruns the widgets, since edits don't; Cancel writes nothing.
  */
-export function ParametersDialog({ tabId, onClose }: { tabId: string; onClose: () => void }) {
+export function ParametersDialog({
+  tabId,
+  onClose,
+  accountKey = null,
+  onSignIn = () => undefined,
+}: {
+  tabId: string;
+  onClose: () => void;
+  accountKey?: string | null;
+  onSignIn?: () => void;
+}) {
   const doc = useWorkbooks((s) => s.byTab[tabId]?.doc);
   const [rows, setRows] = useState<Row[]>(() => (doc?.parameters ?? []).map((p) => ({ key: crypto.randomUUID(), orig: p.name, p })));
   const [at, setAt] = useState(0);
+  const [pickingWorkspace, setPickingWorkspace] = useState(false);
+  const [preview, setPreview] = useState<{ items: string[]; error?: string } | null>(null);
   const id = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
   const closing = useRef(false);
   const itemRefs = useRef<Record<string, HTMLElement | null>>({});
   const focusKey = useRef<string | null>(null);
   const dragged = useRef<number | null>(null);
+  const previews = useRef(0);
 
   // Focus starts on the first parameter, or Add parameter when there is none: the first button.
   useEffect(() => dialogRef.current?.querySelector<HTMLElement>('button')?.focus(), []);
@@ -82,9 +108,18 @@ export function ParametersDialog({ tabId, onClose }: { tabId: string; onClose: (
     }
     return rows.some((o, j) => j !== i && o.p.name === r.p.name) ? `Another parameter is already named ${r.p.name}.` : null;
   };
-  const invalid = rows.some((r, i) => error(r, i));
+  const selfUse = (r: Row) => !!r.p.choicesQuery && findParams(r.p.choicesQuery.text).includes(r.p.name);
+  const invalid = rows.some((r, i) => error(r, i) || selfUse(r));
 
-  const change = (patch: Partial<WorkbookParameter>) => setRows(rows.map((r, i) => (i === sel ? { ...r, p: { ...r.p, ...patch } } : r)));
+  // Dropping the preview also outdates any answer still on its way.
+  const clearPreview = () => {
+    previews.current++;
+    setPreview(null);
+  };
+  const change = (patch: Partial<WorkbookParameter>) => {
+    clearPreview();
+    setRows(rows.map((r, i) => (i === sel ? { ...r, p: { ...r.p, ...patch } } : r)));
+  };
   // One workbook timespan sends the hunting timespan: marking this one clears the mark elsewhere.
   const markHunting = (on: boolean) =>
     setRows(rows.map((r, i) => ({ ...r, p: { ...r.p, huntingTimespan: i === sel ? on : on ? false : r.p.huntingTimespan } })));
@@ -155,7 +190,36 @@ export function ParametersDialog({ tabId, onClose }: { tabId: string; onClose: (
 
   const p = row?.p;
   const err = row ? error(row, sel) : null;
-  const several = p?.type === 'list' && !!p.choices;
+  const several = p?.type === 'list' && (!!p.choices || !!p.choicesQuery);
+  const query = p?.choicesQuery;
+  const setQuery = (patch: Partial<ChoicesQuery>) => change({ choicesQuery: { ...query!, ...patch } });
+  const runPreview = () => {
+    const w = p && choiceWidget(p);
+    if (!w) {
+      return;
+    }
+    clearPreview();
+    const n = previews.current;
+    useWorkbooks
+      .getState()
+      .runDraft(tabId, w)
+      .then(
+        (res) => {
+          if (n !== previews.current) {
+            return;
+          }
+          if (res.outcome !== 'ok') {
+            return setPreview({ items: [], error: res.message ?? 'The query failed.' });
+          }
+          const { items } = choicesFrom(res);
+          setPreview(items.length === 0 ? { items: [], error: 'The query returned no choices.' } : { items: items.map((c) => c.label) });
+        },
+        (e: unknown) =>
+          n === previews.current &&
+          !(e instanceof DOMException && e.name === 'AbortError') &&
+          setPreview({ items: [], error: errorText(e) }),
+      );
+  };
 
   return (
     <div className="fixed inset-0 z-20">
@@ -176,7 +240,7 @@ export function ParametersDialog({ tabId, onClose }: { tabId: string; onClose: (
         <b id={`${id}-title`} className="text-[14px]">
           Workbook parameters
         </b>
-        <div className="grid min-h-0 grid-cols-[240px_minmax(0,1fr)] gap-4">
+        <div className="grid min-h-0 overflow-auto grid-cols-[240px_minmax(0,1fr)] gap-4">
           <div className="flex flex-col gap-2">
             <ul className="m-0 flex list-none flex-col gap-1 p-0" aria-label="Parameters">
               {rows.map((r, i) => {
@@ -196,7 +260,10 @@ export function ParametersDialog({ tabId, onClose }: { tabId: string; onClose: (
                       type="button"
                       className="btn ghost flex w-full flex-col items-start text-left"
                       aria-current={i === sel}
-                      onClick={() => setAt(i)}
+                      onClick={() => {
+                        clearPreview();
+                        setAt(i);
+                      }}
                       onKeyDown={(e) => onItemKey(e, i)}
                     >
                       <span className="mono">{r.p.name}</span>
@@ -259,11 +326,29 @@ export function ParametersDialog({ tabId, onClose }: { tabId: string; onClose: (
                   <span>Choices</span>
                   <select
                     className="textbox"
-                    value={p.choices ? 'fixed' : 'none'}
-                    onChange={(e) => change({ choices: e.target.value === 'fixed' ? [''] : null })}
+                    value={query ? 'query' : p.choices ? 'fixed' : 'none'}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      const { choicesQuery: _drop, ...rest } = p;
+                      setRows(
+                        rows.map((r, i) =>
+                          i !== sel
+                            ? r
+                            : {
+                                ...r,
+                                p:
+                                  v === 'query'
+                                    ? { ...p, choices: null, choicesQuery: { source: 'hunting', text: '', options: null } }
+                                    : { ...rest, choices: v === 'fixed' ? [''] : null },
+                              },
+                        ),
+                      );
+                      clearPreview();
+                    }}
                   >
                     <option value="none">None, free entry</option>
                     <option value="fixed">Fixed list</option>
+                    <option value="query">From a query</option>
                   </select>
                 </label>
               </div>
@@ -279,9 +364,75 @@ export function ParametersDialog({ tabId, onClose }: { tabId: string; onClose: (
                   />
                 </label>
               )}
+              {query && (
+                <div className="flex flex-col gap-2">
+                  <label className="field">
+                    <span>Source</span>
+                    <select
+                      className="textbox"
+                      value={query.source}
+                      onChange={(e) => setQuery({ source: e.target.value as ChoicesQuery['source'], options: null })}
+                    >
+                      {SOURCES.map(([s, name]) => (
+                        <option key={s} value={s}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {(query.source === 'hunting' || query.source === 'logs') && (
+                    <div className="flex">
+                      <WorkspacePicker
+                        workspaces={query.options?.workspaces}
+                        onChange={(workspaces) =>
+                          setQuery({ options: { ...(query.options ?? { timespan: null, scope: null }), workspaces } })
+                        }
+                        {...(query.source === 'logs' ? { primaryLabel: null } : {})}
+                        accountKey={accountKey}
+                        onSignIn={onSignIn}
+                        open={pickingWorkspace}
+                        onOpenChange={setPickingWorkspace}
+                      />
+                    </div>
+                  )}
+                  <label className="field">
+                    <span>KQL</span>
+                    <textarea
+                      className="textbox mono h-auto py-1.5"
+                      rows={4}
+                      placeholder="First column is the value, second the label"
+                      value={query.text}
+                      onChange={(e) => setQuery({ text: e.target.value })}
+                    />
+                  </label>
+                  {selfUse(row!) && (
+                    <span className="text-[12px] text-bad" role="alert">
+                      {"A parameter's choices can't use itself."}
+                    </span>
+                  )}
+                  <div className="flex flex-col items-start gap-1">
+                    <button type="button" className="btn" disabled={selfUse(row!) || query.text.trim() === ''} onClick={runPreview}>
+                      Preview
+                    </button>
+                    {preview?.error && (
+                      <span className="text-[12px] text-bad" role="alert">
+                        {preview.error}
+                      </span>
+                    )}
+                    {preview && !preview.error && (
+                      <ul className="m-0 list-none p-0 text-[12.5px]" aria-label="Preview">
+                        {preview.items.slice(0, PREVIEW_ROWS).map((l, i) => (
+                          <li key={i}>{l}</li>
+                        ))}
+                        {preview.items.length > PREVIEW_ROWS && <li className="faint">and {preview.items.length - PREVIEW_ROWS} more</li>}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              )}
               <label className="field">
                 <span>Default</span>
-                {p.type === 'list' && !p.choices ? (
+                {p.type === 'list' && !p.choices && !query ? (
                   <textarea
                     className="textbox mono h-auto py-1.5"
                     rows={3}

@@ -48,6 +48,7 @@ describe('SaveWorkbookDialog', () => {
           history: {},
           since: {},
           activeTabs: {},
+          choices: {},
           stale: {},
         },
       },

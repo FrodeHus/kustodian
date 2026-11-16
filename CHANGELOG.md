@@ -7,6 +7,10 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Workbook parameter choices from a query**: a parameter's Choices can be **From a query** on Graph, Defender hunting,
+  Resource Graph or Log Analytics. The first column is the value and an optional second is the label, up to 1,000 choices.
+  They load when the workbook opens, on Refresh all and when a parameter they use changes, and a failed load leaves free
+  entry. Import review lists a choice query's workspace, and solution install removes it.
 - **Charts draw `make-series`**: a `make-series` result now charts as it is, with `| render timechart` and no `mv-expand`.
   A `by` column still draws a series per value. Clicking a point on these charts doesn't filter the Rows tab, as its rows hold
   the whole series. This includes advanced hunting, which sends the series as text.

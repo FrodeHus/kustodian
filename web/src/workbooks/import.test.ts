@@ -292,16 +292,61 @@ describe('workspaces', () => {
     const out = readWorkbookFile(JSON.stringify(file({ widgets: [logs] }))) as WorkbookDoc;
     expect(out.widgets[0]!.query!.source).toBe('logs');
     expect(out.widgets[0]!.query!.options!.workspaces).toEqual([ws(G1, 'One')]);
-    expect(workspacesIn(out)).toEqual([{ workspace: ws(G1, 'One'), widgets: 1 }]);
+    expect(workspacesIn(out)).toEqual([{ workspace: ws(G1, 'One'), widgets: 1, parameters: [] }]);
     expect(importSummary(out).sources).toEqual(['logs']);
   });
 
   it('workspacesIn_counts_widgets_per_workspace', () => {
     const d = doc({ widgets: [hunt('a', [ws(G1, 'One')]), hunt('b', [ws(G1, 'One')]), hunt('c', [ws(G2, 'Two')]), hunt('d', null)] });
     expect(workspacesIn(d)).toEqual([
-      { workspace: ws(G1, 'One'), widgets: 2 },
-      { workspace: ws(G2, 'Two'), widgets: 1 },
+      { workspace: ws(G1, 'One'), widgets: 2, parameters: [] },
+      { workspace: ws(G2, 'Two'), widgets: 1, parameters: [] },
     ]);
     expect(workspacesIn(doc())).toEqual([]);
+  });
+
+  const withChoices = (workspaces: unknown, extra: object = {}) =>
+    file({
+      parameters: [
+        {
+          name: 'Tables',
+          type: 'list',
+          value: '',
+          required: false,
+          choicesQuery: { source: 'logs', text: 'Usage | distinct DataType', options: { timespan: 'P7D', workspaces, junk: 1 }, extra: 1 },
+          ...extra,
+        },
+      ],
+      widgets: [hunt('a', [ws(G1, 'One')])],
+    });
+
+  it('a shared file keeps choicesQuery with known fields only', () => {
+    const out = readWorkbookFile(JSON.stringify(withChoices([ws(G1, 'One', { token: 'secret' }), { customerId: 5 }]))) as WorkbookDoc;
+    expect(out.parameters[0]!.choicesQuery).toEqual({
+      source: 'logs',
+      text: 'Usage | distinct DataType',
+      options: { timespan: 'P7D', scope: undefined, workspaces: [ws(G1, 'One')] },
+    });
+    expect(JSON.stringify(out)).not.toContain('secret');
+    expect(JSON.stringify(out)).not.toContain('junk');
+  });
+
+  it("workspacesIn counts a parameter's workspace", () => {
+    const d = parseWorkbook(withChoices([ws(G1, 'One')])) as WorkbookDoc;
+    expect(workspacesIn(d)).toEqual([{ workspace: ws(G1, 'One'), widgets: 1, parameters: ['Tables'] }]);
+    const labelled = parseWorkbook(withChoices([ws(G1, 'One')], { label: 'Table names' })) as WorkbookDoc;
+    expect(workspacesIn(labelled)[0]!.parameters).toEqual(['Table names']);
+  });
+
+  it("applyImport renames a parameter's workspace from the account list", () => {
+    const d = parseWorkbook(withChoices([ws(G1, 'One')])) as WorkbookDoc;
+    const out = applyImport(d, {
+      added: null,
+      tools: {},
+      id: 'new',
+      accountWorkspaces: [{ customerId: G1.toUpperCase(), name: 'Account one' }],
+    });
+    expect(out.parameters[0]!.choicesQuery!.options!.workspaces![0]!.name).toBe('Account one');
+    expect(out.widgets[0]!.query!.options!.workspaces![0]!.name).toBe('Account one');
   });
 });

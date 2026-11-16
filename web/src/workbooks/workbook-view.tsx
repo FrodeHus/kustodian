@@ -24,6 +24,7 @@ import {
   type WidgetType,
   type WorkbookParameter,
 } from './model';
+import { effectiveChoices, MAX_CHOICES, type ParamChoices } from './choices';
 import { huntingTimespanProblem, workbookValues } from './resolve';
 import { ParametersDialog } from './parameters-dialog';
 import { childrenOf, moveTo, placeKey, placeOf, removeTabs, siblings } from './tabs';
@@ -44,18 +45,20 @@ import { editRanWidgets, editStartDoc, readLibrary, useWorkbooks, visibleTab } f
 const lines = (v: string) => v.split('\n').filter((x) => x !== '');
 
 /** A parameter's value as the collapsed bar and its picker show it. */
-function shownValue(param: WorkbookParameter, value: string): string {
-  const choices = (param.choices ?? []).filter((c) => c.trim() !== '');
+function shownValue(param: WorkbookParameter, value: string, loaded?: ParamChoices): string {
+  const items = effectiveChoices(param, loaded) ?? [];
+  const choices = items.map((c) => c.value);
+  const label = (v: string) => items.find((c) => c.value === v)?.label ?? v;
   if (param.type === 'list' && choices.length > 0) {
     const picked = lines(value);
     if (param.all && choices.every((c) => picked.includes(c))) {
       return 'All';
     }
     if (param.multi) {
-      return picked.length > 0 ? picked.join(', ') : 'None';
+      return picked.length > 0 ? picked.map(label).join(', ') : 'None';
     }
   }
-  return value === '' ? 'Any' : value;
+  return value === '' ? 'Any' : label(value);
 }
 
 /** Few short choices show as a row of buttons, the rest as a select. */
@@ -72,15 +75,18 @@ function ParamControl({ tabId, param, value }: { tabId: string; param: WorkbookP
     st.byTab[tabId]?.doc.widgets.some((w) => w.query?.source === 'logs' || w.query?.options?.workspaces?.length) ? 730 : 30,
   );
   const label = param.label ?? param.name;
-  // Choices make a picker for any type, as in a query tab; several values and All are a list's only.
-  const choices = (param.choices ?? []).filter((c) => c.trim() !== '');
+  // Choices make a picker for any type, as in a query tab; several values and All are a list's only. Loaded from a query, they
+  // are a picker once they arrive (and through a reload); until then, or if they never do, the control is free entry.
+  const loaded = useWorkbooks((st) => st.byTab[tabId]?.choices[param.name]);
+  const editing = useWorkbooks((st) => !!st.byTab[tabId]?.editing);
+  const choices = effectiveChoices(param, loaded) ?? [];
   const list = param.type === 'list';
   let control;
   if (choices.length > 0 && list && param.multi) {
     const picked = lines(value);
-    const every = choices.every((c) => picked.includes(c));
+    const every = choices.every((c) => picked.includes(c.value));
     control = (
-      <MenuButton label={label} text={shownValue(param, value)} field>
+      <MenuButton label={label} text={shownValue(param, value, loaded)} field>
         {param.all && (
           <button
             type="button"
@@ -88,7 +94,7 @@ function ParamControl({ tabId, param, value }: { tabId: string; param: WorkbookP
             aria-checked={every}
             tabIndex={-1}
             data-keep-open
-            onClick={() => set(every ? '' : choices.join('\n'))}
+            onClick={() => set(every ? '' : choices.map((c) => c.value).join('\n'))}
           >
             <Check on={every} />
             Select all
@@ -96,30 +102,40 @@ function ParamControl({ tabId, param, value }: { tabId: string; param: WorkbookP
         )}
         {choices.map((c) => (
           <button
-            key={c}
+            key={c.value}
             type="button"
             role="menuitemcheckbox"
-            aria-checked={picked.includes(c)}
+            aria-checked={picked.includes(c.value)}
             tabIndex={-1}
             data-keep-open
             // Kept in the choices' order, whatever order they were picked in.
-            onClick={() => set(choices.filter((x) => (x === c ? !picked.includes(c) : picked.includes(x))).join('\n'))}
+            onClick={() =>
+              set(
+                choices
+                  .filter((x) => (x.value === c.value ? !picked.includes(c.value) : picked.includes(x.value)))
+                  .map((x) => x.value)
+                  .join('\n'),
+              )
+            }
           >
-            <Check on={picked.includes(c)} />
-            {c}
+            <Check on={picked.includes(c.value)} />
+            {c.label}
           </button>
         ))}
       </MenuButton>
     );
   } else if (choices.length > 0) {
-    const all = choices.join('\n');
-    const options = [...(list && param.all ? [{ value: all, text: 'All' }] : []), ...choices.map((c) => ({ value: c, text: c }))];
+    const all = choices.map((c) => c.value).join('\n');
+    const options = [
+      ...(list && param.all ? [{ value: all, text: 'All' }] : []),
+      ...choices.map((c) => ({ value: c.value, text: c.label })),
+    ];
     const known = options.some((o) => o.value === value);
     if (known && options.length <= SEGMENT_MAX && options.every((o) => o.text.length <= SEGMENT_TEXT_MAX)) {
       control = (
         <div className="param-seg" role="radiogroup" aria-label={label}>
           {options.map((o) => (
-            <button key={o.text} type="button" role="radio" aria-checked={o.value === value} onClick={() => set(o.value)}>
+            <button key={o.value} type="button" role="radio" aria-checked={o.value === value} onClick={() => set(o.value)}>
               {o.text}
             </button>
           ))}
@@ -130,7 +146,7 @@ function ParamControl({ tabId, param, value }: { tabId: string; param: WorkbookP
         <select className="textbox mono" style={{ height: 28 }} aria-label={label} value={value} onChange={(e) => set(e.target.value)}>
           {!known && <option value={value}>{value === '' ? '(none)' : value}</option>}
           {options.map((o) => (
-            <option key={o.text} value={o.value}>
+            <option key={o.value} value={o.value}>
               {o.text}
             </option>
           ))}
@@ -163,6 +179,7 @@ function ParamControl({ tabId, param, value }: { tabId: string; param: WorkbookP
   }
   // A hunting timespan that can't be sent says so here, where it's fixed, as well as on the widgets it stops.
   const problem = param.huntingTimespan ? huntingTimespanProblem(label, value, workspaceCap) : null;
+  const hint = param.choicesQuery ? choicesHint(loaded, editing) : null;
   return (
     <div className="flex min-w-0 flex-col gap-1 text-[12.5px]">
       {/* One line, so the controls in a row line up; the whole label shows on hover. */}
@@ -176,8 +193,32 @@ function ParamControl({ tabId, param, value }: { tabId: string; param: WorkbookP
           {problem}
         </span>
       )}
+      {hint && (
+        <span role={hint.alert ? 'alert' : 'status'} className={hint.alert ? 'text-[12px] text-bad' : 'muted text-[12px]'}>
+          {hint.text}
+        </span>
+      )}
     </div>
   );
+}
+
+/** What a choice query's state says under its control; null for nothing. A missing workspace is for the editor to fix. */
+function choicesHint(loaded: ParamChoices | undefined, editing: boolean): { text: string; alert?: boolean } | null {
+  switch (loaded?.state) {
+    case 'loading':
+      return { text: 'Loading choices…' };
+    case 'failed':
+      return { text: `Couldn't load choices: ${loaded.error}`, alert: true };
+    case 'needsWorkspace':
+      return editing ? { text: 'Pick a workspace for these choices.' } : null;
+    case 'done':
+      if (loaded.items.length === 0) {
+        return { text: 'The query returned no choices.' };
+      }
+      return loaded.capped ? { text: `Showing the first ${MAX_CHOICES.toLocaleString('en-US')} choices.` } : null;
+    default:
+      return null;
+  }
 }
 
 function Check({ on }: { on: boolean }) {
@@ -198,11 +239,13 @@ function ParameterBar({
   parameters,
   values,
   collapsed,
+  choices,
 }: {
   tabId: string;
   parameters: WorkbookParameter[];
   values: Record<string, string>;
   collapsed: boolean;
+  choices: Record<string, ParamChoices>;
 }) {
   const store = useWorkbooks.getState();
   const valueOf = (p: WorkbookParameter) => values[p.name] ?? p.value;
@@ -222,7 +265,7 @@ function ParameterBar({
           <div className="param-summary flex min-w-0 flex-1 gap-1.5 overflow-hidden">
             {parameters.slice(0, SUMMARY_MAX).map((p) => (
               <button key={p.name} type="button" className="param-pill" data-changed={valueOf(p) !== p.value || undefined} onClick={toggle}>
-                <span className="muted">{p.label ?? p.name}:</span> {shownValue(p, valueOf(p))}
+                <span className="muted">{p.label ?? p.name}:</span> {shownValue(p, valueOf(p), choices[p.name])}
               </button>
             ))}
           </div>
@@ -501,6 +544,10 @@ export function WorkbookView({ tabId, onSignIn, accountKey }: { tabId: string; o
     // Edits don't rerun widgets (the store's ruling); Done reruns once if the doc changed. Back at the starting doc (a discard,
     // or undone all the way), a widget run on a draft reruns, so it doesn't keep that draft's rows.
     if (discard || !start || !now || start === now) {
+      // A dialog Save may have loaded choices from a query that the discard just undid.
+      if (discard) {
+        void store().loadChoices(tabId);
+      }
       for (const id of ran) {
         void store().runWidget(tabId, id);
       }
@@ -754,6 +801,8 @@ export function WorkbookView({ tabId, onSignIn, accountKey }: { tabId: string; o
         createPortal(
           <ParametersDialog
             tabId={tabId}
+            accountKey={accountKey}
+            onSignIn={onSignIn}
             onClose={() => {
               focusNext.current = () => parametersRef.current;
               setParametersOpen(false);
@@ -770,7 +819,13 @@ export function WorkbookView({ tabId, onSignIn, accountKey }: { tabId: string; o
         </p>
       )}
       {doc.parameters.length > 0 && (
-        <ParameterBar tabId={tabId} parameters={doc.parameters} values={values.workbook} collapsed={paramsCollapsed} />
+        <ParameterBar
+          tabId={tabId}
+          parameters={doc.parameters}
+          values={values.workbook}
+          collapsed={paramsCollapsed}
+          choices={state.choices}
+        />
       )}
       {doc.parameters.length > 0 && (
         // Print shows the parameters as a table of their values in place of the bar's controls.
@@ -786,7 +841,7 @@ export function WorkbookView({ tabId, onSignIn, accountKey }: { tabId: string; o
               {doc.parameters.map((p) => (
                 <tr key={p.name}>
                   <td>{p.label ?? p.name}</td>
-                  <td className="mono whitespace-pre-wrap">{shownValue(p, values.workbook[p.name] ?? p.value)}</td>
+                  <td className="mono whitespace-pre-wrap">{shownValue(p, values.workbook[p.name] ?? p.value, state.choices[p.name])}</td>
                 </tr>
               ))}
             </tbody>

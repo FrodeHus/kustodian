@@ -70,6 +70,7 @@ function show(w: Widget, run: WidgetRun, entry: Partial<WidgetHistoryState> | nu
     history: entry ? { w: { skipped: null, reset: false, recordedAt: 1, query, ...entry } } : {},
     since: {},
     activeTabs: {},
+    choices: {},
     stale: {},
   };
   useWorkbooks.setState({ byTab: { t: state } });

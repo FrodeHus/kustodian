@@ -23,7 +23,13 @@ const PARAM_DEF: (keyof ParameterDef)[] = ['name', 'type', 'value', 'required', 
 function known(doc: WorkbookDoc): WorkbookDoc {
   return {
     ...only(doc, ['kind', 'version', 'id', 'name', 'folder']),
-    parameters: doc.parameters.map((p) => only(p, [...PARAM_DEF, 'label', 'multi', 'all', 'remember', 'huntingTimespan'])),
+    parameters: doc.parameters.map((p) => {
+      const next = only(p, [...PARAM_DEF, 'label', 'multi', 'all', 'remember', 'huntingTimespan', 'choicesQuery']);
+      if (p.choicesQuery) {
+        next.choicesQuery = { ...only(p.choicesQuery, ['source', 'text']), options: knownOptions(p.choicesQuery.options) };
+      }
+      return next;
+    }),
     widgets: doc.widgets.map((w) => {
       const next = only(w, [
         'id',
@@ -48,15 +54,9 @@ function known(doc: WorkbookDoc): WorkbookDoc {
       }
       next.parameters = Object.fromEntries(Object.entries(w.parameters).map(([name, p]) => [name, only(p, ['from', 'value'])]));
       if (w.query) {
-        const { options } = w.query;
-        // options came from the file unchecked; the host's workbook.check judges the values.
         next.query = {
           ...only(w.query, ['source', 'text', 'saved']),
-          options: options && {
-            timespan: options.timespan,
-            scope: options.scope && typeof options.scope === 'object' ? only(options.scope, ['kind', 'ids']) : options.scope,
-            ...(Array.isArray(options.workspaces) && { workspaces: options.workspaces.flatMap(knownWorkspace) }),
-          },
+          options: knownOptions(w.query.options),
           parameters: w.query.parameters.map((p) => only(p, PARAM_DEF)),
         };
       }
@@ -71,6 +71,17 @@ function known(doc: WorkbookDoc): WorkbookDoc {
   };
 }
 
+/** Options came from the file unchecked; the host's workbook.check judges the values. */
+function knownOptions(options: QueryOptions | null): QueryOptions | null {
+  return (
+    options && {
+      timespan: options.timespan,
+      scope: options.scope && typeof options.scope === 'object' ? only(options.scope, ['kind', 'ids']) : options.scope,
+      ...(Array.isArray(options.workspaces) && { workspaces: options.workspaces.flatMap(knownWorkspace) }),
+    }
+  );
+}
+
 /** A workspace from a file: its three string fields and nothing else. `name` is display text only; the host checks the ids. */
 function knownWorkspace(w: unknown): QueryWorkspace[] {
   const o = w && typeof w === 'object' ? (w as Record<string, unknown>) : {};
@@ -80,15 +91,21 @@ function knownWorkspace(w: unknown): QueryWorkspace[] {
     : [];
 }
 
-/** The workspaces the workbook's widgets query, each with how many widgets use it (what the import reviews list). */
-export function workspacesIn(doc: WorkbookDoc): { workspace: QueryWorkspace; widgets: number }[] {
-  const found = new Map<string, { workspace: QueryWorkspace; widgets: number }>();
-  for (const w of doc.widgets) {
-    for (const workspace of new Map((w.query?.options?.workspaces ?? []).map((x) => [x.customerId, x])).values()) {
-      const entry = found.get(workspace.customerId) ?? { workspace, widgets: 0 };
-      entry.widgets++;
+/** The workspaces the workbook queries, each with how many widgets and which parameters' choices use it (what the import reviews list). */
+export function workspacesIn(doc: WorkbookDoc): { workspace: QueryWorkspace; widgets: number; parameters: string[] }[] {
+  const found = new Map<string, { workspace: QueryWorkspace; widgets: number; parameters: string[] }>();
+  const tally = (workspaces: QueryWorkspace[] | null | undefined, count: (e: { widgets: number; parameters: string[] }) => void) => {
+    for (const workspace of new Map((workspaces ?? []).map((x) => [x.customerId, x])).values()) {
+      const entry = found.get(workspace.customerId) ?? { workspace, widgets: 0, parameters: [] };
+      count(entry);
       found.set(workspace.customerId, entry);
     }
+  };
+  for (const w of doc.widgets) {
+    tally(w.query?.options?.workspaces, (e) => e.widgets++);
+  }
+  for (const p of doc.parameters) {
+    tally(p.choicesQuery?.options?.workspaces, (e) => e.parameters.push(p.label || p.name));
   }
   return [...found.values()];
 }
@@ -171,6 +188,10 @@ export interface ImportChoices {
 /** Own-property lookup: a file's tool name or saved id such as "constructor" must not find Object.prototype. */
 const pick = <T>(map: Record<string, T>, key: string): T | undefined => (Object.hasOwn(map, key) ? map[key] : undefined);
 
+/** A file's workspaces named as the account's list names them. */
+const named = (workspaces: QueryWorkspace[], mine: { customerId: string; name: string }[]) =>
+  workspaces.map((x) => ({ ...x, name: mine.find((m) => m.customerId.toLowerCase() === x.customerId.toLowerCase())?.name ?? x.name }));
+
 export function applyImport(doc: WorkbookDoc, choices: ImportChoices): WorkbookDoc {
   const widgets = doc.widgets.map((w): Widget => {
     const next: Widget = { ...w };
@@ -179,12 +200,10 @@ export function applyImport(doc: WorkbookDoc, choices: ImportChoices): WorkbookD
     }
     const workspaces = w.query?.options?.workspaces;
     if (w.query?.options && workspaces && choices.accountWorkspaces) {
-      const mine = choices.accountWorkspaces;
-      const named = workspaces.map((x) => ({
-        ...x,
-        name: mine.find((m) => m.customerId.toLowerCase() === x.customerId.toLowerCase())?.name ?? x.name,
-      }));
-      next.query = { ...(next.query ?? w.query), options: { ...w.query.options, workspaces: named } };
+      next.query = {
+        ...(next.query ?? w.query),
+        options: { ...w.query.options, workspaces: named(workspaces, choices.accountWorkspaces) },
+      };
     }
     if (w.tools) {
       next.tools = w.tools.flatMap((b) => {
@@ -194,6 +213,15 @@ export function applyImport(doc: WorkbookDoc, choices: ImportChoices): WorkbookD
     }
     return next;
   });
+  const parameters = doc.parameters.map((p) => {
+    const options = p.choicesQuery?.options;
+    return p.choicesQuery && options?.workspaces && choices.accountWorkspaces
+      ? {
+          ...p,
+          choicesQuery: { ...p.choicesQuery, options: { ...options, workspaces: named(options.workspaces, choices.accountWorkspaces) } },
+        }
+      : p;
+  });
   const { modifiedAt: _modifiedAt, ...rest } = doc;
-  return { ...rest, id: choices.id, widgets };
+  return { ...rest, id: choices.id, parameters, widgets };
 }

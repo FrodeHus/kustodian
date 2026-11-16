@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Widget, WorkbookDoc, WorkbookParameter } from './model';
 import { newWidget, newWorkbook } from './model';
@@ -49,6 +49,7 @@ function open() {
         history: {},
         since: {},
         activeTabs: {},
+        choices: {},
         stale: {},
       },
     },
@@ -165,5 +166,112 @@ describe('ParametersDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(state().doc.parameters).toHaveLength(3);
     expect(onClose).toHaveBeenCalled();
+  });
+
+  const fromQuery = () => {
+    fireEvent.click(item('Top'));
+    type('Choices', 'query');
+  };
+
+  it('Choices: From a query shows source, KQL and a workspace picker for hunting; saving writes choicesQuery and null choices', () => {
+    open();
+    fromQuery();
+    expect((screen.getByLabelText('Source') as HTMLSelectElement).value).toBe('hunting');
+    expect(screen.getByRole('button', { name: /workspace|primary/i })).toBeTruthy();
+    type('KQL', 'Users | project Name');
+    type('Source', 'graph');
+    expect(screen.queryByRole('button', { name: /workspace|primary/i })).toBeNull();
+    type('Source', 'arg');
+    type('KQL', 'Resources | project name');
+    save();
+    const top = state().doc.parameters.find((p) => p.name === 'Top')!;
+    expect(top.choices).toBeNull();
+    expect(top.choicesQuery).toEqual({ source: 'arg', text: 'Resources | project name', options: null });
+  });
+
+  it('switching to None or Fixed list drops the query', () => {
+    open();
+    fromQuery();
+    type('KQL', 'x');
+    type('Choices', 'fixed');
+    save();
+    const top = state().doc.parameters.find((p) => p.name === 'Top')!;
+    expect('choicesQuery' in top).toBe(false);
+    expect(top.choices).toBeNull();
+  });
+
+  it('Several values and Offer All show for a list with a query', () => {
+    open();
+    fireEvent.click(item('Top'));
+    type('Type', 'list');
+    type('Choices', 'query');
+    type('KQL', 'x');
+    fireEvent.click(screen.getByLabelText('Several values'));
+    fireEvent.click(screen.getByLabelText('Offer “All”'));
+    save();
+    const top = state().doc.parameters.find((p) => p.name === 'Top')!;
+    expect(top.multi).toBe(true);
+    expect(top.all).toBe(true);
+  });
+
+  it("a query using its own parameter says A parameter's choices can't use itself. and Save is off", () => {
+    open();
+    fromQuery();
+    type('KQL', 'T | take {Top}');
+    expect(screen.getByRole('alert').textContent).toBe("A parameter's choices can't use itself.");
+    expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('Preview shows the first choices, or the error', async () => {
+    const runDraft = vi.fn();
+    useWorkbooks.setState({ runDraft });
+    open();
+    fromQuery();
+    type('KQL', 'x');
+    runDraft.mockResolvedValueOnce({
+      outcome: 'ok',
+      columns: [{ name: 'a', type: 'string' }],
+      rows: Array.from({ length: 12 }, (_, i) => [`v${i}`]),
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+    expect(await screen.findByText('v0')).toBeTruthy();
+    expect(screen.getByText('v9')).toBeTruthy();
+    expect(screen.queryByText('v10')).toBeNull();
+    expect(screen.getByText('and 2 more')).toBeTruthy();
+    runDraft.mockRejectedValueOnce(new Error('Boom'));
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+    expect((await screen.findByText('Boom')).getAttribute('role')).toBe('alert');
+  });
+
+  it('Preview shows a failed run message and says when there are no choices', async () => {
+    const runDraft = vi.fn();
+    useWorkbooks.setState({ runDraft });
+    open();
+    fromQuery();
+    type('KQL', 'x');
+    runDraft.mockResolvedValueOnce({ outcome: 'failed', message: 'Bad KQL', columns: [], rows: [] });
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+    expect((await screen.findByText('Bad KQL')).getAttribute('role')).toBe('alert');
+    runDraft.mockResolvedValueOnce({ outcome: 'ok', columns: [{ name: 'a', type: 'string' }], rows: [] });
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+    expect(await screen.findByText('The query returned no choices.')).toBeTruthy();
+  });
+
+  it('drops a Preview answer that arrives after the text changed, and ignores an AbortError', async () => {
+    const runDraft = vi.fn();
+    useWorkbooks.setState({ runDraft });
+    open();
+    fromQuery();
+    type('KQL', 'x');
+    let answer!: (r: unknown) => void;
+    runDraft.mockReturnValueOnce(new Promise((r) => (answer = r)));
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+    type('KQL', 'xy');
+    await act(async () => answer({ outcome: 'ok', columns: [{ name: 'a', type: 'string' }], rows: [['late']] }));
+    expect(screen.queryByText('late')).toBeNull();
+    runDraft.mockRejectedValueOnce(new DOMException('A newer preview replaced this one.', 'AbortError'));
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+    await act(async () => undefined);
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

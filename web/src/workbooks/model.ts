@@ -86,7 +86,14 @@ export interface WidgetHistory {
   keep: string[];
   since: string;
 }
+/** A parameter's choices from a query; exclusive with `choices`. */
+export interface ChoicesQuery {
+  source: Exclude<Source, 'raw'>;
+  text: string;
+  options: QueryOptions | null;
+}
 export interface WorkbookParameter extends ParameterDef {
+  choicesQuery?: ChoicesQuery | null;
   label: string | null;
   multi: boolean;
   all: boolean;
@@ -418,14 +425,25 @@ function parseParameter(v: unknown): WorkbookParameter | null {
   if (!isObj(v) || typeof v.name !== 'string') {
     return null;
   }
+  const { choicesQuery: q, ...rest } = v;
+  const choicesQuery: ChoicesQuery | null =
+    isObj(q) && typeof q.source === 'string' && SOURCES.includes(q.source) && typeof q.text === 'string'
+      ? {
+          ...q,
+          source: q.source as ChoicesQuery['source'],
+          text: q.text,
+          options: isObj(q.options) ? (q.options as unknown as QueryOptions) : null,
+        }
+      : null;
   return {
-    ...v,
+    ...rest,
     name: v.name,
     type: str(v.type, 'text'),
     value: str(v.value, ''),
     required: bool(v.required),
     label: strOrNull(v.label),
-    choices: choices(v.choices),
+    choices: choicesQuery ? null : choices(v.choices),
+    ...(choicesQuery && { choicesQuery }),
     multi: bool(v.multi),
     all: bool(v.all),
     remember: bool(v.remember),
