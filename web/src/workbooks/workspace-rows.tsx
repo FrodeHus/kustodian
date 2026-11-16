@@ -10,7 +10,7 @@ export function WorkspaceRows({
   found,
   mine,
 }: {
-  found: { workspace: QueryWorkspace; widgets: number; parameters: string[] }[];
+  found: { workspace: QueryWorkspace; widgets: number; parameters: string[]; values?: string[] }[];
   mine: ArmWorkspacesAnswer['workspaces'] | null | undefined;
 }) {
   const any = found.length > 0;
@@ -19,12 +19,12 @@ export function WorkspaceRows({
     any && (
       <section className="flex flex-col gap-1.5">
         <b className="text-[12.5px]">{`This workbook queries ${found.length} ${found.length === 1 ? 'workspace' : 'workspaces'}`}</b>
-        {found.map(({ workspace, widgets, parameters }) => {
+        {found.map(({ workspace, widgets, parameters, values }) => {
           const id = workspace.customerId.toLowerCase();
           const account = mine?.find((w) => w.customerId.toLowerCase() === id);
           return (
             <span key={workspace.customerId} className="flex min-h-7 items-center gap-2">
-              <span className="truncate">{account?.name ?? workspace.name}</span>
+              <span className="truncate">{account?.name ?? (workspace.name || 'Workspace')}</span>
               <span className="mono shrink-0 text-[11px] text-faint">{shortId(workspace.customerId)}</span>
               {!mine ? (
                 <span className="shrink-0 text-faint">· not checked</span>
@@ -34,6 +34,7 @@ export function WorkspaceRows({
               <span className="ml-auto shrink-0 text-[11px] text-faint">
                 {[
                   ...(widgets > 0 ? [`${widgets} ${widgets === 1 ? 'widget' : 'widgets'}`] : []),
+                  ...(values?.length ? [`parameter ${values.join(', ')}`] : []),
                   ...(parameters.length > 0 ? [`choices for ${parameters.join(', ')}`] : []),
                 ].join(' · ')}
               </span>

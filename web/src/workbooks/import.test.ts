@@ -349,4 +349,32 @@ describe('workspaces', () => {
     expect(out.parameters[0]!.choicesQuery!.options!.workspaces![0]!.name).toBe('Account one');
     expect(out.widgets[0]!.query!.options!.workspaces![0]!.name).toBe('Account one');
   });
+
+  const withWsParam = (value: string, widgetEntry?: object) =>
+    parseWorkbook(
+      file({
+        parameters: [{ name: 'WS', type: 'workspace', value, required: false, label: 'Workspace' }],
+        widgets: [{ ...hunt('a', null), parameters: widgetEntry ? { WS: widgetEntry } : {} }],
+      }),
+    ) as WorkbookDoc;
+
+  it("workspacesIn lists a workspace parameter's default as parameter <label>", () => {
+    const d = withWsParam(G1);
+    expect(workspacesIn(d)).toEqual([
+      { workspace: { customerId: G1, name: '', resourceId: '' }, widgets: 0, parameters: [], values: ['Workspace'] },
+    ]);
+    expect(workspacesIn(withWsParam(''))).toEqual([]);
+    const out = applyImport(d, { added: null, tools: {}, id: 'new', accountWorkspaces: [{ customerId: G1, name: 'One' }] });
+    expect(out.parameters[0]!.value).toBe(G1);
+  });
+
+  it("workspacesIn lists a widget's own fixed or widget entry for the workspace parameter", () => {
+    for (const from of ['fixed', 'widget']) {
+      expect(workspacesIn(withWsParam('', { from, value: G2 }))).toEqual([
+        { workspace: { customerId: G2, name: '', resourceId: '' }, widgets: 1, parameters: [] },
+      ]);
+    }
+    const out = applyImport(withWsParam('', { from: 'fixed', value: G2 }), { added: null, tools: {}, id: 'new' });
+    expect(out.widgets[0]!.parameters.WS!.value).toBe(G2);
+  });
 });

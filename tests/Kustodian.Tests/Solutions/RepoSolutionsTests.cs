@@ -258,6 +258,31 @@ public sealed partial class RepoSolutionsTests
     }
 
     [Fact]
+    public void WorkspaceParametersShipEmpty()
+    {
+        foreach (var (folder, _, id, json) in Workbooks())
+        {
+            var names = new List<string>();
+            foreach (var p in (json["parameters"] as JsonArray ?? []).OfType<JsonObject>().Where(p => p["type"]?.GetValue<string>() == "workspace"))
+            {
+                names.Add(p["name"]!.GetValue<string>());
+                if (!string.IsNullOrEmpty(p["value"]?.GetValue<string>()))
+                {
+                    Fail(folder, $"workbooks/{id}.json", $"workspace parameter {p["name"]} must ship empty.");
+                }
+            }
+
+            foreach (var w in (json["widgets"] as JsonArray ?? []).OfType<JsonObject>())
+            {
+                foreach (var name in names.Where(n => w["parameters"]?[n]?["value"] is JsonValue v && !string.IsNullOrEmpty(v.GetValue<string>())))
+                {
+                    Fail(folder, $"workbooks/{id}.json (widget {w["id"]})", $"workspace parameter {name} must ship empty.");
+                }
+            }
+        }
+    }
+
+    [Fact]
     public void NoTenantData()
     {
         foreach (var (folder, m) in Solutions())
