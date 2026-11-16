@@ -42,7 +42,7 @@ The owner's own requirement: **the user picks the workspace a query targets.**
 - Async Logs export jobs (preview).
 - Several workspaces in one picker choice. One workspace per query in v1; `workspace("name").Table` in the KQL still reaches
   others (see the open question).
-- A workbook parameter that picks the workspace (see the open question).
+- A workbook parameter that picks the workspace (closed: see 2026-11-16-workbook-workspace-parameter-design.md).
 
 ## Anti-goals
 
@@ -230,8 +230,8 @@ Part 1 ships on its own (with the shared list and picker) before part 2 starts. 
    host removes any workspace from a solution's queries and workbook widgets at install, and the user picks one afterwards.
    This replaces decision 1's solution-dialog confirmation for solutions.
 
-Still open, not v1: a workbook parameter that picks the workspace, and several workspaces per query (stored as a list
-already, limited to one). An empty-table filter for the schema panel is dropped for now.
+A workbook parameter that picks the workspace is closed: see 2026-11-16-workbook-workspace-parameter-design.md.
+Still open, not v1: several workspaces per query (stored as a list already, limited to one). An empty-table filter for the schema panel is dropped for now.
 
 ## Mockups
 

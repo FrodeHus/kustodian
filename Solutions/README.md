@@ -26,7 +26,7 @@ Solutions/
 | `solutionVersion` | `x.y.z`. Raise it with every change to the solution, or installed copies are never offered the update. |
 | `support` | `kustodian` or `community`. |
 | `categories` | Free-form labels. |
-| `sources` | The sources its queries use: `graph`, `hunting`, `arg` or `logs`. A `logs` query never carries a workspace: whoever installs it picks one. Installing a solution removes the workspace from a parameter choice query too. |
+| `sources` | The sources its queries use: `graph`, `hunting`, `arg` or `logs`. A `logs` query never carries a workspace: whoever installs it picks one. Installing a solution removes the workspace from a parameter choice query too, and clears a workspace parameter's default and any widget's own value for it. CI (`WorkspaceParametersShipEmpty`) refuses a solution that ships either. |
 | `minAppVersion` | `x.y.z`, the oldest app that can install it. It cannot be above the next release. |
 | `requires` | Optional: `graph` permissions, `roles`, `licenses` and `azure` access it needs. |
 | `content` | The `queries`, `workbooks` and `tools` it ships, by id. Each query and workbook id is a valid id and has a file. |
