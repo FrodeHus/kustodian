@@ -73,6 +73,10 @@ export function widgetsUsing(doc: WorkbookDoc, name: string): string[] {
 
 const takesTimespan = (source: string | undefined) => source === 'hunting' || source === 'logs';
 
+/** The workspace parameter picker's copy, in place of the hunting tab's. */
+export const PARAM_NONE = 'Log Analytics widgets wait for a workspace; hunting widgets use your primary workspace.';
+export const PARAM_FOOTER = 'Every Log Analytics and hunting widget in this workbook uses it.';
+
 /** A GUID in "D" format, as a workspace's customer id is. */
 export const isGuid = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 

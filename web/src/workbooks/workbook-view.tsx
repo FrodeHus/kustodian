@@ -27,7 +27,7 @@ import {
   type WorkbookParameter,
 } from './model';
 import { effectiveChoices, MAX_CHOICES, type ParamChoices } from './choices';
-import { huntingTimespanProblem, workbookValues, workspaceParameter } from './resolve';
+import { huntingTimespanProblem, PARAM_FOOTER, PARAM_NONE, workbookValues, workspaceParameter } from './resolve';
 import { useAccountWorkspaces } from './account-workspaces';
 import { ParametersDialog } from './parameters-dialog';
 import { childrenOf, moveTo, placeKey, placeOf, removeTabs, siblings } from './tabs';
@@ -123,6 +123,8 @@ function ParamControl({
         }
         onChange={(picked) => set(picked?.[0]?.customerId ?? '')}
         primaryLabel="None"
+        primaryDescription={PARAM_NONE}
+        footer={PARAM_FOOTER}
         accountKey={accountKey}
         onSignIn={onSignIn}
         open={pickingWorkspace}

@@ -6,7 +6,7 @@ import { shortId } from '../toolbar/short-id';
 import { WorkspacePicker } from '../toolbar/workspace-picker';
 import { choiceWidget, choicesFrom } from './choices';
 import { WORKBOOK_PARAMETER_TYPES, type ChoicesQuery, type WorkbookParameter } from './model';
-import { isGuid, widgetsUsing, workspaceParameter } from './resolve';
+import { isGuid, PARAM_FOOTER, PARAM_NONE, widgetsUsing, workspaceParameter } from './resolve';
 import { useWorkbooks } from './workbook-store';
 
 const SOURCES: [ChoicesQuery['source'], string][] = [
@@ -469,6 +469,8 @@ export function ParametersDialog({
                       workspaces={p.value === '' ? null : [{ customerId: p.value, name: shortId(p.value), resourceId: '' }]}
                       onChange={(picked) => change({ value: picked?.[0]?.customerId ?? '' })}
                       primaryLabel="None"
+                      primaryDescription={PARAM_NONE}
+                      footer={PARAM_FOOTER}
                       accountKey={accountKey}
                       onSignIn={onSignIn}
                       open={pickingDefault}

@@ -609,6 +609,15 @@ describe('WorkbookView', () => {
       expect(setWorkbookValue).toHaveBeenCalledWith('t', 'Customer', 'guid-b', { now: true });
     });
 
+    it('its picker has the workbook copy, not the hunting tab’s', async () => {
+      withWorkspace('');
+      fireEvent.click(trigger());
+      await screen.findByRole('radio', { name: /^Fabrikam/ });
+      expect(screen.getByText(/Log Analytics widgets wait for a workspace/)).toBeTruthy();
+      expect(screen.getByText('Every Log Analytics and hunting widget in this workbook uses it.')).toBeTruthy();
+      expect(screen.queryByText(/saved with the query/)).toBeNull();
+    });
+
     it('None clears it', async () => {
       withWorkspace('guid-a');
       fireEvent.click(trigger());
