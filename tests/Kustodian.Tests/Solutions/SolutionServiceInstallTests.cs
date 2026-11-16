@@ -226,6 +226,25 @@ public sealed class SolutionServiceInstallTests : IDisposable
     }
 
     [Fact]
+    public async Task Install_WithANonStringParameterTypeFailsCleanly()
+    {
+        var wb = FileJson("workbooks/risky-users-review.json");
+        var parameters = wb["parameters"] as JsonArray ?? [];
+        parameters.Add(new JsonObject { ["name"] = 5, ["type"] = 7, ["value"] = "x", ["required"] = false });
+        wb["parameters"] = parameters;
+        Publish("workbooks/risky-users-review.json", Bytes(wb));
+
+        // Refused or installed, never an unhandled exception.
+        try
+        {
+            await Service().InstallAsync(Id, Skip(), Ct);
+        }
+        catch (SolutionRejectedException)
+        {
+        }
+    }
+
+    [Fact]
     public async Task Install_StripsChoiceQueryWorkspaces()
     {
         var wb = FileJson("workbooks/risky-users-review.json");

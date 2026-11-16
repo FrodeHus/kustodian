@@ -355,7 +355,7 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
 
             // Solutions are tenant-agnostic: the workspace parameter ships empty, and so does any widget's own entry for it.
             var workspaceParams = (doc["parameters"] as JsonArray ?? []).OfType<JsonObject>()
-                .Where(p => p["type"]?.GetValue<string>() == "workspace").ToList();
+                .Where(p => p["type"] is JsonValue t && t.TryGetValue<string>(out var type) && type == "workspace").ToList();
             foreach (var p in workspaceParams)
             {
                 p["value"] = "";
@@ -365,9 +365,9 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
             {
                 foreach (var entries in widgets.OfType<JsonObject>().Select(w => w["parameters"]).OfType<JsonObject>())
                 {
-                    foreach (var name in workspaceParams.Select(p => p["name"]?.GetValue<string>()).OfType<string>())
+                    foreach (var name in workspaceParams.Select(p => p["name"] is JsonValue n && n.TryGetValue<string>(out var s) ? s : null).OfType<string>())
                     {
-                        if (entries[name] is JsonObject own)
+                        if (entries[name] is JsonObject own && own.ContainsKey("value"))
                         {
                             own["value"] = "";
                         }
