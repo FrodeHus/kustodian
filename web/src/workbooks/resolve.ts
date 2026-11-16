@@ -73,9 +73,6 @@ export function widgetsUsing(doc: WorkbookDoc, name: string): string[] {
 
 const takesTimespan = (source: string | undefined) => source === 'hunting' || source === 'logs';
 
-/** A customer id's first eight characters, as the bar and dialog name a workspace they can't look up. */
-export const shortId = (customerId: string) => customerId.slice(0, 8);
-
 /** A GUID in "D" format, as a workspace's customer id is. */
 export const isGuid = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 

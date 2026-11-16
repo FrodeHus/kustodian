@@ -323,9 +323,9 @@ function queue(
     query: {
       source,
       text,
-      // With a workspace parameter the resolved workspace is part of the series, not the widget's own.
+      // With a workspace parameter the resolved workspace is part of the series, not the widget's own (logs and hunting only).
       options:
-        widgetWorkspace(s.doc, widget, s.values).set && resolved
+        (source === 'logs' || source === 'hunting') && widgetWorkspace(s.doc, widget, s.values).set && resolved
           ? { ...resolved, timespan: widget.query.options?.timespan ?? null }
           : (widget.query.options ?? null),
       parameters: series.map(({ name, value, type }) => ({ name, value, type })),

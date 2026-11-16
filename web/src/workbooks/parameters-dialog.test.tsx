@@ -316,8 +316,31 @@ describe('ParametersDialog', () => {
     const id = '0a1b2c3d-0000-0000-0000-000000000000';
     doc = { ...doc, parameters: [param('P', { type: 'workspace', value: id })] };
     open();
-    expect(screen.getByRole('button', { name: 'Workspace: 0a1b2c3d' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Workspace: 0a1b…0000' })).toBeTruthy();
     save();
     expect(state().doc.parameters).toEqual(doc.parameters);
+  });
+
+  it('a choice query has no workspace picker of its own when the workbook has a workspace parameter', () => {
+    const choicesQuery = { source: 'logs' as const, text: 'T | project a', options: null };
+    doc = { ...doc, parameters: [param('Ws', { type: 'workspace', label: 'Customer' }), param('C', { choicesQuery })] };
+    open();
+    fireEvent.click(item('C'));
+    expect(screen.getByText('The workspace comes from the Customer parameter.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Workspace:/ })).toBeNull();
+  });
+
+  it('switching a parameter to workspace clears the widgets own entries for it on Save', () => {
+    doc = {
+      ...doc,
+      parameters: [param('P')],
+      widgets: [
+        widget('a', 'A', 'T | where x == {P}', { parameters: { P: { from: 'fixed', value: 'abc' }, Q: { from: 'fixed', value: 'q' } } }),
+      ],
+    };
+    open();
+    type('Type', 'workspace');
+    save();
+    expect(state().doc.widgets[0]!.parameters).toEqual({ P: { from: 'fixed', value: '' }, Q: { from: 'fixed', value: 'q' } });
   });
 });

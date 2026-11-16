@@ -332,9 +332,12 @@ export function WidgetEditor({
             {(query.source === 'hunting' || query.source === 'logs') && (
               <div className="flex">
                 {wsParam ? (
-                  <span className="faint self-center text-[12.5px]">
-                    The workspace comes from the {wsParam.label ?? wsParam.name} parameter.
-                  </span>
+                  // A widget's own entry for the parameter wins at run time, and its entry row says so.
+                  !Object.hasOwn(draft.parameters, wsParam.name) && (
+                    <span className="faint self-center text-[12.5px]">
+                      The workspace comes from the {wsParam.label ?? wsParam.name} parameter.
+                    </span>
+                  )
                 ) : (
                   <WorkspacePicker
                     workspaces={query.options?.workspaces}

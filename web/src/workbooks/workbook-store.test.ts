@@ -1129,7 +1129,7 @@ describe('choices from a query', () => {
 
 describe('workspace parameter', () => {
   const ws = (value: string) => wbParam('Workspace', value, { type: 'workspace' });
-  const typed = (id: string, source: 'logs' | 'hunting' | 'graph', options: WidgetQuery['options'] = null) =>
+  const typed = (id: string, source: 'logs' | 'hunting' | 'graph' | 'arg', options: WidgetQuery['options'] = null) =>
     widget(id, `T${id}`, { source, options });
   const sentTo = (id: string) => runs.find((r) => r.params.tabId === `t/${id}`)?.params.options;
   const id1 = '11111111-1111-1111-1111-111111111111';
@@ -1176,5 +1176,24 @@ describe('workspace parameter', () => {
     await flush();
     expect(first?.workspaces?.[0]?.customerId).toBe(id1);
     expect(tab().history.a?.query.options?.workspaces?.[0]?.customerId).toBe(id2);
+  });
+
+  it('a hunting widget with an empty workspace parameter sends no workspace', async () => {
+    void useWorkbooks.getState().load('t', docOf([ws('')], [typed('a', 'hunting')]));
+    await flush();
+    expect(ran()).toEqual(['t/a']);
+    expect(sentTo('a')?.workspaces ?? null).toBeNull();
+  });
+
+  it('adding a workspace parameter leaves a Resource Graph widgets history series alone', async () => {
+    const h: Widget = {
+      ...typed('a', 'arg'),
+      history: { mode: 'values', interval: 'day', retentionDays: 30, keys: [], keep: [], since: 'previous' },
+    };
+    void useWorkbooks.getState().load('t', docOf([ws(id1)], [h]));
+    await flush();
+    runs.at(-1)!.answer(result([[1]]));
+    await flush();
+    expect(tab().history.a?.query.options).toEqual(h.query!.options ?? null);
   });
 });

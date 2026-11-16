@@ -11,6 +11,7 @@ import { reportIdOf } from '../shell/report-id';
 import { ConfirmDelete } from '../side/row-menu';
 import { inSendDetails } from '../shell/send-details-marker';
 import { SourceBadge } from '../tabs/source-badge';
+import { shortId } from '../toolbar/short-id';
 import { WorkspacePicker } from '../toolbar/workspace-picker';
 import { useTabs } from '../tabs/tab-store';
 import type { ArmWorkspace, LibraryList, SavedQuery } from '../wire';
@@ -26,7 +27,7 @@ import {
   type WorkbookParameter,
 } from './model';
 import { effectiveChoices, MAX_CHOICES, type ParamChoices } from './choices';
-import { huntingTimespanProblem, shortId, workbookValues, workspaceParameter } from './resolve';
+import { huntingTimespanProblem, workbookValues, workspaceParameter } from './resolve';
 import { useAccountWorkspaces } from './account-workspaces';
 import { ParametersDialog } from './parameters-dialog';
 import { childrenOf, moveTo, placeKey, placeOf, removeTabs, siblings } from './tabs';
@@ -93,10 +94,16 @@ function ParamControl({
 }) {
   const [pickingWorkspace, setPickingWorkspace] = useState(false);
   const set = (v: string, now = true) => useWorkbooks.getState().setWorkbookValue(tabId, param.name, v, { now });
-  // A hunting widget with a workspace, or a Log Analytics widget, takes up to 730 days, so the parameter only complains past that.
-  const workspaceCap = useWorkbooks((st) =>
-    st.byTab[tabId]?.doc.widgets.some((w) => w.query?.source === 'logs' || w.query?.options?.workspaces?.length) ? 730 : 30,
-  );
+  // Log Analytics, or a hunting workspace (the parameter's when the workbook has one, else a widget's own), takes up to 730 days,
+  // so the parameter only complains past that.
+  const workspaceCap = useWorkbooks((st) => {
+    const t = st.byTab[tabId];
+    const wp = t && workspaceParameter(t.doc);
+    const hasWorkspace = wp
+      ? (t.values.workbook[wp.name] ?? wp.value).trim() !== ''
+      : t?.doc.widgets.some((w) => w.query?.options?.workspaces?.length);
+    return hasWorkspace || t?.doc.widgets.some((w) => w.query?.source === 'logs') ? 730 : 30;
+  });
   const label = param.label ?? param.name;
   // Choices make a picker for any type, as in a query tab; several values and All are a list's only. Loaded from a query, they
   // are a picker once they arrive (and through a reload); until then, or if they never do, the control is free entry.
@@ -221,7 +228,7 @@ function ParamControl({
   const problem = param.huntingTimespan ? huntingTimespanProblem(label, value, workspaceCap) : null;
   const hint = param.choicesQuery ? choicesHint(loaded, editing) : null;
   return (
-    <div className="flex min-w-0 flex-col gap-1 text-[12.5px]">
+    <div className="flex min-w-0 flex-col gap-1 text-[12.5px]" data-wb-workspace-param={param.type === 'workspace' || undefined}>
       {/* One line, so the controls in a row line up; the whole label shows on hover. */}
       <span className="muted flex min-w-0 items-center gap-1.5 text-[11.5px]" aria-hidden="true" title={label}>
         {value !== param.value && <span className="mod shrink-0" title="Changed from the default" />}

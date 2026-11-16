@@ -2,10 +2,11 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { findParams } from '../params/find-params';
 import { errorText } from '../shell/errors';
 import { inSendDetails } from '../shell/send-details-marker';
+import { shortId } from '../toolbar/short-id';
 import { WorkspacePicker } from '../toolbar/workspace-picker';
 import { choiceWidget, choicesFrom } from './choices';
 import { WORKBOOK_PARAMETER_TYPES, type ChoicesQuery, type WorkbookParameter } from './model';
-import { isGuid, shortId, widgetsUsing } from './resolve';
+import { isGuid, widgetsUsing, workspaceParameter } from './resolve';
 import { useWorkbooks } from './workbook-store';
 
 const SOURCES: [ChoicesQuery['source'], string][] = [
@@ -103,6 +104,7 @@ export function ParametersDialog({
   const row = rows[sel];
   const draftDoc = { ...doc, parameters: rows.map((r) => r.p) };
   const widgetTitle = (wid: string) => doc.widgets.find((w) => w.id === wid)?.title || 'Untitled widget';
+  const wsParam = workspaceParameter(draftDoc);
   const usedBy = (name: string) => widgetsUsing(draftDoc, name);
 
   const error = (r: Row, i: number) => {
@@ -178,16 +180,27 @@ export function ParametersDialog({
     if (JSON.stringify(kept) === JSON.stringify(doc.parameters)) {
       return;
     }
+    // A parameter newly of type workspace: widget entries for it came from the file as text and were never reviewed as workspaces.
+    const toWorkspace = new Set(
+      rows
+        .filter((r) => r.p.type === 'workspace' && doc.parameters.find((o) => o.name === r.orig)?.type !== 'workspace')
+        .map((r) => r.p.name),
+    );
     const store = useWorkbooks.getState();
     store.edit(tabId, (d) => ({
       ...d,
       parameters: kept,
       widgets:
-        renamed.size === 0
+        renamed.size === 0 && toWorkspace.size === 0
           ? d.widgets
           : d.widgets.map((w) => ({
               ...w,
-              parameters: Object.fromEntries(Object.entries(w.parameters).map(([k, v]) => [renamed.get(k) ?? k, v])),
+              parameters: Object.fromEntries(
+                Object.entries(w.parameters).map(([k, v]) => {
+                  const name = renamed.get(k) ?? k;
+                  return [name, toWorkspace.has(name) ? { ...v, value: '' } : v];
+                }),
+              ),
             })),
     }));
     // Edits don't rerun widgets (the store's ruling): the parameters changed, so everything reruns.
@@ -395,7 +408,10 @@ export function ParametersDialog({
                       ))}
                     </select>
                   </label>
-                  {(query.source === 'hunting' || query.source === 'logs') && (
+                  {(query.source === 'hunting' || query.source === 'logs') && wsParam && (
+                    <span className="faint text-[12.5px]">The workspace comes from the {wsParam.label ?? wsParam.name} parameter.</span>
+                  )}
+                  {(query.source === 'hunting' || query.source === 'logs') && !wsParam && (
                     <div className="flex">
                       <WorkspacePicker
                         workspaces={query.options?.workspaces}
