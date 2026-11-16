@@ -5,7 +5,7 @@ import { inSendDetails } from '../shell/send-details-marker';
 import { WorkspacePicker } from '../toolbar/workspace-picker';
 import { choiceWidget, choicesFrom } from './choices';
 import { WORKBOOK_PARAMETER_TYPES, type ChoicesQuery, type WorkbookParameter } from './model';
-import { widgetsUsing } from './resolve';
+import { isGuid, shortId, widgetsUsing } from './resolve';
 import { useWorkbooks } from './workbook-store';
 
 const SOURCES: [ChoicesQuery['source'], string][] = [
@@ -39,6 +39,7 @@ const clean = (p: WorkbookParameter): WorkbookParameter => {
     multi: several && p.multi,
     all: several && p.all,
     huntingTimespan: p.type === 'timespan' && p.huntingTimespan,
+    ...(workspace && !isGuid(p.value) ? { value: '' } : {}),
   };
 };
 
@@ -320,7 +321,13 @@ export function ParametersDialog({
               <div className="grid grid-cols-2 gap-3">
                 <label className="field">
                   <span>Type</span>
-                  <select className="textbox" value={p.type} onChange={(e) => change({ type: e.target.value })}>
+                  <select
+                    className="textbox"
+                    value={p.type}
+                    onChange={(e) =>
+                      change({ type: e.target.value, ...(e.target.value === 'workspace' && !isGuid(p.value) ? { value: '' } : {}) })
+                    }
+                  >
                     {WORKBOOK_PARAMETER_TYPES.map((t) => (
                       <option key={t} value={t}>
                         {t}
@@ -439,11 +446,11 @@ export function ParametersDialog({
                 </div>
               )}
               {isWorkspace ? (
-                <div className="field">
-                  <span>Default</span>
+                <div className="field" role="group" aria-labelledby={`${id}-default`}>
+                  <span id={`${id}-default`}>Default</span>
                   <div className="flex">
                     <WorkspacePicker
-                      workspaces={p.value === '' ? null : [{ customerId: p.value, name: '', resourceId: '' }]}
+                      workspaces={p.value === '' ? null : [{ customerId: p.value, name: shortId(p.value), resourceId: '' }]}
                       onChange={(picked) => change({ value: picked?.[0]?.customerId ?? '' })}
                       primaryLabel="None"
                       accountKey={accountKey}

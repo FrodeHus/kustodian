@@ -301,6 +301,23 @@ describe('ParametersDialog', () => {
     expect(screen.queryByLabelText('Several values')).toBeNull();
     expect(screen.queryByLabelText('Offer “All”')).toBeNull();
     expect(screen.queryByRole('textbox', { name: 'Default' })).toBeNull();
-    expect(screen.getByRole('button', { name: /^Workspace:/ })).toBeTruthy();
+    expect(within(screen.getByRole('group', { name: 'Default' })).getByRole('button', { name: /^Workspace:/ })).toBeTruthy();
+  });
+
+  it('switching a text parameter to workspace clears a value that is not a customer id', () => {
+    doc = { ...doc, parameters: [param('P', { value: 'abc' })] };
+    open();
+    type('Type', 'workspace');
+    save();
+    expect(state().doc.parameters[0]).toMatchObject({ type: 'workspace', value: '' });
+  });
+
+  it('a workspace default that is a customer id is kept and named by its short id', () => {
+    const id = '0a1b2c3d-0000-0000-0000-000000000000';
+    doc = { ...doc, parameters: [param('P', { type: 'workspace', value: id })] };
+    open();
+    expect(screen.getByRole('button', { name: 'Workspace: 0a1b2c3d' })).toBeTruthy();
+    save();
+    expect(state().doc.parameters).toEqual(doc.parameters);
   });
 });

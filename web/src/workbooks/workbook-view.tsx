@@ -26,7 +26,7 @@ import {
   type WorkbookParameter,
 } from './model';
 import { effectiveChoices, MAX_CHOICES, type ParamChoices } from './choices';
-import { huntingTimespanProblem, workbookValues, workspaceParameter } from './resolve';
+import { huntingTimespanProblem, shortId, workbookValues, workspaceParameter } from './resolve';
 import { useAccountWorkspaces } from './account-workspaces';
 import { ParametersDialog } from './parameters-dialog';
 import { childrenOf, moveTo, placeKey, placeOf, removeTabs, siblings } from './tabs';
@@ -46,7 +46,6 @@ import { editRanWidgets, editStartDoc, readLibrary, useWorkbooks, visibleTab } f
 /** A list's value: one per line. */
 const lines = (v: string) => v.split('\n').filter((x) => x !== '');
 
-const shortId = (customerId: string) => customerId.slice(0, 8);
 const listed = (workspaces: ArmWorkspace[] | null | undefined, customerId: string) =>
   workspaces?.find((w) => w.customerId.toLowerCase() === customerId.toLowerCase());
 
@@ -112,7 +111,9 @@ function ParamControl({
   if (param.type === 'workspace') {
     control = (
       <WorkspacePicker
-        workspaces={value === '' ? null : [{ customerId: value, name: inList?.name ?? '', resourceId: inList?.resourceId ?? '' }]}
+        workspaces={
+          value === '' ? null : [{ customerId: value, name: inList?.name ?? shortId(value), resourceId: inList?.resourceId ?? '' }]
+        }
         onChange={(picked) => set(picked?.[0]?.customerId ?? '')}
         primaryLabel="None"
         accountKey={accountKey}
