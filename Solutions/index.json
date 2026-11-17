@@ -419,8 +419,8 @@
       "files": [
         {
           "path": "README.md",
-          "sha256": "b9d233be3c1128ae356dce0cc05c0fb88ee8c5151f59940020aa0f84832d629e",
-          "size": 2376
+          "sha256": "487d7e9f292ba67e0d9afbbac6d63e59fcfacf87ee12894fc0a125b29874acda",
+          "size": 3417
         },
         {
           "path": "solution.json",
@@ -429,8 +429,8 @@
         },
         {
           "path": "workbooks/log-cost.json",
-          "sha256": "1c0a95d0545d73b1e0e21b1c0e7a821d6e60c286120b92526fa2bf53c511d78c",
-          "size": 30428
+          "sha256": "ab1189ee3042069020bb7e924dc938a68315ee292a588bb8f25d4d657c494e0e",
+          "size": 29474
         }
       ]
     }

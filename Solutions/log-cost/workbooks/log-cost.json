@@ -57,11 +57,11 @@
       "type": "text",
       "value": "USD",
       "required": true,
-      "label": "Currency",
+      "label": "Currency (label only)",
       "choices": null,
       "multi": false,
       "all": false,
-      "remember": false,
+      "remember": true,
       "huntingTimespan": false
     },
     {
@@ -109,7 +109,7 @@
       "choices": null,
       "multi": false,
       "all": false,
-      "remember": false,
+      "remember": true,
       "huntingTimespan": false
     },
     {
@@ -121,7 +121,7 @@
       "choices": null,
       "multi": false,
       "all": false,
-      "remember": false,
+      "remember": true,
       "huntingTimespan": false
     },
     {
@@ -129,7 +129,7 @@
       "type": "number",
       "value": "0.02",
       "required": true,
-      "label": "Retention price per GB-month",
+      "label": "Long-term retention price per GB-month",
       "choices": null,
       "multi": false,
       "all": false,
@@ -177,7 +177,7 @@
       "type": "text",
       "value": "",
       "required": true,
-      "label": "New table: a similar existing table",
+      "label": "New table: a similar Analytics table",
       "choices": null,
       "multi": false,
       "all": false,
@@ -185,7 +185,7 @@
       "huntingTimespan": false,
       "choicesQuery": {
         "source": "logs",
-        "text": "Usage\n| where IsBillable == true\n| distinct DataType\n| order by DataType asc",
+        "text": "Usage\n| where TimeGenerated > ago(2d) and IsBillable == true\n| extend Plan = tostring(column_ifexists(\"Plan\", \"\"))\n| where Plan in (\"\", \"Analytics\")\n| distinct DataType\n| order by DataType asc",
         "options": null
       }
     }
@@ -200,10 +200,10 @@
         "x": 0,
         "y": 0,
         "w": 12,
-        "h": 6
+        "h": 7
       },
       "parameters": {},
-      "markdown": "## Log cost estimator\nEstimated cost of your logs in **{Currency}**, from the prices under **Parameters** (defaults: East US list prices, November 2026; yours depend on region and agreement). Pick the **Workspace** first.\n\nNot covered: the Defender for Servers (500 MB per server per day) and Microsoft 365 E5 (5 MB per user per day) allowances, which are taken off only on the bill, so the tables they cover show higher here; the Sentinel data lake, dedicated clusters, search jobs and restores."
+      "markdown": "## Log cost estimator\nEstimated cost of your logs, from the prices under **Parameters**. The defaults are East US list prices in USD (November 2026); yours depend on region and agreement. **Currency** ({Currency}) is only a label: enter the prices in that currency. Pick the **Workspace** first.\n\nNot covered: the Defender for Servers (500 MB per server per day) and Microsoft 365 E5 (5 MB per user per day) allowances, which are taken off only on the bill, so the tables they cover show higher here; the 5 GB per month Log Analytics free grant; query and search charges for Basic and Auxiliary tables; the Sentinel data lake, dedicated clusters, search jobs and restores; taxes and negotiated discounts."
     },
     {
       "id": "wlctabs",
@@ -212,7 +212,7 @@
       "hideTitle": true,
       "layout": {
         "x": 0,
-        "y": 6,
+        "y": 7,
         "w": 12,
         "h": 70
       },
@@ -224,7 +224,7 @@
         },
         {
           "id": "tlcxdr",
-          "name": "Defender XDR not streamed"
+          "name": "Defender XDR if streamed"
         },
         {
           "id": "tlcnew",
@@ -245,7 +245,7 @@
       "parameters": {},
       "query": {
         "source": "logs",
-        "text": "let tables = {Tables};\nlet usage = Usage\n| where TimeGenerated < startofday(now()) and IsBillable == true\n| where array_length(tables) == 0 or DataType in (tables)\n| extend Plan = tostring(column_ifexists(\"Plan\", \"\"))\n| extend Plan = iff(isempty(Plan), \"Analytics\", Plan);\nlet days = toscalar(usage | summarize d = dcount(bin(TimeGenerated, 1d)) | project max_of(d, 1));\nlet total = toscalar(usage | summarize sum(Quantity)) / 1000.0;\nusage\n| summarize GB = sum(Quantity) / 1000.0 by Table = DataType, Plan\n| extend GBPerDay = GB / days\n| extend IngestPerMonth = GBPerDay * 30 * case(Plan == \"Basic\", {PriceBasic}, Plan == \"Auxiliary\", {PriceAuxiliary}, {PriceAnalytics})\n| extend RetentionPerMonth = GBPerDay * max_of(0, {RetentionDays} - iff(Plan == \"Analytics\", {FreeRetentionDays}, 30)) * {RetentionPrice}\n| extend TotalPerMonth = IngestPerMonth + RetentionPerMonth, SharePct = round(100.0 * GB / total, 1)\n| summarize GBPerDay = round(sum(GBPerDay), 2), IngestPerMonth = round(sum(IngestPerMonth), 2), RetentionPerMonth = round(sum(RetentionPerMonth), 2), TotalPerMonth = round(sum(TotalPerMonth), 2)\n| project GBPerDay",
+        "text": "let tables = {Tables};\nlet rows = Usage | where TimeGenerated < startofday(now());\nlet firstHour = toscalar(rows | summarize min(TimeGenerated));\n// Whole UTC days only: the time range starts mid-day, so a partial first day is skipped. Days count from all of Usage,\n// so a table that logs only some days is still averaged over the whole range.\nlet start = iff(firstHour == startofday(firstHour), firstHour, startofday(firstHour) + 1d);\nlet days = max_of(1, coalesce(datetime_diff(\"day\", startofday(now()), start), 0));\nlet usage = rows\n| where TimeGenerated >= start and IsBillable == true\n| where array_length(tables) == 0 or DataType in (tables)\n| extend Plan = tostring(column_ifexists(\"Plan\", \"\"))\n| extend Plan = iff(isempty(Plan), \"Analytics\", Plan);\nlet total = toscalar(usage | summarize sum(Quantity)) / 1000.0;\nusage\n| summarize GB = sum(Quantity) / 1000.0 by Table = DataType, Plan\n| extend GBPerDay = GB / days\n| extend IngestPerMonth = GBPerDay * 30 * case(Plan == \"Analytics\", {PriceAnalytics}, Plan == \"Basic\", {PriceBasic}, Plan == \"Auxiliary\", {PriceAuxiliary}, real(null))\n| extend RetentionPerMonth = GBPerDay * max_of(0, {RetentionDays} - iff(Plan == \"Analytics\", {FreeRetentionDays}, 30)) * {RetentionPrice}\n| extend TotalPerMonth = IngestPerMonth + RetentionPerMonth, SharePct = round(100.0 * GB / total, 1)\n| summarize GBPerDay = round(sum(GBPerDay), 3), IngestPerMonth = round(sum(IngestPerMonth), 2), RetentionPerMonth = round(sum(RetentionPerMonth), 2), TotalPerMonth = round(sum(TotalPerMonth), 2)\n| project GBPerDay",
         "options": null,
         "parameters": [],
         "saved": null
@@ -272,7 +272,7 @@
       "parameters": {},
       "query": {
         "source": "logs",
-        "text": "let tables = {Tables};\nlet usage = Usage\n| where TimeGenerated < startofday(now()) and IsBillable == true\n| where array_length(tables) == 0 or DataType in (tables)\n| extend Plan = tostring(column_ifexists(\"Plan\", \"\"))\n| extend Plan = iff(isempty(Plan), \"Analytics\", Plan);\nlet days = toscalar(usage | summarize d = dcount(bin(TimeGenerated, 1d)) | project max_of(d, 1));\nlet total = toscalar(usage | summarize sum(Quantity)) / 1000.0;\nusage\n| summarize GB = sum(Quantity) / 1000.0 by Table = DataType, Plan\n| extend GBPerDay = GB / days\n| extend IngestPerMonth = GBPerDay * 30 * case(Plan == \"Basic\", {PriceBasic}, Plan == \"Auxiliary\", {PriceAuxiliary}, {PriceAnalytics})\n| extend RetentionPerMonth = GBPerDay * max_of(0, {RetentionDays} - iff(Plan == \"Analytics\", {FreeRetentionDays}, 30)) * {RetentionPrice}\n| extend TotalPerMonth = IngestPerMonth + RetentionPerMonth, SharePct = round(100.0 * GB / total, 1)\n| summarize GBPerDay = round(sum(GBPerDay), 2), IngestPerMonth = round(sum(IngestPerMonth), 2), RetentionPerMonth = round(sum(RetentionPerMonth), 2), TotalPerMonth = round(sum(TotalPerMonth), 2)\n| project IngestPerMonth",
+        "text": "let tables = {Tables};\nlet rows = Usage | where TimeGenerated < startofday(now());\nlet firstHour = toscalar(rows | summarize min(TimeGenerated));\n// Whole UTC days only: the time range starts mid-day, so a partial first day is skipped. Days count from all of Usage,\n// so a table that logs only some days is still averaged over the whole range.\nlet start = iff(firstHour == startofday(firstHour), firstHour, startofday(firstHour) + 1d);\nlet days = max_of(1, coalesce(datetime_diff(\"day\", startofday(now()), start), 0));\nlet usage = rows\n| where TimeGenerated >= start and IsBillable == true\n| where array_length(tables) == 0 or DataType in (tables)\n| extend Plan = tostring(column_ifexists(\"Plan\", \"\"))\n| extend Plan = iff(isempty(Plan), \"Analytics\", Plan);\nlet total = toscalar(usage | summarize sum(Quantity)) / 1000.0;\nusage\n| summarize GB = sum(Quantity) / 1000.0 by Table = DataType, Plan\n| extend GBPerDay = GB / days\n| extend IngestPerMonth = GBPerDay * 30 * case(Plan == \"Analytics\", {PriceAnalytics}, Plan == \"Basic\", {PriceBasic}, Plan == \"Auxiliary\", {PriceAuxiliary}, real(null))\n| extend RetentionPerMonth = GBPerDay * max_of(0, {RetentionDays} - iff(Plan == \"Analytics\", {FreeRetentionDays}, 30)) * {RetentionPrice}\n| extend TotalPerMonth = IngestPerMonth + RetentionPerMonth, SharePct = round(100.0 * GB / total, 1)\n| summarize GBPerDay = round(sum(GBPerDay), 3), IngestPerMonth = round(sum(IngestPerMonth), 2), RetentionPerMonth = round(sum(RetentionPerMonth), 2), TotalPerMonth = round(sum(TotalPerMonth), 2)\n| project IngestPerMonth",
         "options": null,
         "parameters": [],
         "saved": null
@@ -299,7 +299,7 @@
       "parameters": {},
       "query": {
         "source": "logs",
-        "text": "let tables = {Tables};\nlet usage = Usage\n| where TimeGenerated < startofday(now()) and IsBillable == true\n| where array_length(tables) == 0 or DataType in (tables)\n| extend Plan = tostring(column_ifexists(\"Plan\", \"\"))\n| extend Plan = iff(isempty(Plan), \"Analytics\", Plan);\nlet days = toscalar(usage | summarize d = dcount(bin(TimeGenerated, 1d)) | project max_of(d, 1));\nlet total = toscalar(usage | summarize sum(Quantity)) / 1000.0;\nusage\n| summarize GB = sum(Quantity) / 1000.0 by Table = DataType, Plan\n| extend GBPerDay = GB / days\n| extend IngestPerMonth = GBPerDay * 30 * case(Plan == \"Basic\", {PriceBasic}, Plan == \"Auxiliary\", {PriceAuxiliary}, {PriceAnalytics})\n| extend RetentionPerMonth = GBPerDay * max_of(0, {RetentionDays} - iff(Plan == \"Analytics\", {FreeRetentionDays}, 30)) * {RetentionPrice}\n| extend TotalPerMonth = IngestPerMonth + RetentionPerMonth, SharePct = round(100.0 * GB / total, 1)\n| summarize GBPerDay = round(sum(GBPerDay), 2), IngestPerMonth = round(sum(IngestPerMonth), 2), RetentionPerMonth = round(sum(RetentionPerMonth), 2), TotalPerMonth = round(sum(TotalPerMonth), 2)\n| project RetentionPerMonth",
+        "text": "let tables = {Tables};\nlet rows = Usage | where TimeGenerated < startofday(now());\nlet firstHour = toscalar(rows | summarize min(TimeGenerated));\n// Whole UTC days only: the time range starts mid-day, so a partial first day is skipped. Days count from all of Usage,\n// so a table that logs only some days is still averaged over the whole range.\nlet start = iff(firstHour == startofday(firstHour), firstHour, startofday(firstHour) + 1d);\nlet days = max_of(1, coalesce(datetime_diff(\"day\", startofday(now()), start), 0));\nlet usage = rows\n| where TimeGenerated >= start and IsBillable == true\n| where array_length(tables) == 0 or DataType in (tables)\n| extend Plan = tostring(column_ifexists(\"Plan\", \"\"))\n| extend Plan = iff(isempty(Plan), \"Analytics\", Plan);\nlet total = toscalar(usage | summarize sum(Quantity)) / 1000.0;\nusage\n| summarize GB = sum(Quantity) / 1000.0 by Table = DataType, Plan\n| extend GBPerDay = GB / days\n| extend IngestPerMonth = GBPerDay * 30 * case(Plan == \"Analytics\", {PriceAnalytics}, Plan == \"Basic\", {PriceBasic}, Plan == \"Auxiliary\", {PriceAuxiliary}, real(null))\n| extend RetentionPerMonth = GBPerDay * max_of(0, {RetentionDays} - iff(Plan == \"Analytics\", {FreeRetentionDays}, 30)) * {RetentionPrice}\n| extend TotalPerMonth = IngestPerMonth + RetentionPerMonth, SharePct = round(100.0 * GB / total, 1)\n| summarize GBPerDay = round(sum(GBPerDay), 3), IngestPerMonth = round(sum(IngestPerMonth), 2), RetentionPerMonth = round(sum(RetentionPerMonth), 2), TotalPerMonth = round(sum(TotalPerMonth), 2)\n| project RetentionPerMonth",
         "options": null,
         "parameters": [],
         "saved": null
@@ -326,7 +326,7 @@
       "parameters": {},
       "query": {
         "source": "logs",
-        "text": "let tables = {Tables};\nlet usage = Usage\n| where TimeGenerated < startofday(now()) and IsBillable == true\n| where array_length(tables) == 0 or DataType in (tables)\n| extend Plan = tostring(column_ifexists(\"Plan\", \"\"))\n| extend Plan = iff(isempty(Plan), \"Analytics\", Plan);\nlet days = toscalar(usage | summarize d = dcount(bin(TimeGenerated, 1d)) | project max_of(d, 1));\nlet total = toscalar(usage | summarize sum(Quantity)) / 1000.0;\nusage\n| summarize GB = sum(Quantity) / 1000.0 by Table = DataType, Plan\n| extend GBPerDay = GB / days\n| extend IngestPerMonth = GBPerDay * 30 * case(Plan == \"Basic\", {PriceBasic}, Plan == \"Auxiliary\", {PriceAuxiliary}, {PriceAnalytics})\n| extend RetentionPerMonth = GBPerDay * max_of(0, {RetentionDays} - iff(Plan == \"Analytics\", {FreeRetentionDays}, 30)) * {RetentionPrice}\n| extend TotalPerMonth = IngestPerMonth + RetentionPerMonth, SharePct = round(100.0 * GB / total, 1)\n| summarize GBPerDay = round(sum(GBPerDay), 2), IngestPerMonth = round(sum(IngestPerMonth), 2), RetentionPerMonth = round(sum(RetentionPerMonth), 2), TotalPerMonth = round(sum(TotalPerMonth), 2)\n| project TotalPerMonth",
+        "text": "let tables = {Tables};\nlet rows = Usage | where TimeGenerated < startofday(now());\nlet firstHour = toscalar(rows | summarize min(TimeGenerated));\n// Whole UTC days only: the time range starts mid-day, so a partial first day is skipped. Days count from all of Usage,\n// so a table that logs only some days is still averaged over the whole range.\nlet start = iff(firstHour == startofday(firstHour), firstHour, startofday(firstHour) + 1d);\nlet days = max_of(1, coalesce(datetime_diff(\"day\", startofday(now()), start), 0));\nlet usage = rows\n| where TimeGenerated >= start and IsBillable == true\n| where array_length(tables) == 0 or DataType in (tables)\n| extend Plan = tostring(column_ifexists(\"Plan\", \"\"))\n| extend Plan = iff(isempty(Plan), \"Analytics\", Plan);\nlet total = toscalar(usage | summarize sum(Quantity)) / 1000.0;\nusage\n| summarize GB = sum(Quantity) / 1000.0 by Table = DataType, Plan\n| extend GBPerDay = GB / days\n| extend IngestPerMonth = GBPerDay * 30 * case(Plan == \"Analytics\", {PriceAnalytics}, Plan == \"Basic\", {PriceBasic}, Plan == \"Auxiliary\", {PriceAuxiliary}, real(null))\n| extend RetentionPerMonth = GBPerDay * max_of(0, {RetentionDays} - iff(Plan == \"Analytics\", {FreeRetentionDays}, 30)) * {RetentionPrice}\n| extend TotalPerMonth = IngestPerMonth + RetentionPerMonth, SharePct = round(100.0 * GB / total, 1)\n| summarize GBPerDay = round(sum(GBPerDay), 3), IngestPerMonth = round(sum(IngestPerMonth), 2), RetentionPerMonth = round(sum(RetentionPerMonth), 2), TotalPerMonth = round(sum(TotalPerMonth), 2)\n| project TotalPerMonth",
         "options": null,
         "parameters": [],
         "saved": null
@@ -353,7 +353,7 @@
       "parameters": {},
       "query": {
         "source": "logs",
-        "text": "let tables = {Tables};\nlet usage = Usage\n| where TimeGenerated < startofday(now()) and IsBillable == true\n| where array_length(tables) == 0 or DataType in (tables)\n| extend Plan = tostring(column_ifexists(\"Plan\", \"\"))\n| extend Plan = iff(isempty(Plan), \"Analytics\", Plan);\nlet days = toscalar(usage | summarize d = dcount(bin(TimeGenerated, 1d)) | project max_of(d, 1));\nlet total = toscalar(usage | summarize sum(Quantity)) / 1000.0;\nusage\n| summarize GB = sum(Quantity) / 1000.0 by Table = DataType, Plan\n| extend GBPerDay = GB / days\n| extend IngestPerMonth = GBPerDay * 30 * case(Plan == \"Basic\", {PriceBasic}, Plan == \"Auxiliary\", {PriceAuxiliary}, {PriceAnalytics})\n| extend RetentionPerMonth = GBPerDay * max_of(0, {RetentionDays} - iff(Plan == \"Analytics\", {FreeRetentionDays}, 30)) * {RetentionPrice}\n| extend TotalPerMonth = IngestPerMonth + RetentionPerMonth, SharePct = round(100.0 * GB / total, 1)\n| project Table, Plan, GBPerDay = round(GBPerDay, 3), SharePct, IngestPerMonth = round(IngestPerMonth, 2), RetentionPerMonth = round(RetentionPerMonth, 2), TotalPerMonth = round(TotalPerMonth, 2)\n| order by TotalPerMonth desc",
+        "text": "let tables = {Tables};\nlet rows = Usage | where TimeGenerated < startofday(now());\nlet firstHour = toscalar(rows | summarize min(TimeGenerated));\n// Whole UTC days only: the time range starts mid-day, so a partial first day is skipped. Days count from all of Usage,\n// so a table that logs only some days is still averaged over the whole range.\nlet start = iff(firstHour == startofday(firstHour), firstHour, startofday(firstHour) + 1d);\nlet days = max_of(1, coalesce(datetime_diff(\"day\", startofday(now()), start), 0));\nlet usage = rows\n| where TimeGenerated >= start and IsBillable == true\n| where array_length(tables) == 0 or DataType in (tables)\n| extend Plan = tostring(column_ifexists(\"Plan\", \"\"))\n| extend Plan = iff(isempty(Plan), \"Analytics\", Plan);\nlet total = toscalar(usage | summarize sum(Quantity)) / 1000.0;\nusage\n| summarize GB = sum(Quantity) / 1000.0 by Table = DataType, Plan\n| extend GBPerDay = GB / days\n| extend IngestPerMonth = GBPerDay * 30 * case(Plan == \"Analytics\", {PriceAnalytics}, Plan == \"Basic\", {PriceBasic}, Plan == \"Auxiliary\", {PriceAuxiliary}, real(null))\n| extend RetentionPerMonth = GBPerDay * max_of(0, {RetentionDays} - iff(Plan == \"Analytics\", {FreeRetentionDays}, 30)) * {RetentionPrice}\n| extend TotalPerMonth = IngestPerMonth + RetentionPerMonth, SharePct = round(100.0 * GB / total, 1)\n| project Table, Plan, GBPerDay = round(GBPerDay, 3), SharePct, IngestPerMonth = round(IngestPerMonth, 2), RetentionPerMonth = round(RetentionPerMonth, 2), TotalPerMonth = round(TotalPerMonth, 2)\n| order by TotalPerMonth desc",
         "options": null,
         "parameters": [],
         "saved": null
@@ -378,7 +378,7 @@
       "parameters": {},
       "query": {
         "source": "logs",
-        "text": "let tables = {Tables};\nlet usage = Usage\n| where TimeGenerated < startofday(now()) and IsBillable == true\n| where array_length(tables) == 0 or DataType in (tables)\n| extend Plan = tostring(column_ifexists(\"Plan\", \"\"))\n| extend Plan = iff(isempty(Plan), \"Analytics\", Plan);\nlet days = toscalar(usage | summarize d = dcount(bin(TimeGenerated, 1d)) | project max_of(d, 1));\nlet top = usage | summarize GB = sum(Quantity) by DataType | top 10 by GB | project DataType;\nusage\n| where DataType in (top)\n| summarize GB = round(sum(Quantity) / 1000.0, 3) by Day = bin(TimeGenerated, 1d), Table = DataType\n| order by Day asc",
+        "text": "let tables = {Tables};\nlet usage = Usage\n| where TimeGenerated < startofday(now()) and IsBillable == true\n| where array_length(tables) == 0 or DataType in (tables);\nlet top10 = usage | summarize GB = sum(Quantity) by DataType | top 10 by GB | project DataType;\nusage\n| where DataType in (top10)\n| summarize GB = round(sum(Quantity) / 1000.0, 3) by Day = bin(TimeGenerated, 1d), Table = DataType\n| order by Day asc",
         "options": null,
         "parameters": [],
         "saved": null
@@ -409,7 +409,7 @@
       "parameters": {},
       "query": {
         "source": "logs",
-        "text": "let usage = Usage\n| where TimeGenerated < startofday(now()) and IsBillable == true\n| extend Plan = tostring(column_ifexists(\"Plan\", \"\"))\n| extend Plan = iff(isempty(Plan), \"Analytics\", Plan);\nlet days = toscalar(usage | summarize d = dcount(bin(TimeGenerated, 1d)) | project max_of(d, 1));\nlet analytics = toscalar(usage | where Plan == \"Analytics\" | summarize sum(Quantity)) / 1000.0 / days;\nlet scale = {PriceAnalytics} / 4.30;\n// East US Sentinel simplified commitment tiers (USD per day, November 2026), scaled by your Analytics price.\nunion\n    (print Option = \"Pay-as-you-go\", TierGB = 0, PerDay = analytics * {PriceAnalytics}),\n    (datatable(TierGB: long, TierPrice: real) [100, 296.0, 200, 548.0, 300, 800.0, 400, 1037.33, 500, 1265.0, 1000, 2480.0, 2000, 4800.0, 5000, 11550.0]\n    | extend Option = strcat(TierGB, \" GB/day\"), PerDay = scale * (TierPrice + max_of(0.0, analytics - TierGB) * TierPrice / TierGB)\n    | project Option, TierGB, PerDay)\n| extend AnalyticsGBPerDay = round(analytics, 2), PerMonth = round(PerDay * 30, 2), PerDay = round(PerDay, 2)\n| order by TierGB asc\n| project Option, AnalyticsGBPerDay, PerDay, PerMonth",
+        "text": "let rows = Usage | where TimeGenerated < startofday(now());\nlet firstHour = toscalar(rows | summarize min(TimeGenerated));\n// Whole UTC days only: the time range starts mid-day, so a partial first day is skipped. Days count from all of Usage,\n// so a table that logs only some days is still averaged over the whole range.\nlet start = iff(firstHour == startofday(firstHour), firstHour, startofday(firstHour) + 1d);\nlet days = max_of(1, coalesce(datetime_diff(\"day\", startofday(now()), start), 0));\nlet usage = rows\n| where TimeGenerated >= start and IsBillable == true\n| extend Plan = tostring(column_ifexists(\"Plan\", \"\"))\n| extend Plan = iff(isempty(Plan), \"Analytics\", Plan);\nlet analytics = toscalar(usage | where Plan == \"Analytics\" | summarize sum(Quantity)) / 1000.0 / days;\nlet scale = {PriceAnalytics} / 4.30;\n// East US Sentinel simplified commitment tiers (USD per day, November 2026), scaled by your Analytics price: an approximation,\n// as regional tier discounts differ.\nunion\n    (print Option = \"Pay-as-you-go\", TierGB = 0, PerDay = analytics * {PriceAnalytics}),\n    (datatable(TierGB: long, TierPrice: real) [100, 296.0, 200, 548.0, 300, 800.0, 400, 1037.33, 500, 1265.0, 1000, 2480.0, 2000, 4800.0, 5000, 11550.0]\n    | extend Option = strcat(TierGB, \" GB/day\"), PerDay = scale * (TierPrice + max_of(0.0, analytics - TierGB) * TierPrice / TierGB)\n    | project Option, TierGB, PerDay)\n| extend AnalyticsGBPerDay = round(analytics, 2), PerMonth = round(PerDay * 30, 2), PerDay = round(PerDay, 2)\n| order by TierGB asc\n| project Option, AnalyticsGBPerDay, PerDay, PerMonth",
         "options": null,
         "parameters": [],
         "saved": null
@@ -430,10 +430,10 @@
         "x": 0,
         "y": 40,
         "w": 12,
-        "h": 6
+        "h": 7
       },
       "parameters": {},
-      "markdown": "Monthly = per day × 30. Retention counts the days kept beyond the free ones ({FreeRetentionDays} for Analytics, 30 for Basic and Auxiliary) at {RetentionPrice} per GB-month. Commitment tiers apply to the whole workspace's Analytics volume, whatever tables are picked.",
+      "markdown": "Per day is averaged over the whole UTC days in the time range; monthly = per day × 30. Retention counts the days kept beyond the free ones ({FreeRetentionDays} for Analytics, 30 for Basic and Auxiliary) at {RetentionPrice} per GB-month, which assumes those days are long-term retention: Analytics (interactive) retention beyond the free days costs more (about 0.10 per GB-month in East US), so set the price to that if you extended it. Commitment tiers apply to the whole workspace's Analytics volume, whatever tables are picked, and use East US tier prices scaled by your Analytics price ÷ 4.30, an approximation.",
       "in": {
         "tabs": "wlctabs",
         "tab": "tlccur"
@@ -448,46 +448,10 @@
         "x": 0,
         "y": 0,
         "w": 12,
-        "h": 5
-      },
-      "parameters": {},
-      "markdown": "Defender XDR tables measured in advanced hunting over the last 7 days, as if they were sent to the workspace as Analytics. The first 30 days in advanced hunting are part of the Defender licence. `estimate_data_size` runs 10–25% above the billed size, so the result is scaled by **{XdrFactor}**. Tables already streamed to the workspace show on **Current cost** too.",
-      "in": {
-        "tabs": "wlctabs",
-        "tab": "tlcxdr"
-      }
-    },
-    {
-      "id": "wlc11",
-      "type": "stat",
-      "title": "If streamed: per month",
-      "layout": {
-        "x": 0,
-        "y": 5,
-        "w": 3,
         "h": 6
       },
-      "parameters": {
-        "TimeRange": {
-          "from": "fixed",
-          "value": "7d"
-        },
-        "Workspace": {
-          "from": "fixed",
-          "value": ""
-        }
-      },
-      "query": {
-        "source": "hunting",
-        "text": "// Each table on its own: estimate_data_size(*) over a union would count every other table's empty columns too.\nunion isfuzzy=true\n    (DeviceProcessEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceProcessEvents\"),\n    (DeviceNetworkEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceNetworkEvents\"),\n    (DeviceFileEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceFileEvents\"),\n    (DeviceRegistryEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceRegistryEvents\"),\n    (DeviceLogonEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceLogonEvents\"),\n    (DeviceImageLoadEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceImageLoadEvents\"),\n    (DeviceEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceEvents\"),\n    (DeviceInfo | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceInfo\"),\n    (DeviceNetworkInfo | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceNetworkInfo\"),\n    (DeviceFileCertificateInfo | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceFileCertificateInfo\"),\n    (EmailEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"EmailEvents\"),\n    (EmailAttachmentInfo | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"EmailAttachmentInfo\"),\n    (EmailUrlInfo | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"EmailUrlInfo\"),\n    (EmailPostDeliveryEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"EmailPostDeliveryEvents\"),\n    (UrlClickEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"UrlClickEvents\"),\n    (IdentityLogonEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"IdentityLogonEvents\"),\n    (IdentityQueryEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"IdentityQueryEvents\"),\n    (IdentityDirectoryEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"IdentityDirectoryEvents\"),\n    (IdentityInfo | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"IdentityInfo\"),\n    (CloudAppEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"CloudAppEvents\"),\n    (AlertInfo | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"AlertInfo\"),\n    (AlertEvidence | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"AlertEvidence\")\n| where Rows > 0\n| extend GBPerDay = Bytes / 1e9 / 7 * {XdrFactor}\n| extend PerMonth = GBPerDay * 30 * {PriceAnalytics}\n| summarize GBPerDay = round(sum(GBPerDay), 2), PerMonth = round(sum(PerMonth), 2)\n| project PerMonth",
-        "options": null,
-        "parameters": [],
-        "saved": null
-      },
-      "stat": {
-        "value": "PerMonth",
-        "compare": null
-      },
+      "parameters": {},
+      "markdown": "Defender XDR tables measured in advanced hunting over the last 7 days, as if they were sent to the workspace as Analytics. The first 30 days in advanced hunting are part of the Defender licence. `estimate_data_size` runs 10–25% above the billed size, so the result is scaled by **{XdrFactor}**. This counts every table here, including ones you already stream: those are on **Current cost** too, so don't add them twice. On a very large tenant the measurement can time out.",
       "in": {
         "tabs": "wlctabs",
         "tab": "tlcxdr"
@@ -499,9 +463,9 @@
       "title": "Defender XDR tables, per month if streamed",
       "layout": {
         "x": 0,
-        "y": 11,
+        "y": 6,
         "w": 12,
-        "h": 20
+        "h": 24
       },
       "parameters": {
         "TimeRange": {
@@ -515,7 +479,7 @@
       },
       "query": {
         "source": "hunting",
-        "text": "// Each table on its own: estimate_data_size(*) over a union would count every other table's empty columns too.\nunion isfuzzy=true\n    (DeviceProcessEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceProcessEvents\"),\n    (DeviceNetworkEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceNetworkEvents\"),\n    (DeviceFileEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceFileEvents\"),\n    (DeviceRegistryEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceRegistryEvents\"),\n    (DeviceLogonEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceLogonEvents\"),\n    (DeviceImageLoadEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceImageLoadEvents\"),\n    (DeviceEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceEvents\"),\n    (DeviceInfo | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceInfo\"),\n    (DeviceNetworkInfo | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceNetworkInfo\"),\n    (DeviceFileCertificateInfo | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceFileCertificateInfo\"),\n    (EmailEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"EmailEvents\"),\n    (EmailAttachmentInfo | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"EmailAttachmentInfo\"),\n    (EmailUrlInfo | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"EmailUrlInfo\"),\n    (EmailPostDeliveryEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"EmailPostDeliveryEvents\"),\n    (UrlClickEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"UrlClickEvents\"),\n    (IdentityLogonEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"IdentityLogonEvents\"),\n    (IdentityQueryEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"IdentityQueryEvents\"),\n    (IdentityDirectoryEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"IdentityDirectoryEvents\"),\n    (IdentityInfo | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"IdentityInfo\"),\n    (CloudAppEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"CloudAppEvents\"),\n    (AlertInfo | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"AlertInfo\"),\n    (AlertEvidence | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"AlertEvidence\")\n| where Rows > 0\n| extend GBPerDay = Bytes / 1e9 / 7 * {XdrFactor}\n| extend PerMonth = GBPerDay * 30 * {PriceAnalytics}\n| project Table, RowsPerDay = Rows / 7, GBPerDay = round(GBPerDay, 3), PerMonth = round(PerMonth, 2)\n| order by GBPerDay desc",
+        "text": "// Each table on its own: estimate_data_size(*) over a union would count every other table's empty columns too.\nlet t = materialize(union isfuzzy=true\n    (DeviceProcessEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceProcessEvents\"),\n    (DeviceNetworkEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceNetworkEvents\"),\n    (DeviceFileEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceFileEvents\"),\n    (DeviceRegistryEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceRegistryEvents\"),\n    (DeviceLogonEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceLogonEvents\"),\n    (DeviceImageLoadEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceImageLoadEvents\"),\n    (DeviceEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceEvents\"),\n    (DeviceInfo | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceInfo\"),\n    (DeviceNetworkInfo | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceNetworkInfo\"),\n    (DeviceFileCertificateInfo | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"DeviceFileCertificateInfo\"),\n    (EmailEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"EmailEvents\"),\n    (EmailAttachmentInfo | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"EmailAttachmentInfo\"),\n    (EmailUrlInfo | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"EmailUrlInfo\"),\n    (EmailPostDeliveryEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"EmailPostDeliveryEvents\"),\n    (UrlClickEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"UrlClickEvents\"),\n    (IdentityLogonEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"IdentityLogonEvents\"),\n    (IdentityQueryEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"IdentityQueryEvents\"),\n    (IdentityDirectoryEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"IdentityDirectoryEvents\"),\n    (CloudAppEvents | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"CloudAppEvents\"),\n    (AlertInfo | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"AlertInfo\"),\n    (AlertEvidence | where Timestamp > ago(7d) | summarize Rows = count(), Bytes = sum(estimate_data_size(*)) | extend Table = \"AlertEvidence\")\n| where Rows > 0\n| extend GBPerDay = Bytes / 1e9 / 7 * {XdrFactor}\n| extend PerMonth = GBPerDay * 30 * {PriceAnalytics});\nt\n| project Table, RowsPerDay = round(Rows / 7.0), GBPerDay = round(GBPerDay, 3), PerMonth = round(PerMonth, 2)\n| order by GBPerDay desc\n| union (t | summarize GBPerDay = round(sum(GBPerDay), 3), PerMonth = round(sum(PerMonth), 2) | extend Table = \"Total\")",
         "options": null,
         "parameters": [],
         "saved": null
@@ -536,10 +500,10 @@
         "x": 0,
         "y": 0,
         "w": 12,
-        "h": 4
+        "h": 5
       },
       "parameters": {},
-      "markdown": "Estimate a table before you connect it: from **events per day** × **bytes per event** (× 0.75, as billed size is about a quarter smaller than the raw JSON), or from a **similar table** you already collect, measured on yesterday's billed size.",
+      "markdown": "Estimate a table before you connect it: from **events per day** × **bytes per event** (× 0.75, as billed size is about a quarter smaller than the raw JSON), or from a **similar table** you already collect, measured on yesterday's billed size. The similar table is an Analytics one: scanning a Basic or Auxiliary table is billed.",
       "in": {
         "tabs": "wlctabs",
         "tab": "tlcnew"
@@ -551,14 +515,14 @@
       "title": "From events per day × bytes per event",
       "layout": {
         "x": 0,
-        "y": 4,
+        "y": 5,
         "w": 12,
         "h": 10
       },
       "parameters": {},
       "query": {
         "source": "logs",
-        "text": "// Billed size is about 25% smaller than the raw JSON an event is sent as.\nlet gbPerDay = 1.0 * {EventsPerDay} * {BytesPerEvent} * 0.75 / 1e9;\ndatatable(Plan: string) [\"Analytics\", \"Basic\", \"Auxiliary\"]\n| extend PricePerGB = case(Plan == \"Basic\", {PriceBasic}, Plan == \"Auxiliary\", {PriceAuxiliary}, {PriceAnalytics}), FreeDays = iff(Plan == \"Analytics\", {FreeRetentionDays}, 30)\n| extend GBPerDay = round(gbPerDay, 3)\n| extend IngestPerMonth = round(GBPerDay * 30 * PricePerGB, 2), RetentionPerMonth = round(GBPerDay * max_of(0, {RetentionDays} - FreeDays) * {RetentionPrice}, 2)\n| extend TotalPerMonth = IngestPerMonth + RetentionPerMonth\n| project Plan, GBPerDay, PricePerGB, IngestPerMonth, RetentionPerMonth, TotalPerMonth",
+        "text": "// Billed size is about 25% smaller than the raw JSON an event is sent as.\nlet gbPerDay = 1.0 * {EventsPerDay} * {BytesPerEvent} * 0.75 / 1e9;\ndatatable(Plan: string) [\"Analytics\", \"Basic\", \"Auxiliary\"]\n| extend PricePerGB = case(Plan == \"Analytics\", {PriceAnalytics}, Plan == \"Basic\", {PriceBasic}, Plan == \"Auxiliary\", {PriceAuxiliary}, real(null)), FreeDays = iff(Plan == \"Analytics\", {FreeRetentionDays}, 30)\n| extend GBPerDay = gbPerDay\n| extend IngestPerMonth = GBPerDay * 30 * PricePerGB, RetentionPerMonth = GBPerDay * max_of(0, {RetentionDays} - FreeDays) * {RetentionPrice}\n| extend TotalPerMonth = IngestPerMonth + RetentionPerMonth\n| project Plan, GBPerDay = round(GBPerDay, 3), PricePerGB, IngestPerMonth = round(IngestPerMonth, 2), RetentionPerMonth = round(RetentionPerMonth, 2), TotalPerMonth = round(TotalPerMonth, 2)",
         "options": null,
         "parameters": [],
         "saved": null
@@ -576,14 +540,14 @@
       "title": "From a similar table",
       "layout": {
         "x": 0,
-        "y": 14,
+        "y": 15,
         "w": 12,
         "h": 10
       },
       "parameters": {},
       "query": {
         "source": "logs",
-        "text": "// Yesterday's billed bytes per row of the similar table. Scanning a Basic or Auxiliary table is billed, so pick an Analytics one.\nlet measured = table({SimilarTable})\n| where TimeGenerated between (startofday(ago(1d)) .. startofday(now()))\n| summarize Rows = count(), Bytes = sum(_BilledSize)\n| extend BytesPerRow = iff(Rows == 0, real(null), 1.0 * Bytes / Rows), k = 1;\ndatatable(Plan: string) [\"Analytics\", \"Basic\", \"Auxiliary\"]\n| extend PricePerGB = case(Plan == \"Basic\", {PriceBasic}, Plan == \"Auxiliary\", {PriceAuxiliary}, {PriceAnalytics}), FreeDays = iff(Plan == \"Analytics\", {FreeRetentionDays}, 30)\n| extend k = 1\n| join kind=inner measured on k\n| extend GBPerDay = round({EventsPerDay} * BytesPerRow / 1e9, 3), BytesPerRow = round(BytesPerRow, 1)\n| extend IngestPerMonth = round(GBPerDay * 30 * PricePerGB, 2), RetentionPerMonth = round(GBPerDay * max_of(0, {RetentionDays} - FreeDays) * {RetentionPrice}, 2)\n| extend TotalPerMonth = IngestPerMonth + RetentionPerMonth\n| project Plan, BytesPerRow, GBPerDay, PricePerGB, IngestPerMonth, RetentionPerMonth, TotalPerMonth",
+        "text": "// Yesterday's billed bytes per row of the similar table.\nlet measured = table({SimilarTable})\n| where TimeGenerated between (startofday(ago(1d)) .. startofday(now()))\n| summarize Rows = count(), Bytes = sum(_BilledSize)\n| extend BytesPerRow = iff(Rows == 0, real(null), 1.0 * Bytes / Rows), k = 1;\ndatatable(Plan: string) [\"Analytics\", \"Basic\", \"Auxiliary\"]\n| extend PricePerGB = case(Plan == \"Analytics\", {PriceAnalytics}, Plan == \"Basic\", {PriceBasic}, Plan == \"Auxiliary\", {PriceAuxiliary}, real(null)), FreeDays = iff(Plan == \"Analytics\", {FreeRetentionDays}, 30)\n| extend k = 1\n| join kind=inner measured on k\n| extend GBPerDay = {EventsPerDay} * BytesPerRow / 1e9\n| extend IngestPerMonth = GBPerDay * 30 * PricePerGB, RetentionPerMonth = GBPerDay * max_of(0, {RetentionDays} - FreeDays) * {RetentionPrice}\n| extend TotalPerMonth = IngestPerMonth + RetentionPerMonth\n| project Plan, BytesPerRow = round(BytesPerRow, 1), GBPerDay = round(GBPerDay, 3), PricePerGB, IngestPerMonth = round(IngestPerMonth, 2), RetentionPerMonth = round(RetentionPerMonth, 2), TotalPerMonth = round(TotalPerMonth, 2), Note = iff(isnull(BytesPerRow), \"The table had no rows yesterday.\", \"\")",
         "options": null,
         "parameters": [],
         "saved": null

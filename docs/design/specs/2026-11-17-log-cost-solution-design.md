@@ -27,7 +27,10 @@ would cost before they connect it. Microsoft's tools either show only the bill o
 
 ## Formulas
 
-- GB per day = sum(`Usage.Quantity`) / 1000 over full UTC days in the time range ÷ the number of those days.
+- GB per day = sum(`Usage.Quantity`) / 1000 over full UTC days in the time range ÷ the number of those days (calendar
+  days from all of `Usage`, skipping a partial first day, so a table that logs only some days is averaged over the range).
+- Retention assumes the days beyond the free ones are long-term retention; the copy says interactive retention costs more.
+- Currency is a label only; the XDR tab counts tables already streamed too, and says so.
 - Monthly ingestion = GB/day × 30 × the plan's price per GB (`Usage.Plan`; empty means Analytics).
 - Monthly retention = GB/day × max(0, retention days − free days) × retention price per GB-month. Free days: the parameter
   (90 with Sentinel) for Analytics, 30 for Basic and Auxiliary.
