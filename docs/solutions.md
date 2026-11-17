@@ -19,6 +19,10 @@ overview is also on the [Solutions page](https://frodehus.github.io/kustodian/so
   Defender plans and their features, Defender for Servers Plan 2 coverage per subscription and per machine (including
   per-resource overrides), attack paths, governance status, alerts, sensitive control-plane operations, internet-exposed
   VMs and Defender for Endpoint onboarding.
+- **Log cost estimator**: a workbook that estimates what a Log Analytics workspace's logs cost, from the `Usage` table: GB
+  per day, monthly ingestion and retention cost per table and plan, the ten largest tables over time, and Sentinel
+  commitment tiers. It also prices Defender XDR tables you don't stream yet, measured in advanced hunting, and a new custom
+  table from events per day or a similar table. Every price is a parameter, with East US list prices as defaults.
 
 ## The panel
 
