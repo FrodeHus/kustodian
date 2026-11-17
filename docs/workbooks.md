@@ -236,6 +236,18 @@ value that isn't in the list is kept. If the query fails, the parameter becomes 
 Analytics choice query with no workspace says "Pick a workspace for these choices." in edit mode. Several values and **All**
 work as with a fixed list, and All sends every loaded choice.
 
+**Workspace** is a parameter type for the workspace itself. A workbook can have only one ("A workbook can have only one
+workspace parameter."). Its control in the bar is the workspace picker, with a **None** entry, and its value is the workspace's
+customer id, or empty. A value that isn't in your account's list shows its short id and "not available to this account".
+Switching a parameter's type to workspace clears a value that isn't a workspace id.
+
+Every Log Analytics and hunting widget, and every choice query, uses the workspace parameter, unless the widget sets that
+parameter itself (shown or fixed). The widget's own workspace isn't used then, and the widget editor says "The workspace comes
+from the <label> parameter." in place of its picker. With no value, a Log Analytics widget says "Pick a workspace." and sends
+nothing, and a hunting widget uses the Primary workspace. The timespan cap follows the workspace that is used: 730 days with
+one, 30 without (Log Analytics always gets 730). Changing the parameter reruns those widgets and choice queries at once. `{Name}` in query text gives the
+workspace id as text.
+
 Change a workbook parameter in the bar under the toolbar and only the widgets that use it rerun. A text parameter reruns when
 you stop typing or press Enter. These changes aren't saved: the file holds the defaults you set in the dialog.
 
@@ -276,7 +288,7 @@ a review first. Nothing runs, and nothing is saved, until you choose. The review
 - **What's in it**: the widgets, parameters and buttons.
 - **Workspaces**: the workspaces the file queries, with how many widgets use each. A choice query's workspace is listed
   too, as "choices for <label>". Names come from your own workspace list,
-  matched by ID. A name only the file claims shows as "not available to this account", or "not checked" when your list can't be
+  matched by ID. A workspace parameter's default is listed as "parameter <label>", and a widget's own value for it counts as a widget. A name only the file claims shows as "not available to this account", or "not checked" when your list can't be
   read. Saving the import, or opening it without saving, is the confirmation.
 - **Saved queries**: they are added to your library with new ids, in a folder named after the workbook, or copied into the
   widgets. **Open without saving** always copies them and saves nothing.

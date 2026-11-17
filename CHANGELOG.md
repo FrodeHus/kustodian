@@ -7,6 +7,15 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Log cost estimator solution**: estimated ingestion and retention cost per Log Analytics table and plan from `Usage`,
+  a comparison with Sentinel commitment tiers, the cost of streaming Defender XDR tables (measured in advanced hunting), and
+  an estimate for a new custom table. Prices, retention and factors are workbook parameters. See
+  [docs/solutions.md](docs/solutions.md).
+- **Workbook workspace parameter**: a workbook parameter of type Workspace picks the workspace for every Log Analytics and
+  hunting widget and choice query at once. Its control in the bar is the workspace picker, with None. A widget that sets the
+  parameter itself keeps its own value, and `{Name}` in a query gives the workspace id. With no value, Log Analytics says
+  "Pick a workspace." and hunting uses the primary workspace. Import review lists its default and any widget's own value,
+  and solution install clears both.
 - **Workbook parameter choices from a query**: a parameter's Choices can be **From a query** on Graph, Defender hunting,
   Resource Graph or Log Analytics. The first column is the value and an optional second is the label, up to 1,000 choices.
   They load when the workbook opens, on Refresh all and when a parameter they use changes, and a failed load leaves free

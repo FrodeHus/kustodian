@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "id": "log-cost",
+  "name": "Log cost estimator",
+  "solutionVersion": "1.0.0",
+  "description": "Estimated ingestion and retention cost per Log Analytics table from the Usage table, commitment-tier comparison, the cost of streaming Defender XDR tables, and an estimate for a new custom table. Prices are parameters.",
+  "author": "Kustodian",
+  "support": "kustodian",
+  "categories": ["Cost", "Microsoft Sentinel"],
+  "sources": ["logs", "hunting"],
+  "minAppVersion": "1.2.0",
+  "requires": {
+    "graph": ["ThreatHunting.Read.All"],
+    "roles": null,
+    "licenses": null,
+    "azure": "Reader or Log Analytics Reader on the workspace"
+  },
+  "content": {
+    "queries": [],
+    "workbooks": ["log-cost"],
+    "tools": []
+  }
+}

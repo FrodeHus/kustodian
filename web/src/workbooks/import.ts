@@ -92,20 +92,31 @@ function knownWorkspace(w: unknown): QueryWorkspace[] {
 }
 
 /** The workspaces the workbook queries, each with how many widgets and which parameters' choices use it (what the import reviews list). */
-export function workspacesIn(doc: WorkbookDoc): { workspace: QueryWorkspace; widgets: number; parameters: string[] }[] {
-  const found = new Map<string, { workspace: QueryWorkspace; widgets: number; parameters: string[] }>();
-  const tally = (workspaces: QueryWorkspace[] | null | undefined, count: (e: { widgets: number; parameters: string[] }) => void) => {
+export function workspacesIn(doc: WorkbookDoc): { workspace: QueryWorkspace; widgets: number; parameters: string[]; values?: string[] }[] {
+  const found = new Map<string, { workspace: QueryWorkspace; widgets: number; parameters: string[]; values?: string[] }>();
+  const tally = (
+    workspaces: QueryWorkspace[] | null | undefined,
+    count: (e: { widgets: number; parameters: string[]; values?: string[] }) => void,
+  ) => {
     for (const workspace of new Map((workspaces ?? []).map((x) => [x.customerId, x])).values()) {
       const entry = found.get(workspace.customerId) ?? { workspace, widgets: 0, parameters: [] };
       count(entry);
       found.set(workspace.customerId, entry);
     }
   };
+  // A workspace parameter's default and a widget's own entry for it are workspaces that arrive in the file, as options' are.
+  const wsParam = doc.parameters.find((p) => p.type === 'workspace');
+  const byId = (customerId: string): QueryWorkspace[] => (customerId ? [{ customerId, name: '', resourceId: '' }] : []);
   for (const w of doc.widgets) {
-    tally(w.query?.options?.workspaces, (e) => e.widgets++);
+    const own = wsParam && w.parameters[wsParam.name];
+    const entry = own && (own.from === 'fixed' || own.from === 'widget') ? byId(own.value) : [];
+    tally([...(w.query?.options?.workspaces ?? []), ...entry], (e) => e.widgets++);
   }
   for (const p of doc.parameters) {
     tally(p.choicesQuery?.options?.workspaces, (e) => e.parameters.push(p.label || p.name));
+    if (p.type === 'workspace') {
+      tally(byId(p.value), (e) => (e.values ??= []).push(p.label || p.name));
+    }
   }
   return [...found.values()];
 }

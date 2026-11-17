@@ -7,6 +7,9 @@ import { ConsentButton } from '../signin/consent-button';
 import type { ArmSubscriptionsAnswer, ArmWorkspace, ArmWorkspacesAnswer, QueryWorkspace } from '../wire';
 
 const PRIMARY = 'Primary workspace';
+const PRIMARY_DESCRIPTION = "Default. Defender's tables, plus your primary Sentinel workspace if one is connected.";
+const FOOTER =
+  "Defender reaches a workspace's tables when it's onboarded to the Defender portal and you have Microsoft Sentinel Reader on it. The workspace is saved with the query.";
 
 /** Why the list couldn't be read, and what helps: granting Azure access, signing in again, or nothing the picker can offer. */
 interface Problem {
@@ -45,6 +48,10 @@ interface WorkspacePickerProps {
   onOpenChange: (open: boolean) => void;
   /** What the no-workspace entry is called; null leaves it out (a Log Analytics tab needs a workspace). */
   primaryLabel?: string | null;
+  /** Replaces the no-workspace entry's description (the hunting tab's). */
+  primaryDescription?: string;
+  /** Replaces the footer under the list (the hunting tab's).*/
+  footer?: string;
 }
 
 /**
@@ -61,6 +68,8 @@ export function WorkspacePicker({
   open,
   onOpenChange,
   primaryLabel = PRIMARY,
+  primaryDescription = PRIMARY_DESCRIPTION,
+  footer = FOOTER,
 }: WorkspacePickerProps) {
   const ref = useRef<HTMLDivElement>(null);
   const chosen = workspaces?.[0];
@@ -112,6 +121,8 @@ export function WorkspacePicker({
         <WorkspaceDialog
           chosen={chosen}
           primaryLabel={primaryLabel}
+          primaryDescription={primaryDescription}
+          footer={footer}
           accountKey={accountKey}
           onSignIn={onSignIn}
           onRead={onRead}
@@ -128,6 +139,8 @@ export function WorkspacePicker({
 interface WorkspaceDialogProps {
   chosen: QueryWorkspace | undefined;
   primaryLabel: string | null;
+  primaryDescription: string;
+  footer: string;
   accountKey: string | null;
   onSignIn: () => void;
   onRead: (workspaces: ArmWorkspace[] | null) => void;
@@ -135,7 +148,7 @@ interface WorkspaceDialogProps {
 }
 
 /** The open picker: mounted each time it opens, so it reads the list afresh. */
-function WorkspaceDialog({ chosen, primaryLabel, accountKey, onSignIn, onRead, onPick }: WorkspaceDialogProps) {
+function WorkspaceDialog({ chosen, primaryLabel, primaryDescription, footer, accountKey, onSignIn, onRead, onPick }: WorkspaceDialogProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState('');
   const [read, setRead] = useState<Read | null>(null);
@@ -206,9 +219,7 @@ function WorkspaceDialog({ chosen, primaryLabel, accountKey, onSignIn, onRead, o
               <input type="radio" name="workspace" checked={!chosen} onChange={() => onPick(null)} />
               <span className="flex flex-col">
                 <span>{primaryLabel}</span>
-                <span className="faint text-[11.5px]">
-                  Default. Defender&apos;s tables, plus your primary Sentinel workspace if one is connected.
-                </span>
+                <span className="faint text-[11.5px]">{primaryDescription}</span>
               </span>
             </label>
             <div className="my-1 h-px bg-line" />
@@ -259,10 +270,7 @@ function WorkspaceDialog({ chosen, primaryLabel, accountKey, onSignIn, onRead, o
           )}
         </div>
       )}
-      <span className="faint text-[12px]">
-        Defender reaches a workspace&apos;s tables when it&apos;s onboarded to the Defender portal and you have Microsoft Sentinel Reader on
-        it. The workspace is saved with the query.
-      </span>
+      <span className="faint text-[12px]">{footer}</span>
     </div>
   );
 }

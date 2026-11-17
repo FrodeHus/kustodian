@@ -11,8 +11,10 @@ import { reportIdOf } from '../shell/report-id';
 import { ConfirmDelete } from '../side/row-menu';
 import { inSendDetails } from '../shell/send-details-marker';
 import { SourceBadge } from '../tabs/source-badge';
+import { shortId } from '../toolbar/short-id';
+import { WorkspacePicker } from '../toolbar/workspace-picker';
 import { useTabs } from '../tabs/tab-store';
-import type { LibraryList, SavedQuery } from '../wire';
+import type { ArmWorkspace, LibraryList, SavedQuery } from '../wire';
 import { narrowOrder, place } from './layout';
 import {
   MAX_WIDGETS,
@@ -25,7 +27,8 @@ import {
   type WorkbookParameter,
 } from './model';
 import { effectiveChoices, MAX_CHOICES, type ParamChoices } from './choices';
-import { huntingTimespanProblem, workbookValues } from './resolve';
+import { huntingTimespanProblem, PARAM_FOOTER, PARAM_NONE, workbookValues, workspaceParameter } from './resolve';
+import { useAccountWorkspaces } from './account-workspaces';
 import { ParametersDialog } from './parameters-dialog';
 import { childrenOf, moveTo, placeKey, placeOf, removeTabs, siblings } from './tabs';
 import { ChildrenConfirm, TabsWidget } from './tabs-widget';
@@ -44,8 +47,14 @@ import { editRanWidgets, editStartDoc, readLibrary, useWorkbooks, visibleTab } f
 /** A list's value: one per line. */
 const lines = (v: string) => v.split('\n').filter((x) => x !== '');
 
+const listed = (workspaces: ArmWorkspace[] | null | undefined, customerId: string) =>
+  workspaces?.find((w) => w.customerId.toLowerCase() === customerId.toLowerCase());
+
 /** A parameter's value as the collapsed bar and its picker show it. */
-function shownValue(param: WorkbookParameter, value: string, loaded?: ParamChoices): string {
+function shownValue(param: WorkbookParameter, value: string, loaded?: ParamChoices, workspaces?: ArmWorkspace[] | null): string {
+  if (param.type === 'workspace') {
+    return value === '' ? 'None' : (listed(workspaces, value)?.name ?? shortId(value));
+  }
   const items = effectiveChoices(param, loaded) ?? [];
   const choices = items.map((c) => c.value);
   const label = (v: string) => items.find((c) => c.value === v)?.label ?? v;
@@ -68,12 +77,33 @@ const SEGMENT_TEXT_MAX = 8;
 /** A workbook parameter's field in the bar, its label above its control: a list that takes several values picks them in a menu
  * of checks (`all` adds "Select all"); a few short choices are a row of buttons; other choices a select; else a text box. Text
  * reruns as typing stops, or at once on Enter. */
-function ParamControl({ tabId, param, value }: { tabId: string; param: WorkbookParameter; value: string }) {
+function ParamControl({
+  tabId,
+  param,
+  value,
+  workspaces,
+  accountKey,
+  onSignIn,
+}: {
+  tabId: string;
+  param: WorkbookParameter;
+  value: string;
+  workspaces: ArmWorkspace[] | null | undefined;
+  accountKey: string | null;
+  onSignIn: () => void;
+}) {
+  const [pickingWorkspace, setPickingWorkspace] = useState(false);
   const set = (v: string, now = true) => useWorkbooks.getState().setWorkbookValue(tabId, param.name, v, { now });
-  // A hunting widget with a workspace, or a Log Analytics widget, takes up to 730 days, so the parameter only complains past that.
-  const workspaceCap = useWorkbooks((st) =>
-    st.byTab[tabId]?.doc.widgets.some((w) => w.query?.source === 'logs' || w.query?.options?.workspaces?.length) ? 730 : 30,
-  );
+  // Log Analytics, or a hunting workspace (the parameter's when the workbook has one, else a widget's own), takes up to 730 days,
+  // so the parameter only complains past that.
+  const workspaceCap = useWorkbooks((st) => {
+    const t = st.byTab[tabId];
+    const wp = t && workspaceParameter(t.doc);
+    const hasWorkspace = wp
+      ? (t.values.workbook[wp.name] ?? wp.value).trim() !== ''
+      : t?.doc.widgets.some((w) => w.query?.options?.workspaces?.length);
+    return hasWorkspace || t?.doc.widgets.some((w) => w.query?.source === 'logs') ? 730 : 30;
+  });
   const label = param.label ?? param.name;
   // Choices make a picker for any type, as in a query tab; several values and All are a list's only. Loaded from a query, they
   // are a picker once they arrive (and through a reload); until then, or if they never do, the control is free entry.
@@ -82,7 +112,26 @@ function ParamControl({ tabId, param, value }: { tabId: string; param: WorkbookP
   const choices = effectiveChoices(param, loaded) ?? [];
   const list = param.type === 'list';
   let control;
-  if (choices.length > 0 && list && param.multi) {
+  const inList = listed(workspaces, value);
+  // Only once the account's list has been read can a value be said to be missing from it.
+  const missing = param.type === 'workspace' && value !== '' && Array.isArray(workspaces) && !inList;
+  if (param.type === 'workspace') {
+    control = (
+      <WorkspacePicker
+        workspaces={
+          value === '' ? null : [{ customerId: value, name: inList?.name ?? shortId(value), resourceId: inList?.resourceId ?? '' }]
+        }
+        onChange={(picked) => set(picked?.[0]?.customerId ?? '')}
+        primaryLabel="None"
+        primaryDescription={PARAM_NONE}
+        footer={PARAM_FOOTER}
+        accountKey={accountKey}
+        onSignIn={onSignIn}
+        open={pickingWorkspace}
+        onOpenChange={setPickingWorkspace}
+      />
+    );
+  } else if (choices.length > 0 && list && param.multi) {
     const picked = lines(value);
     const every = choices.every((c) => picked.includes(c.value));
     control = (
@@ -181,13 +230,18 @@ function ParamControl({ tabId, param, value }: { tabId: string; param: WorkbookP
   const problem = param.huntingTimespan ? huntingTimespanProblem(label, value, workspaceCap) : null;
   const hint = param.choicesQuery ? choicesHint(loaded, editing) : null;
   return (
-    <div className="flex min-w-0 flex-col gap-1 text-[12.5px]">
+    <div className="flex min-w-0 flex-col gap-1 text-[12.5px]" data-wb-workspace-param={param.type === 'workspace' || undefined}>
       {/* One line, so the controls in a row line up; the whole label shows on hover. */}
       <span className="muted flex min-w-0 items-center gap-1.5 text-[11.5px]" aria-hidden="true" title={label}>
         {value !== param.value && <span className="mod shrink-0" title="Changed from the default" />}
         <span className="truncate">{label}</span>
       </span>
       {control}
+      {missing && (
+        <span role="alert" className="text-[12px] text-bad">
+          {shortId(value)} · not available to this account
+        </span>
+      )}
       {problem && (
         <span role="alert" className="text-[12px] text-bad">
           {problem}
@@ -229,6 +283,8 @@ function Check({ on }: { on: boolean }) {
   );
 }
 
+const noSignIn = () => undefined;
+
 /** How many values the collapsed bar shows before "+N more". */
 const SUMMARY_MAX = 4;
 
@@ -240,12 +296,18 @@ function ParameterBar({
   values,
   collapsed,
   choices,
+  workspaces,
+  accountKey,
+  onSignIn,
 }: {
   tabId: string;
   parameters: WorkbookParameter[];
   values: Record<string, string>;
   collapsed: boolean;
   choices: Record<string, ParamChoices>;
+  workspaces: ArmWorkspace[] | null | undefined;
+  accountKey: string | null;
+  onSignIn: () => void;
 }) {
   const store = useWorkbooks.getState();
   const valueOf = (p: WorkbookParameter) => values[p.name] ?? p.value;
@@ -265,7 +327,7 @@ function ParameterBar({
           <div className="param-summary flex min-w-0 flex-1 gap-1.5 overflow-hidden">
             {parameters.slice(0, SUMMARY_MAX).map((p) => (
               <button key={p.name} type="button" className="param-pill" data-changed={valueOf(p) !== p.value || undefined} onClick={toggle}>
-                <span className="muted">{p.label ?? p.name}:</span> {shownValue(p, valueOf(p), choices[p.name])}
+                <span className="muted">{p.label ?? p.name}:</span> {shownValue(p, valueOf(p), choices[p.name], workspaces)}
               </button>
             ))}
           </div>
@@ -288,7 +350,15 @@ function ParameterBar({
       {!collapsed && (
         <div className="param-grid px-3 pb-3">
           {parameters.map((p) => (
-            <ParamControl key={p.name} tabId={tabId} param={p} value={valueOf(p)} />
+            <ParamControl
+              key={p.name}
+              tabId={tabId}
+              param={p}
+              value={valueOf(p)}
+              workspaces={workspaces}
+              accountKey={accountKey}
+              onSignIn={onSignIn}
+            />
           ))}
         </div>
       )}
@@ -469,6 +539,9 @@ export function WorkbookView({ tabId, onSignIn, accountKey }: { tabId: string; o
       useWorkbooks.setState({ revealing: null });
     }
   }, [revealing, sheetHost, state?.doc]);
+  // The workspace parameter's value is named from the account's list, read only while there is a value to name.
+  const wsParam = state && workspaceParameter(state.doc);
+  const workspaces = useAccountWorkspaces(!!wsParam && (state.values.workbook[wsParam.name] ?? wsParam.value) !== '');
   if (!state) {
     return <p className="faint m-0 p-4 text-[12px]">Opening the workbook…</p>;
   }
@@ -825,6 +898,9 @@ export function WorkbookView({ tabId, onSignIn, accountKey }: { tabId: string; o
           values={values.workbook}
           collapsed={paramsCollapsed}
           choices={state.choices}
+          workspaces={workspaces}
+          accountKey={accountKey ?? null}
+          onSignIn={onSignIn ?? noSignIn}
         />
       )}
       {doc.parameters.length > 0 && (
@@ -841,7 +917,9 @@ export function WorkbookView({ tabId, onSignIn, accountKey }: { tabId: string; o
               {doc.parameters.map((p) => (
                 <tr key={p.name}>
                   <td>{p.label ?? p.name}</td>
-                  <td className="mono whitespace-pre-wrap">{shownValue(p, values.workbook[p.name] ?? p.value, state.choices[p.name])}</td>
+                  <td className="mono whitespace-pre-wrap">
+                    {shownValue(p, values.workbook[p.name] ?? p.value, state.choices[p.name], workspaces)}
+                  </td>
                 </tr>
               ))}
             </tbody>

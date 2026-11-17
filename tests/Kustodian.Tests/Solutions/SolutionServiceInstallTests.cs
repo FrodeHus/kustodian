@@ -199,6 +199,52 @@ public sealed class SolutionServiceInstallTests : IDisposable
     }
 
     [Fact]
+    public async Task Install_ClearsWorkspaceParameterValue()
+    {
+        const string guid = "11111111-1111-1111-1111-111111111111";
+        var wb = FileJson("workbooks/risky-users-review.json");
+        var parameters = wb["parameters"] as JsonArray ?? [];
+        parameters.Add(new JsonObject { ["name"] = "WS", ["type"] = "workspace", ["value"] = guid, ["required"] = false });
+        wb["parameters"] = parameters;
+        var widget = wb["widgets"]!.AsArray().Select(w => w!.AsObject()).First(w => w["query"] is JsonObject);
+        if (widget["parameters"] is not JsonObject own)
+        {
+            widget["parameters"] = own = new JsonObject();
+        }
+
+        own["WS"] = new JsonObject { ["from"] = "fixed", ["value"] = guid };
+        Publish("workbooks/risky-users-review.json", Bytes(wb));
+        var svc = Service();
+
+        await svc.InstallAsync(Id, Skip(), Ct);
+
+        var summary = Assert.Single((await _workbooks.ListAsync(Ct)).Workbooks);
+        var saved = (await _workbooks.GetAsync(summary.Id, Ct))!;
+        Assert.DoesNotContain(guid, saved.ToJsonString());
+        Assert.Equal("", saved["parameters"]!.AsArray().Single(p => p!["type"]!.GetValue<string>() == "workspace")!["value"]!.GetValue<string>());
+        Assert.Empty(await svc.ModifiedAsync(Id, Ct));
+    }
+
+    [Fact]
+    public async Task Install_WithANonStringParameterTypeFailsCleanly()
+    {
+        var wb = FileJson("workbooks/risky-users-review.json");
+        var parameters = wb["parameters"] as JsonArray ?? [];
+        parameters.Add(new JsonObject { ["name"] = 5, ["type"] = 7, ["value"] = "x", ["required"] = false });
+        wb["parameters"] = parameters;
+        Publish("workbooks/risky-users-review.json", Bytes(wb));
+
+        // Refused or installed, never an unhandled exception.
+        try
+        {
+            await Service().InstallAsync(Id, Skip(), Ct);
+        }
+        catch (SolutionRejectedException)
+        {
+        }
+    }
+
+    [Fact]
     public async Task Install_StripsChoiceQueryWorkspaces()
     {
         var wb = FileJson("workbooks/risky-users-review.json");

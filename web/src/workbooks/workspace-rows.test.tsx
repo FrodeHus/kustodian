@@ -9,6 +9,7 @@ describe('WorkspaceRows', () => {
     [{ widgets: 0, parameters: ['Tables'] }, 'choices for Tables'],
     [{ widgets: 2, parameters: ['Tables', 'Hosts'] }, '2 widgets · choices for Tables, Hosts'],
     [{ widgets: 1, parameters: [] }, '1 widget'],
+    [{ widgets: 0, parameters: [], values: ['Workspace'] }, 'parameter Workspace'],
   ])('labels the use of a workspace: %j', (use, label) => {
     const { container } = render(<WorkspaceRows found={[{ workspace, ...use }]} mine={null} />);
     expect(container.textContent).toContain(label);

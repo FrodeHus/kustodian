@@ -22,7 +22,15 @@ import { choicesFrom, choicesUsing, choiceWidget } from './choices';
 import type { Widget, WorkbookDoc } from './model';
 import { parseWorkbook, withFileVersion, withHighlights } from './model';
 import type { ResolvedParam, ViewValues } from './resolve';
-import { initialValues, missingRequired, toParameterValues, widgetParams, widgetRunOptions, widgetsUsing } from './resolve';
+import {
+  initialValues,
+  missingRequired,
+  toParameterValues,
+  widgetParams,
+  widgetRunOptions,
+  widgetsUsing,
+  widgetWorkspace,
+} from './resolve';
 import type { RowSelection } from './tool-buttons';
 
 export type WidgetRun =
@@ -272,7 +280,8 @@ function queue(
     return blocked ? { state: 'blocked', reason: blocked } : { state: 'idle' };
   }
   // The host refuses a logs run without a workspace; asking here sends nothing and gives the widget its Pick a workspace button.
-  if (widget.query.source === 'logs' && !widget.query.options?.workspaces?.length) {
+  const resolved = options && !('problem' in options) ? options : null;
+  if (widget.query.source === 'logs' && !resolved?.workspaces?.length) {
     return {
       state: 'done',
       result: { ...failedRun('Pick a workspace before running.', ''), outcome: 'workspaceUnavailable' },
@@ -314,7 +323,11 @@ function queue(
     query: {
       source,
       text,
-      options: widget.query.options ?? null,
+      // With a workspace parameter the resolved workspace is part of the series, not the widget's own (logs and hunting only).
+      options:
+        (source === 'logs' || source === 'hunting') && widgetWorkspace(s.doc, widget, s.values).set && resolved
+          ? { ...resolved, timespan: widget.query.options?.timespan ?? null }
+          : (widget.query.options ?? null),
       parameters: series.map(({ name, value, type }) => ({ name, value, type })),
     },
     label: seriesLabel(series),
@@ -607,7 +620,8 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
               const key = `${tabId}/param:${p.name}`;
               const widget = choiceWidget(p)!;
               // As a logs widget: without a workspace nothing is sent; the control asks for one.
-              if (widget.query!.source === 'logs' && !widget.query!.options?.workspaces?.length) {
+              const resolved = widgetRunOptions(s.doc, widget, s.values);
+              if (widget.query!.source === 'logs' && !(resolved && !('problem' in resolved) && resolved.workspaces?.length)) {
                 drop(key);
                 setChoices(p.name, { state: 'needsWorkspace' });
                 settle();
@@ -680,7 +694,8 @@ export const useWorkbooks: UseBoundStore<StoreApi<Store>> = create<Store>()((set
       };
       const key = `${tabId}:value:${name}`;
       // Any value typed, whatever its type, waits until typing stops; one picked from choices runs at once.
-      const typed = !s.doc.parameters.find((p) => p.name === name)?.choices?.length && !pickedFrom(s.choices[name]);
+      const param = s.doc.parameters.find((p) => p.name === name);
+      const typed = param?.type !== 'workspace' && !param?.choices?.length && !pickedFrom(s.choices[name]);
       rerunAfter(key, !opts?.now && typed, rerun);
     },
 

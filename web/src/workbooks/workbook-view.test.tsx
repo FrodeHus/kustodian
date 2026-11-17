@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTabs } from '../tabs/tab-store';
 import type { RunResult } from '../wire';
 import type { ParamChoices } from './choices';
-import type { Widget, WidgetType, WorkbookDoc, WorkbookParameter } from './model';
+import type { Widget, WidgetQuery, WidgetType, WorkbookDoc, WorkbookParameter } from './model';
 import { newWidget, newWorkbook, parseWorkbook } from './model';
 import type { WidgetRun, WorkbookState } from './workbook-store';
 import { useWorkbooks } from './workbook-store';
@@ -268,6 +268,29 @@ describe('WorkbookView', () => {
     doc.widgets = [];
     show({});
     expect(screen.getByRole('alert').textContent).toBe('Range: at most 30 days for Defender hunting.');
+  });
+
+  describe('the timespan alert with a workspace parameter', () => {
+    const setup = (customer: string) => {
+      call.mockResolvedValue({ workspaces: [], subscriptions: [] });
+      doc.parameters = [
+        { ...env, name: 'Range', type: 'timespan', value: '90d', choices: null, label: null, huntingTimespan: true },
+        { ...env, name: 'Customer', type: 'workspace', value: customer, choices: null, label: null },
+      ];
+      const h = widget('h', 'table', 'Hunt');
+      doc.widgets = [{ ...h, query: { ...h.query!, source: 'hunting', options: null } }];
+      show({});
+    };
+
+    it('allows 90 days once the parameter has a workspace', () => {
+      setup('11111111-1111-1111-1111-111111111111');
+      expect(screen.queryByText(/at most 30 days/)).toBeNull();
+    });
+
+    it('allows 30 days only while the parameter is empty', () => {
+      setup('');
+      expect(screen.getByRole('alert').textContent).toBe('Range: at most 30 days for Defender hunting.');
+    });
   });
 
   it('shows a damaged workbook, as parsed, without failing', () => {
@@ -562,6 +585,110 @@ describe('WorkbookView', () => {
     expect(opened?.text).toBe('SignIns | where Env == {Env}');
     expect(opened?.source).toBe('graph');
     expect(opened?.parameters).toEqual([{ name: 'Env', type: 'list', value: 'prod', required: false, choices: ['prod', 'test'] }]);
+  });
+
+  describe('a workspace parameter', () => {
+    const A = { customerId: 'guid-a', name: 'Contoso', resourceId: '/r/a', resourceGroup: 'rg', subscriptionId: 's', location: 'we' };
+    const B = { customerId: 'guid-b', name: 'Fabrikam', resourceId: '/r/b', resourceGroup: 'rg', subscriptionId: 's', location: 'we' };
+    const withWorkspace = (value: string, list = [A, B], own?: Widget, runs: Record<string, WidgetRun> = {}) => {
+      call.mockImplementation((m: string) => Promise.resolve(m === 'arm.workspaces' ? { workspaces: list } : { subscriptions: [] }));
+      doc = {
+        ...doc,
+        parameters: [{ ...env, name: 'Customer', type: 'workspace', value, choices: null, label: 'Customer' }],
+        widgets: [own ?? widget('l', 'table', 'Logs', 'T | where Cust == {Customer}')],
+      };
+      show(runs);
+    };
+    const trigger = () => screen.getByRole('button', { name: /^Workspace:/ });
+
+    it('is a picker; picking sets the customer id and reruns at once', async () => {
+      withWorkspace('');
+      expect(trigger().textContent).toContain('None');
+      fireEvent.click(trigger());
+      fireEvent.click(await screen.findByRole('radio', { name: /^Fabrikam/ }));
+      expect(setWorkbookValue).toHaveBeenCalledWith('t', 'Customer', 'guid-b', { now: true });
+    });
+
+    it('its picker has the workbook copy, not the hunting tab’s', async () => {
+      withWorkspace('');
+      fireEvent.click(trigger());
+      await screen.findByRole('radio', { name: /^Fabrikam/ });
+      expect(screen.getByText(/Log Analytics widgets wait for a workspace/)).toBeTruthy();
+      expect(screen.getByText('Every Log Analytics and hunting widget in this workbook uses it.')).toBeTruthy();
+      expect(screen.queryByText(/saved with the query/)).toBeNull();
+    });
+
+    it('None clears it', async () => {
+      withWorkspace('guid-a');
+      fireEvent.click(trigger());
+      fireEvent.click(await screen.findByRole('radio', { name: /^None/ }));
+      expect(setWorkbookValue).toHaveBeenCalledWith('t', 'Customer', '', { now: true });
+    });
+
+    it('a value not in the account list shows its short id and not available to this account', async () => {
+      withWorkspace('abcdef12-0000-0000-0000-000000000000');
+      expect(await screen.findByText(/not available to this account/)).toBeTruthy();
+      expect(screen.getAllByText(/abcd…0000/).length).toBeGreaterThan(0);
+    });
+
+    it('the collapsed summary shows the workspace name', async () => {
+      withWorkspace('guid-a');
+      act(() => useWorkbooks.setState((st) => ({ byTab: { t: { ...st.byTab.t!, paramsCollapsed: true } } })));
+      expect(await screen.findByRole('button', { name: 'Customer: Contoso' })).toBeTruthy();
+    });
+
+    const typedWidget = (source: 'hunting' | 'logs', options: WidgetQuery['options']) => {
+      const w = widget('h', 'table', 'Hunt', 'T');
+      return { ...w, query: { ...w.query!, source, options } };
+    };
+    const columns = [{ name: 'a', type: 'long' }];
+    const old = { customerId: 'guid-old', name: 'OldWorkspace', resourceId: '/r/old' };
+
+    it('the hunting note names the parameter workspace, not the widgets own', async () => {
+      withWorkspace('guid-a', [A, B], typedWidget('hunting', { timespan: 'P7D', scope: null, workspaces: [old] }), {
+        h: { state: 'done', result: result(columns, [[1]]) },
+      });
+      expect(await within(frame('Hunt')).findByText(/Workspace Contoso\. If Defender can't reach Contoso/)).toBeTruthy();
+      expect(within(frame('Hunt')).queryByText(/OldWorkspace/)).toBeNull();
+    });
+
+    it('the hunting note says nothing while the parameter is empty, whatever the widget has of its own', () => {
+      withWorkspace('', [A, B], typedWidget('hunting', { timespan: 'P7D', scope: null, workspaces: [old] }), {
+        h: { state: 'done', result: result(columns, [[1]]) },
+      });
+      expect(within(frame('Hunt')).queryByText(/If Defender can't reach/)).toBeNull();
+    });
+
+    it('Open in query tab names the parameter workspace', async () => {
+      withWorkspace('guid-a', [A, B], typedWidget('hunting', null));
+      await screen.findAllByText(/Contoso/);
+      fireEvent.click(within(frame('Hunt')).getByRole('button', { name: 'Hunt menu' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Open in query tab' }));
+      expect(useTabs.getState().tabs.at(-1)?.options?.workspaces?.[0]).toMatchObject({ customerId: 'guid-a', name: 'Contoso' });
+    });
+
+    it('Pick a workspace on a logs widget focuses the parameter bars picker', async () => {
+      const refused: WidgetRun = {
+        state: 'done',
+        result: { ...result(columns, []), outcome: 'workspaceUnavailable', message: 'Pick a workspace before running.' },
+      };
+      withWorkspace('', [A, B], typedWidget('logs', null), { h: refused });
+      act(() => useWorkbooks.getState().setParamsCollapsed('t', true));
+      fireEvent.click(within(frame('Hunt')).getByRole('button', { name: 'Pick a workspace' }));
+      await vi.waitFor(() => expect(document.activeElement).toBe(trigger()));
+    });
+
+    it('Open in query tab gives a query tab a text parameter, never the workspace type', () => {
+      withWorkspace('guid-a');
+      fireEvent.click(within(frame('Logs')).getByRole('button', { name: 'Logs menu' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Open in query tab' }));
+      expect(
+        useTabs
+          .getState()
+          .tabs.at(-1)
+          ?.parameters?.map((p) => p.type),
+      ).toEqual(['text']);
+    });
   });
 
   it('narrow: the tab’s grid stacks full width like the top level', () => {

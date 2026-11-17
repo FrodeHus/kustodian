@@ -797,4 +797,31 @@ describe('WidgetEditor', () => {
       });
     });
   });
+
+  it('a logs or hunting widget in a workbook with a workspace parameter says where the workspace comes from', () => {
+    doc = {
+      ...doc,
+      parameters: [{ ...timeRange, name: 'Ws', type: 'workspace', value: '', label: 'Customer' }],
+      widgets: [{ ...widget('h', 'table'), query: { source: 'hunting', text: 'T', parameters: [], options: null, saved: null } }],
+    };
+    open('h');
+    expect(screen.getByText('The workspace comes from the Customer parameter.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Workspace:/ })).toBeNull();
+  });
+
+  it('says nothing of the workspace parameter when the widget has its own entry for it', () => {
+    doc = {
+      ...doc,
+      parameters: [{ ...timeRange, name: 'Ws', type: 'workspace', value: '', label: 'Customer' }],
+      widgets: [
+        {
+          ...widget('h', 'table'),
+          parameters: { Ws: { from: 'fixed', value: '11111111-1111-1111-1111-111111111111' } },
+          query: { source: 'hunting', text: 'T', parameters: [], options: null, saved: null },
+        },
+      ],
+    };
+    open('h');
+    expect(screen.queryByText(/The workspace comes from/)).toBeNull();
+  });
 });

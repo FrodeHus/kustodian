@@ -274,4 +274,73 @@ describe('ParametersDialog', () => {
     await act(async () => undefined);
     expect(screen.queryByRole('alert')).toBeNull();
   });
+
+  it('Type offers workspace', () => {
+    open();
+    const opts = within(screen.getByLabelText('Type'))
+      .getAllByRole('option')
+      .map((o) => o.textContent);
+    expect(opts).toContain('workspace');
+  });
+
+  it('a second workspace parameter says so and Save is off', () => {
+    doc = { ...doc, parameters: [param('Ws', { type: 'workspace' }), param('Other')] };
+    open();
+    fireEvent.click(item('Other'));
+    type('Type', 'workspace');
+    expect(screen.getByRole('alert').textContent).toBe('A workbook can have only one workspace parameter.');
+    expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
+    type('Type', 'text');
+    expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('a workspace parameter hides Choices, Several values and Offer All; its Default is a picker', () => {
+    doc = { ...doc, parameters: [param('Ws', { type: 'workspace', multi: true, all: true })] };
+    open();
+    expect(screen.queryByLabelText('Choices')).toBeNull();
+    expect(screen.queryByLabelText('Several values')).toBeNull();
+    expect(screen.queryByLabelText('Offer “All”')).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'Default' })).toBeNull();
+    expect(within(screen.getByRole('group', { name: 'Default' })).getByRole('button', { name: /^Workspace:/ })).toBeTruthy();
+  });
+
+  it('switching a text parameter to workspace clears a value that is not a customer id', () => {
+    doc = { ...doc, parameters: [param('P', { value: 'abc' })] };
+    open();
+    type('Type', 'workspace');
+    save();
+    expect(state().doc.parameters[0]).toMatchObject({ type: 'workspace', value: '' });
+  });
+
+  it('a workspace default that is a customer id is kept and named by its short id', () => {
+    const id = '0a1b2c3d-0000-0000-0000-000000000000';
+    doc = { ...doc, parameters: [param('P', { type: 'workspace', value: id })] };
+    open();
+    expect(screen.getByRole('button', { name: 'Workspace: 0a1b…0000' })).toBeTruthy();
+    save();
+    expect(state().doc.parameters).toEqual(doc.parameters);
+  });
+
+  it('a choice query has no workspace picker of its own when the workbook has a workspace parameter', () => {
+    const choicesQuery = { source: 'logs' as const, text: 'T | project a', options: null };
+    doc = { ...doc, parameters: [param('Ws', { type: 'workspace', label: 'Customer' }), param('C', { choicesQuery })] };
+    open();
+    fireEvent.click(item('C'));
+    expect(screen.getByText('The workspace comes from the Customer parameter.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Workspace:/ })).toBeNull();
+  });
+
+  it('switching a parameter to workspace clears the widgets own entries for it on Save', () => {
+    doc = {
+      ...doc,
+      parameters: [param('P')],
+      widgets: [
+        widget('a', 'A', 'T | where x == {P}', { parameters: { P: { from: 'fixed', value: 'abc' }, Q: { from: 'fixed', value: 'q' } } }),
+      ],
+    };
+    open();
+    type('Type', 'workspace');
+    save();
+    expect(state().doc.widgets[0]!.parameters).toEqual({ P: { from: 'fixed', value: '' }, Q: { from: 'fixed', value: 'q' } });
+  });
 });

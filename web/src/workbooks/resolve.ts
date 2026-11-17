@@ -1,7 +1,7 @@
 import { findParams } from '../params/find-params';
 import { runOptions } from '../tabs/tab-store';
 import type { ParameterValue, QueryOptions } from '../wire';
-import type { ParamFrom, Widget, WorkbookDoc } from './model';
+import type { ParamFrom, Widget, WorkbookDoc, WorkbookParameter } from './model';
 import { isoTimespan } from './model';
 
 /** Current values: the workbook's by parameter name, and each widget's shown/fixed ones by widget id. Never in the file. */
@@ -54,42 +54,63 @@ export function missingRequired(params: ResolvedParam[]): string[] {
 }
 
 export function toParameterValues(params: ResolvedParam[]): ParameterValue[] {
-  return params.map(({ name, type, value, required }) => ({ name, type, value, required }));
+  return params.map(({ name, type, value, required }) => ({ name, type: type === 'workspace' ? 'text' : type, value, required }));
 }
 
 /** Widgets a change to workbook parameter `name` reruns: data widgets whose resolved `name` comes from the workbook, and,
  * for the huntingTimespan parameter, the hunting and Log Analytics widgets that send its value as their timespan. */
 export function widgetsUsing(doc: WorkbookDoc, name: string): string[] {
   const none: ViewValues = { workbook: {}, widgets: {} };
-  const hunting = doc.parameters.find((p) => p.huntingTimespan)?.name === name;
+  const sends = doc.parameters.find((p) => p.huntingTimespan)?.name === name || workspaceParameter(doc)?.name === name;
   return doc.widgets
     .filter(
       (w) =>
         widgetParams(doc, w, none).some((p) => p.name === name && p.from === 'workbook') ||
-        (hunting && takesTimespan(w.query?.source) && (at(w.parameters, name)?.from ?? 'workbook') === 'workbook'),
+        (sends && takesTimespan(w.query?.source) && (at(w.parameters, name)?.from ?? 'workbook') === 'workbook'),
     )
     .map((w) => w.id);
 }
 
 const takesTimespan = (source: string | undefined) => source === 'hunting' || source === 'logs';
 
+/** The workspace parameter picker's copy, in place of the hunting tab's. */
+export const PARAM_NONE = 'Log Analytics widgets wait for a workspace; hunting widgets use your primary workspace.';
+export const PARAM_FOOTER = 'Every Log Analytics and hunting widget in this workbook uses it.';
+
+/** A GUID in "D" format, as a workspace's customer id is. */
+export const isGuid = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+
+/** The workbook's workspace parameter: the first one. */
+export const workspaceParameter = (doc: WorkbookDoc): WorkbookParameter | undefined => doc.parameters.find((p) => p.type === 'workspace');
+
+/** A parameter's value for a widget: its shown or fixed entry, else the workbook's current value (spec 6.4). */
+function valueFor(widget: Widget, values: ViewValues, p: WorkbookParameter): string {
+  const entry = at(widget.parameters, p.name);
+  return entry?.from === 'fixed'
+    ? entry.value
+    : entry?.from === 'widget'
+      ? (at(at(values.widgets, widget.id), p.name) ?? entry.value)
+      : (at(values.workbook, p.name) ?? p.value);
+}
+
+/** The workspace a Log Analytics or hunting widget runs against: `set` false without a workspace parameter (the widget's own
+ * options apply), else the resolved customer id, '' for none. */
+export function widgetWorkspace(doc: WorkbookDoc, widget: Widget, values: ViewValues): { set: boolean; customerId: string } {
+  const p = workspaceParameter(doc);
+  return p ? { set: true, customerId: valueFor(widget, values, p).trim() } : { set: false, customerId: '' };
+}
+
 /** The hunting timespan a widget sends: the huntingTimespan parameter's ISO value, else the widget's own options. */
 export function widgetRunOptions(doc: WorkbookDoc, widget: Widget, values: ViewValues): QueryOptions | null | { problem: string } {
   if (!widget.query) {
     return null;
   }
+  const ws = takesTimespan(widget.query.source) ? widgetWorkspace(doc, widget, values) : { set: false, customerId: '' };
   const hunting = takesTimespan(widget.query.source) ? doc.parameters.find((p) => p.huntingTimespan) : undefined;
   if (hunting) {
-    const entry = at(widget.parameters, hunting.name);
-    // A widget that sets the parameter itself (shown or fixed) overrides the workbook's value (spec 6.4).
-    const value =
-      entry?.from === 'fixed'
-        ? entry.value
-        : entry?.from === 'widget'
-          ? (at(at(values.widgets, widget.id), hunting.name) ?? entry.value)
-          : (at(values.workbook, hunting.name) ?? hunting.value);
+    const value = valueFor(widget, values, hunting);
     // Only the timespan is replaced; a workspace reaches back further (host: 730 days) than the default 30, and Log Analytics always does.
-    const workspaces = widget.query.options?.workspaces;
+    const workspaces = workspacesOf(widget, ws);
     const logs = widget.query.source === 'logs';
     const maxDays = logs || workspaces?.length ? 730 : 30;
     const timespan = isoTimespan(value.trim(), maxDays);
@@ -97,8 +118,13 @@ export function widgetRunOptions(doc: WorkbookDoc, widget: Widget, values: ViewV
       ? { timespan, scope: null, ...(workspaces && { workspaces }) }
       : { problem: huntingTimespanProblem(hunting.name, value, maxDays, logs ? 'Log Analytics' : 'Defender hunting') ?? '' };
   }
-  return runOptions({ source: widget.query.source, options: widget.query.options ?? undefined }) ?? null;
+  const base = runOptions({ source: widget.query.source, options: widget.query.options ?? undefined }) ?? null;
+  return base && ws.set ? { ...base, workspaces: workspacesOf(widget, ws) ?? null } : base;
 }
+
+/** The workspaces a widget sends: the parameter's when the workbook has one (none when empty), else the widget's own. */
+const workspacesOf = (widget: Widget, ws: { set: boolean; customerId: string }) =>
+  ws.set ? (ws.customerId ? [{ customerId: ws.customerId, name: '', resourceId: '' }] : undefined) : widget.query?.options?.workspaces;
 
 /** The workbook's values on opening: each parameter's default, or the remembered value for those marked `remember`. */
 export function initialValues(doc: WorkbookDoc, remembered: Record<string, string>): ViewValues {

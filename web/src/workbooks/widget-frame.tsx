@@ -9,13 +9,15 @@ import { fallbackText } from '../results/workspace-fallback';
 import { errorText } from '../shell/errors';
 import { reportIdOf } from '../shell/report-id';
 import { failed, useTabs } from '../tabs/tab-store';
-import type { ParameterDef, RunResult } from '../wire';
+import type { ParameterDef, QueryWorkspace, RunResult } from '../wire';
 import { COLUMNS, GAP_PX, nudge, overlaps, resize, ROW_PX } from './layout';
 import { MAX_WIDGETS, type Place, type ToolButton, type Widget, type WidgetLayout } from './model';
 import { destinations, duplicateWidget, placeKey, placeOf, withinPlace } from './tabs';
 import { daysSince, HistoryData, SKIP_TEXT, useHistory, type HistoryFilter } from './history';
 import { ClearConfirm } from './history-section';
-import { widgetParams, widgetRunOptions, type ResolvedParam } from './resolve';
+import { shortId } from '../toolbar/short-id';
+import { useAccountWorkspaces } from './account-workspaces';
+import { widgetParams, widgetRunOptions, workspaceParameter, type ResolvedParam } from './resolve';
 import { buttonName, effectiveSelection, okResult, toolTarget } from './tool-buttons';
 import { useToolRun } from './tool-run';
 import { SheetHost } from './widgets/sheet-host';
@@ -198,6 +200,15 @@ function runBody(
   onEdit?: (opener: HTMLElement) => void,
 ): ReactNode {
   const source = widget.query?.source ?? 'graph';
+  // With a workspace parameter the workspace is picked in the bar (open or not), not in the editor.
+  const wbDoc = useWorkbooks.getState().byTab[tabId]?.doc;
+  const pickWorkspace =
+    wbDoc && workspaceParameter(wbDoc)
+      ? () => {
+          useWorkbooks.getState().setParamsCollapsed(tabId, false);
+          setTimeout(() => document.querySelector<HTMLElement>('[data-wb-workspace-param] button')?.focus());
+        }
+      : onEdit;
   const errorView = (result: RunResult, at: number | undefined) => (
     <RunStatus
       run={{
@@ -211,7 +222,7 @@ function runBody(
       }}
       onSignIn={onSignIn}
       accountKey={accountKey}
-      onPickWorkspace={onEdit}
+      onPickWorkspace={pickWorkspace}
       onConsented={() => void useWorkbooks.getState().runWidget(tabId, widget.id)}
       onGranted={() => void useWorkbooks.getState().runWidget(tabId, widget.id)}
     />
@@ -331,9 +342,15 @@ export function WidgetFrame({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [full]);
+  // The workspace this widget runs on, when it is one the account list can name (the parameter's carries no name).
+  const sentTo = doc && values ? widgetRunOptions(doc, effectiveWidget(tabId, widget) ?? widget, values) : null;
+  const sentWorkspaces = sentTo && !('problem' in sentTo) ? sentTo.workspaces : null;
+  const accountWorkspaces = useAccountWorkspaces(!!sentWorkspaces?.some((w) => w.name === ''));
   if (!doc || !values) {
     return null;
   }
+  const named = (ws: QueryWorkspace) =>
+    ws.name || accountWorkspaces?.find((a) => a.customerId.toLowerCase() === ws.customerId.toLowerCase())?.name || shortId(ws.customerId);
 
   const title = widget.title || 'Untitled widget';
   // A linked widget shows, and opens, what its saved query has now.
@@ -351,18 +368,20 @@ export function WidgetFrame({
     }
     const parameters: ParameterDef[] = widgetParams(doc, w, values).map((p) => ({
       name: p.name,
-      type: p.type,
+      // A query tab has no workspace parameter: it takes the customer id as text.
+      type: p.type === 'workspace' ? 'text' : p.type,
       value: p.value,
       required: p.required,
       choices: choicesOf(w, p),
     }));
     const options = widgetRunOptions(doc, w, values);
+    const sent = (options && !('problem' in options) ? options : w.query.options) ?? undefined;
     useTabs.getState().openWith({
       source: w.query.source,
       title,
       text: w.query.text,
       parameters,
-      options: (options && !('problem' in options) ? options : w.query.options) ?? undefined,
+      options: sent && { ...sent, workspaces: sent.workspaces?.map((ws) => ({ ...ws, name: named(ws) })) },
     });
   };
 
@@ -772,9 +791,9 @@ export function WidgetFrame({
             </HistoryData.Provider>
           )}
         </div>
-        {result?.outcome === 'ok' && widget.query?.source === 'hunting' && live.query?.options?.workspaces?.[0] && (
+        {result?.outcome === 'ok' && widget.query?.source === 'hunting' && sentWorkspaces?.[0] && (
           <p className="faint m-0 px-3 pb-2 text-[11.5px]">
-            {`Workspace ${live.query.options.workspaces[0].name}. ${fallbackText(live.query.options.workspaces[0].name)}`}
+            {`Workspace ${named(sentWorkspaces[0])}. ${fallbackText(named(sentWorkspaces[0]))}`}
           </p>
         )}
         {widget.history && (
