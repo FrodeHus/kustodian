@@ -32,7 +32,7 @@ public sealed record SeriesInfo(string Label, DateTimeOffset Since, int Snapshot
 /// here is exported, reported or logged. A file that is corrupt, not a database or fails its check is moved aside and replaced
 /// (<see cref="RecordAnswer.Reset"/> says so for the rest of the session). One gate serialises every call.
 /// </summary>
-public sealed class HistoryStore(string root, TimeProvider time, ILogger<HistoryStore>? logger = null) : IDisposable
+public sealed class HistoryStore(string root, TimeProvider time, ILogger<HistoryStore>? logger = null) : IAsyncDisposable
 {
     public const int MaxValueRows = 500, MaxChangeRows = 5000;
 
@@ -61,13 +61,25 @@ public sealed class HistoryStore(string root, TimeProvider time, ILogger<History
     private readonly ILogger<HistoryStore> _log = logger ?? NullLogger<HistoryStore>.Instance;
     private SqliteConnection? _db;
     private bool _reset;
+    private bool _disposed;
 
     private string DbPath => Path.Combine(root, "history.db");
 
-    public void Dispose()
+    /// <summary>Waits for the call in progress, so the connection never closes under it. The gate stays undisposed: a call
+    /// still waiting on it then gets the gate and an <see cref="ObjectDisposedException"/>.</summary>
+    public async ValueTask DisposeAsync()
     {
-        _db?.Dispose();
-        _gate.Dispose();
+        await _gate.WaitAsync();
+        try
+        {
+            _disposed = true;
+            _db?.Dispose();
+            _db = null;
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     public Task<RecordAnswer> RecordAsync(RecordRequest r, CancellationToken ct)
@@ -75,14 +87,14 @@ public sealed class HistoryStore(string root, TimeProvider time, ILogger<History
         return Gated(db =>
         {
             var setting = r.Setting;
-            var rows = setting.Mode == HistoryMode.Values;
-            if (rows && r.Rows.Count > MaxValueRows)
+            var values = setting.Mode == HistoryMode.Values;
+            if (values && r.Rows.Count > MaxValueRows)
             {
                 return new RecordAnswer(false, "tooManyRows", _reset);
             }
 
             Dictionary<string, JsonElement[]>? keyed = null;
-            if (!rows)
+            if (!values)
             {
                 keyed = new Dictionary<string, JsonElement[]>();
                 foreach (var row in r.Rows)
@@ -263,6 +275,8 @@ public sealed class HistoryStore(string root, TimeProvider time, ILogger<History
         await _gate.WaitAsync(ct);
         try
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+
             // Off the caller's thread: the message pump starts the next handler only when this one first yields.
             return await Task.Run(() =>
             {

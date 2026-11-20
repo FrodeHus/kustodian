@@ -68,9 +68,7 @@ public sealed class GraphTenantLicenses(HttpClient graph, TimeProvider time) : I
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri("subscribedSkus", UriKind.Relative)).ForAccount(accountKey);
         using var response = await graph.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
-        if (response.Content.Headers.ContentLength > MaxResponseBytes)
-            throw new LicenseReadException("The tenant's licenses are too large to read.");
-        var body = await response.Content.ReadAsByteArrayAsync(ct);
+        var body = await ReadCappedAsync(response.Content, ct);
         if (!response.IsSuccessStatusCode)
         {
             throw new LicenseReadException(response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized
@@ -88,6 +86,27 @@ public sealed class GraphTenantLicenses(HttpClient graph, TimeProvider time) : I
             throw new LicenseReadException("The tenant's licenses aren't readable.");
         }
     }
+
+    /// <summary>The body, failing as too large when its <c>Content-Length</c> or the bytes read pass
+    /// <see cref="MaxResponseBytes"/>, so a body over it is never held whole.</summary>
+    private static async Task<byte[]> ReadCappedAsync(HttpContent content, CancellationToken ct)
+    {
+        if (content.Headers.ContentLength > MaxResponseBytes)
+            throw TooLarge();
+        await using var stream = await content.ReadAsStreamAsync(ct);
+        using var buffer = new MemoryStream();
+        var chunk = new byte[81_920];
+        int read;
+        while ((read = await stream.ReadAsync(chunk, ct)) > 0)
+        {
+            if (buffer.Length + read > MaxResponseBytes)
+                throw TooLarge();
+            buffer.Write(chunk, 0, read);
+        }
+        return buffer.ToArray();
+    }
+
+    private static LicenseReadException TooLarge() => new("The tenant's licenses are too large to read.");
 
     private sealed class LicenseReadException(string message) : Exception(message);
 }

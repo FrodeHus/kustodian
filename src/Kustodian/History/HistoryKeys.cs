@@ -34,7 +34,7 @@ public static class HistoryKeys
         new(q.Source, q.Text, Canonical(q.Options), s.Mode.ToString(), s.Keys);
 
     private static string Hash<T>(T payload) =>
-        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payload))));
+        Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(payload)));
 
     private static string? Canonical(JsonElement? options)
     {

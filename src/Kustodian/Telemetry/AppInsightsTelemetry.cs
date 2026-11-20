@@ -76,7 +76,7 @@ public sealed class AppInsightsTelemetry(HttpClient http, string connectionStrin
             if (!response.IsSuccessStatusCode)
                 _log.LogDebug("Telemetry {Name} was refused ({Status})", label, (int)response.StatusCode);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or ObjectDisposedException)
         {
             _log.LogDebug("Telemetry {Name} was not sent ({Error})", label, ex.GetType().Name);
         }

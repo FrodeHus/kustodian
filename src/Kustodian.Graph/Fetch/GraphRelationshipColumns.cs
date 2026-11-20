@@ -13,10 +13,10 @@ namespace Kustodian.Graph.Fetch;
 /// A cache entry is one object's value of one relationship, under the columns <c>["rel:" + column]</c> so it never mixes with
 /// a property's, as <c>{"value": …, "truncated": …}</c>. Only values Graph returned are kept, not refused or failed reads.
 /// </summary>
-internal sealed class GraphRelationshipColumns(HttpClient http, IGraphObjectCache cache, GraphLimits limits)
+internal sealed class GraphRelationshipColumns(HttpClient http, IGraphObjectCache cache, GraphLimits limits, TimeProvider time)
 {
     private const string KeyPrefix = "rel:";
-    private readonly GraphRelationshipReader _reader = new(http, limits);
+    private readonly GraphRelationshipReader _reader = new(http, limits, time);
 
     /// <summary>Reads <paramref name="columns"/> into <paramref name="read"/>'s objects and returns it with an outcome per
     /// column; the columns read leave <see cref="GraphCollection.Unreadable"/>. Each column that sends requests adds its

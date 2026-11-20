@@ -287,19 +287,21 @@ public sealed class GraphRunner(GraphSchema schema, GraphCollectionReader reader
         public void Report(EngineRunInfo value)
         {
             var now = diagnostics.NowMs;
-            if (value.Event == "start")
+            if (value is EngineRunInfo.Started)
                 _startedMs = now;
-            var worker = value.WorkerPid.ToString(CultureInfo.InvariantCulture);
-            var detail = value.Event switch
+            var (detail, since) = value switch
             {
-                "start" => $"worker {worker} started",
-                "done" when value.PeakBytes is { } peak
-                    => $"worker {worker} answered, peak {(peak / BytesPerMegabyte).ToString(CultureInfo.InvariantCulture)} MB",
-                "done" => $"worker {worker} answered",
-                _ => $"worker {worker} killed: {value.Reason}",
+                EngineRunInfo.Started started => ($"worker {Pid(started.WorkerPid)} started", (long?)null),
+                EngineRunInfo.Answered { PeakBytes: { } peak } answered
+                    => ($"worker {Pid(answered.WorkerPid)} answered, peak {(peak / BytesPerMegabyte).ToString(CultureInfo.InvariantCulture)} MB",
+                        now - _startedMs),
+                EngineRunInfo.Answered answered => ($"worker {Pid(answered.WorkerPid)} answered", now - _startedMs),
+                EngineRunInfo.Killed killed => ($"worker {Pid(killed.WorkerPid)} killed: {killed.Reason}", now - _startedMs),
             };
-            diagnostics.Add(new DiagnosticEntry(now, DiagnosticKinds.Engine, detail, null, value.Event == "start" ? null : now - _startedMs, null));
+            diagnostics.Add(new DiagnosticEntry(now, DiagnosticKinds.Engine, detail, null, since, null));
         }
+
+        private static string Pid(int pid) => pid.ToString(CultureInfo.InvariantCulture);
     }
 
     private static TableFetch Describe(GraphFetch fetch, GraphCollection read, FilterExplanation filter, GraphLimits limits)

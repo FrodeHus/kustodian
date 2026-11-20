@@ -24,12 +24,14 @@ public sealed record GraphRelationshipRead(
 /// (<c>directoryRoles</c> members) is read once more without it. A collection's next pages are plain GETs, followed only to https on graph.microsoft.com, until the object
 /// has <see cref="GraphLimits.RelationshipEntriesPerObject"/> entries. Every body counts against the lease.
 /// </summary>
-public sealed class GraphRelationshipReader(HttpClient http, GraphLimits limits)
+public sealed class GraphRelationshipReader(HttpClient http, GraphLimits limits, TimeProvider? time = null)
 {
     private const string GraphHost = "graph.microsoft.com";
     private const string TypePrefix = "#microsoft.graph.";
     private const string Select = "$select=id,displayName,userPrincipalName,mail,appId,deviceId";
     private static readonly string[] ShapeFields = ["displayName", "userPrincipalName", "mail", "appId", "deviceId"];
+
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
 
     /// <summary>The relative URL of one object's read, with <c>{id}</c> for the id: what the fetch info shows. Any other shape
     /// is read whole.</summary>
@@ -125,7 +127,7 @@ public sealed class GraphRelationshipReader(HttpClient http, GraphLimits limits)
         await Parallel.ForEachAsync(chunks, options, async (chunk, token) =>
         {
             var urls = chunk.Select(id => Url(path, relationship, id)).ToList();
-            var answers = await GraphBatchSender.SendAsync(http, accountKey, path, urls, lease, diagnostics, token);
+            var answers = await GraphBatchSender.SendAsync(http, accountKey, path, urls, lease, diagnostics, _time, token);
             // A relationship that refuses a page size ($top) is read again without one.
             var refusedTop = relationship.Collection
                 ? Enumerable.Range(0, chunk.Length).Where(i => answers[i].Status == (int)HttpStatusCode.BadRequest
@@ -135,7 +137,7 @@ public sealed class GraphRelationshipReader(HttpClient http, GraphLimits limits)
             {
                 var again = await GraphBatchSender.SendAsync(http, accountKey, path,
                     [.. refusedTop.Select(i => Url(path, relationship, chunk[i]).Replace(TopPart, "", StringComparison.Ordinal))],
-                    lease, diagnostics, token);
+                    lease, diagnostics, _time, token);
                 for (var j = 0; j < refusedTop.Length; j++)
                     answers[refusedTop[j]] = again[j];
             }

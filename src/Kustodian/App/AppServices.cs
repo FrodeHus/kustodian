@@ -97,7 +97,8 @@ public sealed class AppServices : IAsyncDisposable
         _arm = ArmHttp.CreateClient(accounts, new StderrLogger<ArmAuthHandler>(), Trail);
         // Graph's chain, with a timeout past advanced hunting's own 3 minutes.
         _hunting = GraphHttp.CreateClient(accounts, new StderrLogger<GraphAuthHandler>(), HuntingClient.Timeout, Trail);
-        _logs = LogsHttp.CreateClient(accounts, new StderrLogger<LogsAuthHandler>(), Trail);
+        // Past the 100 s HttpClient default: Logs queries may run for 10 minutes (Prefer: wait=600).
+        _logs = LogsHttp.CreateClient(accounts, new StderrLogger<LogsAuthHandler>(), LogsClient.Timeout, Trail);
         _huntingSchema = new HuntingSchemaSource(_http, time);
         _logsSchema = new LogsSchemaSource(_logs, time);
         _arg = new ArgClient(_arm, time);
@@ -185,13 +186,15 @@ public sealed class AppServices : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        // Error reports still going out, before the clients they're sent with are disposed.
+        await Reporter.FlushAsync(HostErrors.FlushWait);
         _http.Dispose();
         _arm.Dispose();
         _hunting.Dispose();
         _logs.Dispose();
         _github.Dispose();
         _telemetry.Dispose();
-        _history.Dispose();
+        await _history.DisposeAsync();
         await Pool.DisposeAsync();
     }
 

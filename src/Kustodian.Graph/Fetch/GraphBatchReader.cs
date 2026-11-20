@@ -13,13 +13,15 @@ public sealed record GraphBatchRead(int Failed, IReadOnlyList<JsonObject> Read);
 /// at once), and merges the values into the objects. An item that fails leaves its object's values empty and is counted; an
 /// item Graph throttles is sent once more after its <c>Retry-After</c>. The HttpClient's handler adds the account's token.
 /// </summary>
-public sealed class GraphBatchReader(HttpClient http, GraphLimits limits)
+public sealed class GraphBatchReader(HttpClient http, GraphLimits limits, TimeProvider? time = null)
 {
     /// <summary>The most objects per table read one at a time (<see cref="GraphLimits.PerObjectReadsPerTable"/>); over it the
     /// columns stay empty.</summary>
     public int MaxObjects => limits.PerObjectReadsPerTable;
     public const int BatchSize = 20;
     public const int BatchesInFlight = 4;
+
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
 
     /// <summary>The relative URL of one object's read, with <c>{id}</c> for the id: what the fetch info shows.</summary>
     public static string Template(string path, IReadOnlyList<string> columns) => path + "/{id}?$select=" + Select(columns);
@@ -41,7 +43,7 @@ public sealed class GraphBatchReader(HttpClient http, GraphLimits limits)
         await Parallel.ForEachAsync(targets.Chunk(BatchSize), options, async (chunk, token) =>
         {
             var urls = chunk.Select(o => "/" + path + "/" + Uri.EscapeDataString(o["id"]!.GetValue<string>()) + "?$select=" + select).ToList();
-            var answers = await GraphBatchSender.SendAsync(http, accountKey, path, urls, lease, diagnostics, token);
+            var answers = await GraphBatchSender.SendAsync(http, accountKey, path, urls, lease, diagnostics, _time, token);
             for (var i = 0; i < chunk.Length; i++)
             {
                 if (!answers[i].Succeeded || answers[i].Body is not { } values)

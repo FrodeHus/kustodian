@@ -5,7 +5,7 @@ using Microsoft.Extensions.Time.Testing;
 
 namespace Kustodian.Tests.History;
 
-public sealed class HistoryStoreTests : IDisposable
+public sealed class HistoryStoreTests : IAsyncDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "kustodian-tests-" + Guid.NewGuid().ToString("N"));
     private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 11, 6, 8, 0, 0, TimeSpan.Zero));
@@ -16,11 +16,11 @@ public sealed class HistoryStoreTests : IDisposable
     private static readonly HistorySetting Rows = new(HistoryMode.Rows, HistoryInterval.Day, 30, ["id"]);
     private static readonly HistorySetting Values = new(HistoryMode.Values, HistoryInterval.Day, 30, []);
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         foreach (var store in _stores)
         {
-            store.Dispose();
+            await store.DisposeAsync();
         }
 
         SqliteConnection.ClearAllPools();
@@ -88,11 +88,22 @@ public sealed class HistoryStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task dispose_waits_for_the_call_in_progress_and_refuses_later_ones()
+    {
+        var s = NewStore();
+        var record = s.RecordAsync(Request(Values, [Row("a")]), Ct);
+        await s.DisposeAsync();
+
+        Assert.True((await record).Recorded);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => s.RecordAsync(Request(Values, [Row("b")]), Ct));
+    }
+
+    [Fact]
     public async Task a_version_1_file_is_upgraded_and_its_snapshots_read_with_the_series_columns()
     {
         var s = NewStore();
         await s.RecordAsync(Request(Values, [Row("a")]), Ct);
-        s.Dispose();
+        await s.DisposeAsync();
         _stores.Remove(s);
         using (var v1 = new SqliteConnection($"Data Source={Path.Combine(_dir, "history.db")};Pooling=False"))
         {
@@ -289,7 +300,7 @@ public sealed class HistoryStoreTests : IDisposable
     public async Task series_counts_gaps_in_daily_values()
     {
         var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 1, 8, 0, 0, TimeSpan.Zero));
-        using var s = new HistoryStore(_dir, clock);
+        await using var s = new HistoryStore(_dir, clock);
         foreach (var advance in new[] { 0, 1, 3 })
         {
             clock.Advance(TimeSpan.FromDays(advance));

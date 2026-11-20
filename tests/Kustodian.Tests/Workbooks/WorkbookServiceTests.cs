@@ -237,6 +237,62 @@ public sealed class WorkbookServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task List_skips_a_file_it_cant_open_and_leaves_it_in_place()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Skip("File modes are Unix only.");
+            return;
+        }
+
+        var service = NewService();
+        await service.SaveAsync(Doc(name: "kept"), Ct);
+        var locked = Path.Combine(WorkbooksDir, "66666666-0000-0000-0000-000000000000.json");
+        await File.WriteAllTextAsync(locked, Doc("66666666-0000-0000-0000-000000000000").ToJsonString(), Ct);
+        File.SetUnixFileMode(locked, UnixFileMode.None);
+        try
+        {
+            var list = await service.ListAsync(Ct);
+
+            Assert.Equal(1, list.Skipped);
+            Assert.Equal(["kept"], list.Workbooks.Select(w => w.Name));
+            Assert.True(File.Exists(locked));
+            Assert.Empty(Files("*.corrupt"));
+        }
+        finally
+        {
+            File.SetUnixFileMode(locked, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
+    }
+
+    [Fact]
+    public async Task List_reads_a_file_whose_id_is_upper_case()
+    {
+        Directory.CreateDirectory(WorkbooksDir);
+        const string id = "aaaaaaaa-0000-0000-0000-000000000000";
+        await File.WriteAllTextAsync(Path.Combine(WorkbooksDir, id + ".json"), Doc(id.ToUpperInvariant()).ToJsonString(), Ct);
+
+        var list = await NewService().ListAsync(Ct);
+
+        Assert.Equal(0, list.Skipped);
+        Assert.Single(list.Workbooks);
+    }
+
+    [Fact]
+    public async Task List_moves_aside_a_file_with_a_property_given_twice()
+    {
+        Directory.CreateDirectory(WorkbooksDir);
+        const string id = "77777777-0000-0000-0000-000000000000";
+        var json = Doc(id).ToJsonString().Replace("\"name\":", "\"name\":\"a\",\"name\":", StringComparison.Ordinal);
+        await File.WriteAllTextAsync(Path.Combine(WorkbooksDir, id + ".json"), json, Ct);
+
+        var list = await NewService().ListAsync(Ct);
+
+        Assert.Equal(1, list.Skipped);
+        Assert.Single(Files("*.corrupt"));
+    }
+
+    [Fact]
     public async Task Delete_removes_the_workbook_and_its_values()
     {
         var service = NewService();

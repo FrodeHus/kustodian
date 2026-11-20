@@ -11,7 +11,7 @@ using Microsoft.Extensions.Time.Testing;
 namespace Kustodian.Tests.Bridge;
 
 /// <summary>The <c>solution.*</c> methods over the bridge, against the repo's own sample solution served from a fake GitHub.</summary>
-public sealed class SolutionHandlerTests : IDisposable
+public sealed class SolutionHandlerTests : IAsyncDisposable
 {
     private const string Id = "entra-id";
     private static readonly string SolutionsDir = Path.Combine(FindRoot(), "Solutions");
@@ -48,9 +48,9 @@ public sealed class SolutionHandlerTests : IDisposable
         new SolutionHandler(new SolutionService(store, http, _library, _workbooks, _history, time, "1.1.0")).Register(_bridge);
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        _history.Dispose();
+        await _history.DisposeAsync();
         if (Directory.Exists(_dir))
         {
             Directory.Delete(_dir, recursive: true);

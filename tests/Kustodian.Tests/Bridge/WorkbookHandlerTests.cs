@@ -6,7 +6,7 @@ using Kustodian.Workbooks;
 
 namespace Kustodian.Tests.Bridge;
 
-public sealed class WorkbookHandlerTests : IDisposable
+public sealed class WorkbookHandlerTests : IAsyncDisposable
 {
     private const string Id = "6f1c2a52-0b0e-4d6c-9a43-6a3f1f0b7c11";
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "kustodian-tests-" + Guid.NewGuid().ToString("N"));
@@ -19,9 +19,9 @@ public sealed class WorkbookHandlerTests : IDisposable
         new WorkbookHandler(new WorkbookService(new JsonFileStore(_dir), TimeProvider.System), _history).Register(_bridge);
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        _history.Dispose();
+        await _history.DisposeAsync();
         if (Directory.Exists(_dir))
         {
             Directory.Delete(_dir, recursive: true);

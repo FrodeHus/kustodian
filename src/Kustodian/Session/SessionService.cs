@@ -60,7 +60,7 @@ public sealed class SessionService(JsonFileStore store, ILogger<SessionService>?
     private readonly UserDataFile<Session> _file = new(store, FileName, () => Session.Empty, IsValid,
         filled => FillElements(filled, JsonFileStore.Options, logger));
 
-    public Task<UserDataRead<Session>> GetAsync(CancellationToken ct = default) => _file.ReadAsync(ct);
+    public Task<StoreRead<Session>> GetAsync(CancellationToken ct = default) => _file.ReadAsync(ct);
 
     /// <summary>Writes <paramref name="session"/> as version 1 without the tabs over a cap, and returns how many it left out.
     /// A tab over the text cap, or with a workbook document over <see cref="WorkbookService.MaxBytes"/>, is dropped; then the tabs after the first <see cref="MaxTabs"/> are. When the active tab is

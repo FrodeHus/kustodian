@@ -31,7 +31,7 @@ internal static class GraphBatchSender
     /// Graph doesn't answer, or an item it leaves out, is <see cref="GraphBatchAnswer.None"/>; an item still throttled after its
     /// second try keeps status 429. <paramref name="path"/> names the table in diagnostics.</summary>
     public static async Task<GraphBatchAnswer[]> SendAsync(HttpClient http, string accountKey, string path, IReadOnlyList<string> urls,
-        GraphFetchLease lease, RunDiagnostics? diagnostics, CancellationToken ct)
+        GraphFetchLease lease, RunDiagnostics? diagnostics, TimeProvider time, CancellationToken ct)
     {
         var (answers, retryAfter) = await SendOnceAsync(http, accountKey, urls, lease, diagnostics, ct);
         var throttled = Enumerable.Range(0, urls.Count).Where(i => answers[i].Status == (int)HttpStatusCode.TooManyRequests).ToArray();
@@ -41,7 +41,7 @@ internal static class GraphBatchSender
         var wait = Math.Clamp(retryAfter, 0, MaxRetryAfterSeconds);
         diagnostics?.Add(new DiagnosticEntry(diagnostics.NowMs, DiagnosticKinds.Throttled, string.Create(CultureInfo.InvariantCulture,
             $"{path}: Graph throttled {Reads(throttled.Length)}; Retry-After {retryAfter} s"), (int)HttpStatusCode.TooManyRequests, null, null));
-        await Task.Delay(TimeSpan.FromSeconds(wait), ct);
+        await Task.Delay(TimeSpan.FromSeconds(wait), time, ct);
         diagnostics?.Add(new DiagnosticEntry(diagnostics.NowMs, DiagnosticKinds.Retry, string.Create(CultureInfo.InvariantCulture,
             $"{path}: sent {Reads(throttled.Length)} again after {wait} s"), null, null, null));
         var (again, _) = await SendOnceAsync(http, accountKey, [.. throttled.Select(i => urls[i])], lease, diagnostics, ct);

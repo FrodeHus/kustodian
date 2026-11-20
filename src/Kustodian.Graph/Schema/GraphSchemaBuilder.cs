@@ -235,7 +235,7 @@ public static partial class GraphSchemaBuilder
         string table, HashSet<string> taken)
     {
         var descendants = new List<CsdlType>();
-        var seen = new HashSet<string>(StringComparer.Ordinal) { type.FullName };
+        HashSet<string> seen = [with(StringComparer.Ordinal), type.FullName];
         var pending = new Queue<CsdlType>([type]);
         while (pending.TryDequeue(out var current))
         {

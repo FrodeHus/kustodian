@@ -239,6 +239,22 @@ public sealed class ExternalToolHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task Cancel_reaches_a_second_run_with_the_same_id_after_the_first_ends()
+    {
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "Uses /bin/sleep.");
+        WriteTools("""{"tools":[{"name":"short","command":"/bin/sleep","args":["1"],"mode":"batch"},{"name":"long","command":"/bin/sleep","args":["30"],"mode":"batch"}]}""");
+
+        var first = CallAsync("tools.run", """{"runId":"r","name":"short","columns":[],"rows":[]}""");
+        await Task.Delay(200, TestContext.Current.CancellationToken);
+        var second = CallAsync("tools.run", """{"runId":"r","name":"long","columns":[],"rows":[]}""");
+        await first.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await CallAsync("tools.cancel", """{"runId":"r"}""");
+
+        var response = await second.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        Assert.Equal("cancelled", response.GetProperty("error").GetProperty("code").GetString());
+    }
+
+    [Fact]
     public void A_batch_file_cant_take_row_values_on_windows()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Batch files only run through cmd.exe on Windows.");

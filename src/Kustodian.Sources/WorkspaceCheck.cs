@@ -3,13 +3,16 @@ using Kustodian.Sources.Arg;
 
 namespace Kustodian.Sources;
 
+/// <summary>The account's own entry for a workspace, or the reason the run is blocked.</summary>
+public union WorkspaceAccess(ArmWorkspace, string);
+
 /// <summary>Whether a workspace the run names is one the account can see: its own list (<see cref="ArmDirectory.WorkspacesAsync"/>)
 /// is the authority, never the request's. Shared by the sources that run on a workspace.</summary>
 public static class WorkspaceCheck
 {
     /// <summary>The account's own entry for <paramref name="workspace"/>, or the reason the run is blocked (the copy to show, or
     /// the directory's own message when the list can't be read). Sign-in and consent exceptions propagate.</summary>
-    public static async Task<(ArmWorkspace? Match, string? Blocked)> RunAsync(ArmDirectory directory, string accountKey,
+    public static async Task<WorkspaceAccess> RunAsync(ArmDirectory directory, string accountKey,
         QueryWorkspace workspace, CancellationToken ct)
     {
         try
@@ -17,12 +20,12 @@ public static class WorkspaceCheck
             var visible = await directory.WorkspacesAsync(accountKey, ct);
             var match = visible.FirstOrDefault(w => string.Equals(w.CustomerId, workspace.CustomerId, StringComparison.OrdinalIgnoreCase));
             return match is null
-                ? (null, $"{(string.IsNullOrEmpty(workspace.Name) ? ShortId(workspace.CustomerId) : workspace.Name)} isn't available to this account. Pick a workspace.")
-                : (match, null);
+                ? $"{(string.IsNullOrEmpty(workspace.Name) ? ShortId(workspace.CustomerId) : workspace.Name)} isn't available to this account. Pick a workspace."
+                : match;
         }
         catch (ArmDirectoryException ex)
         {
-            return (null, ex.Message);
+            return ex.Message;
         }
     }
 

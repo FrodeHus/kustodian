@@ -2,15 +2,17 @@ using System.Text.Json;
 
 namespace Kustodian.Storage;
 
-/// <summary>The outcome of a read. <see cref="Corrupt"/> is true when the file existed but could not be parsed; it was moved
-/// aside as <c>*.corrupt</c> and <see cref="Value"/> is the fallback.</summary>
+/// <summary>The outcome of a read. <see cref="Corrupt"/> is true when the file existed but could not be parsed (or, for a user
+/// data file, was not valid); it was moved aside as <c>*.corrupt</c> and <see cref="Value"/> is the fallback.</summary>
 public sealed record StoreRead<T>(T Value, bool Corrupt);
 
 /// <summary>Small JSON files under one root directory. Writes are atomic: a temp file in the same directory, then a rename.</summary>
 public sealed class JsonFileStore(string root)
 {
-    /// <summary>How the files are read and written: web defaults (camelCase, names matched ignoring case), indented.</summary>
-    public static JsonSerializerOptions Options { get; } = new(JsonSerializerDefaults.Web) { WriteIndented = true };
+    /// <summary>How the files are read and written: web defaults (camelCase, names matched ignoring case), indented. A
+    /// property given twice doesn't parse.</summary>
+    public static JsonSerializerOptions Options { get; } =
+        new(JsonSerializerDefaults.Web) { WriteIndented = true, AllowDuplicateProperties = false };
 
     public string Root { get; } = Path.GetFullPath(root);
 
@@ -31,8 +33,14 @@ public sealed class JsonFileStore(string root)
                 return new StoreRead<T>(value, false);
             }
         }
-        catch (JsonException)
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
         {
+            // Deleted after the check.
+            return new StoreRead<T>(fallback, false);
+        }
+        catch (Exception ex) when (ex is JsonException or ArgumentException)
+        {
+            // A JsonNode read throws ArgumentException, not JsonException, for a property given twice.
         }
 
         MoveAside(relativePath);

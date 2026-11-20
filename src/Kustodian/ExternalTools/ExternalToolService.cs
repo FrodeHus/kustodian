@@ -307,15 +307,30 @@ public sealed partial class ExternalToolService(string root, Action<string>? ope
             {
                 process.Kill(entireProcessTree: true);
             }
-            catch (InvalidOperationException)
+            catch (Exception ex) when (ex is InvalidOperationException or Win32Exception or NotSupportedException)
             {
-                // It ended first.
+                // It ended first, or can't be killed; the cancellation still stands.
             }
 
+            await Observed(output);
+            await Observed(error);
             throw;
         }
 
         return new ToolOutcome(args, process.ExitCode, await output, await error);
+    }
+
+    /// <summary>Waits for a reader the cancelled run no longer needs, so its failure isn't left unobserved.</summary>
+    private static async Task Observed(Task<string> reader)
+    {
+        try
+        {
+            await reader;
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException or InvalidOperationException)
+        {
+            // The killed command's pipe closed mid-read.
+        }
     }
 
     /// <summary>Reads the stream to its end, so the command never blocks on a full pipe, keeping the first

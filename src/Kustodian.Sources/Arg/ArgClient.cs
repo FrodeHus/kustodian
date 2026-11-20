@@ -87,54 +87,52 @@ public sealed class ArgClient(HttpClient arm, TimeProvider? time = null)
                 return ArgAnswer.Failure(RunOutcome.Failed, TooManyPages);
             }
 
-            var page = await SendAsync(accountKey, kql, scope, token, d, ct);
-            if (page.Throttled is { } throttled)
+            switch (await SendAsync(accountKey, kql, scope, token, d, ct))
             {
-                if (retried)
-                {
+                case ArgAnswer final:
+                    return final;
+                case Throttle throttled when retried:
                     return ArgAnswer.Failure(RunOutcome.Throttled, throttled.Message);
-                }
+                case Throttle throttled:
+                    retried = true;
+                    var asked = throttled.RetryAfter ?? throttled.QuotaResets ?? TimeSpan.Zero;
+                    var wait = asked < MaxRetryWait ? asked : MaxRetryWait;
+                    d.Add(new DiagnosticEntry(d.NowMs, DiagnosticKinds.Retry,
+                        string.Create(CultureInfo.InvariantCulture, $"Sending the page again after {(long)wait.TotalSeconds} s"), null, null, null));
+                    await Task.Delay(wait, _time, ct);
+                    continue;
+                case Page page:
+                    pages++;
+                    last = page;
+                    reported = page.Total ?? reported;
+                    sent += page.Rows.Count;
+                    foreach (var row in page.Rows)
+                    {
+                        if (rows.Count == maxRows)
+                        {
+                            break;
+                        }
 
-                retried = true;
-                var asked = throttled.RetryAfter ?? throttled.QuotaResets ?? TimeSpan.Zero;
-                var wait = asked < MaxRetryWait ? asked : MaxRetryWait;
-                d.Add(new DiagnosticEntry(d.NowMs, DiagnosticKinds.Retry,
-                    string.Create(CultureInfo.InvariantCulture, $"Sending the page again after {(long)wait.TotalSeconds} s"), null, null, null));
-                await Task.Delay(wait, _time, ct);
-                continue;
-            }
+                        rows.Add(row);
+                    }
 
-            if (page.Answer is { } final)
-            {
-                return final;
-            }
+                    if (rows.Count < maxRows && page.SkipToken is not null)
+                    {
+                        if (!seenTokens.Add(page.SkipToken))
+                        {
+                            return ArgAnswer.Failure(RunOutcome.Failed, SamePageTwice);
+                        }
 
-            pages++;
-            last = page;
-            reported = page.Total ?? reported;
-            sent += page.Rows.Count;
-            foreach (var row in page.Rows)
-            {
-                if (rows.Count == maxRows)
-                {
+                        token = page.SkipToken;
+                        following?.Invoke(pages);
+                        continue;
+                    }
+
                     break;
-                }
-
-                rows.Add(row);
             }
 
-            if (rows.Count >= maxRows || page.SkipToken is null)
-            {
-                break;
-            }
-
-            if (!seenTokens.Add(page.SkipToken))
-            {
-                return ArgAnswer.Failure(RunOutcome.Failed, SamePageTwice);
-            }
-
-            token = page.SkipToken;
-            following?.Invoke(pages);
+            // The last page read: no token to follow, or the rows asked for.
+            break;
         }
 
         // ARG's totalRecords when the last page has it; else at least every row sent, or the last total a page reported; and a
@@ -149,19 +147,17 @@ public sealed class ArgClient(HttpClient arm, TimeProvider? time = null)
         return new ArgAnswer(RunOutcome.Ok, last is { Truncated: true, SkipToken: null } ? Truncated : null, columns, shaped, total);
     }
 
-    /// <summary>One page (its <c>totalRecords</c>, null when it has none, and whether ARG says it cut the result short), or the
-    /// answer that ends the run, or a 429 to wait out.</summary>
-    private sealed record Page(IReadOnlyList<JsonElement> Rows, int? Total, string? SkipToken, bool Truncated = false, ArgAnswer? Answer = null,
-        Throttle? Throttled = null)
-    {
-        public static Page Ending(ArgAnswer answer) => new([], null, null, Answer: answer);
-    }
+    /// <summary>What a request answered: a page, the answer that ends the run, or a 429 to wait out.</summary>
+    private union Reply(Page, ArgAnswer, Throttle);
+
+    /// <summary>One page: its <c>totalRecords</c>, null when it has none, and whether ARG says it cut the result short.</summary>
+    private sealed record Page(IReadOnlyList<JsonElement> Rows, int? Total, string? SkipToken, bool Truncated);
 
     /// <summary>A 429: its <c>Retry-After</c>, when ARG's quota resets (<c>x-ms-user-quota-resets-after</c>, the wait when
     /// there is no <c>Retry-After</c>), and the message for the user.</summary>
     private sealed record Throttle(TimeSpan? RetryAfter, TimeSpan? QuotaResets, string Message);
 
-    private async Task<Page> SendAsync(string accountKey, string kql, ArgScope scope, string? skipToken, RunDiagnostics d,
+    private async Task<Reply> SendAsync(string accountKey, string kql, ArgScope scope, string? skipToken, RunDiagnostics d,
         CancellationToken ct)
     {
         using var timeout = new CancellationTokenSource(RequestTimeout, _time);
@@ -176,7 +172,7 @@ public sealed class ArgClient(HttpClient arm, TimeProvider? time = null)
             var body = await BodyReader.ReadAsync(response.Content, MaxPageBytes, linked.Token);
             if (body is null)
             {
-                return Page.Ending(ArgAnswer.Failure(RunOutcome.TooLarge, TooLarge));
+                return ArgAnswer.Failure(RunOutcome.TooLarge, TooLarge);
             }
 
             request.RecordBytes(body.Length);
@@ -188,12 +184,12 @@ public sealed class ArgClient(HttpClient arm, TimeProvider? time = null)
         }
         catch (OperationCanceledException) when (timeout.IsCancellationRequested)
         {
-            return Page.Ending(ArgAnswer.Failure(RunOutcome.Failed, string.Create(CultureInfo.InvariantCulture,
-                $"Azure Resource Graph didn't answer within {(long)RequestTimeout.TotalSeconds} s. Narrow the query and try again.")));
+            return ArgAnswer.Failure(RunOutcome.Failed, string.Create(CultureInfo.InvariantCulture,
+                $"Azure Resource Graph didn't answer within {(long)RequestTimeout.TotalSeconds} s. Narrow the query and try again."));
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException)
         {
-            return Page.Ending(ArgAnswer.Failure(RunOutcome.Failed, Unreachable));
+            return ArgAnswer.Failure(RunOutcome.Failed, Unreachable);
         }
     }
 
@@ -229,7 +225,7 @@ public sealed class ArgClient(HttpClient arm, TimeProvider? time = null)
         return body.ToJsonString();
     }
 
-    private static Page Parse(byte[] body)
+    private static Reply Parse(byte[] body)
     {
         try
         {
@@ -237,7 +233,7 @@ public sealed class ArgClient(HttpClient arm, TimeProvider? time = null)
             var root = document.RootElement;
             if (root.ValueKind != JsonValueKind.Object)
             {
-                return Page.Ending(ArgAnswer.Failure(RunOutcome.Failed, Unreadable));
+                return ArgAnswer.Failure(RunOutcome.Failed, Unreadable);
             }
 
             List<JsonElement> rows = root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array
@@ -257,12 +253,12 @@ public sealed class ArgClient(HttpClient arm, TimeProvider? time = null)
         }
         catch (JsonException)
         {
-            return Page.Ending(ArgAnswer.Failure(RunOutcome.Failed, Unreadable));
+            return ArgAnswer.Failure(RunOutcome.Failed, Unreadable);
         }
     }
 
     /// <summary>What a refused page means for the run.</summary>
-    private Page Refused(HttpResponseMessage response, byte[] body, RunDiagnostics d)
+    private Reply Refused(HttpResponseMessage response, byte[] body, RunDiagnostics d)
     {
         if (IsTokenRejected(response, body))
         {
@@ -275,13 +271,13 @@ public sealed class ArgClient(HttpClient arm, TimeProvider? time = null)
         {
             // A 401 that doesn't reject the token is a refused permission, as a 403 is.
             case HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized:
-                return Page.Ending(ArgAnswer.Failure(RunOutcome.NoPermission, NoPermission));
+                return ArgAnswer.Failure(RunOutcome.NoPermission, NoPermission);
             case HttpStatusCode.TooManyRequests:
-                return new Page([], null, null, Throttled: ThrottleOf(response, error.Message, d));
+                return ThrottleOf(response, error.Message, d);
             case HttpStatusCode.BadRequest:
-                return Page.Ending(new ArgAnswer(RunOutcome.QueryError, error.Message, [], [], 0, error.Line, error.Column));
+                return new ArgAnswer(RunOutcome.QueryError, error.Message, [], [], 0, error.Line, error.Column);
             default:
-                return Page.Ending(ArgAnswer.Failure(RunOutcome.Failed, error.Message));
+                return ArgAnswer.Failure(RunOutcome.Failed, error.Message);
         }
     }
 

@@ -150,8 +150,14 @@ public sealed class HuntingClient(HttpClient graph, TimeProvider? time = null)
             List<JsonElement> results = root.TryGetProperty("results", out var rows) && rows.ValueKind == JsonValueKind.Array
                 ? [.. rows.EnumerateArray()]
                 : [];
-            var (columns, shaped) = ServerRows.Shape(declared.Count > 0 ? results.Select(r => Align(r, declared)) : results, declared);
-            return new HuntingAnswer(RunOutcome.Ok, null, columns, shaped);
+            if (declared.Count == 0)
+            {
+                var (columns, shaped) = ServerRows.Shape(results, null);
+                return new HuntingAnswer(RunOutcome.Ok, null, columns, shaped);
+            }
+
+            return new HuntingAnswer(RunOutcome.Ok, null, [.. declared.Select(c => c with { Type = ServerRows.NormalizeType(c.Type) })],
+                Aligned(results, declared));
         }
         catch (JsonException)
         {
@@ -169,52 +175,59 @@ public sealed class HuntingClient(HttpClient graph, TimeProvider? time = null)
         return Text(column, "name") is { Length: > 0 } name ? new EngineColumn(name, Text(column, "type") ?? "") : null;
     }
 
-    /// <summary>A row keyed by the declared column names. Graph may write the keys in another case than <c>schema</c> does
-    /// (runHuntingQuery's second example camelCases them), so a key that isn't a column's name exactly takes the column of the
-    /// same name ignoring case, and failing that the column at its position, when the row has one key per column.</summary>
-    private static JsonElement Align(JsonElement row, IReadOnlyList<EngineColumn> declared)
+    /// <summary>The rows positionally under the declared columns, as <see cref="ServerRows.Shape"/> would place them. Graph may
+    /// write the keys in another case than <c>schema</c> does (runHuntingQuery's second example camelCases them), so when a row
+    /// has a key that isn't a column's name exactly, each key takes the column of its name, else the column of the same name
+    /// ignoring case, else the column at its position when the row has one key per column; the first key for a column wins.</summary>
+    private static List<JsonElement[]> Aligned(List<JsonElement> results, List<EngineColumn> declared)
     {
-        if (row.ValueKind != JsonValueKind.Object)
+        var exact = new Dictionary<string, int>(StringComparer.Ordinal);
+        var ignoringCase = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < declared.Count; i++)
         {
-            return row;
+            exact.TryAdd(declared[i].Name, i);
+            ignoringCase.TryAdd(declared[i].Name, i);
         }
 
-        var properties = row.EnumerateObject().ToList();
-        var exact = declared.Select(c => c.Name).ToHashSet(StringComparer.Ordinal);
-        if (properties.TrueForAll(p => exact.Contains(p.Name)))
+        var rows = new List<JsonElement[]>(results.Count);
+        foreach (var row in results)
         {
-            return row;
-        }
-
-        var ignoringCase = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var column in declared)
-        {
-            ignoringCase.TryAdd(column.Name, column.Name);
-        }
-
-        var positional = properties.Count == declared.Count;
-        using var buffer = new MemoryStream();
-        using (var writer = new Utf8JsonWriter(buffer))
-        {
-            writer.WriteStartObject();
-            var written = new HashSet<string>(StringComparer.Ordinal);
-            for (var i = 0; i < properties.Count; i++)
+            var values = new JsonElement[declared.Count];
+            Array.Fill(values, ServerRows.Null);
+            rows.Add(values);
+            if (row.ValueKind != JsonValueKind.Object)
             {
-                var name = exact.Contains(properties[i].Name) ? properties[i].Name
-                    : ignoringCase.TryGetValue(properties[i].Name, out var named) ? named
-                    : positional ? declared[i].Name
-                    : null;
-                if (name is not null && written.Add(name))
-                {
-                    writer.WritePropertyName(name);
-                    properties[i].Value.WriteTo(writer);
-                }
+                continue;
             }
 
-            writer.WriteEndObject();
+            var properties = row.EnumerateObject().ToList();
+            if (properties.TrueForAll(p => exact.ContainsKey(p.Name)))
+            {
+                // Every key is a column's name: the last of a repeated key wins, as in Shape.
+                foreach (var property in properties)
+                {
+                    values[exact[property.Name]] = property.Value.Clone();
+                }
+
+                continue;
+            }
+
+            var positional = properties.Count == declared.Count;
+            var written = new bool[declared.Count];
+            for (var i = 0; i < properties.Count; i++)
+            {
+                var column = exact.TryGetValue(properties[i].Name, out var named) ? named
+                    : ignoringCase.TryGetValue(properties[i].Name, out var folded) ? folded
+                    : positional ? exact[declared[i].Name]
+                    : -1;
+                if (column >= 0 && !written[column])
+                {
+                    written[column] = true;
+                    values[column] = properties[i].Value.Clone();
+                }
+            }
         }
 
-        using var aligned = JsonDocument.Parse(buffer.ToArray());
-        return aligned.RootElement.Clone();
+        return rows;
     }
 }

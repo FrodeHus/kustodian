@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Net;
 using System.Text;
@@ -98,8 +99,8 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
     private readonly bool _learnsDefaults = probes is not null;
     private readonly TimeProvider _time = time ?? TimeProvider.System;
 
-    private readonly GraphBatchReader _perObject = new(http, limits);
-    private readonly GraphRelationshipColumns _relationships = new(http, cache, limits);
+    private readonly GraphBatchReader _perObject = new(http, limits, time);
+    private readonly GraphRelationshipColumns _relationships = new(http, cache, limits, time ?? TimeProvider.System);
 
     /// <summary>The limits this reader reads within.</summary>
     public GraphLimits Limits => limits;
@@ -143,7 +144,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         {
             // A refresh sends what Graph refused earlier again, and forgets the refusals of what Graph then takes.
             var refusedEarlier = await _probes.RefusedAsync(accountKey, path, ct);
-            var refused = refresh ? new HashSet<string>(StringComparer.Ordinal) : refusedEarlier.ToHashSet(StringComparer.Ordinal);
+            HashSet<string> refused = refresh ? [with(StringComparer.Ordinal)] : refusedEarlier.ToHashSet(StringComparer.Ordinal);
             var clauses = fetch.FilterClauses.Where(c => c.Feature is null || !refused.Contains(c.Feature)).ToList();
             var whole = clauses.Count == fetch.FilterClauses.Count;
             if (!whole)
@@ -242,89 +243,86 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                         }, refresh, diagnostics, ct);
                 }
 
-                if (retry.License)
+                switch (retry.Value)
                 {
-                    unlicensedReason = retry.Message;
-                    foreach (var column in optional)
-                    {
-                        select.Remove(column);
-                        unlicensed.Add(column);
-                    }
-                    Log(diagnostics, DiagnosticKinds.Probe, $"{table}: dropped {string.Join(", ", optional)} ({retry.Message})");
-                }
-                else if (retry.NoSelect)
-                {
-                    sendSelect = false;
-                    Log(diagnostics, DiagnosticKinds.Probe, $"{table}: Graph refused $select; reading the columns it sends by default");
-                    await _probes.SetRefusedAsync(accountKey, path, SelectClause, true, ct);
-                }
-                else if (retry.Top)
-                {
-                    // Kept at once, as each smaller size is tried: the next run starts from the last one Graph didn't refuse.
-                    var sent = PageTop(limit, topMax)!.Value;
-                    topMax = SmallerPageSizes.FirstOrDefault(size => size < sent);
-                    Log(diagnostics, DiagnosticKinds.Probe, topMax == 0
-                        ? $"{table}: Graph refused $top={sent}; reading without it"
-                        : $"{table}: Graph refused $top={sent}; reading with $top={topMax}");
-                    await _probes.SetTopLimitAsync(accountKey, path, topMax, ct);
-                }
-                else if (retry.OrderBy)
-                {
-                    Log(diagnostics, DiagnosticKinds.Probe, $"{table}: Graph refused $orderby={orderBy!.OData}; reading without it");
-                    await _probes.SetRefusedAsync(accountKey, path, OrderByClause, true, ct);
-                    orderBy = null;
-                    limit = null;
-                }
-                else if (retry.Features)
-                {
-                    var featured = clauses.Where(c => c.Feature is not null).ToList();
-                    Log(diagnostics, DiagnosticKinds.Probe, $"{table}: Graph refused the filter; reading without "
-                        + string.Join(", ", featured.Select(c => c.OData)));
-                    foreach (var feature in featured.Select(c => c.Feature!).Distinct(StringComparer.Ordinal))
-                        await _probes.SetRefusedAsync(accountKey, path, feature, true, ct);
-                    clauses.RemoveAll(featured.Contains);
-                    // Without the whole filter, the first rows (and their order) aren't the query's.
-                    orderBy = null;
-                    limit = null;
-                }
-                else if (retry.Original is { } original)
-                {
-                    // Once only: the same failure after leaving the found columns out is the collection's own.
-                    if (probed)
-                        throw original;
-                    probed = true;
-                    if (await FindUnreadableAsync(accountKey, fetch, [.. select.Where(c => c != "id")], requests, diagnostics, ct) is not { Count: > 0 } found)
-                        throw original;
-                    Log(diagnostics, DiagnosticKinds.Probe, $"{table}: dropped " + Dropped(found.NotListed, found.Denied));
-                    foreach (var column in found.NotListed)
-                    {
-                        select.Remove(column);
-                        unreadable.Add(column);
-                    }
-                    foreach (var column in found.Denied)
-                    {
-                        select.Remove(column);
-                        denied.Add(column);
-                    }
-                    // Kept at once: the read that follows may still fail (throttled), and the next run needn't probe again.
-                    notListed.AddRange(found.NotListed.Except(notListed));
-                    deniedFound.AddRange(found.Denied.Except(deniedFound));
-                    await _probes.SetAsync(accountKey, path, notListed, deniedFound, ct);
-                }
-                else if (retry.Select is { } refusedSelect)
-                {
-                    if (refusedSelects++ >= MaxSelectRetries)
-                        throw new GraphReadException(GraphReadFailure.Failed, retry.Message);
-                    select.Remove(refusedSelect);
-                    unreadable.Add(refusedSelect);
-                    Log(diagnostics, DiagnosticKinds.Probe, $"{table}: dropped {refusedSelect} (Graph refused it in $select)");
-                }
-                else
-                {
-                    unfiltered = true;
-                    // Unfiltered, the first objects aren't the query's: its where runs locally over every one.
-                    orderBy = null;
-                    limit = null;
+                    case Retry.LeaveOutLicensed license:
+                        unlicensedReason = license.Message;
+                        foreach (var column in optional)
+                        {
+                            select.Remove(column);
+                            unlicensed.Add(column);
+                        }
+                        Log(diagnostics, DiagnosticKinds.Probe, $"{table}: dropped {string.Join(", ", optional)} ({license.Message})");
+                        break;
+                    case Retry.NoSelect:
+                        sendSelect = false;
+                        Log(diagnostics, DiagnosticKinds.Probe, $"{table}: Graph refused $select; reading the columns it sends by default");
+                        await _probes.SetRefusedAsync(accountKey, path, SelectClause, true, ct);
+                        break;
+                    case Retry.SmallerTop:
+                        // Kept at once, as each smaller size is tried: the next run starts from the last one Graph didn't refuse.
+                        var sent = PageTop(limit, topMax)!.Value;
+                        topMax = SmallerPageSizes.FirstOrDefault(size => size < sent);
+                        Log(diagnostics, DiagnosticKinds.Probe, topMax == 0
+                            ? $"{table}: Graph refused $top={sent}; reading without it"
+                            : $"{table}: Graph refused $top={sent}; reading with $top={topMax}");
+                        await _probes.SetTopLimitAsync(accountKey, path, topMax, ct);
+                        break;
+                    case Retry.NoOrderBy:
+                        Log(diagnostics, DiagnosticKinds.Probe, $"{table}: Graph refused $orderby={orderBy!.OData}; reading without it");
+                        await _probes.SetRefusedAsync(accountKey, path, OrderByClause, true, ct);
+                        orderBy = null;
+                        limit = null;
+                        break;
+                    case Retry.NoFeatures:
+                        var featured = clauses.Where(c => c.Feature is not null).ToList();
+                        Log(diagnostics, DiagnosticKinds.Probe, $"{table}: Graph refused the filter; reading without "
+                            + string.Join(", ", featured.Select(c => c.OData)));
+                        foreach (var feature in featured.Select(c => c.Feature!).Distinct(StringComparer.Ordinal))
+                            await _probes.SetRefusedAsync(accountKey, path, feature, true, ct);
+                        clauses.RemoveAll(featured.Contains);
+                        // Without the whole filter, the first rows (and their order) aren't the query's.
+                        orderBy = null;
+                        limit = null;
+                        break;
+                    case Retry.Probe(var original):
+                        // Once only: the same failure after leaving the found columns out is the collection's own.
+                        if (probed)
+                            throw original;
+                        probed = true;
+                        if (await FindUnreadableAsync(accountKey, fetch, [.. select.Where(c => c != "id")], requests, diagnostics, ct) is not { Count: > 0 } found)
+                            throw original;
+                        Log(diagnostics, DiagnosticKinds.Probe, $"{table}: dropped " + Dropped(found.NotListed, found.Denied));
+                        foreach (var column in found.NotListed)
+                        {
+                            select.Remove(column);
+                            unreadable.Add(column);
+                        }
+                        foreach (var column in found.Denied)
+                        {
+                            select.Remove(column);
+                            denied.Add(column);
+                        }
+                        // Kept at once: the read that follows may still fail (throttled), and the next run needn't probe again.
+                        notListed.AddRange(found.NotListed.Except(notListed));
+                        deniedFound.AddRange(found.Denied.Except(deniedFound));
+                        await _probes.SetAsync(accountKey, path, notListed, deniedFound, ct);
+                        break;
+                    case Retry.DropSelect(var refusedSelect, var message):
+                        if (refusedSelects++ >= MaxSelectRetries)
+                            throw new GraphReadException(GraphReadFailure.Failed, message);
+                        select.Remove(refusedSelect);
+                        unreadable.Add(refusedSelect);
+                        Log(diagnostics, DiagnosticKinds.Probe, $"{table}: dropped {refusedSelect} (Graph refused it in $select)");
+                        break;
+                    case Retry.Unfiltered:
+                        unfiltered = true;
+                        // Unfiltered, the first objects aren't the query's: its where runs locally over every one.
+                        orderBy = null;
+                        limit = null;
+                        break;
+                    default:
+                        throw new UnreachableException();
                 }
             }
         }
@@ -684,7 +682,7 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                 if (page == 0 && GraphErrorText.IsLicenseRefusal(body))
                 {
                     if (canLeaveOut)
-                        return new Retry(null, message ?? "", License: true);
+                        return new Retry.LeaveOutLicensed(message ?? "");
                     if (leftOut)
                         throw Failure(response, body, message);
                 }
@@ -693,36 +691,36 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
                 if (page == 0 && select.Any(c => c != "id")
                     && (response.StatusCode == HttpStatusCode.NotFound && GraphErrorText.IsHtml(raw)
                         || response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden))
-                    return new Retry(null, message ?? "", Failure(response, body, message));
+                    return new Retry.Probe(Failure(response, body, message));
                 // Checked before the filter and the probes: a refused $select or $top would otherwise cost the filter, or be
                 // taken for one property's.
                 if (page == 0 && select.Count > 0 && response.StatusCode == HttpStatusCode.BadRequest && GraphErrorText.RefusesSelect(message))
-                    return new Retry(null, message ?? "", NoSelect: true);
+                    return new Retry.NoSelect();
                 if (page == 0 && top is not null && response.StatusCode == HttpStatusCode.BadRequest && GraphErrorText.NamesTop(message))
-                    return new Retry(null, message ?? "", Top: true);
+                    return new Retry.SmallerTop();
                 // With no filter or sort, a 400 naming nothing is the $top's (or a column's, probed after $top is left out).
                 if (page == 0 && top is not null && filter is null && list.OrderBy is null && response.StatusCode == HttpStatusCode.BadRequest
                     && GraphErrorText.IsUnsupportedQuery(message))
-                    return new Retry(null, message ?? "", Top: true);
+                    return new Retry.SmallerTop();
                 // A sort or a clause with a feature (or the advanced query mode they need) is what this change sends that a
                 // table may refuse: left out first, before the whole filter.
                 if (page == 0 && response.StatusCode == HttpStatusCode.BadRequest && list.OrderBy is not null)
-                    return new Retry(null, message ?? "", OrderBy: true);
+                    return new Retry.NoOrderBy();
                 if (page == 0 && response.StatusCode == HttpStatusCode.BadRequest && filter is not null
                     && Featured(filter, fetch))
-                    return new Retry(null, message ?? "", Features: true);
+                    return new Retry.NoFeatures();
                 if (page == 0 && response.StatusCode == HttpStatusCode.BadRequest)
                 {
                     // A refused filter names its property too (often a selected one), so while there is a filter a 400 is
                     // the filter's: it is dropped first. Only a 400 without one can be a refused $select.
                     if (filter is not null)
-                        return new Retry(null, message ?? "");
+                        return new Retry.Unfiltered();
                     if (RefusedSelect(message, select) is { } property)
-                        return new Retry(property, message ?? "");
+                        return new Retry.DropSelect(property, message ?? "");
                 }
                 // Any other client error on the first page may be one selected property's: probe to find it, if any.
                 if (page == 0 && select.Any(c => c != "id") && IsClientError(response.StatusCode))
-                    return new Retry(null, message ?? "", Failure(response, body, message));
+                    return new Retry.Probe(Failure(response, body, message));
                 throw Failure(response, body, message);
             }
 
@@ -863,14 +861,34 @@ public sealed class GraphCollectionReader(HttpClient http, GraphFetchBudget budg
         };
     }
 
-    /// <summary>What to change after Graph refused the first page. <see cref="Original"/> set: probe the selected columns, and
-    /// throw it if probing finds none.
-    /// <see cref="License"/> set: leave the optional columns out.
-    /// <see cref="Top"/> set: read without <c>$top</c>. <see cref="NoSelect"/> set: read without <c>$select</c>.
-    /// <see cref="OrderBy"/> set: read without the sort. <see cref="Features"/> set: read without the filter clauses that have a
-    /// feature.</summary>
-    private sealed record Retry(string? Select, string Message, GraphReadException? Original = null, bool License = false, bool Top = false,
-        bool OrderBy = false, bool Features = false, bool NoSelect = false);
+    /// <summary>What to change after Graph refused the first page.</summary>
+    private union Retry(Retry.LeaveOutLicensed, Retry.NoSelect, Retry.SmallerTop, Retry.NoOrderBy, Retry.NoFeatures, Retry.Probe,
+        Retry.DropSelect, Retry.Unfiltered)
+    {
+        /// <summary>Leave the optional columns out; <paramref name="Message"/> is Graph's refusal.</summary>
+        public sealed record LeaveOutLicensed(string Message);
+
+        /// <summary>Read without <c>$select</c>.</summary>
+        public sealed record NoSelect;
+
+        /// <summary>Read with a smaller <c>$top</c>, or without it.</summary>
+        public sealed record SmallerTop;
+
+        /// <summary>Read without the sort.</summary>
+        public sealed record NoOrderBy;
+
+        /// <summary>Read without the filter clauses that have a feature.</summary>
+        public sealed record NoFeatures;
+
+        /// <summary>Probe the selected columns, and throw <paramref name="Original"/> if probing finds none.</summary>
+        public sealed record Probe(GraphReadException Original);
+
+        /// <summary>Read without <paramref name="Column"/>, which Graph refused in <c>$select</c> with <paramref name="Message"/>.</summary>
+        public sealed record DropSelect(string Column, string Message);
+
+        /// <summary>Read without the filter: the query's where runs locally.</summary>
+        public sealed record Unfiltered;
+    }
 
     /// <summary>The header that, with <c>$count=true</c>, asks for Graph's advanced query mode on directory objects.</summary>
     public const string ConsistencyLevel = "ConsistencyLevel";

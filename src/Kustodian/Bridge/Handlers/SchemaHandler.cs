@@ -76,10 +76,11 @@ public sealed class SchemaHandler(GraphSchema schema, HuntingSchemaSource huntin
         try
         {
             // Only a workspace in this account's list is read, as with a run.
-            var (match, blocked) = await WorkspaceCheck.RunAsync(directory, account, new QueryWorkspace(workspace, "", ""), ct);
-            return SchemaView.From(match is null
-                ? logs.Empty(blocked!)
-                : await logs.GetAsync(account, workspace, refresh, ct), "logs");
+            return SchemaView.From(await WorkspaceCheck.RunAsync(directory, account, new QueryWorkspace(workspace, "", ""), ct) switch
+            {
+                string blocked => logs.Empty(blocked),
+                ArmWorkspace => await logs.GetAsync(account, workspace, refresh, ct),
+            }, "logs");
         }
         catch (Exception ex) when (ConsentRequiredException.FindIn(ex) is { } consent)
         {

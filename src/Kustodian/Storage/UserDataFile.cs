@@ -3,10 +3,6 @@ using System.Text.Json.Nodes;
 
 namespace Kustodian.Storage;
 
-/// <summary>The outcome of reading a user data file. <see cref="Corrupt"/> is true when the file existed but could not be read
-/// or was not valid; it was moved aside as <c>*.corrupt</c> and <see cref="Value"/> is the defaults.</summary>
-public sealed record UserDataRead<T>(T Value, bool Corrupt);
-
 /// <summary>
 /// One user data file under the store's root, owned by one service: reads and writes go through one gate, so they never
 /// overlap. A missing file reads as <paramref name="defaults"/>. Fields missing from the file (or null in it) load with their
@@ -22,8 +18,9 @@ public sealed class UserDataFile<T>(JsonFileStore store, string relativePath, Fu
     where T : class
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private JsonNode? _fallback;
 
-    public async Task<UserDataRead<T>> ReadAsync(CancellationToken ct = default)
+    public async Task<StoreRead<T>> ReadAsync(CancellationToken ct = default)
     {
         await _gate.WaitAsync(ct);
         try
@@ -31,21 +28,21 @@ public sealed class UserDataFile<T>(JsonFileStore store, string relativePath, Fu
             var read = await store.ReadAsync<JsonNode?>(relativePath, null, ct);
             if (read.Corrupt)
             {
-                return new UserDataRead<T>(defaults(), true);
+                return new StoreRead<T>(defaults(), true);
             }
 
             if (read.Value is null)
             {
-                return new UserDataRead<T>(defaults(), false);
+                return new StoreRead<T>(defaults(), false);
             }
 
             if (Complete(read.Value) is not { } value || !isValid(value))
             {
                 store.MoveAside(relativePath);
-                return new UserDataRead<T>(defaults(), true);
+                return new StoreRead<T>(defaults(), true);
             }
 
-            return new UserDataRead<T>(value, false);
+            return new StoreRead<T>(value, false);
         }
         finally
         {
@@ -64,7 +61,9 @@ public sealed class UserDataFile<T>(JsonFileStore store, string relativePath, Fu
 
         try
         {
-            var filled = JsonSerializer.SerializeToNode(defaults(), JsonFileStore.Options) is JsonObject fallback
+            // Read under the gate, and read-only: JsonDefaults.Fill clones what it takes from it.
+            _fallback ??= JsonSerializer.SerializeToNode(defaults(), JsonFileStore.Options);
+            var filled = _fallback is JsonObject fallback
                 ? JsonDefaults.Fill(value, fallback)
                 : value;
             return (fillElements is null ? filled : fillElements(filled)).Deserialize<T>(JsonFileStore.Options);
