@@ -48,6 +48,23 @@ public static class AppWindow
             window.WindowCreated += (_, _) => FitToMonitor(window);
         }
 
+        // The page draws its own top bar under a transparent title bar; it moves the window through window.drag.
+        if (OperatingSystem.IsMacOS())
+        {
+            Action apply = MacTitleBar.Apply;
+            window.WindowCreated += (_, _) =>
+            {
+                try
+                {
+                    apply();
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or EntryPointNotFoundException)
+                {
+                    logger.LogWarning(ex, "Couldn't make the title bar transparent");
+                }
+            };
+        }
+
         // Photino's SendWebMessage marshals to the UI thread itself (through its Invoke), so replies and events produced on
         // worker threads can be sent from there. After the window closes nothing is sent.
         void Send(string message)

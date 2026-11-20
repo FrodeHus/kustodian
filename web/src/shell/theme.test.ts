@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { THEMES, applyTheme, chooseTheme, initialTheme, themeName, useTheme } from './theme';
+import { THEMES, applyTheme, chooseTheme, initialTheme, opaqueHex, themeName, useTheme } from './theme';
 
 const bridge = vi.hoisted(() => ({ call: vi.fn() }));
 vi.mock('../bridge', async (importOriginal) => ({
@@ -142,5 +142,12 @@ describe('theme', () => {
 
     expect(isLight()).toBe(true);
     expect(bridge.call).toHaveBeenLastCalledWith('settings.set', { settings: { ...settings, theme: 'light' } });
+  });
+
+  it('opaque_hex_turns_a_computed_colour_into_hex_and_leaves_out_see_through_ones', () => {
+    expect(opaqueHex('rgb(22, 26, 32)')).toBe('#161a20');
+    expect(opaqueHex('rgb(0, 0, 0)')).toBe('#000000');
+    expect(opaqueHex('rgba(255, 255, 255, 0.07)')).toBeUndefined();
+    expect(opaqueHex('')).toBeUndefined();
   });
 });

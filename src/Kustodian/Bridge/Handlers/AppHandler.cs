@@ -11,7 +11,9 @@ namespace Kustodian.Messaging.Handlers;
 /// (and probes again). <c>app.openTelemetryDocs</c>: opens the site's page on what sharing Graph compatibility findings
 /// sends. <c>app.checkUpdate</c>: whether GitHub has a newer release. <c>app.openRelease</c>: opens a version's release page.
 /// <c>app.openLink</c>: opens an https link from a Markdown widget. <c>app.print</c>: on macOS, opens the print dialog for the
-/// page and answers true; elsewhere answers false, and the page calls <c>window.print()</c> itself.</summary>
+/// page and answers true; elsewhere answers false, and the page calls <c>window.print()</c> itself. <c>window.titleBar</c>: on Windows, the title bar's
+/// dark mode and colours. <c>window.drag</c> and <c>window.zoom</c>: on macOS, move or zoom the window from the page's top bar,
+/// which the title bar is drawn over.</summary>
 public sealed class AppHandler(MemoryGraphObjectCache objects, IGraphProbeCache probes, UpdateCheck updates, ISystemBrowser? browser = null,
     WindowHolder? window = null)
 {
@@ -30,24 +32,11 @@ public sealed class AppHandler(MemoryGraphObjectCache objects, IGraphProbeCache 
                 return false;
             }
 
+            // Method groups taken inside the platform check: the analyzer doesn't carry the check into lambdas.
             Action print = MacPrint.Print;
-            var shown = window?.Window ?? throw new BridgeException(BridgeErrorCodes.Failed, "The window isn't open.");
-            var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            shown.Invoke(() =>
-            {
-                try
-                {
-                    print();
-                    done.SetResult();
-                }
-                catch (Exception ex)
-                {
-                    done.SetException(ex);
-                }
-            });
             try
             {
-                await done.Task;
+                await OnUiThreadAsync(_ => print());
             }
             catch (Exception ex) when (ex is InvalidOperationException or EntryPointNotFoundException or DllNotFoundException)
             {
@@ -55,6 +44,38 @@ public sealed class AppHandler(MemoryGraphObjectCache objects, IGraphProbeCache 
             }
 
             return true;
+        });
+        // The title bar calls do nothing where they don't apply, so the page can send them on every platform.
+        bridge.Register("window.titleBar", async (p, _) =>
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                var bar = BridgeJson.Params<TitleBarParams>(p);
+                Action<nint, bool, string?, string?> apply = WindowsTitleBar.Apply;
+                await OnUiThreadAsync(w => apply(w.WindowHandle, bar.Dark, bar.Caption, bar.Text));
+            }
+
+            return null;
+        });
+        bridge.Register("window.drag", async (_, _) =>
+        {
+            if (OperatingSystem.IsMacOS())
+            {
+                Action drag = MacTitleBar.Drag;
+                await OnUiThreadAsync(_ => drag());
+            }
+
+            return null;
+        });
+        bridge.Register("window.zoom", async (_, _) =>
+        {
+            if (OperatingSystem.IsMacOS())
+            {
+                Action zoom = MacTitleBar.Zoom;
+                await OnUiThreadAsync(_ => zoom());
+            }
+
+            return null;
         });
         bridge.Register("cache.clear", async (_, ct) =>
         {
@@ -123,6 +144,26 @@ public sealed class AppHandler(MemoryGraphObjectCache objects, IGraphProbeCache 
         });
     }
 
+    /// <summary>Runs <paramref name="run"/> on the window's UI thread and waits for it; its exception is thrown here.</summary>
+    private async Task OnUiThreadAsync(Action<Photino.NET.PhotinoWindow> run)
+    {
+        var shown = window?.Window ?? throw new BridgeException(BridgeErrorCodes.Failed, "The window isn't open.");
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        shown.Invoke(() =>
+        {
+            try
+            {
+                run(shown);
+                done.SetResult();
+            }
+            catch (Exception ex)
+            {
+                done.SetException(ex);
+            }
+        });
+        await done.Task;
+    }
+
     private static string Platform() => AppPaths.CurrentPlatform() switch
     {
         AppPlatform.Windows => "windows",
@@ -135,4 +176,6 @@ public sealed class AppHandler(MemoryGraphObjectCache objects, IGraphProbeCache 
     private sealed record LinkParams(string? Url);
 
     private sealed record ReleaseParams(string? Version);
+
+    private sealed record TitleBarParams(bool Dark, string? Caption, string? Text);
 }

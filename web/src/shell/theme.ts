@@ -1,6 +1,8 @@
 import { create } from 'zustand';
+import { call } from '../bridge';
 import { writeSettings } from '../settings/settings-writes';
 import type { Theme } from '../wire';
+import { HOST_WINDOWS } from './keys';
 import { PALETTES, isPalette, paletteVars } from './palettes';
 
 export type { Theme } from '../wire';
@@ -51,6 +53,33 @@ function show(theme: Theme, light: boolean) {
         .join(' ')} } }`
     : '';
   useTheme.setState({ theme, resolved: light ? 'light' : 'dark', glass: isGlass(theme) });
+  if (HOST_WINDOWS) {
+    paintTitleBar(light);
+  }
+}
+
+/** A computed CSS colour (`rgb(r, g, b)`) as `#rrggbb`; undefined for a see-through one, which a title bar can't be. */
+export function opaqueHex(computed: string): string | undefined {
+  const rgb = /^rgb\((\d+), (\d+), (\d+)\)$/.exec(computed);
+  return rgb
+    ? '#' +
+        rgb
+          .slice(1)
+          .map((c) => Number(c).toString(16).padStart(2, '0'))
+          .join('')
+    : undefined;
+}
+
+/** Gives the Windows title bar the top bar's colours, so the two read as one bar. The glass themes' bar is see-through, so their
+ * title bar keeps the system's dark one. */
+function paintTitleBar(light: boolean) {
+  const probe = document.documentElement.appendChild(document.createElement('span'));
+  probe.style.cssText = 'display: none; color: var(--text); background-color: var(--panel)';
+  const style = getComputedStyle(probe);
+  const bar = { dark: !light, caption: opaqueHex(style.backgroundColor), text: opaqueHex(style.color) };
+  probe.remove();
+  // Nothing to tell the user if it fails: the title bar keeps the system's colours.
+  void call('window.titleBar', bar).catch(() => undefined);
 }
 
 /** Applies a theme to the window at once: its classes on `<html>`, and for `system`, the OS's choice as it changes. */
