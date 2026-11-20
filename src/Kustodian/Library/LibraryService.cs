@@ -65,6 +65,10 @@ public sealed class LibraryService(JsonFileStore store, TimeProvider time, ILogg
     private static readonly SavedQuery DefaultQuery = new(1, "", "", null, "graph", "", [], default, default);
     private static readonly ParameterDef DefaultParameter = new("", "text", "", false, null);
 
+    // Read-only: JsonDefaults.Fill clones what it takes from them.
+    private static readonly JsonObject QueryDefaults = JsonSerializer.SerializeToNode(DefaultQuery, JsonFileStore.Options)!.AsObject();
+    private static readonly JsonObject ParameterDefaults = JsonSerializer.SerializeToNode(DefaultParameter, JsonFileStore.Options)!.AsObject();
+
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly ILogger<LibraryService> _log = logger ?? NullLogger<LibraryService>.Instance;
 
@@ -77,7 +81,7 @@ public sealed class LibraryService(JsonFileStore store, TimeProvider time, ILogg
             var skipped = 0;
             foreach (var file in Files())
             {
-                if (await ReadAsync(file, ct) is { } query)
+                if (await ListedAsync(file, ct) is { } query)
                 {
                     queries.Add(query);
                 }
@@ -181,6 +185,20 @@ public sealed class LibraryService(JsonFileStore store, TimeProvider time, ILogg
             : [];
     }
 
+    /// <summary>As <see cref="ReadAsync"/>, but a file that can't be opened now (locked, say) is skipped and left as it is.</summary>
+    private async Task<SavedQuery?> ListedAsync(string relativePath, CancellationToken ct)
+    {
+        try
+        {
+            return await ReadAsync(relativePath, ct);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log.LogWarning("The saved query {File} could not be opened ({Error}); it was skipped", relativePath, ex.GetType().Name);
+            return null;
+        }
+    }
+
     /// <summary>The query in the file, or null when the file is missing or can't be read (then it is moved aside).</summary>
     private async Task<SavedQuery?> ReadAsync(string relativePath, CancellationToken ct)
     {
@@ -197,7 +215,7 @@ public sealed class LibraryService(JsonFileStore store, TimeProvider time, ILogg
         }
 
         var expectedId = Path.GetFileNameWithoutExtension(relativePath);
-        if (Complete(read.Value) is { Version: 1 } query && query.Id == expectedId && Problem(ToInput(query)) is null)
+        if (Complete(read.Value) is { Version: 1 } query && string.Equals(query.Id, expectedId, StringComparison.OrdinalIgnoreCase) && Problem(ToInput(query)) is null)
         {
             return query;
         }
@@ -216,9 +234,7 @@ public sealed class LibraryService(JsonFileStore store, TimeProvider time, ILogg
 
         try
         {
-            var queryDefaults = JsonSerializer.SerializeToNode(DefaultQuery, JsonFileStore.Options)!.AsObject();
-            var parameterDefaults = JsonSerializer.SerializeToNode(DefaultParameter, JsonFileStore.Options)!.AsObject();
-            var filled = JsonDefaults.FillElements(JsonDefaults.Fill(value, queryDefaults), nameof(SavedQuery.Parameters), parameterDefaults);
+            var filled = JsonDefaults.FillElements(JsonDefaults.Fill(value, QueryDefaults), nameof(SavedQuery.Parameters), ParameterDefaults);
             return QueryOptionsDefaults.Fill(filled, JsonFileStore.Options).Deserialize<SavedQuery>(JsonFileStore.Options);
         }
         catch (JsonException)

@@ -78,7 +78,10 @@ public sealed class ExternalToolHandler(ExternalToolService tools, IFileDialogs 
         {
             lock (_gate)
             {
-                _runs.Remove(runId);
+                if (_runs.TryGetValue(runId, out var current) && current == cts)
+                {
+                    _runs.Remove(runId);
+                }
             }
         }
     }

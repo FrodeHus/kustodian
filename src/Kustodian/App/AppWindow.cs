@@ -95,8 +95,13 @@ public static class AppWindow
 
         window.WaitForClose();
         Volatile.Write(ref closed, 1);
-        bridge.Close();
+
+        // A last session.save (sent on pagehide) gets to finish; then whatever still runs is cancelled and gets the same time to
+        // end, before the services are disposed under it.
         pump.CompleteAsync().GetAwaiter().GetResult();
+        pump.WaitForHandlersAsync(HostErrors.FlushWait).GetAwaiter().GetResult();
+        bridge.Close();
+        pump.WaitForHandlersAsync(HostErrors.FlushWait).GetAwaiter().GetResult();
     }
 
     /// <summary>Gives the window the app icon on Windows and Linux, from the copy in the cache folder; macOS takes it from the

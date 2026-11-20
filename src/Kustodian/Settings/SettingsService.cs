@@ -102,7 +102,7 @@ public sealed class SettingsService(JsonFileStore store, ILogger<SettingsService
 
     public async Task<AppSettings> GetAsync(CancellationToken ct = default)
     {
-        UserDataRead<AppSettings> read;
+        StoreRead<AppSettings> read;
         try
         {
             read = await _file.ReadAsync(ct);

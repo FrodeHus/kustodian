@@ -194,7 +194,7 @@ public sealed class AppServices : IAsyncDisposable
         _logs.Dispose();
         _github.Dispose();
         _telemetry.Dispose();
-        _history.Dispose();
+        await _history.DisposeAsync();
         await Pool.DisposeAsync();
     }
 

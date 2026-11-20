@@ -10,7 +10,7 @@ using Microsoft.Extensions.Time.Testing;
 
 namespace Kustodian.Tests.Solutions;
 
-public sealed class SolutionServiceFetchTests : IDisposable
+public sealed class SolutionServiceFetchTests : IAsyncDisposable
 {
     private const string IndexUrl = SolutionService.BaseUrl + "index.json";
     private static readonly byte[] Readme = "# Hello"u8.ToArray();
@@ -21,9 +21,13 @@ public sealed class SolutionServiceFetchTests : IDisposable
     private Func<string, HttpResponseMessage> _answer = _ => new HttpResponseMessage(HttpStatusCode.NotFound);
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        _histories.ForEach(h => h.Dispose());
+        foreach (var history in _histories)
+        {
+            await history.DisposeAsync();
+        }
+
         if (Directory.Exists(_dir))
         {
             Directory.Delete(_dir, true);

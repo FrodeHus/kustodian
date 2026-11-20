@@ -38,7 +38,11 @@ Stop, or closing the dialog, ends a run still going.
 
 The command starts directly, never through a shell, so a row value is always exactly one argument and nothing in it runs.
 For the same reason a Windows `.bat` or `.cmd` file can't take row values (Windows would run it through `cmd.exe`); use batch
-mode for those. Give `command` as a full path: an app started from the Finder or the Start menu doesn't get your shell's
+mode for those. One argument can still be read as an option, though: a row value that starts with `-`, such as
+`--output=/tmp/x`, reaches the tool as the argument it is, and most tools take that as an option, not a value. When the rows
+come from data that someone else can write (a display name, a device name), put the parameter after the tool's `--` (the
+end of its options), as in `"args": ["revoke", "--", "{id}"]`, or join it to its option, as in `"--user={id}"`, if the tool
+supports either. Give `command` as a full path: an app started from the Finder or the Start menu doesn't get your shell's
 `PATH`. Commands run in your home folder.
 
 Table widgets in a [workbook](workbooks.md#selection-and-tool-buttons) can have tool buttons. A button names a tool here and

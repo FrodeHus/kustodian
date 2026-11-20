@@ -1,3 +1,4 @@
+using System.Buffers.Text;
 using System.Text.Json;
 using Kustodian.Graph.Run;
 using Kustodian.Graph.Schema;
@@ -466,9 +467,7 @@ public sealed class AccountService(Func<ClientConfig, IMsalClient> clientFactory
 
         try
         {
-            var payload = parts[1].Replace('-', '+').Replace('_', '/');
-            payload = payload.PadRight(payload.Length + ((4 - (payload.Length % 4)) % 4), '=');
-            using var doc = JsonDocument.Parse(Convert.FromBase64String(payload));
+            using var doc = JsonDocument.Parse(Base64Url.DecodeFromChars(parts[1]));
             return doc.RootElement.ValueKind == JsonValueKind.Object
                    && doc.RootElement.TryGetProperty("scp", out var scp) && scp.ValueKind == JsonValueKind.String
                 ? scp.GetString()!.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)

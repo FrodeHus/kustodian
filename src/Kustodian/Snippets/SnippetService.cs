@@ -42,6 +42,10 @@ public sealed class SnippetService(JsonFileStore store, ILogger<SnippetService>?
     private static readonly SnippetFile DefaultFile = new(1, "", "graph", "", "", "", null, []);
     private static readonly ParameterDef DefaultParameter = new("", "text", "", false, null);
 
+    // Read-only: JsonDefaults.Fill clones what it takes from them.
+    private static readonly JsonObject FileDefaults = JsonSerializer.SerializeToNode(DefaultFile, JsonFileStore.Options)!.AsObject();
+    private static readonly JsonObject ParameterDefaults = JsonSerializer.SerializeToNode(DefaultParameter, JsonFileStore.Options)!.AsObject();
+
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly ILogger<SnippetService> _log = logger ?? NullLogger<SnippetService>.Instance;
 
@@ -59,7 +63,7 @@ public sealed class SnippetService(JsonFileStore store, ILogger<SnippetService>?
             var user = new List<Snippet>();
             foreach (var file in Files())
             {
-                if (await ReadAsync(file, ct) is { } snippet)
+                if (await ListedAsync(file, ct) is { } snippet)
                 {
                     user.Add(snippet);
                 }
@@ -160,6 +164,20 @@ public sealed class SnippetService(JsonFileStore store, ILogger<SnippetService>?
             : [];
     }
 
+    /// <summary>As <see cref="ReadAsync"/>, but a file that can't be opened now (locked, say) is skipped and left as it is.</summary>
+    private async Task<Snippet?> ListedAsync(string relativePath, CancellationToken ct)
+    {
+        try
+        {
+            return await ReadAsync(relativePath, ct);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log.LogWarning("The snippet {File} could not be opened ({Error}); it was skipped", relativePath, ex.GetType().Name);
+            return null;
+        }
+    }
+
     /// <summary>The snippet in the file, or null when the file is missing or can't be read (then it is moved aside).</summary>
     private async Task<Snippet?> ReadAsync(string relativePath, CancellationToken ct)
     {
@@ -176,7 +194,7 @@ public sealed class SnippetService(JsonFileStore store, ILogger<SnippetService>?
         }
 
         var expectedId = Path.GetFileNameWithoutExtension(relativePath);
-        if (Complete(read.Value) is { Version: 1 } file && file.Id == expectedId && !IsBuiltin(file.Id) && Problem(ToInput(file)) is null)
+        if (Complete(read.Value) is { Version: 1 } file && string.Equals(file.Id, expectedId, StringComparison.OrdinalIgnoreCase) && !IsBuiltin(file.Id) && Problem(ToInput(file)) is null)
         {
             return ToSnippet(file);
         }
@@ -195,9 +213,7 @@ public sealed class SnippetService(JsonFileStore store, ILogger<SnippetService>?
 
         try
         {
-            var fileDefaults = JsonSerializer.SerializeToNode(DefaultFile, JsonFileStore.Options)!.AsObject();
-            var parameterDefaults = JsonSerializer.SerializeToNode(DefaultParameter, JsonFileStore.Options)!.AsObject();
-            return JsonDefaults.FillElements(JsonDefaults.Fill(value, fileDefaults), nameof(SnippetFile.Parameters), parameterDefaults)
+            return JsonDefaults.FillElements(JsonDefaults.Fill(value, FileDefaults), nameof(SnippetFile.Parameters), ParameterDefaults)
                 .Deserialize<SnippetFile>(JsonFileStore.Options);
         }
         catch (JsonException)

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using Kustodian.Graph.Query;
 using Kustodian.Graph.Run;
 using Kustodian.Storage;
@@ -26,6 +27,10 @@ public sealed class RecentService(JsonFileStore store, ILogger<RecentService>? l
 
     private static readonly RecentRun DefaultRun = new("", "graph", "", [], default, 0, 0, "");
     private static readonly ParameterValue DefaultParameter = new("", "text", "", false);
+
+    // Read-only: JsonDefaults.Fill clones what it takes from them.
+    private static readonly JsonObject RunDefaults = JsonSerializer.SerializeToNode(DefaultRun, JsonFileStore.Options)!.AsObject();
+    private static readonly JsonObject ParameterDefaults = JsonSerializer.SerializeToNode(DefaultParameter, JsonFileStore.Options)!.AsObject();
 
     private readonly UserDataFile<RecentFile> _file = new(store, FileName, () => new RecentFile(1, []), IsValid);
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -81,14 +86,30 @@ public sealed class RecentService(JsonFileStore store, ILogger<RecentService>? l
             _log.LogWarning("{File} could not be read; it was moved aside and Recent starts empty", FileName);
         }
 
-        return read.Value.Runs.Select(node => ToRun(node)!).Take(Capacity).ToList();
+        return [.. (read.Value.Read ?? []).Take(Capacity)];
     }
 
     private Task WriteAsync(IEnumerable<RecentRun> runs, CancellationToken ct) =>
         _file.WriteAsync(new RecentFile(1, new JsonArray(runs.Select(r => JsonSerializer.SerializeToNode(r, JsonFileStore.Options))
             .ToArray())), ct);
 
-    private static bool IsValid(RecentFile file) => file.Version == 1 && file.Runs is not null && file.Runs.All(n => ToRun(n) is not null);
+    /// <summary>Keeps the runs it checked on <paramref name="file"/>, so they are read once.</summary>
+    private static bool IsValid(RecentFile file)
+    {
+        if (file.Version != 1 || file.Runs is null)
+        {
+            return false;
+        }
+
+        var runs = file.Runs.Select(ToRun).ToList();
+        if (runs.Any(r => r is null))
+        {
+            return false;
+        }
+
+        file.Read = runs!;
+        return true;
+    }
 
     /// <summary>The run in <paramref name="node"/> with missing fields defaulted; null when it isn't an object or a value has
     /// the wrong type.</summary>
@@ -101,9 +122,7 @@ public sealed class RecentService(JsonFileStore store, ILogger<RecentService>? l
 
         try
         {
-            var defaults = JsonSerializer.SerializeToNode(DefaultRun, JsonFileStore.Options)!.AsObject();
-            var parameterDefaults = JsonSerializer.SerializeToNode(DefaultParameter, JsonFileStore.Options)!.AsObject();
-            var filled = JsonDefaults.FillElements(JsonDefaults.Fill(value, defaults), nameof(RecentRun.Parameters), parameterDefaults);
+            var filled = JsonDefaults.FillElements(JsonDefaults.Fill(value, RunDefaults), nameof(RecentRun.Parameters), ParameterDefaults);
             var run = QueryOptionsDefaults.Fill(filled, JsonFileStore.Options).Deserialize<RecentRun>(JsonFileStore.Options);
             return run is null || run.Parameters.Any(p => p is null) || !QueryOptionsDefaults.IsComplete(run.Options) ? null : run;
         }
@@ -113,5 +132,10 @@ public sealed class RecentService(JsonFileStore store, ILogger<RecentService>? l
         }
     }
 
-    private sealed record RecentFile(int Version, JsonArray Runs);
+    private sealed record RecentFile(int Version, JsonArray Runs)
+    {
+        /// <summary>The runs <see cref="IsValid"/> read from <see cref="Runs"/>; null on the defaults.</summary>
+        [JsonIgnore]
+        public List<RecentRun>? Read { get; set; }
+    }
 }
