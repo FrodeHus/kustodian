@@ -99,6 +99,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **.NET 11**: Kustodian now runs on .NET 11. Async methods in error-report stack traces read `Type.Method` instead of
+  `Type+<Method>d__N.MoveNext`, so a problem reported by this version groups apart from the same problem in earlier versions.
 - **Charts**: smooth curves, areas that fade to transparent, a soft glow on lines, rounded bars and a donut for pie, on a
   lighter grid. Charts animate in as they draw; not with reduced motion turned on, for very large results, or when a workbook
   prints.
