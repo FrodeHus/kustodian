@@ -14,20 +14,27 @@ internal static partial class MacPrint
     /// <summary>Starts printing the first window's web view and returns once the sheet is up. Call it on the UI thread.</summary>
     public static void Print()
     {
+        var window = WebViewWindow(out var webView);
+        var info = Send(Class("NSPrintInfo"), "sharedPrintInfo");
+        var operation = SendPtr(webView, Sel("printOperationWithPrintInfo:"), info);
+        // Without a frame the operation's view is empty, and every page comes out blank.
+        SendRect(Send(operation, "view"), Sel("setFrame:"), Bounds(webView));
+        SendSheet(operation, Sel("runOperationModalForWindow:delegate:didRunSelector:contextInfo:"), window, 0, 0, 0);
+    }
+
+    /// <summary>The first window holding a web view (the app's one window), and that web view. Call it on the UI thread.</summary>
+    internal static nint WebViewWindow(out nint webView)
+    {
         var app = Send(Class("NSApplication"), "sharedApplication");
         var windows = Send(app, "windows");
         var webViewClass = Class("WKWebView");
         for (nuint i = 0, n = (nuint)Send(windows, "count"); i < n; i++)
         {
             var window = SendIndex(windows, Sel("objectAtIndex:"), i);
-            if (Find(Send(window, "contentView"), webViewClass) is not 0 and var webView)
+            if (Find(Send(window, "contentView"), webViewClass) is not 0 and var found)
             {
-                var info = Send(Class("NSPrintInfo"), "sharedPrintInfo");
-                var operation = SendPtr(webView, Sel("printOperationWithPrintInfo:"), info);
-                // Without a frame the operation's view is empty, and every page comes out blank.
-                SendRect(Send(operation, "view"), Sel("setFrame:"), Bounds(webView));
-                SendSheet(operation, Sel("runOperationModalForWindow:delegate:didRunSelector:contextInfo:"), window, 0, 0, 0);
-                return;
+                webView = found;
+                return window;
             }
         }
 

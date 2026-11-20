@@ -1,11 +1,14 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { call } from '../bridge';
 import type { AccountInfo } from '../wire';
-import { MOD } from './keys';
+import { HOST_MAC, MOD } from './keys';
 import logo from './logo.png';
 
 /**
  * The window's top bar: the app's name, the open tabs (`children`), and the account button (the tenant), whose menu shows the
  * account and opens accounts and sign-in, and settings. The OS draws the window's own controls, so the mockup's dots are left out.
+ * On macOS the bar is the window's title bar: the traffic lights sit at its left, and a press on its empty parts moves the window
+ * (a double-click zooms it), as the host can't tell which parts of the page are the bar.
  */
 export function TitleBar({
   account,
@@ -50,8 +53,16 @@ export function TitleBar({
     run();
   };
 
+  const onBarMouseDown = (e: ReactMouseEvent) => {
+    if (!HOST_MAC || e.button !== 0 || (e.target as Element).closest('button, a, input, [role="tab"], [role="menu"]')) {
+      return;
+    }
+    // Nothing to tell the user if it fails: the window just doesn't move.
+    void call(e.detail === 2 ? 'window.zoom' : 'window.drag').catch(() => undefined);
+  };
+
   return (
-    <header className="titlebar">
+    <header className={HOST_MAC ? 'titlebar titlebar-mac' : 'titlebar'} onMouseDown={onBarMouseDown}>
       <span className="brand">
         <img src={logo} width={16} height={16} alt="" />
         Kustodian
