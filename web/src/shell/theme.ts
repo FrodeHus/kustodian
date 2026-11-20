@@ -61,7 +61,13 @@ function show(theme: Theme, light: boolean) {
 /** A computed CSS colour (`rgb(r, g, b)`) as `#rrggbb`; undefined for a see-through one, which a title bar can't be. */
 export function opaqueHex(computed: string): string | undefined {
   const rgb = /^rgb\((\d+), (\d+), (\d+)\)$/.exec(computed);
-  return rgb ? '#' + rgb.slice(1).map((c) => Number(c).toString(16).padStart(2, '0')).join('') : undefined;
+  return rgb
+    ? '#' +
+        rgb
+          .slice(1)
+          .map((c) => Number(c).toString(16).padStart(2, '0'))
+          .join('')
+    : undefined;
 }
 
 /** Gives the Windows title bar the top bar's colours, so the two read as one bar. The glass themes' bar is see-through, so their
