@@ -99,6 +99,7 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **.NET 11**: Kustodian now runs on .NET 11.
 - **Title bar**: on macOS the window has no separate title bar; Kustodian's top bar takes its place, with the traffic lights
   on it. Drag its empty parts to move the window, or double-click to zoom. On Windows 11 the title bar takes the theme's
   colours, and on Windows 10 its dark mode.
