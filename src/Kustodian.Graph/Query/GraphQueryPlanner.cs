@@ -71,7 +71,7 @@ public static class GraphQueryPlanner
 
     /// <summary>The <c>evaluate</c> plugins that only reshape rows already there. Every other plugin is refused: some load
     /// data from outside (<c>sql_request</c>, <c>http_request</c>), some run code (<c>python</c>, <c>r</c>).</summary>
-    private static readonly HashSet<string> AllowedPlugins = new(StringComparer.Ordinal) { "bag_unpack", "narrow", "pivot" };
+    private static readonly HashSet<string> AllowedPlugins = [with(StringComparer.Ordinal), "bag_unpack", "narrow", "pivot"];
 
     /// <param name="now">The run's time, for <c>now()</c> and <c>ago()</c> in a pushed-down filter.</param>
     /// <param name="licenses">What the tenant's licenses leave out (<see cref="GraphLicenseGate"/>); without it, nothing.</param>
@@ -398,7 +398,7 @@ public static class GraphQueryPlanner
     /// <summary>Functions that read columns without naming them (or name them in a string), so no column reference shows
     /// which ones they need.</summary>
     private static readonly HashSet<string> ImplicitColumnFunctions =
-        new(StringComparer.Ordinal) { "pack_all", "column_ifexists", "columnifexists", "bag_pack_columns" };
+        [with(StringComparer.Ordinal), "pack_all", "column_ifexists", "columnifexists", "bag_pack_columns"];
 
     /// <summary>Whether the query reads columns it doesn't name: <c>*</c>, <c>search</c>, <c>pack_all()</c> and the like,
     /// any <c>evaluate</c> plugin (it reshapes whatever columns it is given), or <c>fork</c>. Then every column of every

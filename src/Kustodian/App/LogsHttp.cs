@@ -17,6 +17,15 @@ public static class LogsHttp
             InnerHandler = new DiagnosticsHandler { InnerHandler = new SocketsHttpHandler { AllowAutoRedirect = false } },
         };
 
-    public static HttpClient CreateClient(ITokenSource tokens, ILogger<LogsAuthHandler>? logger = null, ErrorTrail? trail = null) =>
-        new(CreateHandler(tokens, logger, trail)) { BaseAddress = BaseAddress };
+    public static HttpClient CreateClient(ITokenSource tokens, ILogger<LogsAuthHandler>? logger = null, TimeSpan? timeout = null,
+        ErrorTrail? trail = null)
+    {
+        var client = new HttpClient(CreateHandler(tokens, logger, trail)) { BaseAddress = BaseAddress };
+        if (timeout is { } wait)
+        {
+            client.Timeout = wait;
+        }
+
+        return client;
+    }
 }

@@ -8,6 +8,7 @@ namespace Kustodian.App;
 public sealed class MessagePump
 {
     private readonly Channel<string> _queue = Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = true });
+    private readonly HashSet<Task> _running = [];
     private readonly Task _loop;
 
     public MessagePump(Func<string, Task> handle) =>
@@ -15,7 +16,19 @@ public sealed class MessagePump
         {
             await foreach (var message in _queue.Reader.ReadAllAsync())
             {
-                _ = handle(message);
+                var handling = handle(message);
+                lock (_running)
+                {
+                    _running.Add(handling);
+                }
+
+                _ = handling.ContinueWith(t =>
+                {
+                    lock (_running)
+                    {
+                        _running.Remove(t);
+                    }
+                }, TaskScheduler.Default);
             }
         });
 
@@ -26,5 +39,24 @@ public sealed class MessagePump
     {
         _queue.Writer.TryComplete();
         return _loop;
+    }
+
+    /// <summary>Returns when the handlings started so far have ended, or after <paramref name="wait"/>, whichever is first.</summary>
+    public async Task WaitForHandlersAsync(TimeSpan wait)
+    {
+        Task[] running;
+        lock (_running)
+        {
+            running = [.. _running];
+        }
+
+        try
+        {
+            await Task.WhenAll(running).WaitAsync(wait);
+        }
+        catch (TimeoutException)
+        {
+            // Left running; the host goes on shutting down.
+        }
     }
 }

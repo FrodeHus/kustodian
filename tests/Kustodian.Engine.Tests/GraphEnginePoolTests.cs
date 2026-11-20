@@ -203,10 +203,15 @@ public sealed class GraphEnginePoolTests
         Assert.Equal(3, third.Rows![0][0].GetInt64());
         Assert.True(IsGone(worker));
         Assert.Equal(0, pool.Snapshot().Busy);
-        Assert.Equal(["start", "done", "start", "done", "start", "killed", "start", "done"], progress.Events.Select(e => e.Info.Event));
+        Assert.Equal(["start", "done", "start", "done", "start", "killed", "start", "done"], progress.Events.Select(e => e.Info switch
+        {
+            EngineRunInfo.Started => "start",
+            EngineRunInfo.Answered => "done",
+            EngineRunInfo.Killed => "killed",
+        }));
         // When killed is reported the worker is out of the pool and its slot is free.
-        var killed = Assert.Single(progress.Events, e => e.Info.Event == "killed");
-        Assert.Equal("timeout", killed.Info.Reason);
+        var killed = Assert.Single(progress.Events, e => e.Info is EngineRunInfo.Killed);
+        Assert.Equal("timeout", Assert.IsType<EngineRunInfo.Killed>(killed.Info.Value).Reason);
         Assert.DoesNotContain(worker, killed.Snapshot.WorkerIds);
         Assert.Equal(0, killed.Snapshot.Busy);
     }
@@ -424,6 +429,43 @@ public sealed class GraphEnginePoolTests
         Assert.True(line.Message.Length < 600, $"{line.Message.Length} characters logged");
         Assert.Contains(new string('e', 500), line.Message);
         Assert.DoesNotContain(new string('e', 501), line.Message);
+    }
+
+    [Fact]
+    public async Task A_start_that_throws_frees_its_slot_and_is_a_crash()
+    {
+        using var worker = StandInWorker.Create("/bin/cat > /dev/null");
+        await using var pool = Pool(o =>
+        {
+            o.WorkerPath = worker.Path;
+            // A null argument fails the start after the checks, with an exception other than Win32Exception.
+            o.WorkerArgs = [null!];
+            o.WaitForWorker = TimeSpan.FromMilliseconds(100);
+        });
+
+        var first = await FailureOf(pool.RunAsync(Query("print 1"), "run-1", TestContext.Current.CancellationToken));
+        var second = await FailureOf(pool.RunAsync(Query("print 1"), "run-2", TestContext.Current.CancellationToken));
+
+        Assert.Equal(GraphEngineFailure.Crashed, first);
+        // Busy would mean the first start kept the only slot.
+        Assert.Equal(GraphEngineFailure.Crashed, second);
+        Assert.Equal(0, pool.Snapshot().Alive);
+    }
+
+    [Fact]
+    public async Task A_worker_killed_from_outside_is_told_from_a_crash()
+    {
+        using var killed = StandInWorker.Create("sleep 0.2\nkill -9 $$");
+        var trail = new List<string>();
+        await using var pool = new GraphEnginePool(
+            new GraphEngineOptions { Workers = 1, WorkerPath = killed.Path, WorkerArgs = [] },
+            NullLogger<GraphEnginePool>.Instance, TimeProvider.System, trail.Add);
+
+        var e = await Assert.ThrowsAsync<GraphEngineException>(
+            () => pool.RunAsync(Query("print 1"), "run-killed", TestContext.Current.CancellationToken));
+
+        Assert.Equal(GraphEngineFailure.Crashed, e.Failure);
+        Assert.Equal(["engine.start", "engine.kill(signal)", "engine.exit(137)"], trail);
     }
 
     [Fact]

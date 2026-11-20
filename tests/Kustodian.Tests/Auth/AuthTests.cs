@@ -175,7 +175,7 @@ public class AuthTests : IDisposable
     {
         var status = await TokenCacheFactory.TryCreateAsync(_dir, _ => Task.FromResult<ICachePersistence>(new FailingPersistence()));
 
-        var memory = Assert.IsType<MemoryOnly>(status);
+        var memory = Assert.IsType<MemoryOnly>(status.Value);
         Assert.False(string.IsNullOrWhiteSpace(memory.Reason));
         Assert.False(Directory.Exists(_dir) && Directory.EnumerateFileSystemEntries(_dir).Any());
     }
@@ -185,7 +185,7 @@ public class AuthTests : IDisposable
     {
         var status = await TokenCacheFactory.TryCreateAsync(_dir, _ => Task.FromResult<ICachePersistence>(new OkPersistence()));
 
-        Assert.IsType<Persistent>(status);
+        Assert.IsType<Persistent>(status.Value);
     }
 
     [Fact]
@@ -334,7 +334,7 @@ public class AuthTests : IDisposable
     public async Task Cache_any_failure_means_memory_only_but_cancellation_propagates()
     {
         var status = await TokenCacheFactory.TryCreateAsync(_dir, _ => throw new FormatException("odd"));
-        Assert.IsType<MemoryOnly>(status);
+        Assert.IsType<MemoryOnly>(status.Value);
 
         await Assert.ThrowsAsync<OperationCanceledException>(() =>
             TokenCacheFactory.TryCreateAsync(_dir, _ => throw new OperationCanceledException()));

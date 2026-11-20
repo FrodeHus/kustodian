@@ -15,7 +15,7 @@ public sealed class EngineMainTests
         input.Position = 0;
         using var output = new MemoryStream();
 
-        var exitCode = EngineMain.Serve(input, output,
+        var exitCode = await EngineMain.ServeAsync(input, output,
             _ => throw new InvalidOperationException("outer", new ArgumentException("inner")));
 
         Assert.Equal(EngineExitCodes.Crashed, exitCode);
@@ -26,6 +26,8 @@ public sealed class EngineMainTests
         Assert.Equal(["System.InvalidOperationException", "System.ArgumentException"], crash.Exceptions.Select(e => e.TypeName));
         Assert.Equal(["outer", "inner"], crash.Exceptions.Select(e => e.Message));
         Assert.Contains(crash.Exceptions[0].Frames, f => f.Assembly == "Kustodian.Engine.Tests");
-        Assert.Contains(crash.Exceptions[0].Frames, f => f.Method == "Kustodian.Engine.EngineMain.Serve" && f.Assembly == "Kustodian.Engine");
+        // The serving loop is async: its frame is a state machine's (EngineMain+<ReadAllAsync>d__N.MoveNext).
+        Assert.Contains(crash.Exceptions[0].Frames,
+            f => f.Method.StartsWith("Kustodian.Engine.EngineMain+<ReadAllAsync>", StringComparison.Ordinal) && f.Assembly == "Kustodian.Engine");
     }
 }

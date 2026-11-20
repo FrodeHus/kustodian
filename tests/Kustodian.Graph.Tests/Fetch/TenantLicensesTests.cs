@@ -180,4 +180,35 @@ public sealed class TenantLicensesTests
 
         Assert.False(tenant.Known);
     }
+
+    [Fact]
+    public async Task A_body_over_the_cap_without_a_length_is_not_read_whole()
+    {
+        var (licenses, graph, _) = Reader();
+        var body = new UnsizedContent(GraphTenantLicenses.MaxResponseBytes + 1);
+        graph.Answer = () => new HttpResponseMessage(HttpStatusCode.OK) { Content = body };
+
+        var tenant = await licenses.GetAsync("a", false, CancellationToken.None);
+
+        Assert.False(tenant.Known);
+        Assert.Equal("The tenant's licenses are too large to read.", tenant.Reason);
+    }
+
+    /// <summary>A body of <paramref name="length"/> spaces with no Content-Length, as a chunked answer has.</summary>
+    private sealed class UnsizedContent(long length) : HttpContent
+    {
+        protected override async Task SerializeToStreamAsync(Stream stream, TransportContext? context)
+        {
+            var chunk = new byte[65_536];
+            Array.Fill(chunk, (byte)' ');
+            for (long sent = 0; sent < length; sent += chunk.Length)
+                await stream.WriteAsync(chunk.AsMemory(0, (int)Math.Min(chunk.Length, length - sent)));
+        }
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = 0;
+            return false;
+        }
+    }
 }

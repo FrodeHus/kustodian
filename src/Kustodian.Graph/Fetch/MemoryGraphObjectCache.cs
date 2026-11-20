@@ -14,6 +14,8 @@ public sealed class MemoryGraphObjectCache(TimeProvider time, GraphLimits? limit
 
     private readonly ConcurrentDictionary<Key, GraphCachedValues> _entries = new();
     private readonly TimeSpan _ttl = (limits ?? GraphLimits.Default).PerObjectCacheTtl;
+    // UTC ticks before which SetAsync doesn't sweep again.
+    private long _nextSweep;
 
     private static Key KeyOf(string accountKey, string path, IReadOnlyList<string> columns, string id)
         => new(accountKey, path, string.Join(",", columns.Order(StringComparer.Ordinal)), id);
@@ -34,11 +36,16 @@ public sealed class MemoryGraphObjectCache(TimeProvider time, GraphLimits? limit
     public ValueTask SetAsync(string accountKey, string path, IReadOnlyList<string> columns, string id, string json, CancellationToken ct)
     {
         var now = time.GetUtcNow();
-        // Expired entries are dropped as new ones come in, so a long session doesn't keep growing.
-        foreach (var (key, entry) in _entries)
+        // Expired entries are dropped as new ones come in, at most once a tenth of the ttl, so a long session doesn't keep
+        // growing and a table's objects don't each sweep the whole cache.
+        var next = Interlocked.Read(ref _nextSweep);
+        if (now.UtcTicks >= next && Interlocked.CompareExchange(ref _nextSweep, (now + _ttl / 10).UtcTicks, next) == next)
         {
-            if (now - entry.ReadAt >= _ttl)
-                _entries.TryRemove(new KeyValuePair<Key, GraphCachedValues>(key, entry));
+            foreach (var (key, entry) in _entries)
+            {
+                if (now - entry.ReadAt >= _ttl)
+                    _entries.TryRemove(new KeyValuePair<Key, GraphCachedValues>(key, entry));
+            }
         }
         _entries[KeyOf(accountKey, path, columns, id)] = new GraphCachedValues(json, now);
         return ValueTask.CompletedTask;

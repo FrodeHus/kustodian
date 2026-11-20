@@ -13,11 +13,19 @@ namespace Kustodian.Graph.Engine;
 public sealed record GraphEngineSnapshot(
     int Alive, int Busy, int KillsLastMinute, int CrashesLastMinute, bool Paused, IReadOnlyList<int> WorkerIds);
 
-/// <summary>A worker event of one run, for the run's diagnostics: <paramref name="Event"/> is <c>start</c> (the run went to
-/// worker <paramref name="WorkerPid"/>), <c>done</c> (it answered; <paramref name="PeakBytes"/> is the highest working set seen
-/// during the run) or <c>killed</c>, with <paramref name="Reason"/> one of <c>timeout</c>, <c>memory</c>, <c>cancel</c>,
-/// <c>frame</c> (an oversized or malformed answer) or <c>crash</c>.</summary>
-public sealed record EngineRunInfo(string Event, int WorkerPid, long? PeakBytes, string? Reason);
+/// <summary>A worker event of one run, for the run's diagnostics.</summary>
+public union EngineRunInfo(EngineRunInfo.Started, EngineRunInfo.Answered, EngineRunInfo.Killed)
+{
+    /// <summary>The run went to worker <paramref name="WorkerPid"/>.</summary>
+    public sealed record Started(int WorkerPid);
+
+    /// <summary>It answered; <paramref name="PeakBytes"/> is the highest working set seen during the run.</summary>
+    public sealed record Answered(int WorkerPid, long? PeakBytes);
+
+    /// <summary>It was killed, with <paramref name="Reason"/> one of <c>timeout</c>, <c>memory</c>, <c>cancel</c>, <c>frame</c>
+    /// (an oversized or malformed answer), <c>signal</c> (killed from outside the app) or <c>crash</c>.</summary>
+    public sealed record Killed(int WorkerPid, long? PeakBytes, string Reason);
+}
 
 /// <summary>Engine worker processes the app can kill (spec 9). KustoLoco has no cancellation
 /// and a join can multiply rows until memory runs out, so a query runs in a worker: killed with its process tree when it
@@ -273,7 +281,7 @@ public sealed class GraphEnginePool : IAsyncDisposable
     private async Task<EngineResponse> ExecuteAsync(
         Worker worker, EngineRequest request, string runTag, TimeSpan limit, IProgress<EngineRunInfo>? progress, CancellationToken ct)
     {
-        Report(progress, new EngineRunInfo("start", worker.Id, null, null), runTag);
+        Report(progress, new EngineRunInfo.Started(worker.Id), runTag);
         var peak = new Peak();
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var timeout = Task.Delay(limit, _time, stop.Token);
@@ -297,12 +305,13 @@ public sealed class GraphEnginePool : IAsyncDisposable
             if (orphaned)
                 await KillAsync(worker);
             ReleaseSlot();
-            Report(progress, new EngineRunInfo("done", worker.Id, peak.Bytes, null), runTag);
+            Report(progress, new EngineRunInfo.Answered(worker.Id, peak.Bytes), runTag);
             return response;
         }
 
         peak.Sample(worker);
         var crash = exchange.IsCompletedSuccessfully ? exchange.Result?.Crash : null;
+        ProcessExitStatus? exit = null;
         GraphEngineFailure? failure;
         string reason;
         string kind;
@@ -321,11 +330,18 @@ public sealed class GraphEnginePool : IAsyncDisposable
         else if (first == exchange && crash is not null)
         {
             // It exits after its crash frame; waiting for that keeps its own exit code rather than the kill's.
-            await ExitCodeAsync(worker);
+            await ExitStatusAsync(worker);
             (failure, reason, kind) = (GraphEngineFailure.Crashed, $"it crashed with {crash.Exceptions.FirstOrDefault()?.TypeName}", "crash");
         }
-        else if (first == exchange && exchange.IsCompletedSuccessfully && await RanOutOfHeapAsync(worker))
+        // Its output closed without an answer: how it exited says why (the output closes first, so this waits briefly).
+        else if (first == exchange && exchange.IsCompletedSuccessfully
+            && (exit = await ExitStatusAsync(worker)) is { Signal: null, ExitCode: EngineExitCodes.OutOfMemory })
+            // It says so when its GC heap hit DOTNET_GCHeapHardLimit.
             (failure, reason, kind) = (GraphEngineFailure.OutOfMemory, $"its GC heap went over {_options.MemoryLimitBytes} bytes", "memory");
+        else if (exit is { Signal: { } signal })
+            // Not the pool's kill (none was sent yet): the OS or a user. Still unexplained to the crash guard, so repeated
+            // outside kills pause starting workers as crashes do.
+            (failure, reason, kind) = (GraphEngineFailure.Crashed, $"it was killed from outside the app ({signal})", "signal");
         else
             (failure, reason, kind) = (GraphEngineFailure.Crashed, exchange.Exception?.GetBaseException().Message ?? "it closed its output",
                 exchange.Exception?.GetBaseException() is InvalidDataException ? "frame" : "crash");
@@ -347,7 +363,7 @@ public sealed class GraphEnginePool : IAsyncDisposable
             Trail(string.Create(CultureInfo.InvariantCulture, $"engine.exit({code})"));
         // The next run that finds no idle worker starts one.
         ReleaseSlot();
-        Report(progress, new EngineRunInfo("killed", worker.Id, peak.Bytes, kind), runTag);
+        Report(progress, new EngineRunInfo.Killed(worker.Id, peak.Bytes, kind), runTag);
         try
         {
             await exchange;
@@ -396,25 +412,20 @@ public sealed class GraphEnginePool : IAsyncDisposable
         }
         catch (Exception e)
         {
-            _logger.LogWarning(e, "Reporting the engine event {Event} of run {RunTag} failed", info.Event, runTag);
+            _logger.LogWarning(e, "Reporting the engine event {Event} of run {RunTag} failed", info.Value?.GetType().Name, runTag);
         }
     }
 
-    /// <summary>Whether the worker exited because its GC heap hit <c>DOTNET_GCHeapHardLimit</c>: it says so with
-    /// <see cref="EngineExitCodes.OutOfMemory"/>. Asked only when its output closed without an answer; waits briefly for the
-    /// exit, since the output closes first.</summary>
-    private static async Task<bool> RanOutOfHeapAsync(Worker worker)
-        => await ExitCodeAsync(worker) == EngineExitCodes.OutOfMemory;
-
-    /// <summary>Waits briefly for the worker to exit and returns its exit code; null if it didn't exit, or was disposed.</summary>
-    private static async Task<int?> ExitCodeAsync(Worker worker)
+    /// <summary>Waits up to <see cref="ExitWait"/> for the worker to exit and returns how it did (its code, and on Unix the
+    /// signal that ended it); null if it didn't exit, or was disposed.</summary>
+    private async Task<ProcessExitStatus?> ExitStatusAsync(Worker worker)
     {
+        using var wait = new CancellationTokenSource(ExitWait, _time);
         try
         {
-            await worker.Process.WaitForExitAsync().WaitAsync(ExitWait);
-            return worker.Process.ExitCode;
+            return await worker.Process.WaitForExitStatusAsync(wait.Token);
         }
-        catch (Exception e) when (e is TimeoutException or InvalidOperationException)
+        catch (Exception e) when (e is OperationCanceledException or InvalidOperationException)
         {
             return null;
         }
@@ -500,13 +511,14 @@ public sealed class GraphEnginePool : IAsyncDisposable
     private async Task KillAsync(Worker worker)
     {
         Kill(worker);
-        // On macOS a killed worker can read as exited before its exit code can be read; ExitCodeAsync answers null then.
-        worker.ExitCode = await ExitCodeAsync(worker);
+        worker.ExitCode = (await ExitStatusAsync(worker))?.ExitCode;
         if (!worker.Process.HasExited)
             _logger.LogError("Graph engine worker {WorkerId} didn't exit within {ExitWait} of being killed", worker.Id, ExitWait);
         worker.Process.Dispose();
     }
 
+    /// <summary>A new worker, or null when none could start. Whatever fails, a process that did start is killed and
+    /// disposed.</summary>
     private Worker? Start()
     {
         // The dotnet host would start without the worker's dll and exit at once; a missing worker is a failed start.
@@ -515,33 +527,46 @@ public sealed class GraphEnginePool : IAsyncDisposable
             _logger.LogError("Couldn't start a graph engine worker: {WorkerPath} doesn't exist", _options.WorkerPath);
             return null;
         }
-        var process = new Process { StartInfo = CreateStartInfo(), EnableRaisingEvents = true };
+        Process? process = null;
+        var started = false;
         try
         {
-            process.Start();
+            process = new Process { StartInfo = CreateStartInfo(), EnableRaisingEvents = true };
+            started = process.Start();
+            var id = process.Id;
+            var worker = new Worker(process, id, _time.GetUtcNow());
+            // The worker's diagnostics (KustoLoco may print query details), each line cut to MaxStderrLine characters: logged
+            // at Debug, and the last lines kept whatever the level, for a full error report.
+            process.ErrorDataReceived += (_, line) =>
+            {
+                if (line.Data is not { } text)
+                    return;
+                text = text.Length > MaxStderrLine ? text[..MaxStderrLine] : text;
+                worker.AddStderr(text);
+                if (_logger.IsEnabled(LogLevel.Debug))
+                    _logger.LogDebug("Graph engine worker {WorkerId}: {Line}", id, text);
+            };
+            process.BeginErrorReadLine();
+            Trail("engine.start");
+            return worker;
         }
-        catch (Win32Exception e)
+        catch (Exception e)
         {
             _logger.LogError(e, "Couldn't start a graph engine worker from {WorkerPath}", _options.WorkerPath);
-            process.Dispose();
+            if (started && process is not null)
+            {
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+                catch (Exception kill) when (kill is InvalidOperationException or Win32Exception)
+                {
+                    // It exited already, or can't be killed; disposing it is all that is left.
+                }
+            }
+            process?.Dispose();
             return null;
         }
-        var id = process.Id;
-        var worker = new Worker(process, id, _time.GetUtcNow());
-        // The worker's diagnostics (KustoLoco may print query details), each line cut to MaxStderrLine characters: logged at
-        // Debug, and the last lines kept whatever the level, for a full error report.
-        process.ErrorDataReceived += (_, line) =>
-        {
-            if (line.Data is not { } text)
-                return;
-            text = text.Length > MaxStderrLine ? text[..MaxStderrLine] : text;
-            worker.AddStderr(text);
-            if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("Graph engine worker {WorkerId}: {Line}", id, text);
-        };
-        process.BeginErrorReadLine();
-        Trail("engine.start");
-        return worker;
     }
 
     private bool IsPaused()

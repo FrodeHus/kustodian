@@ -410,7 +410,7 @@ public sealed class SolutionService(JsonFileStore store, HttpClient http, Librar
         var bytes = await FetchFileAsync(entry, file, ct);
         try
         {
-            return (JsonNode.Parse(bytes), file.Sha256);
+            return (JsonNode.Parse(bytes, documentOptions: new JsonDocumentOptions { AllowDuplicateProperties = false }), file.Sha256);
         }
         catch (JsonException)
         {

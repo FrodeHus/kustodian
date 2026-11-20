@@ -284,10 +284,14 @@ public sealed class RunDiagnosticsTests
         await Assert.ThrowsAsync<GraphEngineException>(() =>
             engine.RunAsync(new EngineRequest($"print r = '{new string('a', 60)}b' matches regex '^(a|aa)+$'", now, [], 10), "run-2", infos, Ct));
 
-        Assert.Equal(["start", "done", "start", "killed"], infos.All.Select(i => i.Event));
-        Assert.All(infos.All, i => Assert.True(i.WorkerPid > 0));
-        Assert.Equal("timeout", infos.All[3].Reason);
-        Assert.True(infos.All[1].PeakBytes > 0);
+        var started = Assert.IsType<EngineRunInfo.Started>(infos.All[0].Value);
+        var answered = Assert.IsType<EngineRunInfo.Answered>(infos.All[1].Value);
+        Assert.IsType<EngineRunInfo.Started>(infos.All[2].Value);
+        var killed = Assert.IsType<EngineRunInfo.Killed>(infos.All[3].Value);
+        Assert.Equal(4, infos.All.Count);
+        Assert.True(started.WorkerPid > 0);
+        Assert.Equal("timeout", killed.Reason);
+        Assert.True(answered.PeakBytes > 0);
     }
 
     private static GraphEnginePool Pool(Action<GraphEngineOptions>? configure = null)

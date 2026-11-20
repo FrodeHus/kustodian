@@ -51,10 +51,10 @@ public sealed class LogsQuerySource(LogsClient client, ArmDirectory directory, T
 
         try
         {
-            var (match, blocked) = await WorkspaceCheck.RunAsync(directory, request.AccountKey, chosen[0], ct);
-            if (match is null)
+            var access = await WorkspaceCheck.RunAsync(directory, request.AccountKey, chosen[0], ct);
+            if (access is not ArmWorkspace match)
             {
-                return End(RunOutcome.WorkspaceUnavailable, blocked);
+                return End(RunOutcome.WorkspaceUnavailable, access.Value as string);
             }
 
             progress?.Report(new RunEvent("requesting", $"Running the query in Log Analytics on {(string.IsNullOrEmpty(match.Name) ? WorkspaceCheck.ShortId(match.CustomerId) : match.Name)}", diagnostics.RunId));

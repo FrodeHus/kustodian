@@ -48,18 +48,20 @@ public sealed class HuntingQuerySource(HuntingClient client, ArmDirectory direct
         var workspace = request.Options?.Workspaces is { Count: > 0 } chosen ? chosen[0] : null;
         // The name shown is the account's own: the request's is the text of whoever wrote the query.
         var name = workspace?.Name;
+        ArmWorkspace? match = null;
         try
         {
             // Graph answers from the primary workspace when it can't find the one asked for, so the id is only sent once the
             // account's own list has it.
             if (workspace is not null)
             {
-                var (match, blocked) = await WorkspaceCheck.RunAsync(directory, request.AccountKey, workspace, ct);
-                if (match is null)
+                var access = await WorkspaceCheck.RunAsync(directory, request.AccountKey, workspace, ct);
+                if (access is not ArmWorkspace found)
                 {
-                    return End(RunOutcome.WorkspaceUnavailable, blocked);
+                    return End(RunOutcome.WorkspaceUnavailable, access.Value as string);
                 }
 
+                match = found;
                 name = match.Name;
                 diagnostics.Add(new DiagnosticEntry(diagnostics.NowMs, DiagnosticKinds.Note,
                     $"If Defender can't reach {name}, it answers from your primary workspace.", null, null, null));
@@ -67,7 +69,7 @@ public sealed class HuntingQuerySource(HuntingClient client, ArmDirectory direct
 
             progress?.Report(new RunEvent("requesting", "Running the query in Microsoft Defender", diagnostics.RunId));
             var answer = await client.RunAsync(request.AccountKey, substitution.Text!, request.Options?.Timespan ?? DefaultTimespan,
-                workspace?.CustomerId, diagnostics, ct);
+                match?.CustomerId, diagnostics, ct);
             progress?.Report(new RunEvent("done", "Microsoft Defender answered", diagnostics.RunId));
             if (answer.Outcome == RunOutcome.QueryError && answer is { Line: { } line, Column: { } column })
             {
@@ -75,7 +77,7 @@ public sealed class HuntingQuerySource(HuntingClient client, ArmDirectory direct
                 return End(answer.Outcome, answer.Message, new GraphQueryError(mappedLine, mappedColumn, answer.Message ?? ""));
             }
 
-            if (workspace is not null && answer.Outcome == RunOutcome.Ok && ForeignTenantId(answer, workspace.CustomerId))
+            if (match is not null && answer.Outcome == RunOutcome.Ok && ForeignTenantId(answer, match.CustomerId))
             {
                 diagnostics.Add(new DiagnosticEntry(diagnostics.NowMs, DiagnosticKinds.Warning,
                     $"Some rows came from another workspace than {name}: Defender may have answered from your primary workspace.",

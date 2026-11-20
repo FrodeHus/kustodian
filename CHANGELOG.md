@@ -128,6 +128,18 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Long Log Analytics queries**: a query that ran for more than 100 seconds failed with "didn't answer within 660 s". It
+  now gets the full 10 minutes the server allows.
+- **Closing the window keeps your last edits**: the session save, pins and history sent as the window closes now finish
+  before Kustodian exits, and error reports still being sent go out first.
+- **One locked file no longer empties a list**: a saved query, snippet or workbook file that another program has open is
+  skipped and left in place instead of failing the whole list. A file whose id is in upper case is no longer moved aside as
+  corrupt, and a stored file that gives a property twice is.
+- **Graph queries under load**: queries fetching at the same time could pass the fetch limit together and then fail as
+  "busy" instead of "too large"; a worker that failed to start no longer leaves the engine busy; the licence check caps
+  answers sent without a length; and the object cache no longer slows down as it fills.
+- **External tools**: cancelling a tool run no longer sends a false error report, and two runs with the same id can both be
+  cancelled. [docs/external-tools.md](docs/external-tools.md) now says how to keep a row value from being read as an option.
 - **Workbook widgets can fix their own access**: a widget refused for want of access showed Grant access and Refresh
   access buttons that could never be clicked, so you had to rerun the query in a query tab. They now work in the widget, and
   while any widget lacks access the workbook toolbar shows **Refresh access** next to Refresh all, which grants or refreshes

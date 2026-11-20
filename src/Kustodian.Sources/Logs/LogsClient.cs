@@ -206,7 +206,7 @@ public sealed class LogsClient(HttpClient logs, TimeProvider? time = null)
                 foreach (var row in r.EnumerateArray())
                 {
                     var values = new JsonElement[columns.Count];
-                    Array.Fill(values, NullValue);
+                    Array.Fill(values, ServerRows.Null);
                     if (row.ValueKind == JsonValueKind.Array)
                     {
                         var i = 0;
@@ -227,8 +227,6 @@ public sealed class LogsClient(HttpClient logs, TimeProvider? time = null)
             return LogsAnswer.Failure(RunOutcome.Failed, Unreadable);
         }
     }
-
-    private static readonly JsonElement NullValue = JsonDocument.Parse("null").RootElement;
 
     private const string Unreadable = "Log Analytics' answer to the query isn't readable.";
 }

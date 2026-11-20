@@ -12,17 +12,12 @@ public interface ICachePersistence
     void Register(ITokenCache cache);
 }
 
-public abstract record TokenCacheStatus
-{
-    private protected TokenCacheStatus()
-    {
-    }
-}
+public union TokenCacheStatus(Persistent, MemoryOnly);
 
-public sealed record Persistent(ICachePersistence Cache) : TokenCacheStatus;
+public sealed record Persistent(ICachePersistence Cache);
 
 /// <summary>No usable OS store. Tokens live in memory for this run only; the user signs in again next time.</summary>
-public sealed record MemoryOnly(string Reason) : TokenCacheStatus;
+public sealed record MemoryOnly(string Reason);
 
 /// <summary>Sets up the token cache in the OS store: DPAPI on Windows, Keychain on macOS, libsecret on Linux. When that does not
 /// work the answer is <see cref="MemoryOnly"/>, never a plain-text file (spec 6.7).</summary>

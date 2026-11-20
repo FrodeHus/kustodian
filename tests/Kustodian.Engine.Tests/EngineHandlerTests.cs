@@ -240,6 +240,26 @@ public sealed class EngineHandlerTests
     }
 
     [Fact]
+    public void Text_that_isnt_its_columns_type_is_a_dropped_null()
+    {
+        var table = EngineTables.Of(
+            new GraphTable("things", "things", "x", "", "", [
+                new("i", "int", "", [], false, null),
+                new("l", "long", "", [], false, null),
+                new("r", "real", "", [], false, null),
+                new("g", "guid", "", [], false, null),
+                new("t", "timespan", "", [], false, null),
+            ]),
+            [new JsonObject { ["i"] = "99999999999", ["l"] = "x", ["r"] = "x", ["g"] = "x", ["t"] = "x" }]);
+
+        var response = Run("things", tables: table);
+
+        AssertRan(response);
+        Assert.Equal(5, response.DroppedValues);
+        Assert.All(response.Rows![0], v => Assert.Equal(JsonValueKind.Null, v.ValueKind));
+    }
+
+    [Fact]
     public void Unsupported_function_is_an_error_naming_it()
     {
         var response = Run("print x = array_concat(dynamic([1]), dynamic([2]))");

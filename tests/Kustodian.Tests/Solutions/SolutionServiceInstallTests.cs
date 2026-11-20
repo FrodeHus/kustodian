@@ -12,7 +12,7 @@ using Microsoft.Extensions.Time.Testing;
 namespace Kustodian.Tests.Solutions;
 
 /// <summary>Install and uninstall against the repo's own sample solution, served from a fake GitHub.</summary>
-public sealed class SolutionServiceInstallTests : IDisposable
+public sealed class SolutionServiceInstallTests : IAsyncDisposable
 {
     private const string Id = "entra-id";
 
@@ -48,9 +48,9 @@ public sealed class SolutionServiceInstallTests : IDisposable
         _history = new HistoryStore(_dir, _time);
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        _history.Dispose();
+        await _history.DisposeAsync();
         if (Directory.Exists(_dir))
         {
             Directory.Delete(_dir, true);

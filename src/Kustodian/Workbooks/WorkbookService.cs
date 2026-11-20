@@ -49,7 +49,7 @@ public sealed class WorkbookService(JsonFileStore store, TimeProvider time, ILog
                 : [];
             foreach (var file in files)
             {
-                if (await ReadAsync(file, ct) is { } doc)
+                if (await ListedAsync(file, ct) is { } doc)
                 {
                     workbooks.Add(new WorkbookSummary(doc["id"]!.GetValue<string>(), doc["name"]!.GetValue<string>(),
                         doc["folder"]?.GetValue<string>(), ModifiedAt(doc), doc["widgets"]!.AsArray().Count));
@@ -190,6 +190,20 @@ public sealed class WorkbookService(JsonFileStore store, TimeProvider time, ILog
             ? at
             : default;
 
+    /// <summary>As <see cref="ReadAsync"/>, but a file that can't be opened now (locked, say) is skipped and left as it is.</summary>
+    private async Task<JsonObject?> ListedAsync(string relativePath, CancellationToken ct)
+    {
+        try
+        {
+            return await ReadAsync(relativePath, ct);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log.LogWarning("The workbook {File} could not be opened ({Error}); it was skipped", relativePath, ex.GetType().Name);
+            return null;
+        }
+    }
+
     private async Task<JsonObject?> ReadAsync(string relativePath, CancellationToken ct)
     {
         var read = await store.ReadAsync<JsonNode?>(relativePath, null, ct);
@@ -205,7 +219,7 @@ public sealed class WorkbookService(JsonFileStore store, TimeProvider time, ILog
         }
 
         if (read.Value is JsonObject doc && Problem(doc) is null
-            && doc["id"]!.GetValue<string>() == Path.GetFileNameWithoutExtension(relativePath))
+            && string.Equals(doc["id"]!.GetValue<string>(), Path.GetFileNameWithoutExtension(relativePath), StringComparison.OrdinalIgnoreCase))
         {
             return doc;
         }

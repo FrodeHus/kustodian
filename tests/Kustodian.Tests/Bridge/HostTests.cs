@@ -149,6 +149,26 @@ public class HostTests
         Assert.Equal(Enumerable.Range(0, 50).Select(i => i.ToString(System.Globalization.CultureInfo.InvariantCulture)), started);
     }
 
+    [Fact]
+    public async Task Message_pump_waits_for_running_handlers_but_only_so_long()
+    {
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var never = new TaskCompletionSource();
+        var pump = new MessagePump(message => message == "slow" ? release.Task : never.Task);
+        pump.Post("slow");
+        await pump.CompleteAsync();
+
+        var waiting = pump.WaitForHandlersAsync(TimeSpan.FromSeconds(10));
+        Assert.False(waiting.IsCompleted);
+        release.SetResult();
+        await waiting.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        var pump2 = new MessagePump(_ => never.Task);
+        pump2.Post("stuck");
+        await pump2.CompleteAsync();
+        await pump2.WaitForHandlersAsync(TimeSpan.FromMilliseconds(50)).WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+    }
+
     private sealed class NoTokens : ITokenSource
     {
         public Task<string> GetTokenAsync(string accountKey, Audience audience, CancellationToken ct) => throw new NotSupportedException();
