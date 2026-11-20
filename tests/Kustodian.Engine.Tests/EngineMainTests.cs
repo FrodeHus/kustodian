@@ -26,8 +26,8 @@ public sealed class EngineMainTests
         Assert.Equal(["System.InvalidOperationException", "System.ArgumentException"], crash.Exceptions.Select(e => e.TypeName));
         Assert.Equal(["outer", "inner"], crash.Exceptions.Select(e => e.Message));
         Assert.Contains(crash.Exceptions[0].Frames, f => f.Assembly == "Kustodian.Engine.Tests");
-        // The serving loop is async: its frame is a state machine's (EngineMain+<ReadAllAsync>d__N.MoveNext).
+        // Runtime async: the serving loop's frame is the method itself, not a state machine's MoveNext.
         Assert.Contains(crash.Exceptions[0].Frames,
-            f => f.Method.StartsWith("Kustodian.Engine.EngineMain+<ReadAllAsync>", StringComparison.Ordinal) && f.Assembly == "Kustodian.Engine");
+            f => f.Method == "Kustodian.Engine.EngineMain.ReadAllAsync" && f.Assembly == "Kustodian.Engine");
     }
 }

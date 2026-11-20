@@ -100,6 +100,9 @@ follow [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - **.NET 11**: Kustodian now runs on .NET 11.
+- **Runtime async**: Kustodian's async code now runs on .NET 11's runtime async, with less overhead per `await`. Stack
+  frames in error reports name the method itself (`Type.Method`) instead of `Type+<Method>d__N.MoveNext`, so a problem
+  reported by this version groups apart from the same problem in earlier versions.
 - **Title bar**: on macOS the window has no separate title bar; Kustodian's top bar takes its place, with the traffic lights
   on it. Drag its empty parts to move the window, or double-click to zoom. On Windows 11 the title bar takes the theme's
   colours, and on Windows 10 its dark mode.
