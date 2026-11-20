@@ -6,10 +6,10 @@ namespace Kustodian.TestEngineWorker;
 /// for <c>--engine</c>.</summary>
 internal static class Program
 {
-    private static int Main()
+    private static async Task<int> Main()
     {
-        using var input = Console.OpenStandardInput();
-        using var output = Console.OpenStandardOutput();
-        return EngineMain.Run(input, output);
+        await using var input = Console.OpenStandardInput();
+        await using var output = Console.OpenStandardOutput();
+        return await EngineMain.RunAsync(input, output);
     }
 }

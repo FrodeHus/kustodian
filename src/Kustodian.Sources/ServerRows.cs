@@ -9,7 +9,7 @@ namespace Kustodian.Sources;
 /// into the positional rows a <see cref="Graph.Run.RunResult"/> carries.</summary>
 public static partial class ServerRows
 {
-    private static readonly JsonElement Null = JsonDocument.Parse("null").RootElement.Clone();
+    internal static readonly JsonElement Null = JsonDocument.Parse("null").RootElement.Clone();
 
     /// <summary>The columns and the rows, one value per column in column order, null where a row has no such key (or isn't an
     /// object). <paramref name="declared"/> columns, when there are any, are the columns (their types normalized,

@@ -49,28 +49,34 @@ internal static class TableLoader
 
         // Objects read from a frame hold JSON elements; ones built in code hold CLR values, which go through JSON once.
         var element = value.TryGetValue<JsonElement>(out var e) ? e : JsonSerializer.SerializeToElement(value);
-        var text = element.ValueKind == JsonValueKind.String ? element.GetString() : null;
+        var text = element.ValueKind == JsonValueKind.String ? element.GetString()! : "";
+        // Numbers may come as strings (OData's IEEE754Compatible form for 64-bit and decimal values).
+        return (kustoType, element.ValueKind) switch
+        {
+            ("bool", JsonValueKind.True) => true,
+            ("bool", JsonValueKind.False) => false,
+            ("int", JsonValueKind.Number) => element.TryGetInt32(out var i) ? i : null,
+            ("long", JsonValueKind.Number) => element.TryGetInt64(out var l) ? l : null,
+            ("real", JsonValueKind.Number) => element.TryGetDouble(out var r) ? r : null,
+            ("decimal", JsonValueKind.Number) => element.TryGetDecimal(out var m) ? m : null,
+            ("int", JsonValueKind.String) => int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i) ? i : null,
+            ("long", JsonValueKind.String) => long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var l) ? l : null,
+            ("real", JsonValueKind.String) => ParseReal(text),
+            ("decimal", JsonValueKind.String) => decimal.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var m) ? m : null,
+            ("datetime", JsonValueKind.String) => DateTime.TryParse(text, CultureInfo.InvariantCulture,
+                DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var d) ? d : null,
+            ("timespan", JsonValueKind.String) => ParseTimeSpan(text),
+            ("guid", JsonValueKind.String) => Guid.TryParse(text, CultureInfo.InvariantCulture, out var g) ? g : null,
+            _ => null,
+        };
+    }
+
+    /// <summary>An XML duration (<c>P1DT2H</c>), or null; XmlConvert has no Try form.</summary>
+    private static TimeSpan? ParseTimeSpan(string text)
+    {
         try
         {
-            // Numbers may come as strings (OData's IEEE754Compatible form for 64-bit and decimal values).
-            return (kustoType, element.ValueKind) switch
-            {
-                ("bool", JsonValueKind.True) => true,
-                ("bool", JsonValueKind.False) => false,
-                ("int", JsonValueKind.Number) => element.TryGetInt32(out var i) ? i : null,
-                ("long", JsonValueKind.Number) => element.TryGetInt64(out var l) ? l : null,
-                ("real", JsonValueKind.Number) => element.TryGetDouble(out var r) ? r : null,
-                ("decimal", JsonValueKind.Number) => element.TryGetDecimal(out var m) ? m : null,
-                ("int", JsonValueKind.String) => int.Parse(text!, NumberStyles.Integer, CultureInfo.InvariantCulture),
-                ("long", JsonValueKind.String) => long.Parse(text!, NumberStyles.Integer, CultureInfo.InvariantCulture),
-                ("real", JsonValueKind.String) => ParseReal(text!),
-                ("decimal", JsonValueKind.String) => decimal.Parse(text!, NumberStyles.Float, CultureInfo.InvariantCulture),
-                ("datetime", JsonValueKind.String) => DateTime.Parse(text!, CultureInfo.InvariantCulture,
-                    DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal),
-                ("timespan", JsonValueKind.String) => XmlConvert.ToTimeSpan(text!),
-                ("guid", JsonValueKind.String) => Guid.Parse(text!, CultureInfo.InvariantCulture),
-                _ => null,
-            };
+            return XmlConvert.ToTimeSpan(text);
         }
         catch (Exception ex) when (ex is FormatException or OverflowException)
         {
@@ -79,11 +85,11 @@ internal static class TableLoader
     }
 
     /// <summary>A real sent as text: a number, or OData's <c>NaN</c>, <c>INF</c> and <c>-INF</c>.</summary>
-    private static double ParseReal(string text) => text switch
+    private static double? ParseReal(string text) => text switch
     {
         "NaN" => double.NaN,
         "INF" => double.PositiveInfinity,
         "-INF" => double.NegativeInfinity,
-        _ => double.Parse(text, NumberStyles.Float, CultureInfo.InvariantCulture),
+        _ => double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var r) ? r : null,
     };
 }

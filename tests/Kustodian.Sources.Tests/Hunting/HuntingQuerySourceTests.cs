@@ -98,6 +98,19 @@ public class HuntingQuerySourceTests
     }
 
     [Fact]
+    public async Task Hunting_rows_take_the_first_key_for_a_column_and_drop_keys_naming_none()
+    {
+        var graph = new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK, """
+            {"schema":[{"name":"A","type":"Int64"},{"name":"B","type":"String"}],"results":[{"a":1,"A":9,"z":3},{"B":"two","A":2,"A":7}]}
+            """));
+
+        var result = await Source(graph).RunAsync(Request("T"), null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["1", "null"], result.Rows[0].Select(v => v.GetRawText()));
+        Assert.Equal(["7", "\"two\""], result.Rows[1].Select(v => v.GetRawText()));
+    }
+
+    [Fact]
     public async Task Hunting_403_has_permission_copy()
     {
         var result = await Source(Answering(HttpStatusCode.Forbidden, "hunting-run-403.json"))
@@ -394,11 +407,11 @@ public class HuntingQuerySourceTests
         var graph = Answering(HttpStatusCode.OK, "hunting-run-200.json");
         var arm = new StubGraph(_ => StubGraph.Json(HttpStatusCode.OK, WorkspaceList(Guid1)));
 
-        // The options carry the id in upper case, the list in lower: GUID text compares ignoring case.
+        // The options carry the id in upper case, the list in lower: GUID text compares ignoring case, and the list's id is sent.
         var result = await Source(graph, arm).RunAsync(Request("T", OnWorkspace()), null, TestContext.Current.CancellationToken);
 
         Assert.Equal(RunOutcome.Ok, result.Outcome);
-        Assert.Equal($$"""{"Query":"T","Timespan":"P90D","workspaceId":"{{Guid1.ToUpperInvariant()}}"}""", Assert.Single(graph.Seen).Body);
+        Assert.Equal($$"""{"Query":"T","Timespan":"P90D","workspaceId":"{{Guid1}}"}""", Assert.Single(graph.Seen).Body);
     }
 
     [Fact]

@@ -53,19 +53,17 @@ var warnings = new List<string>();
 try
 {
     var (metadataSource, metadataStream) = metadata is null ? await DownloadMetadata(http) : await Open(http, metadata);
+    await using var metadataOwned = metadataStream;
     var (permissionsSource, permissionsStream) = await Open(http, permissionsInput ?? PermissionsUrl);
-    await using (metadataStream)
-    await using (permissionsStream)
-    {
-        var permissions = GraphPermissions.ReadDelegated(permissionsStream);
-        permissionsStream.Position = 0;
-        var relationshipPermissions = GraphPermissions.ReadRelationshipDelegated(permissionsStream);
-        var source = $"{metadataSource}; permissions {permissionsSource}";
-        generated = GraphSchemaBuilder.Build(GraphMetadata.Load(metadataStream), permissions, relationshipPermissions,
-            GraphRelationships.Bundled, source, DateTimeOffset.UtcNow, warnings);
-        permissionsStream.Position = 0;
-        catalog = GraphPermissionCatalog.Build(permissionsStream, generated.Tables, source);
-    }
+    await using var permissionsOwned = permissionsStream;
+    var permissions = GraphPermissions.ReadDelegated(permissionsStream);
+    permissionsStream.Position = 0;
+    var relationshipPermissions = GraphPermissions.ReadRelationshipDelegated(permissionsStream);
+    var source = $"{metadataSource}; permissions {permissionsSource}";
+    generated = GraphSchemaBuilder.Build(GraphMetadata.Load(metadataStream), permissions, relationshipPermissions,
+        GraphRelationships.Bundled, source, DateTimeOffset.UtcNow, warnings);
+    permissionsStream.Position = 0;
+    catalog = GraphPermissionCatalog.Build(permissionsStream, generated.Tables, source);
 }
 catch (Exception e) when (e is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or IOException)
 {
@@ -151,7 +149,10 @@ static async Task<(string Source, Stream Metadata)> DownloadMetadata(HttpClient 
     {
         commitResponse.EnsureSuccessStatusCode();
         using var commit = await JsonDocument.ParseAsync(await commitResponse.Content.ReadAsStreamAsync());
-        sha = commit.RootElement.GetProperty("sha").GetString() ?? throw new JsonException("The commit answer has no sha.");
+        sha = commit.RootElement is { ValueKind: JsonValueKind.Object } root && root.TryGetProperty("sha", out var value)
+            && value.ValueKind == JsonValueKind.String
+                ? value.GetString()!
+                : throw new JsonException("The commit answer has no sha.");
     }
 
     var (_, content) = await Open(http, $"https://raw.githubusercontent.com/microsoftgraph/msgraph-metadata/{sha}/{MetadataPath}");

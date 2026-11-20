@@ -22,9 +22,10 @@ internal static class QueryClock
     /// <exception cref="FormatException">A datetime literal with an offset can't be read.</exception>
     public static string Rewrite(string kql, DateTime nowUtc)
     {
+        var now = $"datetime({nowUtc.ToString(LiteralFormat, CultureInfo.InvariantCulture)})";
         var code = KustoCode.ParseAndAnalyze(kql, GlobalState.Default);
         var targets = code.Syntax
-            .GetDescendants<Expression>(e => Replacement(e, nowUtc, _ => "") is not null)
+            .GetDescendants<Expression>(e => Replacement(e, now, _ => "") is not null)
             .OrderBy(e => e.TextStart)
             .ThenByDescending(e => e.Width)
             .ToList();
@@ -41,7 +42,7 @@ internal static class QueryClock
                 if (target.TextStart < position || target.TextStart < start || target.End > end)
                     continue;
                 text.Append(kql, position, target.TextStart - position);
-                text.Append(Replacement(target, nowUtc, argument => Render(argument.TextStart, argument.End)));
+                text.Append(Replacement(target, now, argument => Render(argument.TextStart, argument.End)));
                 position = target.End;
             }
             return text.Append(kql, position, end - position).ToString();
@@ -51,10 +52,9 @@ internal static class QueryClock
     }
 
     /// <summary>The text that replaces <paramref name="expression"/>, or null when it stays. <paramref name="render"/> gives
-    /// an argument's text with its own replacements.</summary>
-    private static string? Replacement(Expression expression, DateTime nowUtc, Func<Expression, string> render)
+    /// an argument's text with its own replacements; <paramref name="now"/> is the run's time as a datetime literal.</summary>
+    private static string? Replacement(Expression expression, string now, Func<Expression, string> render)
     {
-        var now = $"datetime({nowUtc.ToString(LiteralFormat, CultureInfo.InvariantCulture)})";
         switch (expression)
         {
             case FunctionCallExpression call when call.ReferencedSymbol == Functions.Now:

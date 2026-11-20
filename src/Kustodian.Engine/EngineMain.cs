@@ -17,7 +17,10 @@ public static class EngineMain
     /// the process exit code: 0 at the end of input, 2 for a malformed frame, <see cref="EngineExitCodes.OutOfMemory"/> when
     /// the query ran the GC heap past its hard limit, <see cref="EngineExitCodes.Crashed"/> after any other exception, which
     /// it reports in a last frame.</summary>
-    public static int Run(Stream input, Stream output)
+    public static int Run(Stream input, Stream output) => RunAsync(input, output).GetAwaiter().GetResult();
+
+    /// <summary><see cref="Run"/>, for an async entry point.</summary>
+    public static async Task<int> RunAsync(Stream input, Stream output)
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(output);
@@ -43,16 +46,16 @@ public static class EngineMain
 
         // stdout carries frames only. KustoLoco has a console it may print to; anything written through Console goes to stderr.
         Console.SetOut(Console.Error);
-        return Serve(input, output, EngineHandler.Handle);
+        return await ServeAsync(input, output, EngineHandler.Handle);
     }
 
     /// <summary>The serving loop of <see cref="Run"/> with <paramref name="handle"/> answering each request; tests pass their
     /// own.</summary>
-    internal static int Serve(Stream input, Stream output, Func<EngineRequest, EngineResponse> handle)
+    internal static async Task<int> ServeAsync(Stream input, Stream output, Func<EngineRequest, EngineResponse> handle)
     {
         try
         {
-            return ServeAsync(input, output, handle).GetAwaiter().GetResult();
+            return await ReadAllAsync(input, output, handle);
         }
         catch (Exception e) when (OutOfMemory.Is(e))
         {
@@ -66,7 +69,7 @@ public static class EngineMain
         }
     }
 
-    private static async Task<int> ServeAsync(Stream input, Stream output, Func<EngineRequest, EngineResponse> handle)
+    private static async Task<int> ReadAllAsync(Stream input, Stream output, Func<EngineRequest, EngineResponse> handle)
     {
         try
         {
