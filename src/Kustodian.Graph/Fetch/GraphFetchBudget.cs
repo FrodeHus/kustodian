@@ -6,7 +6,7 @@ namespace Kustodian.Graph.Fetch;
 /// <see cref="GraphFetchLease"/> reserves from it as pages arrive; when it is full a lease waits up to <c>patience</c>
 /// (10 s) for another to finish.
 /// </summary>
-public sealed class GraphFetchBudget(long maxBytes = GraphFetchBudget.DefaultMaxBytes, TimeSpan? patience = null)
+public sealed class GraphFetchBudget(long maxBytes = GraphFetchBudget.DefaultMaxBytes, TimeSpan? patience = null, TimeProvider? time = null)
 {
     public const long DefaultMaxBytes = 512L << 20;
 
@@ -17,6 +17,7 @@ public sealed class GraphFetchBudget(long maxBytes = GraphFetchBudget.DefaultMax
 
     private readonly Lock _gate = new();
     private readonly TimeSpan _patience = patience ?? TimeSpan.FromSeconds(10);
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
     private long _used;
     private TaskCompletionSource _released = NewSignal();
 
@@ -42,7 +43,7 @@ public sealed class GraphFetchBudget(long maxBytes = GraphFetchBudget.DefaultMax
 
     internal async Task ReserveAsync(long bytes, CancellationToken ct)
     {
-        using var deadline = new CancellationTokenSource(_patience);
+        using var deadline = new CancellationTokenSource(_patience, _time);
         while (true)
         {
             Task signal;
@@ -84,31 +85,45 @@ public sealed class GraphFetchLease : IDisposable
 {
     private readonly GraphFetchBudget _budget;
     private readonly long _maxRaw;
+    // The bytes as Graph sent them; the lease holds EstimatedSizeFactor times as many of the budget.
     private long _raw;
-    private long _held;
 
     internal GraphFetchLease(GraphFetchBudget budget, long maxRaw) => (_budget, _maxRaw) = (budget, maxRaw);
 
     /// <summary>Takes <paramref name="bytes"/> more as Graph sent them: <c>TooLarge</c> over what the process budget can
     /// hold (raw bytes) or when this lease's estimate alone would pass the process budget, both at once; <c>Busy</c> only when
-    /// other leases keep the process budget full.</summary>
+    /// other leases keep the process budget full. Safe to call concurrently on one lease: the check and the add are one
+    /// step.</summary>
     public async Task AddAsync(long bytes, CancellationToken ct)
     {
-        var estimated = bytes * GraphFetchBudget.EstimatedSizeFactor;
-        if (Interlocked.Read(ref _raw) + bytes > _maxRaw || Interlocked.Read(ref _held) + estimated > _budget.MaxBytes)
-            throw new GraphReadException(GraphReadFailure.TooLarge,
-                "Graph returned more than " + (_maxRaw >> 20).ToString(System.Globalization.CultureInfo.InvariantCulture)
-                + " MB for this query. Add a `where` Graph can filter on (see the schema list).");
-        await _budget.ReserveAsync(estimated, ct);
-        Interlocked.Add(ref _raw, bytes);
-        Interlocked.Add(ref _held, estimated);
+        // _maxRaw times the factor is at most the budget, so this one check covers the estimate as well.
+        var raw = Interlocked.Read(ref _raw);
+        while (true)
+        {
+            if (raw + bytes > _maxRaw)
+                throw new GraphReadException(GraphReadFailure.TooLarge,
+                    "Graph returned more than " + (_maxRaw >> 20).ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    + " MB for this query. Add a `where` Graph can filter on (see the schema list).");
+            var was = Interlocked.CompareExchange(ref _raw, raw + bytes, raw);
+            if (was == raw)
+                break;
+            raw = was;
+        }
+        try
+        {
+            await _budget.ReserveAsync(bytes * GraphFetchBudget.EstimatedSizeFactor, ct);
+        }
+        catch
+        {
+            Interlocked.Add(ref _raw, -bytes);
+            throw;
+        }
     }
 
     public void Dispose()
     {
-        Interlocked.Exchange(ref _raw, 0);
-        var held = Interlocked.Exchange(ref _held, 0);
-        if (held > 0)
-            _budget.Release(held);
+        var raw = Interlocked.Exchange(ref _raw, 0);
+        if (raw > 0)
+            _budget.Release(raw * GraphFetchBudget.EstimatedSizeFactor);
     }
 }

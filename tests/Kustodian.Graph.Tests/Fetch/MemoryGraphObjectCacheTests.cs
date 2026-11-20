@@ -66,6 +66,25 @@ public sealed class MemoryGraphObjectCacheTests
     }
 
     [Fact]
+    public async Task Sweeps_at_most_once_a_tenth_of_the_ttl()
+    {
+        var time = new FakeTimeProvider();
+        var cache = new MemoryGraphObjectCache(time, OneMinute);
+        await cache.SetAsync("acc", "applications", Columns, "old", "{}", CancellationToken.None);
+        time.Advance(TimeSpan.FromSeconds(59));
+        await cache.SetAsync("acc", "applications", Columns, "mid", "{}", CancellationToken.None);
+        time.Advance(TimeSpan.FromSeconds(2));
+
+        await cache.SetAsync("acc", "applications", Columns, "new", "{}", CancellationToken.None);
+        var within = cache.Count;
+        time.Advance(TimeSpan.FromSeconds(4));
+        await cache.SetAsync("acc", "applications", Columns, "newer", "{}", CancellationToken.None);
+
+        Assert.Equal(3, within);
+        Assert.Equal(3, cache.Count);
+    }
+
+    [Fact]
     public async Task Clear_removes_everything()
     {
         var cache = new MemoryGraphObjectCache(new FakeTimeProvider());
