@@ -863,6 +863,11 @@ export function createMockTransport(): Transport {
       case 'app.print':
         reply(id, false);
         break;
+      case 'window.titleBar':
+      case 'window.drag':
+      case 'window.zoom':
+        reply(id, null);
+        break;
       case 'app.openRelease':
       case 'app.openLink':
         reply(id, null);
