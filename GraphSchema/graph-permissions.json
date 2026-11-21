@@ -1,5 +1,5 @@
 {
-  "source": "msgraph-metadata@690154db7b24571a66b5494ab14a14a96182ebbf; permissions https://raw.githubusercontent.com/microsoftgraph/microsoft-graph-devx-content/master/permissions/new/permissions.json",
+  "source": "msgraph-metadata@6515412a38ee4efb99669442b697df15b7f55c36; permissions https://raw.githubusercontent.com/microsoftgraph/microsoft-graph-devx-content/master/permissions/new/permissions.json",
   "permissions": [
     {
       "name": "APIConnectors.ReadWrite.All",
@@ -239,6 +239,7 @@
       "tables": [
         "auditLogs/directoryAudits",
         "auditLogs/provisioning",
+        "auditLogs/resourcePolicy",
         "auditLogs/signIns",
         "auditLogs/signUps",
         "reports/authenticationMethods/userRegistrationDetails",
@@ -600,6 +601,22 @@
       ]
     },
     {
+      "name": "CopilotCostManagement-CreditReq.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read credit requests submitted in your organization, on your behalf. This includes request details and the identities associated with each request.",
+      "tables": [
+        "copilot/costManagement/creditRequests"
+      ]
+    },
+    {
+      "name": "CopilotCostManagement-CreditReq.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read, approve, and reject credit requests in your organization, on your behalf. Approving a request records the decision but does not itself assign credits.",
+      "tables": [
+        "copilot/costManagement/creditRequests"
+      ]
+    },
+    {
       "name": "CopilotCostManagement-Policy.Read.All",
       "adminConsent": true,
       "description": "Allows the app to read your organization's Copilot spending policies and their configuration on your behalf, including budget limits, alert thresholds, who created and last changed each policy, and who receives its alerts.",
@@ -620,6 +637,15 @@
       "adminConsent": true,
       "description": "Allows the app to read Copilot cost data attributed to individual users and security groups in your organization, on your behalf. This includes any named user's credit balance, consumption rankings, usage totalled by security group, and raw usage grouped by service or activity session, including session identifiers when available and first and last activity timestamps.",
       "tables": [
+        "copilot/costManagement/userBalances"
+      ]
+    },
+    {
+      "name": "CopilotCostManagement.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read all your organization's Copilot cost data on your behalf: any user's credit balance, consumption rankings, raw usage by service or activity session, session identifiers when available, first and last activity timestamps, security-group usage, spending policies, who they apply to, and who receives their alerts.",
+      "tables": [
+        "copilot/costManagement/spendingPolicies",
         "copilot/costManagement/userBalances"
       ]
     },
@@ -2536,6 +2562,24 @@
       ]
     },
     {
+      "name": "Perception.Manage.All",
+      "adminConsent": true,
+      "description": "Allows the app to read Agentic Security resources, create sessions and request cancellation for those resources.",
+      "tables": [
+        "security/agenticSecurity/playbookDefinitions",
+        "security/agenticSecurity/sessions"
+      ]
+    },
+    {
+      "name": "Perception.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read Agentic Security playbook definitions, sessions, agent runs, inputs, outputs and messages that you can access.",
+      "tables": [
+        "security/agenticSecurity/playbookDefinitions",
+        "security/agenticSecurity/sessions"
+      ]
+    },
+    {
       "name": "PlaceDevice.Read.All",
       "adminConsent": true,
       "description": "Allows the app to read all workplace devices, on your behalf.",
@@ -2608,7 +2652,8 @@
       "adminConsent": false,
       "description": "Allows the app to read your organization's conditional access policies on your behalf.",
       "tables": [
-        "identity/conditionalAccess/authenticationContextClassReferences"
+        "identity/conditionalAccess/authenticationContextClassReferences",
+        "identity/conditionalAccess/settings"
       ]
     },
     {
@@ -3118,6 +3163,80 @@
         "reports/monthlyPrintUsageByUser",
         "reports/userCredentialUsageDetails",
         "tenantRelationships/managedTenants/credentialUserRegistrationsSummaries"
+      ]
+    },
+    {
+      "name": "Repository.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read your organization's connected security content repositories, and discover candidate repositories with a supplied credential, on your behalf.",
+      "tables": [
+        "security/contentManagement/repositories"
+      ]
+    },
+    {
+      "name": "Repository.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and manage your organization's connected security content repositories on your behalf.",
+      "tables": [
+        "security/contentManagement/repositories"
+      ]
+    },
+    {
+      "name": "ResourcePolicyAssignment.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read resource policy assignments, on your behalf.",
+      "tables": [
+        "admin/resourcePolicy/assignments"
+      ]
+    },
+    {
+      "name": "ResourcePolicyAssignment.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write resource policy assignments, on your behalf.",
+      "tables": [
+        "admin/resourcePolicy/assignments"
+      ]
+    },
+    {
+      "name": "ResourcePolicyConfiguration.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read the tenant-wide resource policy configuration, including the configured privileged-read app ID, on your behalf.",
+      "tables": [
+        "admin/resourcePolicy/configuration"
+      ]
+    },
+    {
+      "name": "ResourcePolicyConfiguration.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write the tenant-wide resource policy configuration, including setting the privileged-read app ID used by all fetch() calls during policy evaluation, on your behalf.",
+      "tables": [
+        "admin/resourcePolicy/configuration"
+      ]
+    },
+    {
+      "name": "ResourcePolicyDefinition.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read resource policy definitions, on your behalf.",
+      "tables": [
+        "admin/resourcePolicy/builtInDefinitions",
+        "admin/resourcePolicy/definitions"
+      ]
+    },
+    {
+      "name": "ResourcePolicyDefinition.ReadWrite.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and write resource policy definitions, on your behalf.",
+      "tables": [
+        "admin/resourcePolicy/builtInDefinitions",
+        "admin/resourcePolicy/definitions"
+      ]
+    },
+    {
+      "name": "ResourcePolicyEvaluationEvent.Read.All",
+      "adminConsent": true,
+      "description": "Allows the app to read and query Entra Resource Policy evaluation audit events for your organization, on your behalf.",
+      "tables": [
+        "auditLogs/resourcePolicy"
       ]
     },
     {
