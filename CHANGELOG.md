@@ -99,6 +99,7 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- The Graph schema is regenerated from the latest beta metadata (msgraph-metadata@6515412).
 - **.NET 11**: Kustodian now runs on .NET 11.
 - **Runtime async**: Kustodian's async code now runs on .NET 11's runtime async, with less overhead per `await`. Stack
   frames in error reports name the method itself (`Type.Method`) instead of `Type+<Method>d__N.MoveNext`, so a problem

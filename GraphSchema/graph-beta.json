@@ -1,6 +1,6 @@
 {
-  "source": "msgraph-metadata@690154db7b24571a66b5494ab14a14a96182ebbf; permissions https://raw.githubusercontent.com/microsoftgraph/microsoft-graph-devx-content/master/permissions/new/permissions.json",
-  "generatedAt": "2026-11-08T09:14:21.291331+00:00",
+  "source": "msgraph-metadata@6515412a38ee4efb99669442b697df15b7f55c36; permissions https://raw.githubusercontent.com/microsoftgraph/microsoft-graph-devx-content/master/permissions/new/permissions.json",
+  "generatedAt": "2026-11-21T05:19:06.0562576+00:00",
   "tables": [
     {
       "name": "accessReviewDecisions",
@@ -696,7 +696,7 @@
         {
           "name": "mode",
           "type": "string",
-          "description": "Monitor mode in which the monitor runs.  The possible values are: monitorOnly, unknownFutureValue. The default value is monitorOnly. Supports $filter (eq, ne).",
+          "description": "The mode in which the monitor runs. The possible values are: monitorOnly, applyOnce, unknownFutureValue. The default is monitorOnly. monitorOnly detects drift on a schedule; applyOnce applies the desired-state baseline once. Supports $filter (eq, ne).",
           "filter": [
             "eq",
             "ne"
@@ -706,7 +706,7 @@
         {
           "name": "monitorRunFrequencyInHours",
           "type": "int",
-          "description": "Frequency at which the monitor runs. The default frequency is six hours. Regardless of when you create or update a monitor, it gets triggered within the next 6 hours. Currently, monitors are picked up at fixed times: 6 AM, 12 PM, 6 PM, and 12 AM (all in GMT). For example, if you create a monitor at 9 AM, it gets triggered around 12 PM. If you update a monitor at 4 PM, it gets triggered around 6 PM.",
+          "description": "Frequency at which a monitorOnly monitor runs. The default frequency is six hours. Regardless of when you create or update a monitorOnly monitor, it gets triggered within the next 6 hours. Currently, monitors are picked up at fixed times: 6 AM, 12 PM, 6 PM, and 12 AM (all in GMT). For example, if you create a monitor at 9 AM, it gets triggered around 12 PM. If you update a monitor at 4 PM, it gets triggered around 6 PM. This schedule doesn't apply to applyOnce monitors.",
           "selectOnly": false
         },
         {
@@ -719,7 +719,7 @@
         {
           "name": "status",
           "type": "string",
-          "description": "Status of the monitor  The possible values are: active, unknownFutureValue. The default value is active. Supports $filter (eq, ne) and $orderby.",
+          "description": "Status of the monitor. The possible values are: active, inactive, unknownFutureValue. The default is active. An applyOnce monitor becomes inactive after execution. Supports $filter (eq, ne) and $orderby.",
           "filter": [
             "eq",
             "ne"
@@ -1337,6 +1337,254 @@
           "name": "displayConcealedNames",
           "type": "bool",
           "description": "If set to true, all reports conceal user information such as usernames, groups, and sites. If false, all reports show identifiable information. This property represents a setting in the Microsoft 365 admin center. Required.",
+          "selectOnly": false
+        }
+      ]
+    },
+    {
+      "name": "admin_resourcePolicy_assignments",
+      "path": "admin/resourcePolicy/assignments",
+      "entityType": "microsoft.graph.resourcePolicyAssignment",
+      "description": "",
+      "docsUrl": "https://learn.microsoft.com/graph/api/resources/resourcepolicyassignment?view=graph-rest-beta",
+      "permissions": [
+        "ResourcePolicyAssignment.Read.All"
+      ],
+      "columns": [
+        {
+          "name": "assignedPolicy",
+          "type": "dynamic",
+          "description": "",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.assignedPolicyReference"
+        },
+        {
+          "name": "createdDateTime",
+          "type": "datetime",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "deletedDateTime",
+          "type": "datetime",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "enforcementMode",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "isEnabled",
+          "type": "bool",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "lastModifiedDateTime",
+          "type": "datetime",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "params",
+          "type": "dynamic",
+          "description": "",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.Json"
+        },
+        {
+          "name": "scope",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "uniqueName",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        }
+      ]
+    },
+    {
+      "name": "admin_resourcePolicy_builtInDefinitions",
+      "path": "admin/resourcePolicy/builtInDefinitions",
+      "entityType": "microsoft.graph.resourcePolicyDefinition",
+      "description": "",
+      "docsUrl": "https://learn.microsoft.com/graph/api/resources/resourcepolicydefinition?view=graph-rest-beta",
+      "permissions": [
+        "ResourcePolicyDefinition.Read.All"
+      ],
+      "columns": [
+        {
+          "name": "category",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "createdDateTime",
+          "type": "datetime",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "deletedDateTime",
+          "type": "datetime",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "displayName",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "lastModifiedDateTime",
+          "type": "datetime",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "paramsSchema",
+          "type": "dynamic",
+          "description": "",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.Json"
+        },
+        {
+          "name": "rule",
+          "type": "dynamic",
+          "description": "",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.resourcePolicyRule"
+        },
+        {
+          "name": "uniqueName",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "version",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        }
+      ]
+    },
+    {
+      "name": "admin_resourcePolicy_configuration",
+      "path": "admin/resourcePolicy/configuration",
+      "entityType": "microsoft.graph.resourcePolicyConfiguration",
+      "description": "",
+      "docsUrl": "https://learn.microsoft.com/graph/api/resources/resourcepolicyconfiguration?view=graph-rest-beta",
+      "single": true,
+      "permissions": [
+        "ResourcePolicyConfiguration.Read.All"
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "type": "string",
+          "description": "The unique identifier for an entity. Read-only.",
+          "selectOnly": false
+        },
+        {
+          "name": "lastModifiedDateTime",
+          "type": "datetime",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "privilegedReadSetting",
+          "type": "dynamic",
+          "description": "",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.privilegedReadSetting"
+        }
+      ]
+    },
+    {
+      "name": "admin_resourcePolicy_definitions",
+      "path": "admin/resourcePolicy/definitions",
+      "entityType": "microsoft.graph.resourcePolicyDefinition",
+      "description": "",
+      "docsUrl": "https://learn.microsoft.com/graph/api/resources/resourcepolicydefinition?view=graph-rest-beta",
+      "permissions": [
+        "ResourcePolicyDefinition.Read.All"
+      ],
+      "columns": [
+        {
+          "name": "category",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "createdDateTime",
+          "type": "datetime",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "deletedDateTime",
+          "type": "datetime",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "displayName",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "lastModifiedDateTime",
+          "type": "datetime",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "paramsSchema",
+          "type": "dynamic",
+          "description": "",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.Json"
+        },
+        {
+          "name": "rule",
+          "type": "dynamic",
+          "description": "",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.resourcePolicyRule"
+        },
+        {
+          "name": "uniqueName",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "version",
+          "type": "string",
+          "description": "",
           "selectOnly": false
         }
       ]
@@ -3327,6 +3575,13 @@
           "selectOnly": false
         },
         {
+          "name": "identifierUriConfiguration",
+          "type": "dynamic",
+          "description": "",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.applicationIdentifierUriConfiguration"
+        },
+        {
           "name": "identifierUris",
           "type": "dynamic",
           "description": "Also known as App ID URI, this value is set when an application is used as a resource app. The identifierUris acts as the prefix for the scopes you reference in your API's code, and it must be globally unique across Microsoft Entra ID. For more information on valid identifierUris patterns and best practices, see Microsoft Entra application registration security best practices. Not nullable. Supports $filter (eq, ne, ge, le, startsWith).",
@@ -3339,6 +3594,13 @@
           ],
           "selectOnly": false,
           "collection": true
+        },
+        {
+          "name": "idJag",
+          "type": "dynamic",
+          "description": "",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.idJagApplicationConfiguration"
         },
         {
           "name": "info",
@@ -3371,6 +3633,15 @@
           "type": "bool",
           "description": "Specifies the fallback application type as public client, such as an installed application running on a mobile device. The default value is false, which means the fallback application type is confidential client such as a web app. There are certain scenarios where Microsoft Entra ID can't determine the client application type. For example, the ROPC flow where the application is configured without specifying a redirect URI. In those cases Microsoft Entra ID interprets the application type based on the value of this property.",
           "selectOnly": false
+        },
+        {
+          "name": "isHardDeleteProtectionEnabled",
+          "type": "bool",
+          "description": "Indicates whether hard deletion protection is enabled for the application. When true, permanent deletion is blocked for seven days after soft deletion. The application can still be soft deleted and restored. Once enabled, protection can't be disabled or set to null. Enable protection on an existing application by using Update application; enabling it during creation isn't supported. Setting this property to true requires the Microsoft Entra Backup Administrator role. Nullable. Requires $select to retrieve. Supports $filter (eq).",
+          "filter": [
+            "eq"
+          ],
+          "selectOnly": true
         },
         {
           "name": "keyCredentials",
@@ -4266,6 +4537,176 @@
           "filter": [
             "eq"
           ],
+          "selectOnly": false
+        }
+      ]
+    },
+    {
+      "name": "auditLogs_resourcePolicy",
+      "path": "auditLogs/resourcePolicy",
+      "entityType": "microsoft.graph.resourcePolicyEvaluationEvent",
+      "description": "",
+      "docsUrl": "https://learn.microsoft.com/graph/api/resources/resourcepolicyevaluationevent?view=graph-rest-beta",
+      "permissions": [
+        "ResourcePolicyEvaluationEvent.Read.All"
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "type": "string",
+          "description": "The unique identifier for an entity. Read-only.",
+          "selectOnly": false
+        },
+        {
+          "name": "apiVersion",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "appDisplayName",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "appId",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "applicablePoliciesCount",
+          "type": "int",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "auditPoliciesCount",
+          "type": "int",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "clientRequestId",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "denyPoliciesCount",
+          "type": "int",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "durationMs",
+          "type": "int",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "errorPoliciesCount",
+          "type": "int",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "evaluatedDateTime",
+          "type": "datetime",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "evaluatedPoliciesCount",
+          "type": "int",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "location",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "operationId",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "policyDecision",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "policyDetails",
+          "type": "dynamic",
+          "description": "",
+          "selectOnly": false,
+          "collection": true,
+          "complexType": "microsoft.graph.policyEvaluationDetail"
+        },
+        {
+          "name": "requestId",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "requestMethod",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "requestUri",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "servicePrincipalId",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "targetResourceId",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "targetResourceName",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "tenantId",
+          "type": "string",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "totalFetchDurationMs",
+          "type": "int",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "totalPolicyEvaluationDurationMs",
+          "type": "int",
+          "description": "",
+          "selectOnly": false
+        },
+        {
+          "name": "userId",
+          "type": "string",
+          "description": "",
           "selectOnly": false
         }
       ]
@@ -7345,6 +7786,74 @@
           "name": "turnCount",
           "type": "int",
           "description": "The number of turns in the conversation.",
+          "selectOnly": false
+        }
+      ]
+    },
+    {
+      "name": "copilot_costManagement_creditRequests",
+      "path": "copilot/costManagement/creditRequests",
+      "entityType": "microsoft.graph.creditRequest",
+      "description": "A credit request submitted by a user and acted on by an administrator.\nDerives from entity; the client-visible identifier is id.\nETag-based optimistic concurrency is enforced via the standard OData ETag mechanism.\nIndividual PATCH uses If-Match; the bulk action uses each item's etag field.",
+      "docsUrl": "https://learn.microsoft.com/graph/api/resources/creditrequest?view=graph-rest-beta",
+      "permissions": [
+        "CopilotCostManagement-CreditReq.Read.All"
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "type": "string",
+          "description": "The unique identifier for an entity. Read-only.",
+          "selectOnly": false
+        },
+        {
+          "name": "createdDateTime",
+          "type": "datetime",
+          "description": "The date and time the request was created.",
+          "selectOnly": false
+        },
+        {
+          "name": "decisionBy",
+          "type": "dynamic",
+          "description": "The identity of the administrator who approved or rejected the request.\nOnly the user facet is populated. Null until the request is decided.",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.identitySet"
+        },
+        {
+          "name": "expirationDateTime",
+          "type": "datetime",
+          "description": "The date and time the request expires. The backing service sets this to 90 days after\ncreation and resets it to 90 days after a state-changing update.",
+          "selectOnly": false
+        },
+        {
+          "name": "lastModifiedDateTime",
+          "type": "datetime",
+          "description": "The date and time the request was last modified.",
+          "selectOnly": false
+        },
+        {
+          "name": "requestedBy",
+          "type": "dynamic",
+          "description": "The identity of the user that submitted the request. Only the user facet is populated.",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.identitySet"
+        },
+        {
+          "name": "requestType",
+          "type": "string",
+          "description": "The type or trigger that caused this credit request.",
+          "selectOnly": false
+        },
+        {
+          "name": "serviceId",
+          "type": "string",
+          "description": "The open, extensible service identifier associated with this credit request,\nusing the same values as other Copilot Cost Management APIs, such as cowork and workIQ.",
+          "selectOnly": false
+        },
+        {
+          "name": "state",
+          "type": "string",
+          "description": "The current state of this credit request in the approval workflow.",
           "selectOnly": false
         }
       ]
@@ -23570,7 +24079,7 @@
         {
           "name": "alertRuleTemplate",
           "type": "string",
-          "description": "The rule template of the alert event. The possible values are: cloudPcProvisionScenario, cloudPcImageUploadScenario, cloudPcOnPremiseNetworkConnectionCheckScenario, unknownFutureValue, cloudPcInGracePeriodScenario, cloudPcFrontlineInsufficientLicensesScenario, cloudPcInaccessibleScenario, cloudPcFrontlineConcurrencyScenario, cloudPcUserSettingsPersistenceScenario, cloudPcDeprovisionFailedScenario. Use the Prefer: include-unknown-enum-members request header to get the following values from this evolvable enum: cloudPcInGracePeriodScenario, cloudPcFrontlineInsufficientLicensesScenario, cloudPcInaccessibleScenario, cloudPcFrontlineConcurrencyScenario, cloudPcUserSettingsPersistenceScenario, cloudPcDeprovisionFailedScenario.",
+          "description": "The rule template of the alert event. The possible values are: cloudPcProvisionScenario, cloudPcImageUploadScenario, cloudPcOnPremiseNetworkConnectionCheckScenario, unknownFutureValue, cloudPcInGracePeriodScenario, cloudPcFrontlineInsufficientLicensesScenario, cloudPcInaccessibleScenario, cloudPcFrontlineConcurrencyScenario, cloudPcUserSettingsPersistenceScenario, cloudPcDeprovisionFailedScenario, cloudPcReserveHealthScenario. Use the Prefer: include-unknown-enum-members request header to get the following values from this evolvable enum: cloudPcInGracePeriodScenario, cloudPcFrontlineInsufficientLicensesScenario, cloudPcInaccessibleScenario, cloudPcFrontlineConcurrencyScenario, cloudPcUserSettingsPersistenceScenario, cloudPcDeprovisionFailedScenario, cloudPcReserveHealthScenario.",
           "selectOnly": false
         },
         {
@@ -23630,7 +24139,7 @@
         {
           "name": "alertRuleTemplate",
           "type": "string",
-          "description": "The rule template of the alert event. The possible values are: cloudPcProvisionScenario, cloudPcImageUploadScenario, cloudPcOnPremiseNetworkConnectionCheckScenario, unknownFutureValue, cloudPcInGracePeriodScenario, cloudPcFrontlineInsufficientLicensesScenario, cloudPcInaccessibleScenario, cloudPcFrontlineConcurrencyScenario, cloudPcUserSettingsPersistenceScenario, cloudPcDeprovisionFailedScenario.  Use the Prefer: include-unknown-enum-members request header to get the following values from this evolvable enum: cloudPcInGracePeriodScenario, cloudPcFrontlineInsufficientLicensesScenario, cloudPcInaccessibleScenario, cloudPcFrontlineConcurrencyScenario, cloudPcUserSettingsPersistenceScenario, cloudPcDeprovisionFailedScenario.",
+          "description": "The rule template of the alert event. The possible values are: cloudPcProvisionScenario, cloudPcImageUploadScenario, cloudPcOnPremiseNetworkConnectionCheckScenario, unknownFutureValue, cloudPcInGracePeriodScenario, cloudPcFrontlineInsufficientLicensesScenario, cloudPcInaccessibleScenario, cloudPcFrontlineConcurrencyScenario, cloudPcUserSettingsPersistenceScenario, cloudPcDeprovisionFailedScenario, cloudPcReserveHealthScenario.  Use the Prefer: include-unknown-enum-members request header to get the following values from this evolvable enum: cloudPcInGracePeriodScenario, cloudPcFrontlineInsufficientLicensesScenario, cloudPcInaccessibleScenario, cloudPcFrontlineConcurrencyScenario, cloudPcUserSettingsPersistenceScenario, cloudPcDeprovisionFailedScenario, cloudPcReserveHealthScenario.",
           "selectOnly": false
         },
         {
@@ -28823,7 +29332,7 @@
         {
           "name": "cloudPcIds",
           "type": "dynamic",
-          "description": "",
+          "description": "IDs of the Cloud PCs the bulk action applies to. Individual Cloud PC IDs are GUID-formatted strings.",
           "selectOnly": false,
           "collection": true
         },
@@ -28926,6 +29435,13 @@
           "name": "timeRange",
           "type": "string",
           "description": "Only on cloudPcBulkRestore. Indicates the time range of the restore point. The possible values are: before, after, beforeOrAfter, unknownFutureValue. The default value is before.",
+          "selectOnly": false,
+          "derived": true
+        },
+        {
+          "name": "deviceNamingTemplate",
+          "type": "string",
+          "description": "Only on cloudPcBulkSetDeviceName. The template used to generate a unique device name for each Cloud PC. Required when creating the action. Use an optional prefix followed by one %RAND:x% macro, where x is the number of random alphanumeric characters and is at least 5. The generated name must be 5–15 characters long. The prefix can contain ASCII letters, digits, and hyphens, and must not start with a hyphen. The prefix length plus x must not exceed 15. For example, ACRA-%RAND:5% generates a ten-character name such as ACRA-A1B2C.",
           "selectOnly": false,
           "derived": true
         },
@@ -38763,6 +39279,15 @@
           "selectOnly": false
         },
         {
+          "name": "isHardDeleteProtectionEnabled",
+          "type": "bool",
+          "description": "Indicates whether hard deletion protection is enabled for the group. Supported for cloud-only groups. When true, permanent deletion is blocked for seven days after soft deletion. The group can still be soft deleted and restored. Once enabled, protection can't be disabled or set to null. Enable protection on an existing group by using Update group; enabling it during creation isn't supported. Setting this property to true requires the Microsoft Entra Backup Administrator role. Nullable. Requires $select to retrieve. Supports $filter (eq).",
+          "filter": [
+            "eq"
+          ],
+          "selectOnly": true
+        },
+        {
           "name": "isManagementRestricted",
           "type": "bool",
           "description": "Indicates whether the group is a member of a restricted management administrative unit. If not set, the default value is null and the default behavior is false. Read-only.  To manage a group member of a restricted management administrative unit, the administrator or calling app must be assigned a Microsoft Entra role at the scope of the restricted management administrative unit.",
@@ -43739,6 +44264,38 @@
       ]
     },
     {
+      "name": "identity_conditionalAccess_settings",
+      "path": "identity/conditionalAccess/settings",
+      "entityType": "microsoft.graph.conditionalAccessSettings",
+      "description": "",
+      "docsUrl": "https://learn.microsoft.com/graph/api/resources/conditionalaccesssettings?view=graph-rest-beta",
+      "single": true,
+      "permissions": [
+        "Policy.Read.ConditionalAccess"
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "type": "string",
+          "description": "The unique identifier for an entity. Read-only.",
+          "selectOnly": false
+        },
+        {
+          "name": "exclusions",
+          "type": "dynamic",
+          "description": "The tenant-wide exclusions configuration.",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.conditionalAccessExclusions"
+        },
+        {
+          "name": "modifiedDateTime",
+          "type": "datetime",
+          "description": "The date and time the settings were last modified, in ISO 8601 format and UTC. Nullable. Read-only.",
+          "selectOnly": false
+        }
+      ]
+    },
+    {
       "name": "identity_conditionalAccess_templates",
       "path": "identity/conditionalAccess/templates",
       "entityType": "microsoft.graph.conditionalAccessTemplate",
@@ -45450,7 +46007,7 @@
         {
           "name": "identityGovernance",
           "type": "dynamic",
-          "description": "The identity governance settings for the user. You can get or update the user's approver delegate through the approverDelegate property. Nullable. Returned only on $select. Supports $expand.",
+          "description": "The identity governance settings for the user, including the approver delegate configuration. You can get or update the user's approver delegate through the approverDelegate property. Nullable. Returned only on $select. Supports $expand.",
           "selectOnly": true,
           "complexType": "microsoft.graph.identityGovernanceUserSettings"
         },
@@ -45494,6 +46051,15 @@
           "description": "A list for users to describe their interests. Requires $select to retrieve.",
           "selectOnly": true,
           "collection": true
+        },
+        {
+          "name": "isHardDeleteProtectionEnabled",
+          "type": "bool",
+          "description": "Indicates whether hard deletion protection is enabled for the user (excluding on-premises synchronized users). When true, permanent deletion is blocked for seven days after soft deletion. The user can still be soft deleted and restored. Once enabled, protection can't be disabled or set to null. Enable protection on an existing user by using Update user; enabling it during creation isn't supported. Setting this property to true requires the Microsoft Entra Backup Administrator role. Nullable. Requires $select to retrieve. Supports $filter (eq).",
+          "filter": [
+            "eq"
+          ],
+          "selectOnly": true
         },
         {
           "name": "isLicenseReconciliationNeeded",
@@ -46256,7 +46822,7 @@
         {
           "name": "alertRuleTemplate",
           "type": "string",
-          "description": "The rule template of the alert event. The possible values are: cloudPcProvisionScenario, cloudPcImageUploadScenario, cloudPcOnPremiseNetworkConnectionCheckScenario, unknownFutureValue, cloudPcInGracePeriodScenario, cloudPcFrontlineInsufficientLicensesScenario, cloudPcInaccessibleScenario, cloudPcFrontlineConcurrencyScenario, cloudPcUserSettingsPersistenceScenario, cloudPcDeprovisionFailedScenario. Use the Prefer: include-unknown-enum-members request header to get the following values from this evolvable enum: cloudPcInGracePeriodScenario, cloudPcFrontlineInsufficientLicensesScenario, cloudPcInaccessibleScenario, cloudPcFrontlineConcurrencyScenario, cloudPcUserSettingsPersistenceScenario, cloudPcDeprovisionFailedScenario.",
+          "description": "The rule template of the alert event. The possible values are: cloudPcProvisionScenario, cloudPcImageUploadScenario, cloudPcOnPremiseNetworkConnectionCheckScenario, unknownFutureValue, cloudPcInGracePeriodScenario, cloudPcFrontlineInsufficientLicensesScenario, cloudPcInaccessibleScenario, cloudPcFrontlineConcurrencyScenario, cloudPcUserSettingsPersistenceScenario, cloudPcDeprovisionFailedScenario, cloudPcReserveHealthScenario. Use the Prefer: include-unknown-enum-members request header to get the following values from this evolvable enum: cloudPcInGracePeriodScenario, cloudPcFrontlineInsufficientLicensesScenario, cloudPcInaccessibleScenario, cloudPcFrontlineConcurrencyScenario, cloudPcUserSettingsPersistenceScenario, cloudPcDeprovisionFailedScenario, cloudPcReserveHealthScenario.",
           "selectOnly": false
         },
         {
@@ -46313,7 +46879,7 @@
         {
           "name": "alertRuleTemplate",
           "type": "string",
-          "description": "The rule template of the alert event. The possible values are: cloudPcProvisionScenario, cloudPcImageUploadScenario, cloudPcOnPremiseNetworkConnectionCheckScenario, unknownFutureValue, cloudPcInGracePeriodScenario, cloudPcFrontlineInsufficientLicensesScenario, cloudPcInaccessibleScenario, cloudPcFrontlineConcurrencyScenario, cloudPcUserSettingsPersistenceScenario, cloudPcDeprovisionFailedScenario.  Use the Prefer: include-unknown-enum-members request header to get the following values from this evolvable enum: cloudPcInGracePeriodScenario, cloudPcFrontlineInsufficientLicensesScenario, cloudPcInaccessibleScenario, cloudPcFrontlineConcurrencyScenario, cloudPcUserSettingsPersistenceScenario, cloudPcDeprovisionFailedScenario.",
+          "description": "The rule template of the alert event. The possible values are: cloudPcProvisionScenario, cloudPcImageUploadScenario, cloudPcOnPremiseNetworkConnectionCheckScenario, unknownFutureValue, cloudPcInGracePeriodScenario, cloudPcFrontlineInsufficientLicensesScenario, cloudPcInaccessibleScenario, cloudPcFrontlineConcurrencyScenario, cloudPcUserSettingsPersistenceScenario, cloudPcDeprovisionFailedScenario, cloudPcReserveHealthScenario.  Use the Prefer: include-unknown-enum-members request header to get the following values from this evolvable enum: cloudPcInGracePeriodScenario, cloudPcFrontlineInsufficientLicensesScenario, cloudPcInaccessibleScenario, cloudPcFrontlineConcurrencyScenario, cloudPcUserSettingsPersistenceScenario, cloudPcDeprovisionFailedScenario, cloudPcReserveHealthScenario.",
           "selectOnly": false
         },
         {
@@ -48255,7 +48821,7 @@
         {
           "name": "resourceQuotas",
           "type": "dynamic",
-          "description": "",
+          "description": "The quota configurations for resource types in the organization. Each resourceType value must be unique in the collection. The maxPercentage value represents the maximum percentage of directorySizeQuota.total that the resource type can consume, from 0 to 100. A value of 0 blocks creation of new resources of that type.",
           "selectOnly": false,
           "collection": true,
           "complexType": "microsoft.graph.resourceQuota"
@@ -48839,7 +49405,7 @@
         {
           "name": "archivalInfo",
           "type": "dynamic",
-          "description": "Information about whether the entity is archived, and when it was archived.",
+          "description": "Service-populated information about whether the entity is archived, and when it was archived. Read-only.",
           "selectOnly": false,
           "complexType": "microsoft.graph.plannerArchivalInfo"
         },
@@ -48887,7 +49453,7 @@
         {
           "name": "duration",
           "type": "int",
-          "description": "Duration of the plan, in days.",
+          "description": "Computed duration of the plan, in seconds. Read-only.",
           "selectOnly": false
         },
         {
@@ -48900,7 +49466,7 @@
         {
           "name": "hasChat",
           "type": "bool",
-          "description": "Indicates whether the plan has an associated chat.",
+          "description": "Indicates whether the plan has an associated chat. Read-only.",
           "selectOnly": false
         },
         {
@@ -49216,7 +49782,7 @@
         {
           "name": "archivalInfo",
           "type": "dynamic",
-          "description": "Information about whether the entity is archived, and when it was archived.",
+          "description": "Service-populated information about whether the entity is archived, and when it was archived. Read-only.",
           "selectOnly": false,
           "complexType": "microsoft.graph.plannerArchivalInfo"
         },
@@ -49236,14 +49802,14 @@
         {
           "name": "completedBy",
           "type": "dynamic",
-          "description": "Identity of the user who marked the task complete.",
+          "description": "Identity of the user who marked the task complete. Read-only.",
           "selectOnly": false,
           "complexType": "microsoft.graph.identitySet"
         },
         {
           "name": "completedDateTime",
           "type": "datetime",
-          "description": "Date and time the task was completed.",
+          "description": "Date and time the task was completed. Read-only.",
           "selectOnly": false
         },
         {
@@ -49290,19 +49856,19 @@
         {
           "name": "hasChat",
           "type": "bool",
-          "description": "Indicates whether the task has an associated chat.",
+          "description": "Indicates whether the task has an associated chat. Read-only.",
           "selectOnly": false
         },
         {
           "name": "hasChildren",
           "type": "bool",
-          "description": "Indicates whether the task has subtasks.",
+          "description": "Indicates whether the task has subtasks. Read-only.",
           "selectOnly": false
         },
         {
           "name": "isCritical",
           "type": "bool",
-          "description": "Indicates whether the task is on the critical path, as computed from its dependencies.",
+          "description": "Indicates whether the task is on the critical path, as computed from its dependencies. Read-only.",
           "selectOnly": false
         },
         {
@@ -54748,14 +55314,14 @@
         {
           "name": "applicationAuthenticationClientSignInActivity",
           "type": "dynamic",
-          "description": "The sign-in activity of the application in a app-only authentication flow (app-to-app tokens) where the application acts like a client.",
+          "description": "The sign-in activity reported as app-only authentication where the application acts as a client. Subject to the preview classification limitation described above.",
           "selectOnly": false,
           "complexType": "microsoft.graph.signInActivity"
         },
         {
           "name": "applicationAuthenticationResourceSignInActivity",
           "type": "dynamic",
-          "description": "The sign-in activity of the application in a app-only authentication flow (app-to-app tokens) where the application acts like a resource.",
+          "description": "The sign-in activity reported as app-only authentication where the application acts as a resource. Subject to the preview classification limitation described above.",
           "selectOnly": false,
           "complexType": "microsoft.graph.signInActivity"
         },
@@ -58194,6 +58760,115 @@
       ]
     },
     {
+      "name": "security_agenticSecurity_playbookDefinitions",
+      "path": "security/agenticSecurity/playbookDefinitions",
+      "entityType": "microsoft.graph.playbookDefinition",
+      "description": "A predefined playbook available to the caller. id is a service-generated, persisted GUID string; uniqueName preserves its backend catalog name. Sessions reference this first-class catalog entity through playbookDefinition@odata.bind.",
+      "docsUrl": "https://learn.microsoft.com/graph/api/resources/playbookdefinition?view=graph-rest-beta",
+      "permissions": [
+        "Perception.Read.All"
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "type": "string",
+          "description": "The unique identifier for an entity. Read-only.",
+          "selectOnly": false
+        },
+        {
+          "name": "acceptedInputTypes",
+          "type": "dynamic",
+          "description": "The input kinds accepted by this playbook. The possible values are: defenderIncidentId, defenderAlertId, defenderThreatIntelligenceId, azureSubscriptionId, azureIdentityId, keyword, unknownFutureValue. unknownFutureValue isn't a valid value when creating a session. Read-only.",
+          "selectOnly": false,
+          "collection": true
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "description": "The description of the work performed by the playbook. Read-only.",
+          "selectOnly": false
+        },
+        {
+          "name": "displayName",
+          "type": "string",
+          "description": "The human-readable name of the playbook. Read-only.",
+          "selectOnly": false
+        },
+        {
+          "name": "uniqueName",
+          "type": "string",
+          "description": "The immutable, unique catalog name, such as investigate-incident. Distinct from id. Alternate-key addressing isn't supported. Read-only.",
+          "selectOnly": false
+        }
+      ]
+    },
+    {
+      "name": "security_agenticSecurity_sessions",
+      "path": "security/agenticSecurity/sessions",
+      "entityType": "microsoft.graph.investigationSession",
+      "description": "One playbook execution against typed external inputs. Server-owned status records processing; this resource is the polling target.",
+      "docsUrl": "https://learn.microsoft.com/graph/api/resources/investigationsession?view=graph-rest-beta",
+      "permissions": [
+        "Perception.Read.All"
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "type": "string",
+          "description": "The unique identifier for an entity. Read-only.",
+          "selectOnly": false
+        },
+        {
+          "name": "createdDateTime",
+          "type": "datetime",
+          "description": "The UTC date and time when the resource was created, in ISO 8601 format. Read-only.",
+          "selectOnly": false
+        },
+        {
+          "name": "displayName",
+          "type": "string",
+          "description": "The session name generated by the service. Read-only.",
+          "selectOnly": false
+        },
+        {
+          "name": "initiatedBy",
+          "type": "dynamic",
+          "description": "The initiating principals recorded by the service, when available. Read-only. This property doesn't select an execution identity.",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.investigationIdentitySet"
+        },
+        {
+          "name": "lastModifiedDateTime",
+          "type": "datetime",
+          "description": "The UTC date and time when the resource was last updated, in ISO 8601 format. Read-only.",
+          "selectOnly": false
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "description": "The service-computed processing status. The possible values are: notStarted, running, succeeded, failed, unknownFutureValue. A canceled execution has failed status and stopped statusDetail. A request for input has running status and waitingForInput statusDetail. Read-only. Supports $filter (eq, or, in) when listing sessions.",
+          "filter": [
+            "eq",
+            "in"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "statusDetail",
+          "type": "string",
+          "description": "Additional processing detail, including waitingForInput or stopped, when the status alone doesn't describe the source lifecycle. Read-only. Doesn't support $filter. For the session lifecycle combinations, see Get agentic session.",
+          "selectOnly": false
+        },
+        {
+          "name": "tags",
+          "type": "dynamic",
+          "description": "The service-generated tags for the session. Read-only. Can't be supplied when creating a session.",
+          "selectOnly": false,
+          "collection": true
+        }
+      ]
+    },
+    {
       "name": "security_alerts",
       "path": "security/alerts",
       "entityType": "microsoft.graph.alert",
@@ -60641,6 +61316,113 @@
       ]
     },
     {
+      "name": "security_contentManagement_repositories",
+      "path": "security/contentManagement/repositories",
+      "entityType": "microsoft.graph.security.contentManagement.contentManagementRepository",
+      "description": "A connected source-control repository that delivers security content as code\n(the customer-facing shape of the internal Source Control resource). Tenant is resolved\nfrom the caller token; there is no subscription, resource group, or workspace in the path.",
+      "docsUrl": "https://learn.microsoft.com/graph/api/resources/security-contentmanagement.contentmanagementrepository?view=graph-rest-beta",
+      "permissions": [
+        "Repository.Read.All"
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "type": "string",
+          "description": "The unique identifier for an entity. Read-only.",
+          "selectOnly": false
+        },
+        {
+          "name": "contentTypes",
+          "type": "dynamic",
+          "description": "Content kinds this repository is configured to deploy. The possible values are: customDetection, unknownFutureValue, defenderWorkbook. Use the Prefer: include-unknown-enum-members request header to get defenderWorkbook.",
+          "selectOnly": false,
+          "collection": true
+        },
+        {
+          "name": "deploymentIdentity",
+          "type": "dynamic",
+          "description": "Bring-your-own deployment identity used for deployment. Optional; when omitted the platform-managed identity path is used. Provide a service principal or a managed identity. Immutable after connecting.",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.security.contentManagement.deploymentIdentity"
+        },
+        {
+          "name": "deploymentScope",
+          "type": "dynamic",
+          "description": "Optional Azure deployment scope, immutable after connecting the repository.",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.security.contentManagement.deploymentScope"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "description": "Optional description of the connection.",
+          "selectOnly": false
+        },
+        {
+          "name": "displayName",
+          "type": "string",
+          "description": "Human-readable name of the connection. Supports $filter (eq, ne) and $orderby.",
+          "filter": [
+            "eq",
+            "ne"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "lastDeploymentInfo",
+          "type": "dynamic",
+          "description": "Status of the most recent deployment from this repository. Read-only.",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.security.contentManagement.repositoryDeploymentInfo"
+        },
+        {
+          "name": "pullRequest",
+          "type": "dynamic",
+          "description": "The setup pull request opened for this connection, when applicable. Read-only.",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.security.contentManagement.repositoryPullRequest"
+        },
+        {
+          "name": "repoType",
+          "type": "string",
+          "description": "Source-control provider for this repository. Immutable after connecting. Supports $filter (eq, ne). The possible values are: gitHub, azureDevOps, unknownFutureValue.",
+          "filter": [
+            "eq",
+            "ne"
+          ],
+          "selectOnly": false
+        },
+        {
+          "name": "servicePrincipal",
+          "type": "dynamic",
+          "description": "Service principal / managed identity used by the connection. Read-only.",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.security.contentManagement.repositoryServicePrincipal"
+        },
+        {
+          "name": "sourceLocation",
+          "type": "dynamic",
+          "description": "Location of the source repository (URL and branch).",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.security.contentManagement.repositorySettings"
+        },
+        {
+          "name": "systemData",
+          "type": "dynamic",
+          "description": "Creation and last modification provenance. Read-only.",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.security.contentManagement.systemData"
+        },
+        {
+          "name": "workloadIdentityFederation",
+          "type": "dynamic",
+          "description": "Workload identity federation details for the connection, when configured. Read-only.",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.security.contentManagement.repositoryWorkloadIdentityFederation"
+        }
+      ]
+    },
+    {
       "name": "security_dataSecurityAndGovernance_policyFiles",
       "path": "security/dataSecurityAndGovernance/policyFiles",
       "entityType": "microsoft.graph.policyFile",
@@ -62665,7 +63447,7 @@
         {
           "name": "schedule",
           "type": "dynamic",
-          "description": "The triggering schedule of this rule. Supports $filter on schedule/frequency (Duration) with eq, ne, not, le, ge, lt, gt. Supports $orderby on schedule/frequency and schedule/nextRunDateTime.",
+          "description": "How often the rule runs and how far back each run reads events, through frequency and lookback. Supports $filter on schedule/frequency (Duration) with eq, ne, not, le, ge, lt, gt. Supports $orderby on schedule/frequency and schedule/nextRunDateTime.",
           "selectOnly": false,
           "complexType": "microsoft.graph.security.ruleSchedule"
         },
@@ -65601,6 +66383,13 @@
           "selectOnly": false
         },
         {
+          "name": "idJag",
+          "type": "dynamic",
+          "description": "",
+          "selectOnly": false,
+          "complexType": "microsoft.graph.idJagServicePrincipalConfiguration"
+        },
+        {
           "name": "info",
           "type": "dynamic",
           "description": "Basic profile information of the acquired application such as app's marketing, support, terms of service and privacy statement URLs. The terms of service and privacy statement are surfaced to users through the user consent experience. For more info, see How to: Add Terms of service and privacy statement for registered Microsoft Entra apps. Supports $filter (eq, ne, not, ge, le, and eq on null values).",
@@ -65619,6 +66408,15 @@
           "type": "bool",
           "description": "Specifies whether the service principal of the app in a tenant or across tenants for multi-tenant apps can obtain new access tokens or access protected resources. When set to true, existing tokens remain valid until they expire based on their configured lifetimes, and the app stays visible in the Enterprise apps list but users cannot sign in.true if the application is deactivated (disabled); otherwise false.",
           "selectOnly": false
+        },
+        {
+          "name": "isHardDeleteProtectionEnabled",
+          "type": "bool",
+          "description": "Indicates whether hard deletion protection is enabled for the service principal. When true, permanent deletion is blocked for seven days after soft deletion. The service principal can still be soft deleted and restored. Once enabled, protection can't be disabled or set to null. Enable protection on an existing service principal by using Update servicePrincipal; enabling it during creation isn't supported. Setting this property to true requires the Microsoft Entra Backup Administrator role. Nullable. Requires $select to retrieve. Supports $filter (eq).",
+          "filter": [
+            "eq"
+          ],
+          "selectOnly": true
         },
         {
           "name": "keyCredentials",
@@ -74869,7 +75667,7 @@
         {
           "name": "identityGovernance",
           "type": "dynamic",
-          "description": "The identity governance settings for the user. You can get or update the user's approver delegate through the approverDelegate property. Nullable. Returned only on $select. Supports $expand.",
+          "description": "The identity governance settings for the user, including the approver delegate configuration. You can get or update the user's approver delegate through the approverDelegate property. Nullable. Returned only on $select. Supports $expand.",
           "selectOnly": true,
           "complexType": "microsoft.graph.identityGovernanceUserSettings"
         },
@@ -74914,6 +75712,15 @@
           "selectOnly": true,
           "listable": false,
           "collection": true
+        },
+        {
+          "name": "isHardDeleteProtectionEnabled",
+          "type": "bool",
+          "description": "Indicates whether hard deletion protection is enabled for the user (excluding on-premises synchronized users). When true, permanent deletion is blocked for seven days after soft deletion. The user can still be soft deleted and restored. Once enabled, protection can't be disabled or set to null. Enable protection on an existing user by using Update user; enabling it during creation isn't supported. Setting this property to true requires the Microsoft Entra Backup Administrator role. Nullable. Requires $select to retrieve. Supports $filter (eq).",
+          "filter": [
+            "eq"
+          ],
+          "selectOnly": true
         },
         {
           "name": "isLicenseReconciliationNeeded",
@@ -75701,6 +76508,13 @@
         "type": "datetime",
         "collection": false,
         "description": "The date and time the authentication method was last used by the user. Read-only. Optional. This optional value is null if the authentication method doesn't populate it. The timestamp type represents date and time information using ISO 8601 format and is always in UTC. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z."
+      },
+      {
+        "name": "provenance",
+        "type": "dynamic",
+        "collection": false,
+        "complexType": "microsoft.graph.credentialProvenance",
+        "description": "The provenance and trust classification of the authentication method. Supports administrative attestation. Returned for FIDO2 authentication methods; null for method types that don't support provenance."
       },
       {
         "name": "emailAddress",
@@ -76760,6 +77574,15 @@
         "description": "Value of the property serving as a detection trigger."
       }
     ],
+    "microsoft.graph.allResourcesExclusions": [
+      {
+        "name": "userActionExclusions",
+        "type": "dynamic",
+        "collection": true,
+        "complexType": "microsoft.graph.userActionExclusion",
+        "description": "The user-action exclusions and their states. Supply the complete desired collection when updating it. Not nullable."
+      }
+    ],
     "microsoft.graph.alternativeSecurityId": [
       {
         "name": "identityProvider",
@@ -77196,6 +78019,22 @@
         "type": "bool",
         "collection": false,
         "description": "Specifies whether the session control is enabled."
+      }
+    ],
+    "microsoft.graph.applicationIdentifierUriConfiguration": [
+      {
+        "name": "idJag",
+        "type": "dynamic",
+        "collection": false,
+        "complexType": "microsoft.graph.idJagIdentifierUriConfiguration",
+        "description": ""
+      },
+      {
+        "name": "saml",
+        "type": "dynamic",
+        "collection": false,
+        "complexType": "microsoft.graph.samlIdentifierUriConfiguration",
+        "description": ""
       }
     ],
     "microsoft.graph.applicationLocation": [
@@ -77957,7 +78796,7 @@
         "name": "result",
         "type": "string",
         "collection": false,
-        "description": "Indicates the result of the CA policy that was triggered. The possible values are: success, failure, notApplied (policy isn't applied because policy conditions weren't met), notEnabled (this is due to the policy in a disabled state), unknown, unknownFutureValue, reportOnlySuccess, reportOnlyFailure, reportOnlyNotApplied, reportOnlyInterrupted. Use the Prefer: include-unknown-enum-members request header to get the following values in this evolvable enum: reportOnlySuccess, reportOnlyFailure, reportOnlyNotApplied, reportOnlyInterrupted."
+        "description": "Indicates the result of the CA policy that was triggered. The possible values are: success, failure, notApplied (policy isn't applied because policy conditions weren't met), notEnabled (this is due to the policy in a disabled state), unknown, unknownFutureValue, reportOnlySuccess, reportOnlyFailure, reportOnlyNotApplied, reportOnlyInterrupted, notAppliedAllAppsExclusion, reportOnlyNotAppliedAllAppsExclusion. Use the Prefer: include-unknown-enum-members request header to get the following values in this evolvable enum: reportOnlySuccess, reportOnlyFailure, reportOnlyNotApplied, reportOnlyInterrupted, notAppliedAllAppsExclusion, reportOnlyNotAppliedAllAppsExclusion. The notAppliedAllAppsExclusion and reportOnlyNotAppliedAllAppsExclusion values indicate that an enabled all-apps exclusion skipped an enabled policy or a report-only policy, respectively. In these values, reportOnly refers to the policy's mode, not the exclusion's mode. If the exclusion itself is in report-only mode, policy evaluation continues normally and neither exclusion-specific result applies."
       },
       {
         "name": "sessionControlsNotSatisfied",
@@ -78207,6 +79046,7 @@
         "description": "A GUID that identifies the service plan. For a complete list of GUIDs and their equivalent friendly service names, see Product names and service plan identifiers for licensing."
       }
     ],
+    "microsoft.graph.assignedPolicyReference": [],
     "microsoft.graph.assignedTrainingInfo": [
       {
         "name": "assignedUserCount",
@@ -81559,6 +82399,15 @@
         "description": "States in the scope of the policy. All is the only allowed value."
       }
     ],
+    "microsoft.graph.conditionalAccessExclusions": [
+      {
+        "name": "allResourcesExclusions",
+        "type": "dynamic",
+        "collection": false,
+        "complexType": "microsoft.graph.allResourcesExclusions",
+        "description": "The exclusions for Conditional Access policies that target all resources."
+      }
+    ],
     "microsoft.graph.conditionalAccessExternalTenants": [
       {
         "name": "membershipKind",
@@ -82172,6 +83021,35 @@
         "description": "Scope the entity was created in."
       }
     ],
+    "microsoft.graph.credentialProvenance": [
+      {
+        "name": "assertedBy",
+        "type": "dynamic",
+        "collection": false,
+        "complexType": "microsoft.graph.provenanceAssertedBy",
+        "description": "Identifies the actor that established the provenance. This property is computed by the service."
+      },
+      {
+        "name": "assertions",
+        "type": "dynamic",
+        "collection": true,
+        "complexType": "microsoft.graph.provenanceAssertion",
+        "description": "The assertions that support the credential's provenance classification."
+      },
+      {
+        "name": "chainStatus",
+        "type": "dynamic",
+        "collection": false,
+        "complexType": "microsoft.graph.provenanceChainStatus",
+        "description": "The current integrity status of the credential's chain of trust."
+      },
+      {
+        "name": "classification",
+        "type": "string",
+        "collection": false,
+        "description": "The service-computed trust classification. The possible values are: highAssurance, mediumAssurance, lowAssurance, unknownFutureValue."
+      }
+    ],
     "microsoft.graph.crossTenantAccessPolicyAppServiceConnectSetting": [
       {
         "name": "applications",
@@ -82594,19 +83472,19 @@
         "name": "isTimeSpecified",
         "type": "bool",
         "collection": false,
-        "description": "Indicates whether a specific time (not just a date) was provided."
+        "description": "Indicates whether a specific time (not just a date) was provided. Read-only."
       },
       {
         "name": "time",
         "type": "string",
         "collection": false,
-        "description": "The optional time-of-day component of the value."
+        "description": "The optional time-of-day component of the value. Read-only."
       },
       {
         "name": "timeZone",
         "type": "string",
         "collection": false,
-        "description": "Time zone the time value is expressed in, if time is set."
+        "description": "Time zone the time value is expressed in, if time is set. Read-only."
       }
     ],
     "microsoft.graph.decisionItemPrincipalResourceMembership": [
@@ -83290,7 +84168,7 @@
         "name": "conditionCategory",
         "type": "string",
         "collection": false,
-        "description": "The property that the rule condition monitors. The possible values are: provisionFailures, imageUploadFailures, azureNetworkConnectionCheckFailures, cloudPcInGracePeriod, frontlineInsufficientLicenses, cloudPcConnectionErrors, cloudPcHostHealthCheckFailures, cloudPcZoneOutage, unknownFutureValue, frontlineBufferUsageDuration, frontlineBufferUsageThreshold, cloudPcUserSettingsPersistenceUsageThreshold, cloudPcDeprovisionedThreshold, cloudPcReserveDeprovisionFailedThreshold. Use the Prefer: include-unknown-enum-members request header to get the following values from this evolvable enum: frontlineBufferUsageDuration, frontlineBufferUsageThreshold, cloudPcUserSettingsPersistenceUsageThreshold, cloudPcDeprovisionedThreshold, cloudPcReserveDeprovisionFailedThreshold."
+        "description": "The property that the rule condition monitors. The possible values are: provisionFailures, imageUploadFailures, azureNetworkConnectionCheckFailures, cloudPcInGracePeriod, frontlineInsufficientLicenses, cloudPcConnectionErrors, cloudPcHostHealthCheckFailures, cloudPcZoneOutage, unknownFutureValue, frontlineBufferUsageDuration, frontlineBufferUsageThreshold, cloudPcUserSettingsPersistenceUsageThreshold, cloudPcDeprovisionedThreshold, cloudPcReserveDeprovisionFailedThreshold, cloudPcReserveLicensesAvailabilityBelowThreshold, reserveCloudPcUnlicensedUsersAssignment, cloudPcMaxUserStorageUsageThresholdExceeded. Use the Prefer: include-unknown-enum-members request header to get the following values from this evolvable enum: frontlineBufferUsageDuration, frontlineBufferUsageThreshold, cloudPcUserSettingsPersistenceUsageThreshold, cloudPcDeprovisionedThreshold, cloudPcReserveDeprovisionFailedThreshold, cloudPcReserveLicensesAvailabilityBelowThreshold, reserveCloudPcUnlicensedUsersAssignment, cloudPcMaxUserStorageUsageThresholdExceeded."
       },
       {
         "name": "operator",
@@ -84928,6 +85806,20 @@
         "description": "The kind of entity that's targeted. The possible values are: group, administrativeUnit, role, unknownFutureValue."
       }
     ],
+    "microsoft.graph.fetchDetail": [
+      {
+        "name": "durationMs",
+        "type": "int",
+        "collection": false,
+        "description": ""
+      },
+      {
+        "name": "path",
+        "type": "string",
+        "collection": false,
+        "description": ""
+      }
+    ],
     "microsoft.graph.fido2KeyRestrictions": [
       {
         "name": "aaGuids",
@@ -85881,6 +86773,117 @@
         "description": "Specifies whether the display format used for URL columns is an image or a hyperlink."
       }
     ],
+    "microsoft.graph.idJagApplicationConfiguration": [
+      {
+        "name": "client",
+        "type": "dynamic",
+        "collection": false,
+        "complexType": "microsoft.graph.idJagClientConfiguration",
+        "description": ""
+      },
+      {
+        "name": "resourceAuthorizationServer",
+        "type": "dynamic",
+        "collection": false,
+        "complexType": "microsoft.graph.idJagResourceAuthorizationServerConfiguration",
+        "description": ""
+      }
+    ],
+    "microsoft.graph.idJagClientConfiguration": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "collection": false,
+        "description": "Required and non-null when client configuration is supplied. Indicates whether the application is enabled to request ID-JAG issuance. true conflicts with a non-null idJag.resourceAuthorizationServer child."
+      }
+    ],
+    "microsoft.graph.idJagEnabledClient": [
+      {
+        "name": "clientId",
+        "type": "guid",
+        "collection": false,
+        "description": "Required and non-null in each enabled-client entry. The appId of the client application in Microsoft Entra."
+      },
+      {
+        "name": "resourceAuthorizationServerClientId",
+        "type": "string",
+        "collection": false,
+        "description": "Required and non-null in each enabled-client entry. The client identifier registered for this client at the Resource Authorization Server."
+      }
+    ],
+    "microsoft.graph.idJagIdentifierUriConfiguration": [
+      {
+        "name": "uris",
+        "type": "string",
+        "collection": true,
+        "description": "Required and non-null when ID-JAG identifier URI configuration is supplied. Application identifier URIs opted into outbound ID-JAG. Must exactly match values in top-level identifierUris in the prospective final state. Explicit ports 80 and 443 are rejected; other ports remain significant. An empty collection normalizes the parent to null without changing top-level identifierUris."
+      }
+    ],
+    "microsoft.graph.idJagResourceAuthorizationServerConfiguration": [
+      {
+        "name": "resourceServers",
+        "type": "dynamic",
+        "collection": true,
+        "complexType": "microsoft.graph.idJagResourceServer",
+        "description": "Required and non-null when resource configuration is supplied. Resource server URI and scope mappings."
+      }
+    ],
+    "microsoft.graph.idJagResourceServer": [
+      {
+        "name": "resourceServerUriMatchType",
+        "type": "string",
+        "collection": false,
+        "description": "Required and non-null in each resource server entry. Matching precedence is exact, longest pathPrefix, then anyURI; absent applies only when no resource is supplied. Overlap is rejected when a common accepted external scope resolves to a different Entra OAuth2 permission across entries."
+      },
+      {
+        "name": "resourceServerUris",
+        "type": "string",
+        "collection": true,
+        "description": "Required and non-null in each resource server entry. Non-empty for exact and pathPrefix; empty for absent and anyURI."
+      },
+      {
+        "name": "scopeMappings",
+        "type": "dynamic",
+        "collection": true,
+        "complexType": "microsoft.graph.idJagScopeMapping",
+        "description": "Required and non-null in each resource server entry. Empty for direct, non-empty for mapped, and exactly one entry with an empty validResourceAuthorizationServerScopes collection for passthrough."
+      },
+      {
+        "name": "scopeMappingType",
+        "type": "string",
+        "collection": false,
+        "description": "Required and non-null in each resource server entry. Specifies direct, mapped, or passthrough scope behavior used to detect contradictory scope-to-permission outcomes across overlapping resource domains."
+      }
+    ],
+    "microsoft.graph.idJagScopeMapping": [
+      {
+        "name": "oauth2Permission",
+        "type": "string",
+        "collection": false,
+        "description": "Required and non-null in each scope mapping. An enabled delegated permission exposed by the resource application for ID-JAG use."
+      },
+      {
+        "name": "validResourceAuthorizationServerScopes",
+        "type": "string",
+        "collection": true,
+        "description": "Required and non-null in each scope mapping. One or two equivalent, case-sensitive Resource Authorization Server scopes for mapped behavior; empty for the single passthrough mapping."
+      }
+    ],
+    "microsoft.graph.idJagServicePrincipalConfiguration": [
+      {
+        "name": "enabledClients",
+        "type": "dynamic",
+        "collection": true,
+        "complexType": "microsoft.graph.idJagEnabledClient",
+        "description": "Required and non-null when ServicePrincipal ID-JAG configuration is supplied. Maps enabled Entra clients to their Resource Authorization Server client identifiers. This is the only supported ID-JAG child on agentIdentityBlueprintPrincipal and agentIdentity."
+      },
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "collection": false,
+        "description": "Required and non-null when ID-JAG configuration is supplied on a base ServicePrincipal. Indicates whether ID-JAG issuance is enabled for this tenant-local resource. Not supported on agentIdentityBlueprintPrincipal or agentIdentity; returned as null and rejected on write."
+      }
+    ],
     "microsoft.graph.identifierUriConfiguration": [
       {
         "name": "nonDefaultUriAddition",
@@ -86600,6 +87603,36 @@
         "collection": false,
         "complexType": "microsoft.graph.rgbColor",
         "description": "Primary theme color used in the Company Portal applications and web portal."
+      }
+    ],
+    "microsoft.graph.investigationIdentitySet": [
+      {
+        "name": "application",
+        "type": "dynamic",
+        "collection": false,
+        "complexType": "microsoft.graph.identity",
+        "description": "Optional. The application associated with this action."
+      },
+      {
+        "name": "device",
+        "type": "dynamic",
+        "collection": false,
+        "complexType": "microsoft.graph.identity",
+        "description": "Optional. The device associated with this action."
+      },
+      {
+        "name": "user",
+        "type": "dynamic",
+        "collection": false,
+        "complexType": "microsoft.graph.identity",
+        "description": "Optional. The user associated with this action."
+      },
+      {
+        "name": "agent",
+        "type": "dynamic",
+        "collection": false,
+        "complexType": "microsoft.graph.identity",
+        "description": "The initiating agent principal, when recorded by the service."
       }
     ],
     "microsoft.graph.investigationSecurityState": [
@@ -91105,6 +92138,101 @@
         "description": "The display name of the team that initiated the publication process. This display name is for reference only, and might not represent the most up-to-date name of the team. Read-only."
       }
     ],
+    "microsoft.graph.policyAppliesTo": [
+      {
+        "name": "includeDerivedTypes",
+        "type": "bool",
+        "collection": false,
+        "description": ""
+      },
+      {
+        "name": "operations",
+        "type": "string",
+        "collection": false,
+        "description": ""
+      },
+      {
+        "name": "resourceName",
+        "type": "string",
+        "collection": false,
+        "description": ""
+      }
+    ],
+    "microsoft.graph.policyEvaluationDetail": [
+      {
+        "name": "applicabilityEvaluationError",
+        "type": "string",
+        "collection": false,
+        "description": ""
+      },
+      {
+        "name": "appliedPolicyEffects",
+        "type": "string",
+        "collection": false,
+        "description": ""
+      },
+      {
+        "name": "assignedPolicyDisplayName",
+        "type": "string",
+        "collection": false,
+        "description": ""
+      },
+      {
+        "name": "assignmentUniqueName",
+        "type": "string",
+        "collection": false,
+        "description": ""
+      },
+      {
+        "name": "evaluationError",
+        "type": "string",
+        "collection": false,
+        "description": ""
+      },
+      {
+        "name": "fetchDetails",
+        "type": "dynamic",
+        "collection": true,
+        "complexType": "microsoft.graph.fetchDetail",
+        "description": ""
+      },
+      {
+        "name": "isApplicable",
+        "type": "bool",
+        "collection": false,
+        "description": ""
+      },
+      {
+        "name": "isCompliant",
+        "type": "bool",
+        "collection": false,
+        "description": ""
+      },
+      {
+        "name": "isEnforced",
+        "type": "bool",
+        "collection": false,
+        "description": ""
+      },
+      {
+        "name": "policyLoadingError",
+        "type": "string",
+        "collection": false,
+        "description": ""
+      },
+      {
+        "name": "policyMessage",
+        "type": "string",
+        "collection": false,
+        "description": ""
+      },
+      {
+        "name": "policyVersion",
+        "type": "string",
+        "collection": false,
+        "description": ""
+      }
+    ],
     "microsoft.graph.positiveReinforcementNotification": [
       {
         "name": "defaultLanguage",
@@ -91795,6 +92923,14 @@
         "description": "The Azure Resource Manager (ARM) path for the Private Link policy resource."
       }
     ],
+    "microsoft.graph.privilegedReadSetting": [
+      {
+        "name": "appId",
+        "type": "string",
+        "collection": false,
+        "description": ""
+      }
+    ],
     "microsoft.graph.process": [
       {
         "name": "accountName",
@@ -91987,6 +93123,84 @@
         "type": "int",
         "collection": false,
         "description": "The number of protection units that were requested to be removed from the backup policy."
+      }
+    ],
+    "microsoft.graph.provenanceAssertedBy": [
+      {
+        "name": "actorId",
+        "type": "string",
+        "collection": false,
+        "description": "The identifier of the actor that established the provenance."
+      },
+      {
+        "name": "actorType",
+        "type": "string",
+        "collection": false,
+        "description": "The type of actor that established the provenance. The possible values are: system, user, application, unknownFutureValue."
+      }
+    ],
+    "microsoft.graph.provenanceAssertion": [
+      {
+        "name": "attestationReason",
+        "type": "string",
+        "collection": false,
+        "description": "The reason supplied for a manual attestation."
+      },
+      {
+        "name": "eventDateTime",
+        "type": "datetime",
+        "collection": false,
+        "description": "The date and time of the provenance event represented by this assertion."
+      },
+      {
+        "name": "provenanceType",
+        "type": "string",
+        "collection": false,
+        "description": "The type of provenance assertion. The possible values are: identityVerification, derivedFromCredential, manualAttestation, unknownFutureValue."
+      },
+      {
+        "name": "sourceCredentialId",
+        "type": "string",
+        "collection": false,
+        "description": "The identifier of the credential from which this credential was derived."
+      },
+      {
+        "name": "sourceCredentialType",
+        "type": "string",
+        "collection": false,
+        "description": "The type of credential from which this credential was derived."
+      },
+      {
+        "name": "verificationEventId",
+        "type": "string",
+        "collection": false,
+        "description": "The identifier of the identityVerificationEvent that supports this assertion."
+      }
+    ],
+    "microsoft.graph.provenanceChainStatus": [
+      {
+        "name": "breakDetectedAtDateTime",
+        "type": "datetime",
+        "collection": false,
+        "description": "The date and time when the service detected that the chain of trust was broken."
+      },
+      {
+        "name": "breakReason",
+        "type": "string",
+        "collection": false,
+        "description": "The reason the chain of trust was broken. The possible values are: none, idvRevoked, sourceCredentialRevoked, unknownFutureValue."
+      },
+      {
+        "name": "breakSource",
+        "type": "string",
+        "collection": false,
+        "description": "The source that detected or initiated the chain break. The possible values are: none, identityProtection, adminAction, system, unknownFutureValue."
+      },
+      {
+        "name": "state",
+        "type": "string",
+        "collection": false,
+        "description": "The current state of the chain of trust. The possible values are: intact, broken, unknownFutureValue."
       }
     ],
     "microsoft.graph.provisionedIdentity": [
@@ -93262,24 +94476,39 @@
         "description": "The URL of the resource link. The maximum length is 200 characters."
       }
     ],
+    "microsoft.graph.resourcePolicyRule": [
+      {
+        "name": "appliesTo",
+        "type": "dynamic",
+        "collection": false,
+        "complexType": "microsoft.graph.policyAppliesTo",
+        "description": ""
+      },
+      {
+        "name": "policy",
+        "type": "string",
+        "collection": false,
+        "description": ""
+      }
+    ],
     "microsoft.graph.resourceQuota": [
       {
         "name": "maxPercentage",
         "type": "int",
         "collection": false,
-        "description": ""
+        "description": "The maximum percentage of the organization's directorySizeQuota.total that this resource type can consume. The value must be between 0 and 100. A value of 0 blocks creation of new resources of this type. If omitted for supported resource types, the default is 80."
       },
       {
         "name": "resourceType",
         "type": "string",
         "collection": false,
-        "description": ""
+        "description": "The resource type to which the quota applies. Each value must be unique within the organization's resourceQuotas collection. The possible values are: agentIdentityBlueprint, agentIdentity, managedIdentity, unknownFutureValue."
       },
       {
         "name": "total",
         "type": "int",
         "collection": false,
-        "description": ""
+        "description": "The effective maximum number of resources allowed, calculated from directorySizeQuota.total and maxPercentage. This value is read-only and changes when the organization's overall quota changes."
       }
     ],
     "microsoft.graph.restoreAction": [],
@@ -93374,13 +94603,13 @@
         "name": "interval",
         "type": "string",
         "collection": false,
-        "description": "The frequency of the backup."
+        "description": "The backup frequency, expressed as an ISO 8601 repeating interval. The service defines the backup intervals: R/PT10M for 10-minute copies and R/P1W for weekly copies. Use R/P1W when specifying the policy retention period in a create or update request."
       },
       {
         "name": "period",
         "type": "timespan",
         "collection": false,
-        "description": "The period of time to retain the protected data for a single Microsoft 365 service. The possible values are: P90D, P180D, P365D, P730D, P1095D, P1460D, P1825D, P2190D, P2555D, P2920D, P3285D, and P3650D. Other values aren't supported."
+        "description": "The period of time to retain the protected data for a single Microsoft 365 service, expressed as an ISO 8601 duration. The supported policy retention periods in create and update requests are: P90D, P180D, P365D, P730D, P1095D, P1460D, P1825D, P2190D, P2555D, P2920D, P3285D, and P3650D. Other policy retention periods aren't supported."
       }
     ],
     "microsoft.graph.rgbColor": [
@@ -93546,6 +94775,14 @@
         "type": "string",
         "collection": false,
         "description": ""
+      }
+    ],
+    "microsoft.graph.samlIdentifierUriConfiguration": [
+      {
+        "name": "uris",
+        "type": "string",
+        "collection": true,
+        "description": "Required and non-null when SAML identifier URI configuration is supplied. Application identifier URIs classified for SAML. Must be a subset of top-level identifierUris in the prospective final state. An empty collection normalizes the parent to null without changing top-level identifierUris."
       }
     ],
     "microsoft.graph.samlSingleSignOnSettings": [
@@ -93945,7 +95182,7 @@
         "name": "eventGroupingKind",
         "type": "string",
         "collection": false,
-        "description": ""
+        "description": "How events matched by one rule execution are grouped into alerts. The possible values are: alertPerEvent, singleAlert, unknownFutureValue. alertPerEvent creates a separate alert for each matching event and is the default when omitted. singleAlert groups all matching events from one scheduled rule execution into a single alert; it doesn't merge alerts across executions. Don't use unknownFutureValue in requests."
       },
       {
         "name": "impactedAssets",
@@ -94791,6 +96028,210 @@
         "type": "string",
         "collection": false,
         "description": ".The possible values are: none, malware, phish, siteUnavailable, spam, decryptionFailed, unsupportedUriScheme, unsupportedFileType, undefined, unknownFutureValue."
+      }
+    ],
+    "microsoft.graph.security.contentManagement.deploymentIdentity": [],
+    "microsoft.graph.security.contentManagement.deploymentScope": [
+      {
+        "name": "id",
+        "type": "string",
+        "collection": false,
+        "description": "ARM resource id of the scope: a resource group (/subscriptions/{id}/resourceGroups/{name}) or a management group (/providers/Microsoft.Management/managementGroups/{id})."
+      },
+      {
+        "name": "scopeType",
+        "type": "string",
+        "collection": false,
+        "description": "Kind of Azure scope the deployment stack is provisioned at. The possible values are: resourceGroup, managementGroup, unknownFutureValue."
+      }
+    ],
+    "microsoft.graph.security.contentManagement.repositoryDeployment": [
+      {
+        "name": "deploymentDateTime",
+        "type": "datetime",
+        "collection": false,
+        "description": "When the deployment ran."
+      },
+      {
+        "name": "deploymentId",
+        "type": "string",
+        "collection": false,
+        "description": "Deployment id."
+      },
+      {
+        "name": "deploymentLogsUrl",
+        "type": "string",
+        "collection": false,
+        "description": "URL where the deployment logs can be viewed."
+      },
+      {
+        "name": "deploymentResult",
+        "type": "string",
+        "collection": false,
+        "description": "Result of the deployment; pending until a final result is known. The possible values are: success, canceled, failed, unknownFutureValue, pending. Use the Prefer: include-unknown-enum-members request header to get the following values from this evolvable enum: pending."
+      },
+      {
+        "name": "deploymentState",
+        "type": "string",
+        "collection": false,
+        "description": "Current state of the deployment. The possible values are: inProgress, completed, queued, canceling, unknownFutureValue."
+      }
+    ],
+    "microsoft.graph.security.contentManagement.repositoryDeploymentInfo": [
+      {
+        "name": "deploymentFetchStatus",
+        "type": "string",
+        "collection": false,
+        "description": "Whether deployment status could be fetched. The possible values are: success, unauthorized, notFound, unknownFutureValue, unavailable. Use the Prefer: include-unknown-enum-members request header to get the following values from this evolvable enum: unavailable."
+      },
+      {
+        "name": "message",
+        "type": "string",
+        "collection": false,
+        "description": "Human-readable status or error message."
+      },
+      {
+        "name": "run",
+        "type": "dynamic",
+        "collection": false,
+        "complexType": "microsoft.graph.security.contentManagement.repositoryDeployment",
+        "description": "Deployment details; null when no run was fetched."
+      }
+    ],
+    "microsoft.graph.security.contentManagement.repositoryPullRequest": [
+      {
+        "name": "state",
+        "type": "string",
+        "collection": false,
+        "description": "Whether the pull request is open, closed, or merged. The possible values are: open, closed, unknownFutureValue, merged. Use the Prefer: include-unknown-enum-members request header to get the following values from this evolvable enum: merged."
+      },
+      {
+        "name": "url",
+        "type": "string",
+        "collection": false,
+        "description": "Pull request URL."
+      }
+    ],
+    "microsoft.graph.security.contentManagement.repositoryServicePrincipal": [
+      {
+        "name": "appId",
+        "type": "string",
+        "collection": false,
+        "description": "Application (client) id of the identity."
+      },
+      {
+        "name": "credentialsExpireDateTime",
+        "type": "datetime",
+        "collection": false,
+        "description": "When the identity's credentials expire."
+      },
+      {
+        "name": "servicePrincipalId",
+        "type": "string",
+        "collection": false,
+        "description": "Object id of the service principal."
+      },
+      {
+        "name": "tenantId",
+        "type": "string",
+        "collection": false,
+        "description": "Tenant id that owns the identity."
+      }
+    ],
+    "microsoft.graph.security.contentManagement.repositorySettings": [
+      {
+        "name": "branch",
+        "type": "string",
+        "collection": false,
+        "description": "Branch that content is deployed from."
+      },
+      {
+        "name": "deploymentLogsUrl",
+        "type": "string",
+        "collection": false,
+        "description": "URL where deployment logs can be viewed. Read-only."
+      },
+      {
+        "name": "displayUrl",
+        "type": "string",
+        "collection": false,
+        "description": "Human-friendly display URL."
+      },
+      {
+        "name": "url",
+        "type": "string",
+        "collection": false,
+        "description": "Repository URL."
+      }
+    ],
+    "microsoft.graph.security.contentManagement.repositoryWorkloadIdentityFederation": [
+      {
+        "name": "appId",
+        "type": "string",
+        "collection": false,
+        "description": "Application (client) id of the parent application."
+      },
+      {
+        "name": "federatedCredentialId",
+        "type": "string",
+        "collection": false,
+        "description": "Federated credential id."
+      },
+      {
+        "name": "issuer",
+        "type": "string",
+        "collection": false,
+        "description": "Federated credential issuer."
+      },
+      {
+        "name": "subject",
+        "type": "string",
+        "collection": false,
+        "description": "Federated credential subject."
+      },
+      {
+        "name": "tenantId",
+        "type": "string",
+        "collection": false,
+        "description": "Tenant id that owns the parent application."
+      }
+    ],
+    "microsoft.graph.security.contentManagement.systemData": [
+      {
+        "name": "createdBy",
+        "type": "string",
+        "collection": false,
+        "description": "Identifier of the identity that created the connection."
+      },
+      {
+        "name": "createdByType",
+        "type": "string",
+        "collection": false,
+        "description": "Type of identity that created the connection."
+      },
+      {
+        "name": "createdDateTime",
+        "type": "datetime",
+        "collection": false,
+        "description": "UTC resource creation time."
+      },
+      {
+        "name": "lastModifiedBy",
+        "type": "string",
+        "collection": false,
+        "description": "Identifier of the identity that last modified the connection."
+      },
+      {
+        "name": "lastModifiedByType",
+        "type": "string",
+        "collection": false,
+        "description": "Type of identity that last modified the connection."
+      },
+      {
+        "name": "lastModifiedDateTime",
+        "type": "datetime",
+        "collection": false,
+        "description": "UTC time of the last effective modification."
       }
     ],
     "microsoft.graph.security.cvssSummary": [
@@ -95651,7 +97092,7 @@
         "name": "lookback",
         "type": "timespan",
         "collection": false,
-        "description": ""
+        "description": "The time window evaluated by each scheduled rule run, expressed as an ISO 8601 duration, for example PT4H for four hours. Events match this window based on either event time or ingestion time. The value must be at least frequency. When omitted, the service derives the default lookback from frequency. Not supported for near-real-time rules with a zero frequency."
       },
       {
         "name": "nextRunDateTime",
@@ -98222,6 +99663,20 @@
         "type": "string",
         "collection": false,
         "description": ""
+      }
+    ],
+    "microsoft.graph.userActionExclusion": [
+      {
+        "name": "state",
+        "type": "string",
+        "collection": false,
+        "description": "The exclusion state."
+      },
+      {
+        "name": "userAction",
+        "type": "string",
+        "collection": false,
+        "description": "The user action identifier, for example, accountrecovery."
       }
     ],
     "microsoft.graph.userExperienceAnalyticsAnomalyCorrelationGroupFeature": [
