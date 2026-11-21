@@ -383,7 +383,7 @@ public sealed class GraphEnginePoolTests
 
         var failure = await FailureOf(pool.RunAsync(Query("print 1"), "run-after", TestContext.Current.CancellationToken));
 
-        Assert.Equal(GraphEngineFailure.Busy, failure);
+        Assert.Equal(GraphEngineFailure.Paused, failure);
         var snapshot = pool.Snapshot();
         Assert.True(snapshot.Paused);
         Assert.Equal(3, snapshot.CrashesLastMinute);
@@ -552,9 +552,9 @@ public sealed class GraphEnginePoolTests
     [Fact]
     public async Task Worker_starts_with_an_empty_environment()
     {
-        string[] planted = ["ConnectionStrings__db", "DOTNET_ConnectionStrings__db", "DOTNET_SECRET", "DOTNET_gcServer"];
+        string[] planted = ["ConnectionStrings__db", "DOTNET_ConnectionStrings__db", "DOTNET_SECRET", "DOTNET_gcServer", "DOTNET_ROLL_FORWARD"];
         foreach (var name in planted)
-            Environment.SetEnvironmentVariable(name, name == "DOTNET_gcServer" ? "0" : "secret");
+            Environment.SetEnvironmentVariable(name, name switch { "DOTNET_gcServer" => "0", "DOTNET_ROLL_FORWARD" => "Major", _ => "secret" });
         try
         {
             await using var pool = Pool();
@@ -565,6 +565,8 @@ public sealed class GraphEnginePoolTests
             Assert.DoesNotContain("DOTNET_ConnectionStrings__db", start.Environment.Keys);
             Assert.DoesNotContain("DOTNET_SECRET", start.Environment.Keys);
             Assert.Equal("0", start.Environment["DOTNET_gcServer"]);
+            // An app rolled forward to a newer runtime starts its worker on that runtime too.
+            Assert.Equal("Major", start.Environment["DOTNET_ROLL_FORWARD"]);
             Assert.All(start.Environment.Keys, name => Assert.True(
                 name.StartsWith("DOTNET_", StringComparison.Ordinal) || (OperatingSystem.IsWindows() && name == "SystemRoot"),
                 $"{name} is passed to the worker."));
@@ -594,6 +596,8 @@ public sealed class GraphEnginePoolTests
     public void Failure_messages_are_the_specs()
     {
         Assert.Equal("Another query is using the engine. Try again when it finishes.", new GraphEngineException(GraphEngineFailure.Busy).Message);
+        Assert.Equal("The query engine keeps stopping unexpectedly, so it is paused for a minute. Try again shortly.",
+            new GraphEngineException(GraphEngineFailure.Paused).Message);
         Assert.Equal("Timed out after 30 s", new GraphEngineException(GraphEngineFailure.TimedOut).Message);
         Assert.Equal("Timed out after 30 s", new GraphEngineException(GraphEngineFailure.TimedOut, TimeSpan.FromSeconds(30)).Message);
         Assert.Equal("Timed out after 45 s", new GraphEngineException(GraphEngineFailure.TimedOut, TimeSpan.FromSeconds(45)).Message);

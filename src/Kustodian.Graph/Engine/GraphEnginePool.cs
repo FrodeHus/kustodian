@@ -170,8 +170,9 @@ public sealed class GraphEnginePool : IAsyncDisposable
     }
 
     /// <summary>The variables the worker inherits: where the runtime is (<c>DOTNET_ROOT</c>, <c>DOTNET_ROOT_X64</c>, …), the
-    /// garbage collector's settings (<c>DOTNET_gc…</c>, <c>DOTNET_GC…</c>) and globalization's
-    /// (<c>DOTNET_SYSTEM_GLOBALIZATION_…</c>). Never a name with <c>__</c>: that is configuration
+    /// garbage collector's settings (<c>DOTNET_gc…</c>, <c>DOTNET_GC…</c>), globalization's
+    /// (<c>DOTNET_SYSTEM_GLOBALIZATION_…</c>) and roll-forward (<c>DOTNET_ROLL_FORWARD…</c>: without it, an app rolled forward
+    /// to a newer runtime starts workers that can't find their own and exit at once). Never a name with <c>__</c>: that is configuration
     /// (<c>DOTNET_ConnectionStrings__db</c> binds as <c>ConnectionStrings:db</c>), not the runtime's.</summary>
     internal static bool IsRuntimeSetting(string name) =>
         !name.Contains("__", StringComparison.Ordinal)
@@ -179,7 +180,8 @@ public sealed class GraphEnginePool : IAsyncDisposable
             || name.StartsWith("DOTNET_ROOT_", StringComparison.Ordinal)
             || name.StartsWith("DOTNET_gc", StringComparison.Ordinal)
             || name.StartsWith("DOTNET_GC", StringComparison.Ordinal)
-            || name.StartsWith("DOTNET_SYSTEM_GLOBALIZATION_", StringComparison.Ordinal));
+            || name.StartsWith("DOTNET_SYSTEM_GLOBALIZATION_", StringComparison.Ordinal)
+            || name.StartsWith("DOTNET_ROLL_FORWARD", StringComparison.Ordinal));
 
     public async ValueTask DisposeAsync()
     {
@@ -204,13 +206,13 @@ public sealed class GraphEnginePool : IAsyncDisposable
     }
 
     /// <summary>A slot, and a worker for it: an idle one if there is one, else a newly started one. Waits up to
-    /// <see cref="GraphEngineOptions.WaitForWorker"/> for a slot, then fails busy; fails busy at once while the crash guard
+    /// <see cref="GraphEngineOptions.WaitForWorker"/> for a slot, then fails busy; fails paused at once while the crash guard
     /// pauses the pool, and as crashed when no worker can start.</summary>
     private async Task<Worker> AcquireAsync(CancellationToken ct)
     {
         RetireExited();
         if (Snapshot().Paused)
-            throw new GraphEngineException(GraphEngineFailure.Busy);
+            throw new GraphEngineException(GraphEngineFailure.Paused);
 
         using var waited = new CancellationTokenSource(_options.WaitForWorker, _time);
         using var wait = CancellationTokenSource.CreateLinkedTokenSource(ct, waited.Token, _disposing.Token);
@@ -244,7 +246,7 @@ public sealed class GraphEnginePool : IAsyncDisposable
                 exited.Add(idle);
             }
             if (IsPaused())
-                failure = GraphEngineFailure.Busy;
+                failure = GraphEngineFailure.Paused;
             else if (Start() is { } started)
             {
                 started.Busy = true;

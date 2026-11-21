@@ -131,6 +131,9 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Graph queries on a newer .NET**: when Kustodian runs on a newer .NET runtime than it targets (`DOTNET_ROLL_FORWARD`),
+  its query engine starts on that runtime too, instead of stopping at once. When the engine stops unexpectedly too often,
+  the error now says it is paused for a minute, not that another query is using it.
 - **Long Log Analytics queries**: a query that ran for more than 100 seconds failed with "didn't answer within 660 s". It
   now gets the full 10 minutes the server allows.
 - **Closing the window keeps your last edits**: the session save, pins and history sent as the window closes now finish
