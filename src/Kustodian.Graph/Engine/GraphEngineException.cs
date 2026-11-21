@@ -5,8 +5,11 @@ namespace Kustodian.Graph.Engine;
 /// <summary>Why the pool gave no answer (spec 9).</summary>
 public enum GraphEngineFailure
 {
-    /// <summary>No worker came free in time, or the crash guard has paused the pool.</summary>
+    /// <summary>No worker came free in time.</summary>
     Busy,
+
+    /// <summary>Workers crashed too often in the last minute, so the crash guard has stopped starting them for a while.</summary>
+    Paused,
 
     /// <summary>No answer within the time limit; the worker was killed.</summary>
     TimedOut,
@@ -48,6 +51,7 @@ public sealed class GraphEngineException(GraphEngineFailure failure, TimeSpan? t
     private static string MessageFor(GraphEngineFailure failure, TimeSpan timeout) => failure switch
     {
         GraphEngineFailure.Busy => "Another query is using the engine. Try again when it finishes.",
+        GraphEngineFailure.Paused => "The query engine keeps stopping unexpectedly, so it is paused for a minute. Try again shortly.",
         GraphEngineFailure.TimedOut => string.Create(
             CultureInfo.InvariantCulture, $"Timed out after {(long)Math.Ceiling(timeout.TotalSeconds)} s"),
         GraphEngineFailure.OutOfMemory => "The query needed too much memory (it may multiply rows: check joins)",
