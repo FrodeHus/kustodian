@@ -81,6 +81,7 @@
   "mobilityManagementPolicies": "Policies and Conditional Access",
   "trustFramework/": "Policies and Conditional Access",
   "admin/configurationManagement/": "Policies and Conditional Access",
+  "admin/resourcePolicy/": "Policies and Conditional Access",
   "devices": "Devices and Intune",
   "authenticationMethodDevices": "Devices and Intune",
   "deviceManagement/": "Devices and Intune",
