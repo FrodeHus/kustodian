@@ -99,6 +99,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Selected tab stands out**: the selected tab has a lighter background and a thicker source stripe, and the stripes on the
+  other tabs are fainter.
 - The Graph schema is regenerated from the latest beta metadata (msgraph-metadata@6515412).
 - **.NET 11**: Kustodian now runs on .NET 11.
 - **Runtime async**: Kustodian's async code now runs on .NET 11's runtime async, with less overhead per `await`. Stack
