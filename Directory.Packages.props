@@ -9,7 +9,7 @@
     <PackageVersion Include="Microsoft.Identity.Client" Version="4.92.0" />
     <PackageVersion Include="Microsoft.Identity.Client.Extensions.Msal" Version="4.92.0" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="11.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="11.0.1" />
     <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.3" />
   </ItemGroup>
 </Project>
